@@ -1,0 +1,5 @@
+Django~=5.2
+djangorestframework~=3.16
+firebase-admin>=6.5,<8
+django-cors-headers~=4.7
+python-dotenv~=1.1
