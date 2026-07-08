@@ -22,3 +22,25 @@ class User(AbstractUser):
 
     def __str__(self):
         return f'{self.username} ({self.get_role_display()})'
+
+
+class GuardianLink(models.Model):
+    guardian = models.ForeignKey(
+        User,
+        related_name='guardian_links',
+        on_delete=models.CASCADE,
+        limit_choices_to={'role': Roles.GUARDIAN},
+    )
+    player = models.ForeignKey(
+        User,
+        related_name='player_links',
+        on_delete=models.CASCADE,
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('guardian', 'player')
+
+    def __str__(self):
+        return f'{self.guardian.email} -> {self.player.email}'
