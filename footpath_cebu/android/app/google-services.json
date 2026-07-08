@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "155194186459",
+    "project_id": "footpath-cebu",
+    "storage_bucket": "footpath-cebu.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:155194186459:android:1d9675f5df6df5de8ecafe",
+        "android_client_info": {
+          "package_name": "com.example.footpath_cebu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAFfYsvLzEuC6pteIKZVPmoAy6EK1DyQBI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
