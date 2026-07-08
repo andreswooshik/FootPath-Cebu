@@ -2,10 +2,16 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'repositories/service_locator.dart';
 import 'screens/login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // TODO: Change to ServiceLocator.initFirebase() to use Firebase
+  //       Change to ServiceLocator.initMock() to use mock data
+  ServiceLocator.initMock();
+
   String? setupError;
   try {
     await Firebase.initializeApp(

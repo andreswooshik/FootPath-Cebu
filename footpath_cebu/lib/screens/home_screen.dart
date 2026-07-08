@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/auth_service.dart';
+import '../repositories/service_locator.dart';
 import 'login_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -10,7 +10,7 @@ class HomeScreen extends StatelessWidget {
   final Map<String, dynamic> profile;
 
   Future<void> _signOut(BuildContext context) async {
-    await AuthService().signOut();
+    await ServiceLocator.authRepository.signOut();
     if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LoginScreen()),

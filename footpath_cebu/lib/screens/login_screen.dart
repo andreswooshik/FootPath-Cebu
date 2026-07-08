@@ -1,7 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../services/auth_service.dart';
+import '../repositories/auth_repository.dart';
+import '../repositories/service_locator.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -14,7 +15,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _authService = AuthService();
+  late final _authRepository = ServiceLocator.authRepository;
 
   bool _loading = false;
   String? _error;
@@ -32,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      final profile = await _authService.signInAndFetchProfile(
+      final profile = await _authRepository.signInAndFetchProfile(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
@@ -42,7 +43,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on FirebaseAuthException catch (e) {
       setState(() => _error = _friendlyAuthMessage(e));
-    } on BackendAuthException catch (e) {
+    } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
       setState(() => _error = 'Could not sign in. Is the server running?');
