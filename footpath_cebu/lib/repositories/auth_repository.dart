@@ -9,6 +9,9 @@ abstract class AuthRepository {
 
   /// Signs out the current user.
   Future<void> signOut();
+
+  /// Sends a password reset email to the given address.
+  Future<void> sendPasswordResetEmail({required String email});
 }
 
 /// Thrown when sign-in fails.

@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   late final _authRepository = ServiceLocator.authRepository;
 
   bool _loading = false;
+  bool _sendingReset = false;
   String? _error;
 
   @override
@@ -49,6 +50,31 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _error = 'Could not sign in. Is the server running?');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _sendResetEmail() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Enter your email above first, then tap "Forgot password?".');
+      return;
+    }
+    setState(() {
+      _sendingReset = true;
+      _error = null;
+    });
+    try {
+      await _authRepository.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Password reset email sent to $email.')),
+      );
+    } on FirebaseAuthException catch (e) {
+      setState(() => _error = _friendlyAuthMessage(e));
+    } catch (e) {
+      setState(() => _error = 'Could not send reset email. Is the server running?');
+    } finally {
+      if (mounted) setState(() => _sendingReset = false);
     }
   }
 
@@ -116,8 +142,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     border: OutlineInputBorder(),
                   ),
                 ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _sendingReset ? null : _sendResetEmail,
+                    child: _sendingReset
+                        ? const SizedBox(
+                            height: 16,
+                            width: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Forgot password?'),
+                  ),
+                ),
                 if (_error != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   Text(
                     _error!,
                     textAlign: TextAlign.center,

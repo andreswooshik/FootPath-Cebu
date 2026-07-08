@@ -47,6 +47,11 @@ class MockAuthRepository implements AuthRepository {
   Future<void> signOut() async {
     await Future.delayed(const Duration(milliseconds: 200));
   }
+
+  @override
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+  }
 }
 
 extension on String {
