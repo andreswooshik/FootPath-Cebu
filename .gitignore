@@ -13,6 +13,19 @@ doc/api/
 # dotenv environment variables file
 .env*
 
+# Secrets — never commit server credentials or private keys (repo-wide,
+# belt-and-suspenders on top of backend/.gitignore). Note: Firebase CLIENT
+# config (google-services.json) is intentionally NOT ignored — it is bundled
+# into the app and is not a secret.
+**/secrets/
+*service-account*.json
+*serviceAccount*.json
+*firebase-adminsdk*.json
+*.pem
+*.key
+*.p12
+*.keystore
+
 # Avoid committing generated Javascript files (dart2js output lives under
 # build/, already ignored above; this repo also has hand-written JS under
 # backend/console/static/, so no blanket *.js rule here):
@@ -22,3 +35,6 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# Personal study notes for the skill test — not part of the project deliverable.
+study-notes/
