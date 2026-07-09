@@ -7,6 +7,7 @@ class MockAuthRepository implements AuthRepository {
     'player@example.com': 'demo123',
     'coach@example.com': 'demo123',
     'admin@example.com': 'demo123',
+    'guardian@example.com': 'demo123',
     'john.doe@example.com': 'demo123',
     'maria.santos@example.com': 'demo123',
   };
@@ -40,6 +41,9 @@ class MockAuthRepository implements AuthRepository {
   String _getRoleFromEmail(String email) {
     if (email.contains('coach')) return 'coach';
     if (email.contains('admin')) return 'admin';
+    if (email.contains('guardian') || email.contains('parent')) {
+      return 'guardian';
+    }
     return 'player';
   }
 
