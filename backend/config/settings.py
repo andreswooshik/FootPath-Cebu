@@ -36,6 +36,7 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2']
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -134,6 +135,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model — must be set before the first migrate ever runs.
 AUTH_USER_MODEL = 'accounts.User'
 
+# Django defaults this to 'DENY'. Jazzmin's related_modal_active loads admin
+# add/change forms in a same-origin iframe, so allow same-origin framing.
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
 # Dev only: Flutter web runs on a random localhost port each launch.
 CORS_ALLOW_ALL_ORIGINS = True
 
@@ -150,3 +155,48 @@ REST_FRAMEWORK = {
 FIREBASE_CREDENTIALS = BASE_DIR / os.environ.get(
     'FIREBASE_CREDENTIALS', 'secrets/firebase-service-account.json'
 )
+
+# django-jazzmin: theme for the built-in /admin/ site.
+JAZZMIN_SETTINGS = {
+    'site_title': 'FootPath Cebu Admin',
+    'site_header': 'FootPath Cebu',
+    'site_brand': 'FootPath Cebu',
+    'welcome_sign': 'FootPath Cebu Admin',
+    'copyright': 'FootPath Cebu',
+    'search_model': ['accounts.User'],
+    'user_avatar': None,
+    'topmenu_links': [
+        {'name': 'Admin Console', 'url': '/console/', 'new_window': True},
+    ],
+    'icons': {
+        'accounts.User': 'fas fa-user',
+        'accounts.GuardianLink': 'fas fa-link',
+    },
+    'default_icon_parents': 'fas fa-chevron-circle-right',
+    'default_icon_children': 'fas fa-circle',
+    'order_with_respect_to': ['accounts'],
+    # Groups are unused (authorization is via User.role), so hide the now-empty
+    # 'Authentication and Authorization' app from the sidebar.
+    'hide_apps': ['auth'],
+    # Brand polish: role/status pill badges, slate-charcoal palette, Inter font.
+    'custom_css': 'footpath/admin.css',
+    # Control-bar enhancer: rename bulk-action placeholder + relocate the toolbar.
+    'custom_js': 'footpath/admin.js',
+    # Add/edit related objects (e.g. picking a Group on the user form) in a
+    # popup modal instead of navigating away to a new page.
+    'related_modal_active': True,
+    'changeform_format': 'horizontal_tabs',
+}
+
+JAZZMIN_UI_TWEAKS = {
+    'theme': 'flatly',
+    # Default to the dark (charcoal) palette; navbar toggle still switches it.
+    'default_theme_mode': 'dark',
+    'navbar': 'navbar-dark',
+    'no_navbar_border': True,
+    'navbar_fixed': True,
+    'accent': 'accent-success',
+    'sidebar': 'sidebar-dark-success',
+    'sidebar_fixed': True,
+    'sidebar_nav_flat_style': True,
+}
