@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/service_locator.dart';
+import 'coach_dashboard_screen.dart';
+import 'guardian_dashboard_screen.dart';
 import 'login_screen.dart';
+import 'player_dashboard_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, required this.profile});
@@ -23,6 +26,18 @@ class HomeScreen extends StatelessWidget {
     final role = profile['role_display'] as String? ??
         profile['role'] as String? ??
         'unknown';
+
+    // Route each role to its dashboard; unknown roles fall through to the
+    // generic placeholder below.
+    final rawRole = (profile['role'] as String? ?? '').toLowerCase();
+    switch (rawRole) {
+      case 'coach':
+        return const CoachDashboardScreen();
+      case 'player':
+        return const PlayerDashboardScreen();
+      case 'guardian':
+        return const GuardianDashboardScreen();
+    }
 
     return Scaffold(
       appBar: AppBar(

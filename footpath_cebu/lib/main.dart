@@ -34,6 +34,7 @@ class FootPathApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'FootPath Cebu',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
       ),

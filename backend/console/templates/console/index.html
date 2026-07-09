@@ -1,4 +1,3 @@
-{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -39,14 +38,17 @@
     .error { color: #b71c1c; font-weight: 600; }
     .notice { background: #fff8e1; border: 1px solid #ffca28; border-radius: 4px; padding: 12px; margin-top: 12px; }
     #app-section { display: none; }
+    #create-user-result { display: none; }
     footer { margin-top: 40px; font-size: 0.8em; color: #777; }
+    .mt-0 { margin-top: 0; }
+    .row-header { display: flex; justify-content: space-between; align-items: center; }
   </style>
 </head>
 <body>
   <h1>⚽ FootPath Cebu — Admin Console</h1>
 
   <section id="login-section" class="card">
-    <h2 style="margin-top:0">Sign in</h2>
+    <h2 class="mt-0">Sign in</h2>
     <p>Admin accounts only. Accounts are issued by another administrator.</p>
     <label for="login-email">Email</label>
     <input id="login-email" type="email" autocomplete="username">
@@ -57,7 +59,7 @@
   </section>
 
   <section id="app-section">
-    <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="card row-header">
       <span>Signed in as <strong id="current-user-email"></strong></span>
       <button class="secondary" id="signout-button">Sign Out</button>
     </div>
@@ -79,7 +81,7 @@
       </select>
       <button id="create-user-button">Create Account</button>
       <p id="create-user-error" class="error"></p>
-      <div id="create-user-result" class="notice" style="display:none"></div>
+      <div id="create-user-result" class="notice"></div>
     </div>
 
     <h2>Users</h2>
@@ -113,6 +115,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  {% load static %}
   <script src="{% static 'console/app.js' %}"></script>
 </body>
 </html>
