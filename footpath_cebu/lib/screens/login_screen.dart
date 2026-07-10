@@ -19,6 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _loading = false;
   bool _sendingReset = false;
+  bool _showPassword = false;
   String? _error;
 
   @override
@@ -135,11 +136,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 16),
                 TextField(
                   controller: _passwordController,
-                  obscureText: true,
+                  obscureText: !_showPassword,
                   onSubmitted: (_) => _loading ? null : _signIn(),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Password',
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showPassword ? Icons.visibility : Icons.visibility_off,
+                      ),
+                      onPressed: () {
+                        setState(() => _showPassword = !_showPassword);
+                      },
+                    ),
                   ),
                 ),
                 Align(
