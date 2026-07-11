@@ -2,40 +2,45 @@
 
 Youth Sports Academy Portal — Capstone Project.
 
-**Stack:** Flutter (MVVM) · Firebase Authentication · Django REST backend · Firebase Cloud Messaging (FCM)
+**Stack:** Flutter (Clean Architecture + MVVM) · Firebase Authentication · Django REST backend · Firebase Cloud Messaging (FCM)
 
 ---
 
 ## Project layout
 
 ```
-footpath_cebu/   Flutter mobile app (Coach, Player, Guardian) — MVVM
+footpath_cebu/   Flutter mobile app (Coach, Player, Guardian) — Clean Architecture + MVVM
 backend/         Django REST API + admin console (account provisioning, RBAC)
 docs/            Requirements, setup, and detailed execution notes
 ```
 
-### Flutter MVVM structure (`footpath_cebu/lib/`)
+### Flutter Clean Architecture (`footpath_cebu/lib/`)
 
-The app follows a strict MVVM boundary: **View → ViewModel → Repository interface → Repository implementation**. Views never touch Firebase or HTTP directly; ViewModels hold only business logic; repositories abstract all data access.
-
-Precisely, this is **MVVM + the Repository pattern** — a pragmatic layered architecture, *not* full Clean Architecture (there is deliberately no separate use-case / interactor layer at this scope). SOLID shows up concretely: ViewModels depend on **narrow** repository interfaces (`SquadRepository`, `PlayerProfileRepository`, `LinkedPlayersRepository` — Interface Segregation + Dependency Inversion) resolved by `service_locator.dart`, and provider-specific concerns (Firebase, HTTP, JSON) stay in the data layer so the presentation layer is provider-agnostic.
+The app is organized into **Clean Architecture** layers with the Dependency Rule pointing inward: **presentation → domain ← data**. The domain layer is pure Dart (no Flutter, Firebase, or HTTP) and holds entities, repository *interfaces*, and **use cases** (interactors). ViewModels depend on use cases — never on a concrete data source — and the presentation layer within MVVM (View → ViewModel).
 
 ```
 lib/
-  models/          Immutable data classes (Player, Attendance, UserProfile) — no I/O, no UI
-  viewmodels/      ChangeNotifier state holders (CoachDashboardViewModel) — business logic only
-  repositories/    Interfaces (PlayerRepository) + implementations:
-                     mock_*  → in-memory data for UI development
-                     api_*   → live Django REST backend (Firebase ID-token auth)
-                   service_locator.dart wires mock vs. live via initMock()/initFirebase()
-  widgets/         Reusable UI (PlayerCard — the FUT-style roster card)
-  screens/         Views (CoachDashboardScreen, LoginScreen, HomeScreen)
+  domain/          Pure business core — no Flutter, no I/O
+    entities/        Immutable data classes (Player, UserProfile, Attendance)
+    repositories/    Abstract interfaces (AuthRepository, SquadRepository, ...)
+    usecases/        One class per operation (SignIn, GetSquad, GetMyProfile, ...)
+  data/            Implements the domain interfaces
+    repositories/    mock_* (in-memory) + firebase_/api_* (live Django REST + Firebase)
+  presentation/    UI + state (MVVM)
+    viewmodels/      ChangeNotifier state holders — depend on use cases only
+    screens/         Views (CoachDashboardScreen, LoginScreen, HomeScreen)
+    widgets/         Reusable UI (PlayerCard — the FUT-style roster card)
+  core/
+    config/          ApiConfig (base URLs)
+    di/              service_locator.dart — composition root; swaps mock <-> live
 ```
 
-**Feature reference — Coach dashboard "Active Squad Roster":**
-`CoachDashboardScreen` (View) → `CoachDashboardViewModel` (loading/search/counts) → `PlayerRepository` → `MockPlayerRepository` / `ApiPlayerRepository`. Run against mock data with `ServiceLocator.initMock()` in `main.dart`.
+SOLID shows up concretely: use cases depend on **narrow** repository interfaces (`SquadRepository`, `PlayerProfileRepository`, `LinkedPlayersRepository` — Interface Segregation + Dependency Inversion); provider-specific concerns (Firebase, HTTP, JSON) stay in the data layer so domain and presentation stay provider-agnostic.
 
-Tests live in `footpath_cebu/test/` (model round-trips, ViewModel filtering/error paths, dashboard widget tests). Run with `flutter test`.
+**Feature trace — Coach dashboard "Active Squad Roster":**
+`CoachDashboardScreen` (View) → `CoachDashboardViewModel` → `GetSquad` (use case) → `SquadRepository` → `MockPlayerRepository` / `ApiPlayerRepository`. Swap mock/live in `main.dart` via `ServiceLocator.initMock()` / `initFirebase()`.
+
+Tests live in `footpath_cebu/test/` (entity round-trips, ViewModel filtering/error paths, dashboard widget tests). Run with `flutter test`.
 
 ---
 

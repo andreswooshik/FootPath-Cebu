@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../models/player.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
 
 /// A FUT-style squad card: the green rating card on top, with the player's
 /// real name, age/class, and academic-standing badge underneath.

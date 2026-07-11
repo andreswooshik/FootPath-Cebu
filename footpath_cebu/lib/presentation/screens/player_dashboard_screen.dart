@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../repositories/service_locator.dart';
-import '../viewmodels/player_dashboard_viewmodel.dart';
-import '../widgets/dashboard_states.dart';
-import '../widgets/player_card.dart';
-import 'login_screen.dart';
+import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/presentation/screens/login_screen.dart';
+import 'package:footpath_cebu/presentation/viewmodels/player_dashboard_viewmodel.dart';
+import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 
 /// Player Portal — the signed-in player's own profile and status.
 ///
@@ -19,7 +19,7 @@ class PlayerDashboardScreen extends StatefulWidget {
 
 class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
   late final PlayerDashboardViewModel _viewModel =
-      PlayerDashboardViewModel(ServiceLocator.playerRepository);
+      PlayerDashboardViewModel(ServiceLocator.getMyProfile);
 
   @override
   void initState() {
@@ -34,7 +34,7 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
   }
 
   Future<void> _signOut() async {
-    await ServiceLocator.authRepository.signOut();
+    await ServiceLocator.signOut();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LoginScreen()),

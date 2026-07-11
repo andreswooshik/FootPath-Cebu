@@ -1,14 +1,15 @@
 import 'package:flutter/foundation.dart';
 
-import '../models/player.dart';
-import '../repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 
 /// Drives the Guardian dashboard — a read-only list of the guardian's linked
 /// children. Business logic only; no Firebase/HTTP.
 class GuardianDashboardViewModel extends ChangeNotifier {
-  GuardianDashboardViewModel(this._repository);
+  GuardianDashboardViewModel(this._getLinkedPlayers);
 
-  final LinkedPlayersRepository _repository;
+  final GetLinkedPlayers _getLinkedPlayers;
 
   List<Player> _children = const [];
   bool _loading = false;
@@ -24,7 +25,7 @@ class GuardianDashboardViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _children = await _repository.fetchLinkedPlayers();
+      _children = await _getLinkedPlayers();
     } on PlayerRepositoryException catch (e) {
       _error = e.message;
     } catch (_) {

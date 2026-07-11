@@ -1,18 +1,19 @@
 import 'package:flutter/foundation.dart';
 
-import '../models/player.dart';
-import '../repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/usecases/get_squad.dart';
 
 /// Drives the Coach dashboard's Active Squad Roster.
 ///
 /// Holds only presentation state and business logic (loading, search filter,
-/// derived counts). It depends on [SquadRepository] — the *narrow* abstraction
-/// it actually uses (ISP), not a concrete Firebase/HTTP class — so it can be
-/// unit-tested with a fake.
+/// derived counts). It depends on the [GetSquad] use case (which wraps the
+/// narrow SquadRepository — ISP), not a concrete Firebase/HTTP class — so it
+/// can be unit-tested with a fake.
 class CoachDashboardViewModel extends ChangeNotifier {
-  CoachDashboardViewModel(this._repository);
+  CoachDashboardViewModel(this._getSquad);
 
-  final SquadRepository _repository;
+  final GetSquad _getSquad;
 
   List<Player> _squad = const [];
   bool _loading = false;
@@ -43,7 +44,7 @@ class CoachDashboardViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _squad = await _repository.fetchSquad();
+      _squad = await _getSquad();
     } on PlayerRepositoryException catch (e) {
       _error = e.message;
     } catch (_) {

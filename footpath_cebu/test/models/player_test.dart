@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:footpath_cebu/models/player.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
 
 void main() {
   group('PlayerRatings', () {

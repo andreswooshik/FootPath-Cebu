@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../repositories/service_locator.dart';
-import '../viewmodels/coach_dashboard_viewmodel.dart';
-import '../widgets/dashboard_states.dart';
-import '../widgets/player_card.dart';
+import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/presentation/viewmodels/coach_dashboard_viewmodel.dart';
+import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 
 /// Coach Portal — the Active Squad Roster.
 ///
@@ -18,7 +18,7 @@ class CoachDashboardScreen extends StatefulWidget {
 
 class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
   late final CoachDashboardViewModel _viewModel =
-      CoachDashboardViewModel(ServiceLocator.playerRepository);
+      CoachDashboardViewModel(ServiceLocator.getSquad);
 
   @override
   void initState() {

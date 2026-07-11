@@ -1,14 +1,15 @@
 import 'package:flutter/foundation.dart';
 
-import '../models/player.dart';
-import '../repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
 
 /// Drives the Player dashboard — the signed-in player's own profile card,
 /// eligibility status, and summary. Business logic only; no Firebase/HTTP.
 class PlayerDashboardViewModel extends ChangeNotifier {
-  PlayerDashboardViewModel(this._repository);
+  PlayerDashboardViewModel(this._getMyProfile);
 
-  final PlayerProfileRepository _repository;
+  final GetMyProfile _getMyProfile;
 
   Player? _player;
   bool _loading = false;
@@ -23,7 +24,7 @@ class PlayerDashboardViewModel extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      _player = await _repository.fetchMyProfile();
+      _player = await _getMyProfile();
     } on PlayerRepositoryException catch (e) {
       _error = e.message;
     } catch (_) {

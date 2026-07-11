@@ -1,11 +1,10 @@
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:footpath_cebu/core/config/api_config.dart';
+import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:http/http.dart' as http;
-
-import '../config/api_config.dart';
-import '../models/user_profile.dart';
-import 'auth_repository.dart';
 
 /// Firebase implementation of [AuthRepository].
 ///

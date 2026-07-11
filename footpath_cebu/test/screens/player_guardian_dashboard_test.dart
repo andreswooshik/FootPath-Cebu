@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:footpath_cebu/repositories/service_locator.dart';
-import 'package:footpath_cebu/screens/guardian_dashboard_screen.dart';
-import 'package:footpath_cebu/screens/player_dashboard_screen.dart';
-import 'package:footpath_cebu/widgets/player_card.dart';
+import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
+import 'package:footpath_cebu/presentation/screens/player_dashboard_screen.dart';
+import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 
 void main() {
   setUp(ServiceLocator.initMock);

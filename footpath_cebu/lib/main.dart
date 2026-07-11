@@ -1,9 +1,9 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 
 import 'firebase_options.dart';
-import 'repositories/service_locator.dart';
-import 'screens/login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

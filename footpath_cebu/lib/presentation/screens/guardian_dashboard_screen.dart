@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../repositories/service_locator.dart';
-import '../viewmodels/guardian_dashboard_viewmodel.dart';
-import '../widgets/dashboard_states.dart';
-import '../widgets/player_card.dart';
-import 'login_screen.dart';
+import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/presentation/screens/login_screen.dart';
+import 'package:footpath_cebu/presentation/viewmodels/guardian_dashboard_viewmodel.dart';
+import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 
 /// Guardian Portal — a read-only view of the guardian's linked children.
 ///
@@ -20,7 +20,7 @@ class GuardianDashboardScreen extends StatefulWidget {
 
 class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
   late final GuardianDashboardViewModel _viewModel =
-      GuardianDashboardViewModel(ServiceLocator.playerRepository);
+      GuardianDashboardViewModel(ServiceLocator.getLinkedPlayers);
 
   @override
   void initState() {
@@ -35,7 +35,7 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
   }
 
   Future<void> _signOut() async {
-    await ServiceLocator.authRepository.signOut();
+    await ServiceLocator.signOut();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LoginScreen()),

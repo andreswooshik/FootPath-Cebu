@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:footpath_cebu/models/player.dart';
-import 'package:footpath_cebu/repositories/player_repository.dart';
-import 'package:footpath_cebu/viewmodels/coach_dashboard_viewmodel.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/usecases/get_squad.dart';
+import 'package:footpath_cebu/presentation/viewmodels/coach_dashboard_viewmodel.dart';
 
 /// Fake repo returning a fixed roster — lets us assert on filtering/counts
 /// without touching Firebase or HTTP.
@@ -56,10 +57,10 @@ void main() {
   group('CoachDashboardViewModel', () {
     test('loadSquad populates players and registered count', () async {
       final vm = CoachDashboardViewModel(
-        _FakePlayerRepository([
+        GetSquad(_FakePlayerRepository([
           _player('1', 'Messi', 'CAM'),
           _player('2', 'Ronaldo', 'ST'),
-        ]),
+        ])),
       );
 
       expect(vm.isLoading, isFalse);
@@ -73,10 +74,10 @@ void main() {
 
     test('search filters by name (case-insensitive)', () async {
       final vm = CoachDashboardViewModel(
-        _FakePlayerRepository([
+        GetSquad(_FakePlayerRepository([
           _player('1', 'Messi', 'CAM'),
           _player('2', 'Ronaldo', 'ST'),
-        ]),
+        ])),
       );
       await vm.loadSquad();
 
@@ -89,10 +90,10 @@ void main() {
 
     test('search matches position too', () async {
       final vm = CoachDashboardViewModel(
-        _FakePlayerRepository([
+        GetSquad(_FakePlayerRepository([
           _player('1', 'Messi', 'CAM'),
           _player('2', 'Ronaldo', 'ST'),
-        ]),
+        ])),
       );
       await vm.loadSquad();
 
@@ -102,7 +103,7 @@ void main() {
 
     test('clearing the query restores the full roster', () async {
       final vm = CoachDashboardViewModel(
-        _FakePlayerRepository([_player('1', 'Messi', 'CAM')]),
+        GetSquad(_FakePlayerRepository([_player('1', 'Messi', 'CAM')])),
       );
       await vm.loadSquad();
 
@@ -113,7 +114,7 @@ void main() {
     });
 
     test('loadSquad surfaces repository errors', () async {
-      final vm = CoachDashboardViewModel(_FailingPlayerRepository());
+      final vm = CoachDashboardViewModel(GetSquad(_FailingPlayerRepository()));
       await vm.loadSquad();
 
       expect(vm.error, 'boom');
@@ -123,7 +124,7 @@ void main() {
 
     test('notifies listeners when loading and searching', () async {
       final vm = CoachDashboardViewModel(
-        _FakePlayerRepository([_player('1', 'Messi', 'CAM')]),
+        GetSquad(_FakePlayerRepository([_player('1', 'Messi', 'CAM')])),
       );
       var notifications = 0;
       vm.addListener(() => notifications++);

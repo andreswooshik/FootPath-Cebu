@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../repositories/service_locator.dart';
-import '../viewmodels/login_viewmodel.dart';
-import 'home_screen.dart';
+import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/presentation/screens/home_screen.dart';
+import 'package:footpath_cebu/presentation/viewmodels/login_viewmodel.dart';
 
 /// UI-only view for login. All business logic is in LoginViewModel.
 class LoginScreen extends StatefulWidget {
@@ -13,8 +13,10 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  late final LoginViewModel _viewModel =
-      LoginViewModel(ServiceLocator.authRepository);
+  late final LoginViewModel _viewModel = LoginViewModel(
+    ServiceLocator.signIn,
+    ServiceLocator.sendPasswordReset,
+  );
 
   @override
   void dispose() {

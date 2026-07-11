@@ -1,4 +1,4 @@
-import '../models/player.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
 
 /// Squad roster reads — used by the Coach dashboard.
 abstract class SquadRepository {

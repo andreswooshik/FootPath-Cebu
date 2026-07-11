@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:footpath_cebu/models/player.dart';
-import 'package:footpath_cebu/repositories/player_repository.dart';
-import 'package:footpath_cebu/viewmodels/guardian_dashboard_viewmodel.dart';
-import 'package:footpath_cebu/viewmodels/player_dashboard_viewmodel.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
+import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
+import 'package:footpath_cebu/presentation/viewmodels/guardian_dashboard_viewmodel.dart';
+import 'package:footpath_cebu/presentation/viewmodels/player_dashboard_viewmodel.dart';
 
 Player _player(String id, String name) => Player(
       id: id,
@@ -44,7 +46,9 @@ class _FakeRepo implements PlayerRepository {
 void main() {
   group('PlayerDashboardViewModel', () {
     test('load populates the signed-in player', () async {
-      final vm = PlayerDashboardViewModel(_FakeRepo(me: _player('1', 'Messi')));
+      final vm = PlayerDashboardViewModel(
+        GetMyProfile(_FakeRepo(me: _player('1', 'Messi'))),
+      );
       await vm.load();
 
       expect(vm.error, isNull);
@@ -53,7 +57,7 @@ void main() {
     });
 
     test('load surfaces repository errors', () async {
-      final vm = PlayerDashboardViewModel(_FakeRepo());
+      final vm = PlayerDashboardViewModel(GetMyProfile(_FakeRepo()));
       await vm.load();
 
       expect(vm.player, isNull);
@@ -64,7 +68,9 @@ void main() {
   group('GuardianDashboardViewModel', () {
     test('load populates linked children and count', () async {
       final vm = GuardianDashboardViewModel(
-        _FakeRepo(children: [_player('2', 'A'), _player('3', 'B')]),
+        GetLinkedPlayers(
+          _FakeRepo(children: [_player('2', 'A'), _player('3', 'B')]),
+        ),
       );
       await vm.load();
 
@@ -74,7 +80,7 @@ void main() {
     });
 
     test('empty roster yields zero children', () async {
-      final vm = GuardianDashboardViewModel(_FakeRepo());
+      final vm = GuardianDashboardViewModel(GetLinkedPlayers(_FakeRepo()));
       await vm.load();
 
       expect(vm.childCount, 0);

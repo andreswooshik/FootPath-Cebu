@@ -1,4 +1,4 @@
-import '../models/user_profile.dart';
+import 'package:footpath_cebu/domain/entities/user_profile.dart';
 
 /// Abstract interface for authentication operations.
 abstract class AuthRepository {

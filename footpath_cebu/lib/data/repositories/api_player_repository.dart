@@ -1,11 +1,10 @@
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:footpath_cebu/core/config/api_config.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:http/http.dart' as http;
-
-import '../config/api_config.dart';
-import '../models/player.dart';
-import 'player_repository.dart';
 
 /// Live implementation backed by the Django REST API, authenticated with the
 /// signed-in coach's Firebase ID token (same pattern as

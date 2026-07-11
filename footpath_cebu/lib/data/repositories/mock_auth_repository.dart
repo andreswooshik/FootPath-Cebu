@@ -1,5 +1,5 @@
-import '../models/user_profile.dart';
-import 'auth_repository.dart';
+import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 
 /// Mock implementation for UI development without Firebase.
 class MockAuthRepository implements AuthRepository {

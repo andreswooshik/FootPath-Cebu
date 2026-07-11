@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../models/user_profile.dart';
-import '../repositories/service_locator.dart';
-import 'coach_dashboard_screen.dart';
-import 'guardian_dashboard_screen.dart';
-import 'login_screen.dart';
-import 'player_dashboard_screen.dart';
+import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
+import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
+import 'package:footpath_cebu/presentation/screens/login_screen.dart';
+import 'package:footpath_cebu/presentation/screens/player_dashboard_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, required this.profile});
@@ -14,7 +14,7 @@ class HomeScreen extends StatelessWidget {
   final UserProfile profile;
 
   Future<void> _signOut(BuildContext context) async {
-    await ServiceLocator.authRepository.signOut();
+    await ServiceLocator.signOut();
     if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LoginScreen()),

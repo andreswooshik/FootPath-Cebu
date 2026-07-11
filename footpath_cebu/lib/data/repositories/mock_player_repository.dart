@@ -1,5 +1,5 @@
-import '../models/player.dart';
-import 'player_repository.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 
 /// In-memory squad roster for UI development without a backend.
 class MockPlayerRepository implements PlayerRepository {

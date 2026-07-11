@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../models/user_profile.dart';
-import '../repositories/auth_repository.dart';
+import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
+import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
+import 'package:footpath_cebu/domain/usecases/sign_in.dart';
 
 /// Handles login and password reset business logic.
 ///
@@ -9,9 +11,10 @@ import '../repositories/auth_repository.dart';
 /// any UI dependencies. The View (LoginScreen) only displays state and
 /// calls these methods.
 class LoginViewModel extends ChangeNotifier {
-  LoginViewModel(this._authRepository);
+  LoginViewModel(this._signIn, this._sendPasswordReset);
 
-  final AuthRepository _authRepository;
+  final SignIn _signIn;
+  final SendPasswordReset _sendPasswordReset;
 
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
@@ -37,7 +40,7 @@ class LoginViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final profile = await _authRepository.signInAndFetchProfile(
+      final profile = await _signIn(
         email: emailController.text.trim(),
         password: passwordController.text,
       );
@@ -68,7 +71,7 @@ class LoginViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _authRepository.sendPasswordResetEmail(email: email);
+      await _sendPasswordReset(email: email);
       _sendingReset = false;
       notifyListeners();
       return true;
