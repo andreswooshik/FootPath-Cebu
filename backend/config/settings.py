@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -19,6 +20,11 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / '.env')
+
+# True while running `manage.py test`. Used to force SQLite for the test suite
+# even when DB_* env vars point at a shared Postgres, so tests stay fast, run
+# offline, and never create a throwaway test DB on Supabase.
+TESTING = 'test' in sys.argv
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -82,13 +88,34 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+#
+# Default is local SQLite so a fresh clone (and the test suite) runs with zero
+# setup. Set the DB_* env vars (see .env.example) to point at a shared Postgres
+# such as Supabase. Supabase IS Postgres, so nothing but this connection block
+# changes — Django stays the source of truth; we do NOT use Supabase Auth/RLS.
+# The test suite always uses SQLite (see TESTING above), never the shared DB.
+if os.environ.get('DB_HOST') and not TESTING:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'postgres'),
+            'USER': os.environ['DB_USER'],
+            'PASSWORD': os.environ['DB_PASSWORD'],
+            'HOST': os.environ['DB_HOST'],
+            'PORT': os.environ.get('DB_PORT', '5432'),
+            'OPTIONS': {'sslmode': 'require'},
+            # Supabase's transaction pooler (port 6543) doesn't support the
+            # server-side cursors Django uses by default; harmless on 5432.
+            'DISABLE_SERVER_SIDE_CURSORS': os.environ.get('DB_PORT') == '6543',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation

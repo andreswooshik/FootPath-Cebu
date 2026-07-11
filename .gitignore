@@ -12,6 +12,9 @@ doc/api/
 
 # dotenv environment variables file
 .env*
+# ...but keep the committed template (placeholders only, no real secrets) tracked
+# so teammates know which vars to set. The real .env stays ignored above.
+!.env.example
 
 # Secrets — never commit server credentials or private keys (repo-wide,
 # belt-and-suspenders on top of backend/.gitignore). Note: Firebase CLIENT
