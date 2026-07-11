@@ -10,7 +10,7 @@ Future<void> main() async {
 
   // TODO: Change to ServiceLocator.initFirebase() to use Firebase
   //       Change to ServiceLocator.initMock() to use mock data
-  ServiceLocator.initMock();
+  ServiceLocator.initFirebase();
 
   String? setupError;
   try {
