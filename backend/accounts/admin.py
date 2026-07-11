@@ -1,9 +1,10 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import Group
 from django.utils.html import format_html
 
 from .models import GuardianLink, Roles, User
+from .services import link_or_create_firebase_user
 
 # This project authorizes by the custom User.role field (see accounts.permissions),
 # not Django's Groups/Permissions. Hide Groups so the admin isn't cluttered with an
@@ -62,6 +63,61 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
             'fields': ('username', 'email', 'password1', 'password2', 'role'),
         }),
     )
+
+    def save_model(self, request, obj, form, change):
+        """Auto-sync a Firebase identity when an Admin creates an app account.
+
+        Creating a User here normally writes only a DB row, so the account has
+        no Firebase identity and can't log into the app (that is how a
+        firebase_uid ends up NULL). For a NEW, non-Django-admin account with an
+        email, we create/link a Firebase account and stamp firebase_uid — the
+        same provisioning the /api/admin/users/ endpoint does. The password
+        typed in the add form becomes the Firebase password, so the account
+        works in the app immediately.
+        """
+        super().save_model(request, obj, form, change)
+
+        # Only newly-created app accounts that aren't linked yet. Staff/superuser
+        # accounts log into /admin/ with a session password, not Firebase.
+        if change or obj.firebase_uid or obj.is_staff or obj.is_superuser:
+            return
+
+        if not obj.email:
+            self.message_user(
+                request,
+                f'{obj.username}: no email set, so it was NOT synced to Firebase '
+                'and cannot log into the app. Add an email and re-save to sync.',
+                level=messages.WARNING,
+            )
+            return
+
+        try:
+            temp_password = link_or_create_firebase_user(
+                obj, password=form.cleaned_data.get('password1')
+            )
+            obj.save(update_fields=['firebase_uid', 'password'])
+        except Exception as exc:  # keep the admin resilient to Firebase errors
+            self.message_user(
+                request,
+                f'Saved locally, but Firebase sync failed: {exc}. The user '
+                'cannot log into the app until this is resolved.',
+                level=messages.ERROR,
+            )
+            return
+
+        if temp_password is not None:
+            self.message_user(
+                request,
+                f'Synced to Firebase. App login → {obj.email} / the password you set.',
+                level=messages.SUCCESS,
+            )
+        else:
+            self.message_user(
+                request,
+                f'Linked to the existing Firebase account for {obj.email} '
+                '(its password was left unchanged).',
+                level=messages.SUCCESS,
+            )
 
     @admin.display(description='Name')
     def full_name(self, obj):

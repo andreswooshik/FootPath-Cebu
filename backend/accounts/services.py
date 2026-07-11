@@ -13,6 +13,41 @@ class ProvisioningError(Exception):
     """Raised when a user cannot be provisioned (bad input, conflicts)."""
 
 
+def link_or_create_firebase_user(user, *, password=None):
+    """Ensure `user.email` has a Firebase account and link `user.firebase_uid`.
+
+    Adopts an existing Firebase account for that email if one exists (its
+    password is left untouched); otherwise creates a new one. Also marks the
+    local password unusable, since API/app users authenticate via Firebase
+    only. The caller is responsible for saving `user`.
+
+    Returns the temporary password when a NEW Firebase account was created
+    (the given `password`, or a generated one), or None when an existing
+    account was adopted.
+    """
+    if not user.email:
+        raise ProvisioningError(
+            'A user needs an email before it can be synced to Firebase.'
+        )
+
+    ensure_initialized()
+
+    temp_password = None
+    try:
+        fb_user = firebase_auth.get_user_by_email(user.email)
+    except firebase_auth.UserNotFoundError:
+        temp_password = password or get_random_string(
+            12, allowed_chars=_PASSWORD_CHARS
+        )
+        fb_user = firebase_auth.create_user(
+            email=user.email, password=temp_password
+        )
+
+    user.firebase_uid = fb_user.uid
+    user.set_unusable_password()
+    return temp_password
+
+
 def provision_user(*, email, first_name, last_name, role):
     """Create a Firebase account (if needed) and a linked local User.
 
@@ -24,26 +59,19 @@ def provision_user(*, email, first_name, last_name, role):
     if User.objects.filter(email__iexact=email).exists():
         raise ProvisioningError(f'{email} is already provisioned.')
 
-    ensure_initialized()
-
-    temp_password = None
-    note = ''
-    try:
-        fb_user = firebase_auth.get_user_by_email(email)
-        note = 'Existing Firebase account linked; its current password was left unchanged.'
-    except firebase_auth.UserNotFoundError:
-        temp_password = get_random_string(12, allowed_chars=_PASSWORD_CHARS)
-        fb_user = firebase_auth.create_user(email=email, password=temp_password)
-
-    user = User.objects.create(
-        firebase_uid=fb_user.uid,
+    user = User(
         username=email,
         email=email,
         first_name=first_name,
         last_name=last_name,
         role=role,
     )
-    user.set_unusable_password()
+    temp_password = link_or_create_firebase_user(user)
     user.save()
 
+    note = (
+        'New Firebase account created.'
+        if temp_password
+        else 'Existing Firebase account linked; its current password was left unchanged.'
+    )
     return user, temp_password, note
