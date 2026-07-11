@@ -8,7 +8,8 @@ import '../models/player.dart';
 import 'player_repository.dart';
 
 /// Live implementation backed by the Django REST API, authenticated with the
-/// signed-in coach's Firebase ID token (same pattern as [AuthService]).
+/// signed-in coach's Firebase ID token (same pattern as
+/// [FirebaseAuthRepository]).
 class ApiPlayerRepository implements PlayerRepository {
   @override
   Future<List<Player>> fetchSquad() => _getList('/api/players/');

@@ -1,3 +1,4 @@
+import '../models/user_profile.dart';
 import 'auth_repository.dart';
 
 /// Mock implementation for UI development without Firebase.
@@ -13,7 +14,7 @@ class MockAuthRepository implements AuthRepository {
   };
 
   @override
-  Future<Map<String, dynamic>> signInAndFetchProfile({
+  Future<UserProfile> signInAndFetchProfile({
     required String email,
     required String password,
   }) async {
@@ -24,14 +25,16 @@ class MockAuthRepository implements AuthRepository {
     final isValidAccount = mockAccounts[email] == password || password == 'demo123';
 
     if (isValidAccount) {
-      return {
-        'id': '${email.hashCode}'.replaceAll('-', ''),
-        'email': email,
-        'name': email.split('@')[0].replaceAll('.', ' ').titleCase,
-        'role': _getRoleFromEmail(email),
-        'avatar': null,
-        'created_at': '2024-01-01T00:00:00Z',
-      };
+      // Mirror the real /api/auth/me/ contract (upper-case role, name parts).
+      final role = _getRoleFromEmail(email).toUpperCase();
+      return UserProfile(
+        id: '${email.hashCode}'.replaceAll('-', ''),
+        email: email,
+        firstName: email.split('@')[0].replaceAll('.', ' ').titleCase,
+        lastName: '',
+        role: role,
+        roleDisplay: role.titleCase,
+      );
     }
 
     // Simulate incorrect password

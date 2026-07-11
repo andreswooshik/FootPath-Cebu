@@ -1,6 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../models/user_profile.dart';
 import '../repositories/auth_repository.dart';
 
 /// Handles login and password reset business logic.
@@ -31,7 +31,7 @@ class LoginViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<Map<String, dynamic>?> signIn() async {
+  Future<UserProfile?> signIn() async {
     _loading = true;
     _error = null;
     notifyListeners();
@@ -44,8 +44,6 @@ class LoginViewModel extends ChangeNotifier {
       _loading = false;
       notifyListeners();
       return profile;
-    } on FirebaseAuthException catch (e) {
-      _error = _friendlyAuthMessage(e);
     } on AuthException catch (e) {
       _error = e.message;
     } catch (e) {
@@ -74,8 +72,8 @@ class LoginViewModel extends ChangeNotifier {
       _sendingReset = false;
       notifyListeners();
       return true;
-    } on FirebaseAuthException catch (e) {
-      _error = _friendlyAuthMessage(e);
+    } on AuthException catch (e) {
+      _error = e.message;
     } catch (e) {
       _error = 'Could not send reset email. Is the server running?';
     } finally {
@@ -83,25 +81,6 @@ class LoginViewModel extends ChangeNotifier {
       notifyListeners();
     }
     return false;
-  }
-
-  String _friendlyAuthMessage(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'invalid-credential':
-      case 'wrong-password':
-      case 'user-not-found':
-        return 'Incorrect email or password.';
-      case 'invalid-email':
-        return 'Enter a valid email address.';
-      case 'user-disabled':
-        return 'This account has been disabled.';
-      case 'too-many-requests':
-        return 'Too many attempts. Try again later.';
-      case 'network-request-failed':
-        return 'Network error. Check your connection.';
-      default:
-        return 'Sign-in failed (${e.code}).';
-    }
   }
 
   @override

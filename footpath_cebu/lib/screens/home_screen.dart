@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/user_profile.dart';
 import '../repositories/service_locator.dart';
 import 'coach_dashboard_screen.dart';
 import 'guardian_dashboard_screen.dart';
@@ -9,8 +10,8 @@ import 'player_dashboard_screen.dart';
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, required this.profile});
 
-  /// Profile payload from GET /api/auth/me/ (email, role, role_display, ...).
-  final Map<String, dynamic> profile;
+  /// The signed-in user, from GET /api/auth/me/.
+  final UserProfile profile;
 
   Future<void> _signOut(BuildContext context) async {
     await ServiceLocator.authRepository.signOut();
@@ -22,20 +23,14 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final email = profile['email'] as String? ?? 'unknown';
-    final role = profile['role_display'] as String? ??
-        profile['role'] as String? ??
-        'unknown';
-
     // Route each role to its dashboard; unknown roles fall through to the
     // generic placeholder below.
-    final rawRole = (profile['role'] as String? ?? '').toLowerCase();
-    switch (rawRole) {
-      case 'coach':
+    switch (profile.role) {
+      case 'COACH':
         return const CoachDashboardScreen();
-      case 'player':
+      case 'PLAYER':
         return const PlayerDashboardScreen();
-      case 'guardian':
+      case 'GUARDIAN':
         return const GuardianDashboardScreen();
     }
 
@@ -57,11 +52,11 @@ class HomeScreen extends StatelessWidget {
             const Icon(Icons.verified_user, size: 64, color: Colors.green),
             const SizedBox(height: 16),
             Text(
-              'Signed in as $email',
+              'Signed in as ${profile.email}',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
-            Chip(label: Text('Role: $role')),
+            Chip(label: Text('Role: ${profile.displayRole}')),
           ],
         ),
       ),

@@ -1,8 +1,13 @@
+import '../models/user_profile.dart';
+
 /// Abstract interface for authentication operations.
 abstract class AuthRepository {
-  /// Signs in with email and password, returns user profile.
-  /// Profile includes: email, role, name, id, etc.
-  Future<Map<String, dynamic>> signInAndFetchProfile({
+  /// Signs in with email and password, returning the typed user profile.
+  ///
+  /// Implementations translate provider-specific failures (e.g. Firebase's
+  /// [FirebaseAuthException]) into [AuthException] so callers — ViewModels —
+  /// never depend on the auth provider.
+  Future<UserProfile> signInAndFetchProfile({
     required String email,
     required String password,
   });
