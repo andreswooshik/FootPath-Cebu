@@ -136,6 +136,48 @@ class ProvisionUserTests(TestCase):
             )
         mock_create.assert_not_called()  # never touches Firebase on a dupe
 
+    @patch('accounts.services.ensure_initialized')
+    @patch('accounts.services.firebase_auth.delete_user')
+    @patch('accounts.services.firebase_auth.create_user')
+    @patch('accounts.services.firebase_auth.get_user_by_email')
+    def test_deletes_new_firebase_account_when_db_save_fails(
+        self, mock_get, mock_create, mock_delete, _init
+    ):
+        # We CREATE a Firebase account, then the DB write blows up.
+        mock_get.side_effect = firebase_auth.UserNotFoundError('not found')
+        mock_create.return_value = Mock(uid='orphan-uid')
+
+        with patch.object(User, 'save', side_effect=RuntimeError('db down')):
+            with self.assertRaises(RuntimeError):
+                provision_user(
+                    email='fail@x.test', first_name='F', last_name='X',
+                    role=Roles.PLAYER,
+                )
+
+        # Compensation ran: the orphan Firebase account was deleted.
+        mock_delete.assert_called_once_with('orphan-uid')
+        self.assertFalse(User.objects.filter(email='fail@x.test').exists())
+
+    @patch('accounts.services.ensure_initialized')
+    @patch('accounts.services.firebase_auth.delete_user')
+    @patch('accounts.services.firebase_auth.create_user')
+    @patch('accounts.services.firebase_auth.get_user_by_email')
+    def test_does_not_delete_adopted_account_when_db_save_fails(
+        self, mock_get, mock_create, mock_delete, _init
+    ):
+        # We ADOPT an existing Firebase account; a DB failure must NOT delete it.
+        mock_get.return_value = Mock(uid='existing-uid')
+
+        with patch.object(User, 'save', side_effect=RuntimeError('db down')):
+            with self.assertRaises(RuntimeError):
+                provision_user(
+                    email='adopt@x.test', first_name='A', last_name='D',
+                    role=Roles.PLAYER,
+                )
+
+        mock_create.assert_not_called()
+        mock_delete.assert_not_called()  # never delete an account we didn't make
+
 
 class AdminAutoSyncTests(TestCase):
     """`CustomUserAdmin.save_model` auto-provisions Firebase for new accounts.

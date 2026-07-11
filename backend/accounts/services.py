@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils.crypto import get_random_string
 from firebase_admin import auth as firebase_auth
 
@@ -67,7 +68,20 @@ def provision_user(*, email, first_name, last_name, role):
         role=role,
     )
     temp_password = link_or_create_firebase_user(user)
-    user.save()
+
+    try:
+        with transaction.atomic():
+            user.save()
+    except Exception:
+        # Compensation: if we just CREATED the Firebase account, delete it so a
+        # DB failure never leaves an orphaned identity (audit checklist item 5).
+        # An adopted, pre-existing account (temp_password is None) is left alone.
+        if temp_password is not None and user.firebase_uid:
+            try:
+                firebase_auth.delete_user(user.firebase_uid)
+            except Exception:
+                pass  # best-effort cleanup; surface the original DB error
+        raise
 
     note = (
         'New Firebase account created.'
