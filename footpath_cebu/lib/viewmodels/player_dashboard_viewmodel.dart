@@ -8,7 +8,7 @@ import '../repositories/player_repository.dart';
 class PlayerDashboardViewModel extends ChangeNotifier {
   PlayerDashboardViewModel(this._repository);
 
-  final PlayerRepository _repository;
+  final PlayerProfileRepository _repository;
 
   Player? _player;
   bool _loading = false;

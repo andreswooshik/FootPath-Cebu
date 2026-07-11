@@ -8,7 +8,7 @@ import '../repositories/player_repository.dart';
 class GuardianDashboardViewModel extends ChangeNotifier {
   GuardianDashboardViewModel(this._repository);
 
-  final PlayerRepository _repository;
+  final LinkedPlayersRepository _repository;
 
   List<Player> _children = const [];
   bool _loading = false;

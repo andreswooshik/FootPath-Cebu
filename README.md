@@ -18,6 +18,8 @@ docs/            Requirements, setup, and detailed execution notes
 
 The app follows a strict MVVM boundary: **View → ViewModel → Repository interface → Repository implementation**. Views never touch Firebase or HTTP directly; ViewModels hold only business logic; repositories abstract all data access.
 
+Precisely, this is **MVVM + the Repository pattern** — a pragmatic layered architecture, *not* full Clean Architecture (there is deliberately no separate use-case / interactor layer at this scope). SOLID shows up concretely: ViewModels depend on **narrow** repository interfaces (`SquadRepository`, `PlayerProfileRepository`, `LinkedPlayersRepository` — Interface Segregation + Dependency Inversion) resolved by `service_locator.dart`, and provider-specific concerns (Firebase, HTTP, JSON) stay in the data layer so the presentation layer is provider-agnostic.
+
 ```
 lib/
   models/          Immutable data classes (Player, Attendance, UserProfile) — no I/O, no UI

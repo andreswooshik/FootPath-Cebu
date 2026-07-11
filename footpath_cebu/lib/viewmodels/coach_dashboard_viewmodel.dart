@@ -6,12 +6,13 @@ import '../repositories/player_repository.dart';
 /// Drives the Coach dashboard's Active Squad Roster.
 ///
 /// Holds only presentation state and business logic (loading, search filter,
-/// derived counts). It depends on [PlayerRepository] — the abstraction, not a
-/// concrete Firebase/HTTP class — so it can be unit-tested with a fake.
+/// derived counts). It depends on [SquadRepository] — the *narrow* abstraction
+/// it actually uses (ISP), not a concrete Firebase/HTTP class — so it can be
+/// unit-tested with a fake.
 class CoachDashboardViewModel extends ChangeNotifier {
   CoachDashboardViewModel(this._repository);
 
-  final PlayerRepository _repository;
+  final SquadRepository _repository;
 
   List<Player> _squad = const [];
   bool _loading = false;
