@@ -75,7 +75,12 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               children: [
-                PlayerCard(player: player),
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    child: PlayerCard(player: player),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 _InfoTile(
                   icon: Icons.school_outlined,

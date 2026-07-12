@@ -87,7 +87,15 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                     ),
                   );
                 }
-                return PlayerCard(player: children[i - 1]);
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: PlayerCard(player: children[i - 1]),
+                    ),
+                  ),
+                );
               },
             ),
           );

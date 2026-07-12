@@ -1,185 +1,277 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:footpath_cebu/domain/entities/player.dart';
 
-/// A FUT-style squad card: the green rating card on top, with the player's
-/// real name, age/class, and academic-standing badge underneath.
+/// A FUT-style squad card. The ornate frame is an SVG asset
+/// (`assets/cards/card_frame.svg`); the live values — overall, position,
+/// photo, name, the six stats and the eligibility badge — are overlaid on
+/// top, positioned in the frame's 600x850 coordinate space so they line up
+/// at any card size. Change a rating in the coach's assessment and the card
+/// updates automatically.
 class PlayerCard extends StatelessWidget {
   const PlayerCard({super.key, required this.player, this.onTap});
 
   final Player player;
   final VoidCallback? onTap;
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              _RatingCard(player: player),
-              const SizedBox(height: 12),
-              Text(
-                player.name,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${player.age} Years Old • ${player.classYear}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'ACADEMIC STANDING',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  letterSpacing: 0.5,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              _EligibilityBadge(status: player.eligibility),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+  // The frame's design canvas. All overlay coordinates below are in these
+  // units and scaled to the real card width at build time.
+  static const double _canvasW = 600;
+  static const double _canvasH = 850;
 
-/// The green FIFA-Ultimate-Team style card face.
-class _RatingCard extends StatelessWidget {
-  const _RatingCard({required this.player});
-
-  final Player player;
+  static const Color _gold = Color(0xFFE7C86A);
+  static const Color _bannerInk = Color(0xFF072A1F);
 
   @override
   Widget build(BuildContext context) {
     final r = player.ratings;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1B5E20), Color(0xFF2E7D32), Color(0xFF43A047)],
+    return GestureDetector(
+      onTap: onTap,
+      child: AspectRatio(
+        aspectRatio: _canvasW / _canvasH,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Pixels per design unit — everything scales from this.
+            final s = constraints.maxWidth / _canvasW;
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: SvgPicture.asset(
+                    'assets/cards/card_frame.svg',
+                    fit: BoxFit.fill,
+                  ),
+                ),
+
+                // Player photo (behind the rating corner).
+                _place(s,
+                    x: 170,
+                    y: 140,
+                    w: 260,
+                    h: 260,
+                    child: _Photo(photoUrl: player.photoUrl)),
+
+                // Overall rating + position, top-left.
+                _place(s,
+                  x: 46,
+                  y: 148,
+                  w: 148,
+                  h: 104,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${player.overall}',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 58 * s,
+                          height: 1,
+                        ),
+                      ),
+                      Text(
+                        player.position,
+                        style: TextStyle(
+                          color: _gold,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 22 * s,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Name banner text.
+                _place(s,
+                  x: 128,
+                  y: 430,
+                  w: 344,
+                  h: 58,
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        player.name,
+                        maxLines: 1,
+                        style: TextStyle(
+                          color: _bannerInk,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 26 * s,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Six stats, two columns astride the frame's divider.
+                _place(s,
+                    x: 84,
+                    y: 516,
+                    w: 432,
+                    h: 188,
+                    child: _StatsPanel(ratings: r, scale: s)),
+
+                // Academic-standing badge.
+                _place(s,
+                  x: 120,
+                  y: 712,
+                  w: 360,
+                  h: 44,
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: _EligibilityBadge(
+                          status: player.eligibility, scale: s),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
-      child: Column(
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Text(
-                    '${player.overall}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
-                  ),
-                  Text(
-                    player.position,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              const Icon(Icons.person, color: Colors.white70, size: 56),
-              const Spacer(),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const Divider(color: Colors.white24, height: 1),
-          const SizedBox(height: 10),
-          _StatRow(
-            stats: [('PAC', r.pace), ('SHO', r.shooting), ('PAS', r.passing)],
-          ),
-          const SizedBox(height: 8),
-          _StatRow(
-            stats: [
-              ('DRI', r.dribbling),
-              ('DEF', r.defending),
-              ('PHY', r.physical),
-            ],
-          ),
-        ],
+    );
+  }
+
+  /// Places [child] in the frame's coordinate space, scaled to real pixels.
+  Widget _place(double s,
+      {required double x,
+      required double y,
+      required double w,
+      required double h,
+      required Widget child}) {
+    return Positioned(
+      left: x * s,
+      top: y * s,
+      width: w * s,
+      height: h * s,
+      child: child,
+    );
+  }
+}
+
+/// The circular player photo, or a person icon when none is set.
+class _Photo extends StatelessWidget {
+  const _Photo({required this.photoUrl});
+
+  final String? photoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = photoUrl;
+    return ClipOval(
+      child: (url != null && url.isNotEmpty)
+          ? Image.network(
+              url,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              errorBuilder: (context, error, stack) => const _PhotoFallback(),
+            )
+          : const _PhotoFallback(),
+    );
+  }
+}
+
+class _PhotoFallback extends StatelessWidget {
+  const _PhotoFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) => Icon(
+        Icons.person,
+        color: Colors.white38,
+        size: c.maxWidth * 0.62,
       ),
     );
   }
 }
 
-/// A row of three attribute chips that share the width evenly and scale down
-/// rather than overflow on narrow layouts.
-class _StatRow extends StatelessWidget {
-  const _StatRow({required this.stats});
+/// Two columns of three attributes each, matching the six ratings.
+class _StatsPanel extends StatelessWidget {
+  const _StatsPanel({required this.ratings, required this.scale});
 
-  final List<(String, int)> stats;
+  final PlayerRatings ratings;
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
+        Expanded(
+          child: _StatColumn(scale: scale, stats: [
+            ('PAC', ratings.pace),
+            ('SHO', ratings.shooting),
+            ('PAS', ratings.passing),
+          ]),
+        ),
+        Container(
+          width: 2 * scale,
+          margin: EdgeInsets.symmetric(vertical: 8 * scale),
+          color: PlayerCard._gold.withValues(alpha: 0.4),
+        ),
+        Expanded(
+          child: _StatColumn(scale: scale, stats: [
+            ('DRI', ratings.dribbling),
+            ('DEF', ratings.defending),
+            ('PHY', ratings.physical),
+          ]),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatColumn extends StatelessWidget {
+  const _StatColumn({required this.stats, required this.scale});
+
+  final List<(String, int)> stats;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
         for (final (label, value) in stats)
-          Expanded(
-            child: _Stat(label: label, value: value),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 30 * scale,
+                  ),
+                ),
+                SizedBox(width: 6 * scale),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: PlayerCard._gold,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 20 * scale,
+                  ),
+                ),
+              ],
+            ),
           ),
       ],
     );
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
-
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '$value',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
+/// A translucent academic-standing pill sized for the dark card face.
 class _EligibilityBadge extends StatelessWidget {
-  const _EligibilityBadge({required this.status});
+  const _EligibilityBadge({required this.status, required this.scale});
 
   final EligibilityStatus status;
+  final double scale;
 
   @override
   Widget build(BuildContext context) {
@@ -187,37 +279,43 @@ class _EligibilityBadge extends StatelessWidget {
     late final IconData icon;
     switch (status) {
       case EligibilityStatus.eligible:
-        color = Colors.green;
+        color = const Color(0xFF8FE3A6);
         icon = Icons.check_circle;
         break;
       case EligibilityStatus.academicWarning:
-        color = Colors.orange;
+        color = const Color(0xFFFFC65C);
         icon = Icons.warning_amber_rounded;
         break;
       case EligibilityStatus.notEligible:
-        color = Colors.red;
+        color = const Color(0xFFFF8A80);
         icon = Icons.cancel;
         break;
       case EligibilityStatus.pending:
-        color = Colors.blueGrey;
+        color = const Color(0xFFB0BEC5);
         icon = Icons.hourglass_bottom;
         break;
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      padding:
+          EdgeInsets.symmetric(horizontal: 14 * scale, vertical: 6 * scale),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(24 * scale),
+        border:
+            Border.all(color: color.withValues(alpha: 0.7), width: 1.5 * scale),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
+          Icon(icon, size: 16 * scale, color: color),
+          SizedBox(width: 6 * scale),
           Text(
             status.label,
-            style: TextStyle(color: color, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 15 * scale,
+            ),
           ),
         ],
       ),

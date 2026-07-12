@@ -127,7 +127,7 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
           crossAxisCount: 2, // <-- the "2 columns"
           crossAxisSpacing: 12, // horizontal gap between cards
           mainAxisSpacing: 12, // vertical gap between rows
-          childAspectRatio: 0.62, // width / height — tune this if cards clip
+          childAspectRatio: 600 / 850, // matches the card frame's proportions
         ),
         itemCount: players.length,
         itemBuilder: (context, i) => PlayerCard(player: players[i]),
