@@ -17,8 +17,9 @@ class CoachDashboardScreen extends StatefulWidget {
 }
 
 class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
-  late final CoachDashboardViewModel _viewModel =
-      CoachDashboardViewModel(ServiceLocator.getSquad);
+  late final CoachDashboardViewModel _viewModel = CoachDashboardViewModel(
+    ServiceLocator.getSquad,
+  );
 
   @override
   void initState() {
@@ -120,8 +121,14 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
     }
     return RefreshIndicator(
       onRefresh: _viewModel.loadSquad,
-      child: ListView.builder(
+      child: GridView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2, // <-- the "2 columns"
+          crossAxisSpacing: 12, // horizontal gap between cards
+          mainAxisSpacing: 12, // vertical gap between rows
+          childAspectRatio: 0.62, // width / height — tune this if cards clip
+        ),
         itemCount: players.length,
         itemBuilder: (context, i) => PlayerCard(player: players[i]),
       ),
@@ -142,9 +149,7 @@ class _SearchBar extends StatelessWidget {
         hintText: 'Search player or position',
         prefixIcon: const Icon(Icons.search),
         isDense: true,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(24),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
       ),
     );
   }

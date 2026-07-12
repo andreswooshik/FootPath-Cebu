@@ -25,10 +25,9 @@ class PlayerCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 player.name,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 2),
               Text(
@@ -39,9 +38,9 @@ class PlayerCard extends StatelessWidget {
               Text(
                 'ACADEMIC STANDING',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      letterSpacing: 0.5,
-                      color: Colors.grey.shade600,
-                    ),
+                  letterSpacing: 0.5,
+                  color: Colors.grey.shade600,
+                ),
               ),
               const SizedBox(height: 4),
               _EligibilityBadge(status: player.eligibility),
@@ -63,7 +62,7 @@ class _RatingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = player.ratings;
     return Container(
-      width: 220,
+      width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
@@ -108,17 +107,17 @@ class _RatingCard extends StatelessWidget {
           const SizedBox(height: 8),
           const Divider(color: Colors.white24, height: 1),
           const SizedBox(height: 10),
-          _StatRow(stats: [
-            ('PAC', r.pace),
-            ('SHO', r.shooting),
-            ('PAS', r.passing),
-          ]),
+          _StatRow(
+            stats: [('PAC', r.pace), ('SHO', r.shooting), ('PAS', r.passing)],
+          ),
           const SizedBox(height: 8),
-          _StatRow(stats: [
-            ('DRI', r.dribbling),
-            ('DEF', r.defending),
-            ('PHY', r.physical),
-          ]),
+          _StatRow(
+            stats: [
+              ('DRI', r.dribbling),
+              ('DEF', r.defending),
+              ('PHY', r.physical),
+            ],
+          ),
         ],
       ),
     );
@@ -137,7 +136,9 @@ class _StatRow extends StatelessWidget {
     return Row(
       children: [
         for (final (label, value) in stats)
-          Expanded(child: _Stat(label: label, value: value)),
+          Expanded(
+            child: _Stat(label: label, value: value),
+          ),
       ],
     );
   }
