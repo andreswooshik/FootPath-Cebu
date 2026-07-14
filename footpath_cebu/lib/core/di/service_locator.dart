@@ -1,14 +1,18 @@
+import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/firebase_auth_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
+import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
+import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
 import 'package:footpath_cebu/domain/usecases/get_training_sessions.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
@@ -28,6 +32,7 @@ class ServiceLocator {
   static late GetSquad getSquad;
   static late GetMyProfile getMyProfile;
   static late GetLinkedPlayers getLinkedPlayers;
+  static late GetPlayerAttendance getPlayerAttendance;
   static late GetTrainingSessions getTrainingSessions;
   static late ScheduleTrainingSession scheduleTrainingSession;
 
@@ -35,6 +40,7 @@ class ServiceLocator {
   static void initMock() => _wire(
         MockAuthRepository(),
         MockPlayerRepository(),
+        MockAttendanceRepository(),
         MockTrainingRepository(),
       );
 
@@ -42,12 +48,14 @@ class ServiceLocator {
   static void initFirebase() => _wire(
         FirebaseAuthRepository(),
         ApiPlayerRepository(),
+        ApiAttendanceRepository(),
         ApiTrainingRepository(),
       );
 
   static void _wire(
     AuthRepository auth,
     PlayerRepository players,
+    AttendanceRepository attendance,
     TrainingRepository training,
   ) {
     signIn = SignIn(auth);
@@ -56,6 +64,7 @@ class ServiceLocator {
     getSquad = GetSquad(players);
     getMyProfile = GetMyProfile(players);
     getLinkedPlayers = GetLinkedPlayers(players);
+    getPlayerAttendance = GetPlayerAttendance(attendance);
     getTrainingSessions = GetTrainingSessions(training);
     scheduleTrainingSession = ScheduleTrainingSession(training);
   }
