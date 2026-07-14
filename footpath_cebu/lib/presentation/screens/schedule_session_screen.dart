@@ -17,8 +17,9 @@ class ScheduleSessionScreen extends StatefulWidget {
 }
 
 class _ScheduleSessionScreenState extends State<ScheduleSessionScreen> {
-  late final ScheduleSessionViewModel _viewModel =
-      ScheduleSessionViewModel(ServiceLocator.scheduleTrainingSession);
+  late final ScheduleSessionViewModel _viewModel = ScheduleSessionViewModel(
+    ServiceLocator.scheduleTrainingSession,
+  );
 
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
@@ -86,9 +87,9 @@ class _ScheduleSessionScreenState extends State<ScheduleSessionScreen> {
     final ok = await _viewModel.submit(draft);
     if (!mounted) return;
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"$title" scheduled.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('"$title" scheduled.')));
       Navigator.of(context).pop(true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -224,11 +225,6 @@ class _ScheduleSessionScreenState extends State<ScheduleSessionScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-
-              const _VerifiedFacilityCard(
-                name: 'USJ-R Basak Soccer Field',
-                detail: 'Full-sized turf',
-              ),
             ],
           );
         },
@@ -247,8 +243,18 @@ InputDecoration _fieldDecoration({required String hint, Widget? suffix}) {
 }
 
 const _months = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
 ];
 
 String _formatDate(DateTime d) => '${_months[d.month - 1]} ${d.day}, ${d.year}';
@@ -266,10 +272,10 @@ class _FieldLabel extends StatelessWidget {
       child: Text(
         text.toUpperCase(),
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              letterSpacing: 0.6,
-              fontWeight: FontWeight.w700,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          letterSpacing: 0.6,
+          fontWeight: FontWeight.w700,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
