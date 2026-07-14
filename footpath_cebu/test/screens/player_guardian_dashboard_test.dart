@@ -29,17 +29,32 @@ void main() {
     expect(find.text('Feedback & Ratings'), findsOneWidget);
   });
 
-  testWidgets('Guardian dashboard lists linked children', (tester) async {
+  testWidgets('Guardian dashboard shows the selected child', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: GuardianDashboardScreen()),
     );
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     await tester.pumpAndSettle();
+    // The dashboard loads in two phases: linked children first, then that
+    // child's attendance (a second delayed timer). Drain the attendance timer
+    // so none is left pending at teardown.
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
 
     expect(find.text('My Players'), findsOneWidget);
-    // Mock links two children (p2 + p3).
-    expect(find.byType(PlayerCard), findsNWidgets(2));
-    expect(find.text('2 linked players'), findsOneWidget);
+    // The redesigned dashboard shows one child at a time (with a selector to
+    // switch between the two linked children, p2 + p3), not a list — so
+    // exactly one player card is on screen.
+    expect(find.byType(PlayerCard), findsOneWidget);
+    expect(find.byType(SegmentedButton<String>), findsOneWidget);
+
+    // The attendance section sits below the fold — scroll it into view.
+    await tester.scrollUntilVisible(
+      find.text('Recent Attendance'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Recent Attendance'), findsOneWidget);
   });
 }

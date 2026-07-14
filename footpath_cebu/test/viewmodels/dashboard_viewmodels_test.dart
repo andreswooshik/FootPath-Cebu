@@ -1,8 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
+import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
 import 'package:footpath_cebu/presentation/viewmodels/guardian_dashboard_viewmodel.dart';
 import 'package:footpath_cebu/presentation/viewmodels/player_dashboard_viewmodel.dart';
 
@@ -43,6 +46,15 @@ class _FakeRepo implements PlayerRepository {
   Future<List<Player>> fetchLinkedPlayers() async => children;
 }
 
+class _FakeAttendanceRepo implements AttendanceRepository {
+  _FakeAttendanceRepo({this.records = const []});
+  final List<Attendance> records;
+
+  @override
+  Future<List<Attendance>> fetchAttendanceForPlayer(String playerId) async =>
+      records.where((a) => a.playerId == playerId).toList();
+}
+
 void main() {
   group('PlayerDashboardViewModel', () {
     test('load populates the signed-in player', () async {
@@ -71,6 +83,7 @@ void main() {
         GetLinkedPlayers(
           _FakeRepo(children: [_player('2', 'A'), _player('3', 'B')]),
         ),
+        GetPlayerAttendance(_FakeAttendanceRepo()),
       );
       await vm.load();
 
@@ -80,7 +93,10 @@ void main() {
     });
 
     test('empty roster yields zero children', () async {
-      final vm = GuardianDashboardViewModel(GetLinkedPlayers(_FakeRepo()));
+      final vm = GuardianDashboardViewModel(
+        GetLinkedPlayers(_FakeRepo()),
+        GetPlayerAttendance(_FakeAttendanceRepo()),
+      );
       await vm.load();
 
       expect(vm.childCount, 0);
