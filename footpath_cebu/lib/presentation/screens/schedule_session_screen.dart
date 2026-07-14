@@ -1,0 +1,393 @@
+import 'package:flutter/material.dart';
+
+import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/presentation/viewmodels/schedule_session_viewmodel.dart';
+
+/// Coach Portal — the Schedule New Session form.
+///
+/// Collects the session details and hands a draft [TrainingSession] to
+/// [ScheduleSessionViewModel]. On success it pops back to the schedule with a
+/// `true` result so the list refreshes.
+class ScheduleSessionScreen extends StatefulWidget {
+  const ScheduleSessionScreen({super.key});
+
+  @override
+  State<ScheduleSessionScreen> createState() => _ScheduleSessionScreenState();
+}
+
+class _ScheduleSessionScreenState extends State<ScheduleSessionScreen> {
+  late final ScheduleSessionViewModel _viewModel =
+      ScheduleSessionViewModel(ServiceLocator.scheduleTrainingSession);
+
+  final _titleController = TextEditingController();
+  final _locationController = TextEditingController();
+
+  DateTime? _date;
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
+  SessionFocus _focus = SessionFocus.technical;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _locationController.dispose();
+    _viewModel.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
+    );
+    if (picked != null) setState(() => _date = picked);
+  }
+
+  Future<void> _pickTime({required bool isStart}) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: (isStart ? _startTime : _endTime) ?? TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() => isStart ? _startTime = picked : _endTime = picked);
+    }
+  }
+
+  Future<void> _submit() async {
+    final title = _titleController.text.trim();
+    final location = _locationController.text.trim();
+    if (title.isEmpty ||
+        location.isEmpty ||
+        _date == null ||
+        _startTime == null ||
+        _endTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all the fields.')),
+      );
+      return;
+    }
+
+    final draft = TrainingSession(
+      id: '',
+      title: title,
+      // The form plans for the elite squad; add a squad selector here later.
+      squad: SquadTier.elite,
+      date: _date!,
+      startTime: _startTime!.format(context),
+      endTime: _endTime!.format(context),
+      location: location,
+      focus: _focus,
+    );
+
+    final ok = await _viewModel.submit(draft);
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"$title" scheduled.')),
+      );
+      Navigator.of(context).pop(true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_viewModel.error ?? 'Could not schedule.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            Icon(Icons.sports_soccer, size: 20),
+            SizedBox(width: 8),
+            Text('FootPath Cebu'),
+          ],
+        ),
+      ),
+      body: ListenableBuilder(
+        listenable: _viewModel,
+        builder: (context, _) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text(
+                'Schedule New Session',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Plan a new training session for your squad.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 20),
+
+              const _FieldLabel('Session Title'),
+              TextField(
+                controller: _titleController,
+                textCapitalization: TextCapitalization.words,
+                decoration: _fieldDecoration(
+                  hint: 'e.g. Tactical Workshop',
+                  suffix: const Icon(Icons.edit_outlined, size: 18),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              const _FieldLabel('Date'),
+              _PickerField(
+                text: _date == null ? 'Select a date' : _formatDate(_date!),
+                placeholder: _date == null,
+                icon: Icons.calendar_today_outlined,
+                onTap: _pickDate,
+              ),
+              const SizedBox(height: 18),
+
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _FieldLabel('Start Time'),
+                        _PickerField(
+                          text: _startTime?.format(context) ?? 'Start',
+                          placeholder: _startTime == null,
+                          icon: Icons.schedule,
+                          onTap: () => _pickTime(isStart: true),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _FieldLabel('End Time'),
+                        _PickerField(
+                          text: _endTime?.format(context) ?? 'End',
+                          placeholder: _endTime == null,
+                          icon: Icons.schedule,
+                          onTap: () => _pickTime(isStart: false),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
+              const _FieldLabel('Location'),
+              TextField(
+                controller: _locationController,
+                textCapitalization: TextCapitalization.words,
+                decoration: _fieldDecoration(
+                  hint: 'e.g. USJ-R Basak Pitch',
+                  suffix: const Icon(Icons.location_on_outlined, size: 18),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              const _FieldLabel('Session Focus'),
+              Wrap(
+                spacing: 10,
+                children: [
+                  for (final focus in SessionFocus.values)
+                    ChoiceChip(
+                      label: Text(focus.label),
+                      selected: _focus == focus,
+                      onSelected: (_) => setState(() => _focus = focus),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              FilledButton.icon(
+                onPressed: _viewModel.isSaving ? null : _submit,
+                icon: _viewModel.isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.event_available),
+                label: Text(
+                  _viewModel.isSaving ? 'Scheduling…' : 'Create Schedule',
+                ),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              const _VerifiedFacilityCard(
+                name: 'USJ-R Basak Soccer Field',
+                detail: 'Full-sized turf',
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+InputDecoration _fieldDecoration({required String hint, Widget? suffix}) {
+  return InputDecoration(
+    hintText: hint,
+    isDense: true,
+    suffixIcon: suffix,
+    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+  );
+}
+
+const _months = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+String _formatDate(DateTime d) => '${_months[d.month - 1]} ${d.day}, ${d.year}';
+
+/// An uppercase section label above a form field.
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(
+        text.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              letterSpacing: 0.6,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+      ),
+    );
+  }
+}
+
+/// A read-only, tappable field that opens a picker (date or time).
+class _PickerField extends StatelessWidget {
+  const _PickerField({
+    required this.text,
+    required this.placeholder,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String text;
+  final bool placeholder;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          isDense: true,
+          suffixIcon: Icon(icon, size: 18),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: placeholder ? cs.onSurfaceVariant : cs.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A decorative "verified facility" banner beneath the form.
+class _VerifiedFacilityCard extends StatelessWidget {
+  const _VerifiedFacilityCard({required this.name, required this.detail});
+
+  final String name;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      height: 120,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [cs.primary, cs.primaryContainer],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -10,
+            bottom: -10,
+            child: Icon(
+              Icons.sports_soccer,
+              size: 96,
+              color: cs.onPrimary.withValues(alpha: 0.12),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.verified, size: 16, color: cs.onPrimary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Verified facility',
+                      style: TextStyle(
+                        color: cs.onPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        color: cs.onPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    Text(
+                      detail,
+                      style: TextStyle(
+                        color: cs.onPrimary.withValues(alpha: 0.85),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

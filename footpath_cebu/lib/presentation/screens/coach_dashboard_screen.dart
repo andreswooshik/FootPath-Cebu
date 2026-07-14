@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/presentation/screens/training_schedule_screen.dart';
 import 'package:footpath_cebu/presentation/viewmodels/coach_dashboard_viewmodel.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
@@ -85,7 +86,16 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: 0,
-        onDestinationSelected: (_) {},
+        onDestinationSelected: (i) {
+          // Training opens the schedule; the rest are placeholders for now.
+          if (i == 1) {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const TrainingScheduleScreen(),
+              ),
+            );
+          }
+        },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.groups), label: 'Squad'),
           NavigationDestination(
