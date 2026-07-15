@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/presentation/screens/player_profile_screen.dart';
 import 'package:footpath_cebu/presentation/screens/training_schedule_screen.dart';
 import 'package:footpath_cebu/presentation/viewmodels/coach_dashboard_viewmodel.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
@@ -140,7 +141,14 @@ class _CoachDashboardScreenState extends State<CoachDashboardScreen> {
           childAspectRatio: 600 / 850, // matches the card frame's proportions
         ),
         itemCount: players.length,
-        itemBuilder: (context, i) => PlayerCard(player: players[i]),
+        itemBuilder: (context, i) => PlayerCard(
+          player: players[i],
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => PlayerProfileScreen(player: players[i]),
+            ),
+          ),
+        ),
       ),
     );
   }

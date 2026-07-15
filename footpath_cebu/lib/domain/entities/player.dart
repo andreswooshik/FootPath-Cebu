@@ -116,6 +116,22 @@ class Player {
 
   int get overall => ratings.overall;
 
+  /// Returns a copy with selected fields replaced — used by the coach's
+  /// assessment form to apply edited ratings without mutating the original.
+  Player copyWith({PlayerRatings? ratings, EligibilityStatus? eligibility}) {
+    return Player(
+      id: id,
+      name: name,
+      age: age,
+      classYear: classYear,
+      ageTier: ageTier,
+      position: position,
+      ratings: ratings ?? this.ratings,
+      eligibility: eligibility ?? this.eligibility,
+      photoUrl: photoUrl,
+    );
+  }
+
   factory Player.fromJson(Map<String, dynamic> json) {
     return Player(
       id: json['id'].toString(),

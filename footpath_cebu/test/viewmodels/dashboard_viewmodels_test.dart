@@ -10,22 +10,22 @@ import 'package:footpath_cebu/presentation/viewmodels/guardian_dashboard_viewmod
 import 'package:footpath_cebu/presentation/viewmodels/player_dashboard_viewmodel.dart';
 
 Player _player(String id, String name) => Player(
-      id: id,
-      name: name,
-      age: 15,
-      classYear: 'Class of 2026',
-      ageTier: 'Development',
-      position: 'CM',
-      eligibility: EligibilityStatus.eligible,
-      ratings: const PlayerRatings(
-        pace: 80,
-        shooting: 80,
-        passing: 80,
-        dribbling: 80,
-        defending: 80,
-        physical: 80,
-      ),
-    );
+  id: id,
+  name: name,
+  age: 15,
+  classYear: 'Class of 2026',
+  ageTier: 'Development',
+  position: 'CM',
+  eligibility: EligibilityStatus.eligible,
+  ratings: const PlayerRatings(
+    pace: 80,
+    shooting: 80,
+    passing: 80,
+    dribbling: 80,
+    defending: 80,
+    physical: 80,
+  ),
+);
 
 class _FakeRepo implements PlayerRepository {
   _FakeRepo({this.me, this.children = const []});
@@ -47,7 +47,7 @@ class _FakeRepo implements PlayerRepository {
 }
 
 class _FakeAttendanceRepo implements AttendanceRepository {
-  _FakeAttendanceRepo({this.records = const []});
+  _FakeAttendanceRepo() : records = const [];
   final List<Attendance> records;
 
   @override
