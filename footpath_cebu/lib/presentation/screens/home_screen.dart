@@ -27,7 +27,7 @@ class HomeScreen extends StatelessWidget {
     // generic placeholder below.
     switch (profile.role) {
       case 'COACH':
-        return const CoachDashboardScreen();
+        return CoachDashboardScreen(profile: profile);
       case 'PLAYER':
         return const PlayerDashboardScreen();
       case 'GUARDIAN':

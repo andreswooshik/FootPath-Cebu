@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
@@ -12,9 +13,16 @@ import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 /// Holds the player locally so ratings edited in [EditPerformanceDataScreen]
 /// are reflected on the card as soon as the coach saves.
 class PlayerProfileScreen extends StatefulWidget {
-  const PlayerProfileScreen({super.key, required this.player});
+  const PlayerProfileScreen({
+    super.key,
+    required this.player,
+    required this.profile,
+  });
 
   final Player player;
+
+  /// The signed-in coach, forwarded to the shared bottom navigation.
+  final UserProfile profile;
 
   @override
   State<PlayerProfileScreen> createState() => _PlayerProfileScreenState();
@@ -26,7 +34,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   Future<void> _openEditor() async {
     final updated = await Navigator.of(context).push<PlayerRatings>(
       MaterialPageRoute(
-        builder: (_) => EditPerformanceDataScreen(player: _player),
+        builder: (_) => EditPerformanceDataScreen(
+          player: _player,
+          profile: widget.profile,
+        ),
       ),
     );
     if (updated == null) return;
@@ -97,7 +108,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: const CoachBottomNav(),
+      bottomNavigationBar: CoachBottomNav(profile: widget.profile),
     );
   }
 }

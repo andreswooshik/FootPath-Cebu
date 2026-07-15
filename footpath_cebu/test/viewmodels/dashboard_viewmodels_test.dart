@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
@@ -14,7 +15,7 @@ Player _player(String id, String name) => Player(
   name: name,
   age: 15,
   classYear: 'Class of 2026',
-  ageTier: 'Development',
+  ageTier: AgeTier.development,
   position: 'CM',
   eligibility: EligibilityStatus.eligible,
   ratings: const PlayerRatings(

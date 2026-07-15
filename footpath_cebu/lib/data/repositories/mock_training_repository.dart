@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 
@@ -14,7 +15,7 @@ class MockTrainingRepository implements TrainingRepository {
       TrainingSession(
         id: 't1',
         title: 'Tactical Workshop',
-        squad: SquadTier.elite,
+        ageTiers: {AgeTier.pathway},
         date: day(2),
         startTime: '04:30 PM',
         endTime: '06:00 PM',
@@ -25,7 +26,7 @@ class MockTrainingRepository implements TrainingRepository {
       TrainingSession(
         id: 't2',
         title: 'Technical Drills',
-        squad: SquadTier.development,
+        ageTiers: {AgeTier.development, AgeTier.pathway},
         date: day(4),
         startTime: '06:00 AM',
         endTime: '08:00 AM',
@@ -36,7 +37,7 @@ class MockTrainingRepository implements TrainingRepository {
       TrainingSession(
         id: 't3',
         title: 'Conditioning Test',
-        squad: SquadTier.pro,
+        ageTiers: {AgeTier.foundation},
         date: day(6),
         startTime: '05:00 PM',
         endTime: '07:00 PM',
@@ -47,7 +48,7 @@ class MockTrainingRepository implements TrainingRepository {
       TrainingSession(
         id: 't4',
         title: 'Set-Piece Review',
-        squad: SquadTier.elite,
+        ageTiers: AgeTier.values.toSet(),
         date: day(-3),
         startTime: '04:00 PM',
         endTime: '05:30 PM',
@@ -58,7 +59,7 @@ class MockTrainingRepository implements TrainingRepository {
       TrainingSession(
         id: 't5',
         title: 'Recovery & Mobility',
-        squad: SquadTier.development,
+        ageTiers: {AgeTier.foundation, AgeTier.development},
         date: day(-8),
         startTime: '07:00 AM',
         endTime: '08:00 AM',
@@ -85,7 +86,7 @@ class MockTrainingRepository implements TrainingRepository {
     final saved = TrainingSession(
       id: 't${_nextId++}',
       title: draft.title,
-      squad: draft.squad,
+      ageTiers: draft.ageTiers,
       date: draft.date,
       startTime: draft.startTime,
       endTime: draft.endTime,

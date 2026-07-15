@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/core/di/service_locator.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/viewmodels/guardian_dashboard_viewmodel.dart';
@@ -86,7 +87,7 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                 if (_viewModel.childCount > 1) _childSelector(child),
                 Text(child.name, style: Theme.of(context).textTheme.titleLarge),
                 Text(
-                  '${child.ageTier} · ${child.position}',
+                  '${child.ageTier.label} · ${child.position}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.grey.shade600,
                       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/viewmodels/player_dashboard_viewmodel.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
@@ -85,7 +86,7 @@ class _PlayerDashboardScreenState extends State<PlayerDashboardScreen> {
                 _InfoTile(
                   icon: Icons.school_outlined,
                   title: 'Age Tier',
-                  value: '${player.ageTier} • ${player.classYear}',
+                  value: '${player.ageTier.label} • ${player.classYear}',
                 ),
                 const _SectionCard(
                   icon: Icons.event_note_outlined,

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/core/di/service_locator.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_session_screen.dart';
 import 'package:footpath_cebu/presentation/viewmodels/training_schedule_viewmodel.dart';
+import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 
@@ -12,7 +14,10 @@ import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 /// A thin View: it renders [TrainingScheduleViewModel] state and lets the coach
 /// switch between Upcoming and Past sessions or open the scheduling form.
 class TrainingScheduleScreen extends StatefulWidget {
-  const TrainingScheduleScreen({super.key});
+  const TrainingScheduleScreen({super.key, required this.profile});
+
+  /// The signed-in coach, forwarded to the shared bottom navigation.
+  final UserProfile profile;
 
   @override
   State<TrainingScheduleScreen> createState() => _TrainingScheduleScreenState();
@@ -118,27 +123,9 @@ class _TrainingScheduleScreenState extends State<TrainingScheduleScreen> {
         tooltip: 'Schedule new session',
         child: const Icon(Icons.add),
       ),
-      bottomNavigationBar: NavigationBar(
+      bottomNavigationBar: CoachBottomNav(
+        profile: widget.profile,
         selectedIndex: 1,
-        onDestinationSelected: (i) {
-          // Squad returns to the roster; the rest are placeholders for now.
-          if (i == 0) Navigator.of(context).pop();
-        },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.groups), label: 'Squad'),
-          NavigationDestination(
-            icon: Icon(Icons.fitness_center),
-            label: 'Training',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.trending_up),
-            label: 'Progress',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            label: 'Profile',
-          ),
-        ],
       ),
     );
   }

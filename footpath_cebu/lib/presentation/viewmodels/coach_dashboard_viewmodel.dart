@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
@@ -19,23 +20,40 @@ class CoachDashboardViewModel extends ChangeNotifier {
   bool _loading = false;
   String? _error;
   String _query = '';
+  AgeTier? _tierFilter;
 
   bool get isLoading => _loading;
   String? get error => _error;
   String get query => _query;
 
-  /// Total players registered to the squad (unfiltered).
+  /// The tier the roster is filtered to, or null for the whole squad.
+  AgeTier? get tierFilter => _tierFilter;
+
+  /// Total players registered to the squad (unfiltered) — the roster header
+  /// keeps reporting the true squad size while the grid shows a subset.
   int get registeredCount => _squad.length;
 
-  /// The roster after applying the current search query.
+  /// How many players sit in [tier], ignoring the search query. Shown on the
+  /// filter chips so an empty tier is obvious before the coach taps it.
+  int countFor(AgeTier tier) =>
+      _squad.where((p) => p.ageTier == tier).length;
+
+  /// The roster after applying the tier filter and the search query.
   List<Player> get players {
-    if (_query.isEmpty) return _squad;
-    final q = _query.toLowerCase();
-    return _squad
-        .where((p) =>
-            p.name.toLowerCase().contains(q) ||
-            p.position.toLowerCase().contains(q))
-        .toList(growable: false);
+    var result = _squad;
+    final tier = _tierFilter;
+    if (tier != null) {
+      result = result.where((p) => p.ageTier == tier).toList(growable: false);
+    }
+    if (_query.isNotEmpty) {
+      final q = _query.toLowerCase();
+      result = result
+          .where((p) =>
+              p.name.toLowerCase().contains(q) ||
+              p.position.toLowerCase().contains(q))
+          .toList(growable: false);
+    }
+    return result;
   }
 
   /// Loads the squad from the repository. Safe to call again to refresh.
@@ -58,6 +76,12 @@ class CoachDashboardViewModel extends ChangeNotifier {
   /// Updates the search query and re-filters the visible roster.
   void search(String query) {
     _query = query.trim();
+    notifyListeners();
+  }
+
+  /// Filters the roster to [tier], or clears the filter when null.
+  void filterByTier(AgeTier? tier) {
+    _tierFilter = tier;
     notifyListeners();
   }
 }

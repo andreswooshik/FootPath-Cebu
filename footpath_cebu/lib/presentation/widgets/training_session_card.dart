@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 
-/// A single training session on the coach's schedule: a coloured squad-tier
+/// A single training session on the coach's schedule: a coloured age-tier
 /// header with the date, and a body with the title, time, location, attendees
 /// and a Log Attendance action. Colours are drawn from the app's [ColorScheme]
 /// so the card stays on-theme.
@@ -21,7 +22,7 @@ class TrainingSessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final tier = _tierColors(session.squad, cs);
+    final tier = _tierColors(session, cs);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -40,12 +41,24 @@ class TrainingSessionCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      _TierPill(label: session.squad.label, fg: tier.fg),
-                      const Spacer(),
-                      Icon(_focusIcon(session.focus),
-                          size: 20, color: tier.fg.withValues(alpha: 0.8)),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _TierPill(
+                            label: _tierLabel(session),
+                            fg: tier.fg,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        _focusIcon(session.focus),
+                        size: 30,
+                        color: tier.fg.withValues(alpha: 0.8),
+                      ),
                     ],
                   ),
+
                   const SizedBox(height: 12),
                   Text(
                     _formatDate(session.date),
@@ -68,10 +81,9 @@ class TrainingSessionCard extends StatelessWidget {
                 children: [
                   Text(
                     session.title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   _DetailRow(
@@ -86,7 +98,10 @@ class TrainingSessionCard extends StatelessWidget {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      _Attendees(count: session.attendeeCount, color: cs.primary),
+                      _Attendees(
+                        count: session.attendeeCount,
+                        color: cs.primary,
+                      ),
                       const Spacer(),
                       TextButton.icon(
                         onPressed: onLogAttendance,
@@ -109,7 +124,7 @@ class TrainingSessionCard extends StatelessWidget {
   }
 }
 
-/// Translucent pill naming the squad tier, on the coloured header.
+/// Translucent pill naming the age tier, on the coloured header.
 class _TierPill extends StatelessWidget {
   const _TierPill({required this.label, required this.fg});
 
@@ -126,6 +141,8 @@ class _TierPill extends StatelessWidget {
       ),
       child: Text(
         label.toUpperCase(),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: fg,
           fontSize: 11,
@@ -153,10 +170,9 @@ class _DetailRow extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: muted),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: muted),
           ),
         ),
       ],
@@ -189,9 +205,16 @@ class _Attendees extends StatelessWidget {
                     backgroundColor: Colors.white,
                     child: CircleAvatar(
                       radius: 11,
-                      backgroundColor: Color.lerp(color, Colors.black, i * 0.15),
-                      child: const Icon(Icons.person,
-                          size: 14, color: Colors.white),
+                      backgroundColor: Color.lerp(
+                        color,
+                        Colors.black,
+                        i * 0.15,
+                      ),
+                      child: const Icon(
+                        Icons.person,
+                        size: 14,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -208,15 +231,29 @@ class _Attendees extends StatelessWidget {
   }
 }
 
-({Color bg, Color fg}) _tierColors(SquadTier tier, ColorScheme cs) {
-  switch (tier) {
-    case SquadTier.elite:
-      return (bg: cs.primary, fg: cs.onPrimary);
-    case SquadTier.development:
-      return (bg: cs.secondaryContainer, fg: cs.onSecondaryContainer);
-    case SquadTier.pro:
-      return (bg: cs.primaryContainer, fg: cs.onPrimaryContainer);
+/// The header colour. A session for a single tier is colour-coded to that
+/// tier so the schedule is scannable; multi-tier sessions get one distinct
+/// colour of their own rather than arbitrarily borrowing a member tier's.
+({Color bg, Color fg}) _tierColors(TrainingSession session, ColorScheme cs) {
+  if (session.ageTiers.length != 1) {
+    return (bg: cs.tertiary, fg: cs.onTertiary);
   }
+  switch (session.ageTiers.first) {
+    case AgeTier.foundation:
+      return (bg: cs.secondaryContainer, fg: cs.onSecondaryContainer);
+    case AgeTier.development:
+      return (bg: cs.primaryContainer, fg: cs.onPrimaryContainer);
+    case AgeTier.pathway:
+      return (bg: cs.primary, fg: cs.onPrimary);
+  }
+}
+
+/// Names the session's tiers in one pill: "All Tiers" when it targets
+/// everything, otherwise the tier names joined — "Foundation · Development".
+String _tierLabel(TrainingSession session) {
+  if (session.ageTiers.isEmpty) return 'No tiers';
+  if (session.isAllTiers) return 'All Tiers';
+  return session.orderedTiers.map((t) => t.label).join(' · ');
 }
 
 IconData _focusIcon(SessionFocus focus) {
@@ -231,8 +268,18 @@ IconData _focusIcon(SessionFocus focus) {
 }
 
 const _months = [
-  'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-  'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
+  'JAN',
+  'FEB',
+  'MAR',
+  'APR',
+  'MAY',
+  'JUN',
+  'JUL',
+  'AUG',
+  'SEP',
+  'OCT',
+  'NOV',
+  'DEC',
 ];
 
 String _formatDate(DateTime d) => '${_months[d.month - 1]} ${d.day}';

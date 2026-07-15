@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 
 /// Coach Portal — the player assessment form.
@@ -13,9 +15,16 @@ import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 /// TODO: persist the draft once the backend exposes a player-assessment write
 /// endpoint — this currently updates the profile in memory only.
 class EditPerformanceDataScreen extends StatefulWidget {
-  const EditPerformanceDataScreen({super.key, required this.player});
+  const EditPerformanceDataScreen({
+    super.key,
+    required this.player,
+    required this.profile,
+  });
 
   final Player player;
+
+  /// The signed-in coach, forwarded to the shared bottom navigation.
+  final UserProfile profile;
 
   @override
   State<EditPerformanceDataScreen> createState() =>
@@ -154,7 +163,7 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: const CoachBottomNav(),
+      bottomNavigationBar: CoachBottomNav(profile: widget.profile),
     );
   }
 }
@@ -226,7 +235,7 @@ class _PlayerHeader extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          '${player.position} · ${player.ageTier}',
+          '${player.position} · ${player.ageTier.label}',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: Colors.grey.shade600,
           ),

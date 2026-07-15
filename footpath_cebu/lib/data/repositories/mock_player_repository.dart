@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 
@@ -9,7 +10,7 @@ class MockPlayerRepository implements PlayerRepository {
       name: 'Rhobert Ronaldo',
       age: 16,
       classYear: 'Class of 2026',
-      ageTier: 'Pathway',
+      ageTier: AgeTier.pathway,
       position: 'ST',
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
@@ -22,7 +23,7 @@ class MockPlayerRepository implements PlayerRepository {
       name: 'Ralf Andre Messi',
       age: 15,
       classYear: 'Class of 2025',
-      ageTier: 'Development',
+      ageTier: AgeTier.development,
       position: 'CAM',
       eligibility: EligibilityStatus.academicWarning,
       ratings: PlayerRatings(
@@ -35,7 +36,7 @@ class MockPlayerRepository implements PlayerRepository {
       name: 'Reiner Neymar',
       age: 15,
       classYear: 'Class of 2027',
-      ageTier: 'Development',
+      ageTier: AgeTier.development,
       position: 'LW',
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
@@ -48,7 +49,7 @@ class MockPlayerRepository implements PlayerRepository {
       name: 'Kevin De Bofill',
       age: 17,
       classYear: 'Class of 2025',
-      ageTier: 'Pathway',
+      ageTier: AgeTier.pathway,
       position: 'CM',
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
@@ -61,7 +62,7 @@ class MockPlayerRepository implements PlayerRepository {
       name: 'Virgil Van Cortez',
       age: 18,
       classYear: 'Class of 2024',
-      ageTier: 'Pathway',
+      ageTier: AgeTier.pathway,
       position: 'CB',
       eligibility: EligibilityStatus.pending,
       ratings: PlayerRatings(
@@ -74,7 +75,7 @@ class MockPlayerRepository implements PlayerRepository {
       name: 'Trent Alexander Cruz',
       age: 14,
       classYear: 'Class of 2028',
-      ageTier: 'Development',
+      ageTier: AgeTier.development,
       position: 'RB',
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
@@ -87,7 +88,7 @@ class MockPlayerRepository implements PlayerRepository {
       name: 'Gianluigi Dela Cruz',
       age: 16,
       classYear: 'Class of 2026',
-      ageTier: 'Pathway',
+      ageTier: AgeTier.pathway,
       position: 'GK',
       eligibility: EligibilityStatus.notEligible,
       ratings: PlayerRatings(
@@ -100,12 +101,38 @@ class MockPlayerRepository implements PlayerRepository {
       name: 'Jude Belino',
       age: 13,
       classYear: 'Class of 2029',
-      ageTier: 'Development',
+      ageTier: AgeTier.development,
       position: 'CM',
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
         pace: 82, shooting: 84, passing: 85, dribbling: 88, defending: 70,
         physical: 74,
+      ),
+    ),
+    const Player(
+      id: 'p9',
+      name: 'Lamine Yamashita',
+      age: 11,
+      classYear: 'Class of 2031',
+      ageTier: AgeTier.foundation,
+      position: 'RW',
+      eligibility: EligibilityStatus.eligible,
+      ratings: PlayerRatings(
+        pace: 76, shooting: 62, passing: 68, dribbling: 79, defending: 30,
+        physical: 48,
+      ),
+    ),
+    const Player(
+      id: 'p10',
+      name: 'Pedri Villanueva',
+      age: 12,
+      classYear: 'Class of 2030',
+      ageTier: AgeTier.foundation,
+      position: 'CM',
+      eligibility: EligibilityStatus.pending,
+      ratings: PlayerRatings(
+        pace: 64, shooting: 55, passing: 74, dribbling: 71, defending: 42,
+        physical: 45,
       ),
     ),
   ];

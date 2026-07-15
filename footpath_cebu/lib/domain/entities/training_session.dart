@@ -1,27 +1,4 @@
-/// The squad a session is aimed at. Mirrors the age-tier programme names.
-enum SquadTier { elite, development, pro }
-
-extension SquadTierLabel on SquadTier {
-  String get label {
-    switch (this) {
-      case SquadTier.elite:
-        return 'Elite Squad';
-      case SquadTier.development:
-        return 'Development Hub';
-      case SquadTier.pro:
-        return 'Pro Prospects';
-    }
-  }
-
-  String get wire => name.toUpperCase();
-
-  static SquadTier fromWire(String value) {
-    return SquadTier.values.firstWhere(
-      (t) => t.wire == value.toUpperCase(),
-      orElse: () => SquadTier.development,
-    );
-  }
-}
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 
 /// The primary emphasis of a training session.
 enum SessionFocus { technical, physical, mental }
@@ -56,7 +33,7 @@ class TrainingSession {
   const TrainingSession({
     required this.id,
     required this.title,
-    required this.squad,
+    required this.ageTiers,
     required this.date,
     required this.startTime,
     required this.endTime,
@@ -67,7 +44,16 @@ class TrainingSession {
 
   final String id;
   final String title;
-  final SquadTier squad;
+
+  /// The tiers this session is run for — one, some, or all of them. Only
+  /// players in these tiers are eligible for its attendance. A session with no
+  /// tiers targets nobody, so the scheduling form requires at least one.
+  ///
+  /// Stored as the explicit set the coach picked rather than an "all" flag: if
+  /// a fourth tier is added later, existing sessions keep targeting exactly the
+  /// tiers they were created for instead of silently absorbing the new one.
+  final Set<AgeTier> ageTiers;
+
   final DateTime date;
   final String startTime;
   final String endTime;
@@ -75,11 +61,22 @@ class TrainingSession {
   final SessionFocus focus;
   final int attendeeCount;
 
+  /// [ageTiers] in canonical tier order, so display never depends on the order
+  /// the coach happened to tap the chips in.
+  List<AgeTier> get orderedTiers =>
+      AgeTier.values.where(ageTiers.contains).toList(growable: false);
+
+  /// True when the session targets every tier the academy runs.
+  bool get isAllTiers => ageTiers.length == AgeTier.values.length;
+
+  /// True when a player in [tier] is eligible for this session's attendance.
+  bool includesTier(AgeTier tier) => ageTiers.contains(tier);
+
   factory TrainingSession.fromJson(Map<String, dynamic> json) {
     return TrainingSession(
       id: json['id'].toString(),
       title: json['title'] as String? ?? '',
-      squad: SquadTierLabel.fromWire(json['squad'] as String? ?? ''),
+      ageTiers: _tiersFromJson(json['ageTiers']),
       date: DateTime.tryParse(json['date'] as String? ?? '') ?? DateTime.now(),
       startTime: json['startTime'] as String? ?? '',
       endTime: json['endTime'] as String? ?? '',
@@ -89,10 +86,21 @@ class TrainingSession {
     );
   }
 
+  /// Reads the `ageTiers` wire list. Falls back to every tier when the field is
+  /// missing or unreadable — a tier-less session can't be rendered or attended,
+  /// and a pill reading "All Tiers" is visibly wrong to the coach who created
+  /// it, where an empty session would just look broken.
+  static Set<AgeTier> _tiersFromJson(dynamic raw) {
+    if (raw is! List || raw.isEmpty) return AgeTier.values.toSet();
+    return raw
+        .map((v) => AgeTierInfo.fromWire(v.toString()))
+        .toSet();
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
-        'squad': squad.wire,
+        'ageTiers': orderedTiers.map((t) => t.wire).toList(growable: false),
         'date': date.toIso8601String(),
         'startTime': startTime,
         'endTime': endTime,

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
@@ -35,12 +36,18 @@ class _FailingPlayerRepository implements PlayerRepository {
       throw PlayerRepositoryException('boom');
 }
 
-Player _player(String id, String name, String position) => Player(
+Player _player(
+  String id,
+  String name,
+  String position, {
+  AgeTier tier = AgeTier.development,
+}) =>
+    Player(
       id: id,
       name: name,
       age: 15,
       classYear: 'Class of 2026',
-      ageTier: 'Development',
+      ageTier: tier,
       position: position,
       eligibility: EligibilityStatus.eligible,
       ratings: const PlayerRatings(
@@ -120,6 +127,78 @@ void main() {
       expect(vm.error, 'boom');
       expect(vm.players, isEmpty);
       expect(vm.isLoading, isFalse);
+    });
+
+    test('filterByTier narrows the roster to that tier only', () async {
+      final vm = CoachDashboardViewModel(
+        GetSquad(_FakePlayerRepository([
+          _player('1', 'Messi', 'CAM', tier: AgeTier.development),
+          _player('2', 'Ronaldo', 'ST', tier: AgeTier.pathway),
+          _player('3', 'Yamal', 'RW', tier: AgeTier.foundation),
+          _player('4', 'Pedri', 'CM', tier: AgeTier.foundation),
+        ])),
+      );
+      await vm.loadSquad();
+
+      vm.filterByTier(AgeTier.foundation);
+      expect(vm.players.map((p) => p.name), ['Yamal', 'Pedri']);
+
+      vm.filterByTier(AgeTier.pathway);
+      expect(vm.players.map((p) => p.name), ['Ronaldo']);
+    });
+
+    test('filterByTier(null) restores the whole squad', () async {
+      final vm = CoachDashboardViewModel(
+        GetSquad(_FakePlayerRepository([
+          _player('1', 'Messi', 'CAM', tier: AgeTier.development),
+          _player('2', 'Yamal', 'RW', tier: AgeTier.foundation),
+        ])),
+      );
+      await vm.loadSquad();
+
+      vm.filterByTier(AgeTier.foundation);
+      expect(vm.players.length, 1);
+      vm.filterByTier(null);
+      expect(vm.players.length, 2);
+    });
+
+    test('tier filter and search narrow together', () async {
+      final vm = CoachDashboardViewModel(
+        GetSquad(_FakePlayerRepository([
+          _player('1', 'Messi', 'CAM', tier: AgeTier.foundation),
+          _player('2', 'Mbappe', 'ST', tier: AgeTier.pathway),
+          _player('3', 'Yamal', 'RW', tier: AgeTier.foundation),
+        ])),
+      );
+      await vm.loadSquad();
+
+      vm.filterByTier(AgeTier.foundation);
+
+      // Mbappe matches the query but is excluded by the tier filter.
+      vm.search('m');
+      expect(vm.players.map((p) => p.name), ['Messi', 'Yamal']);
+
+      // Messi is in the tier but is excluded by the query.
+      vm.search('yam');
+      expect(vm.players.map((p) => p.name), ['Yamal']);
+    });
+
+    test('countFor counts a tier regardless of the active search', () async {
+      final vm = CoachDashboardViewModel(
+        GetSquad(_FakePlayerRepository([
+          _player('1', 'Messi', 'CAM', tier: AgeTier.foundation),
+          _player('2', 'Yamal', 'RW', tier: AgeTier.foundation),
+          _player('3', 'Mbappe', 'ST', tier: AgeTier.pathway),
+        ])),
+      );
+      await vm.loadSquad();
+      vm.search('zzzz');
+
+      expect(vm.countFor(AgeTier.foundation), 2);
+      expect(vm.countFor(AgeTier.pathway), 1);
+      expect(vm.countFor(AgeTier.development), 0);
+      // ...while the header still reports the true squad size.
+      expect(vm.registeredCount, 3);
     });
 
     test('notifies listeners when loading and searching', () async {

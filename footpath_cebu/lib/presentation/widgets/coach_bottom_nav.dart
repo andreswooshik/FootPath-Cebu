@@ -1,29 +1,50 @@
 import 'package:flutter/material.dart';
 
+import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/presentation/screens/coach_profile_screen.dart';
 import 'package:footpath_cebu/presentation/screens/training_schedule_screen.dart';
 
-/// The coach portal's bottom navigation, shared by the detail screens pushed
-/// from the squad roster (Player Profile, Edit Performance Data). Mirrors the
-/// destinations on the Coach dashboard so the bar looks the same everywhere.
+/// The coach portal's bottom navigation, shared by every coach screen so the
+/// bar looks and behaves the same everywhere.
+///
+/// [selectedIndex] marks the screen currently showing; tapping it is a no-op.
 class CoachBottomNav extends StatelessWidget {
-  const CoachBottomNav({super.key});
+  const CoachBottomNav({
+    super.key,
+    required this.profile,
+    this.selectedIndex = 0,
+  });
+
+  /// The signed-in user, needed to open the Profile destination.
+  final UserProfile profile;
+  final int selectedIndex;
 
   @override
   Widget build(BuildContext context) {
     return NavigationBar(
-      selectedIndex: 0,
+      selectedIndex: selectedIndex,
       onDestinationSelected: (i) {
-        if (i == 0) {
-          // Squad — back to the roster the detail screen was opened from.
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        } else if (i == 1) {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const TrainingScheduleScreen()),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Coming soon.')),
-          );
+        if (i == selectedIndex) return;
+        switch (i) {
+          case 0:
+            // Squad — back to the roster this screen was opened from.
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          case 1:
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => TrainingScheduleScreen(profile: profile),
+              ),
+            );
+          case 3:
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CoachProfileScreen(profile: profile),
+              ),
+            );
+          default:
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Coming soon.')),
+            );
         }
       },
       destinations: const [

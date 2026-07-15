@@ -1,3 +1,5 @@
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
+
 /// Academic eligibility, mirroring the backend enum. Never stores grades —
 /// only the gating status set by School Staff.
 enum EligibilityStatus { eligible, notEligible, pending, academicWarning }
@@ -104,8 +106,9 @@ class Player {
   /// Graduating cohort, e.g. "Class of 2025".
   final String classYear;
 
-  /// Age tier: Foundation (10–12), Development (13–15), Pathway (16–18).
-  final String ageTier;
+  /// Age tier the player is registered under. Stored rather than derived from
+  /// [age] — see [AgeTierInfo.forAge].
+  final AgeTier ageTier;
 
   /// Field position abbreviation, e.g. ST, CM, GK.
   final String position;
@@ -138,7 +141,7 @@ class Player {
       name: json['name'] as String? ?? '',
       age: json['age'] as int? ?? 0,
       classYear: json['classYear'] as String? ?? '',
-      ageTier: json['ageTier'] as String? ?? '',
+      ageTier: AgeTierInfo.fromWire(json['ageTier'] as String? ?? ''),
       position: json['position'] as String? ?? '',
       ratings: PlayerRatings.fromJson(
         (json['ratings'] as Map<String, dynamic>?) ?? const {},
@@ -155,7 +158,7 @@ class Player {
         'name': name,
         'age': age,
         'classYear': classYear,
-        'ageTier': ageTier,
+        'ageTier': ageTier.wire,
         'position': position,
         'ratings': ratings.toJson(),
         'eligibility': eligibility.wire,
