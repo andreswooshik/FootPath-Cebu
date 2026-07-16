@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:footpath_cebu/core/di/service_locator.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
-import 'package:footpath_cebu/presentation/viewmodels/edit_performance_viewmodel.dart';
+import 'package:footpath_cebu/presentation/providers/edit_performance_controller.dart';
+import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 
 /// Coach Portal — the player assessment form.
@@ -12,9 +13,9 @@ import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 /// Following the same convention as the Schedule Session form, the editable
 /// values live here in the View and are handed back as a draft [PlayerRatings]
 /// when the coach saves. The draft is persisted through
-/// [EditPerformanceViewModel] (`PUT /api/players/<id>/assessment/`), then popped
-/// so [PlayerProfileScreen] can apply the saved ratings to the card.
-class EditPerformanceDataScreen extends StatefulWidget {
+/// [EditPerformanceController] (`PUT /api/players/<id>/assessment/`), then
+/// popped so [PlayerProfileScreen] can apply the saved ratings to the card.
+class EditPerformanceDataScreen extends ConsumerStatefulWidget {
   const EditPerformanceDataScreen({
     super.key,
     required this.player,
@@ -27,11 +28,12 @@ class EditPerformanceDataScreen extends StatefulWidget {
   final UserProfile profile;
 
   @override
-  State<EditPerformanceDataScreen> createState() =>
+  ConsumerState<EditPerformanceDataScreen> createState() =>
       _EditPerformanceDataScreenState();
 }
 
-class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
+class _EditPerformanceDataScreenState
+    extends ConsumerState<EditPerformanceDataScreen> {
   late int _pace = widget.player.ratings.pace;
   late int _shooting = widget.player.ratings.shooting;
   late int _passing = widget.player.ratings.passing;
@@ -40,14 +42,10 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
   late int _physical = widget.player.ratings.physical;
 
   final _notesController = TextEditingController();
-  final _viewModel = EditPerformanceViewModel(
-    ServiceLocator.savePlayerAssessment,
-  );
 
   @override
   void dispose() {
     _notesController.dispose();
-    _viewModel.dispose();
     super.dispose();
   }
 
@@ -62,7 +60,9 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
       );
 
   Future<void> _save() async {
-    final saved = await _viewModel.submit(widget.player.id, _draft);
+    final saved = await ref
+        .read(editPerformanceControllerProvider.notifier)
+        .submit(widget.player.id, _draft);
     if (!mounted) return;
     if (saved != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -70,8 +70,16 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
       );
       Navigator.of(context).pop(saved.ratings);
     } else {
+      final error = ref.read(editPerformanceControllerProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_viewModel.error ?? 'Could not save.')),
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(
+              error,
+              'Could not save the assessment. Please try again.',
+            ),
+          ),
+        ),
       );
     }
   }
@@ -79,6 +87,7 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isSaving = ref.watch(editPerformanceControllerProvider).isLoading;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Update Performance Data'),
@@ -165,21 +174,18 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          ListenableBuilder(
-            listenable: _viewModel,
-            builder: (context, _) => FilledButton.icon(
-              onPressed: _viewModel.isSaving ? null : _save,
-              icon: _viewModel.isSaving
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync),
-              label: Text(_viewModel.isSaving ? 'Saving…' : 'Save & Sync'),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
+          FilledButton.icon(
+            onPressed: isSaving ? null : _save,
+            icon: isSaving
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync),
+            label: Text(isSaving ? 'Saving…' : 'Save & Sync'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16),
             ),
           ),
         ],

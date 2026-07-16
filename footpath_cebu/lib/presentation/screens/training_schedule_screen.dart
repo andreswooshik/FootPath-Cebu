@@ -1,53 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:footpath_cebu/core/di/service_locator.dart';
-import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/presentation/providers/error_text.dart';
+import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_session_screen.dart';
-import 'package:footpath_cebu/presentation/viewmodels/training_schedule_viewmodel.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 
 /// Coach Portal — the Training Schedule.
 ///
-/// A thin View: it renders [TrainingScheduleViewModel] state and lets the coach
-/// switch between Upcoming and Past sessions or open the scheduling form.
-class TrainingScheduleScreen extends StatefulWidget {
+/// A thin View over the schedule providers: it lets the coach switch between
+/// Upcoming and Past sessions or open the scheduling form. Scheduling a new
+/// session invalidates the schedule provider, so the list refreshes without
+/// this screen doing anything.
+class TrainingScheduleScreen extends ConsumerStatefulWidget {
   const TrainingScheduleScreen({super.key, required this.profile});
 
   /// The signed-in coach, forwarded to the shared bottom navigation.
   final UserProfile profile;
 
   @override
-  State<TrainingScheduleScreen> createState() => _TrainingScheduleScreenState();
+  ConsumerState<TrainingScheduleScreen> createState() =>
+      _TrainingScheduleScreenState();
 }
 
-class _TrainingScheduleScreenState extends State<TrainingScheduleScreen> {
-  late final TrainingScheduleViewModel _viewModel =
-      TrainingScheduleViewModel(ServiceLocator.getTrainingSessions);
-
+class _TrainingScheduleScreenState
+    extends ConsumerState<TrainingScheduleScreen> {
   bool _showPast = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _viewModel.load();
-  }
-
-  @override
-  void dispose() {
-    _viewModel.dispose();
-    super.dispose();
-  }
-
-  Future<void> _openScheduleForm() async {
-    final created = await Navigator.of(context).push<bool>(
+  void _openScheduleForm() {
+    Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const ScheduleSessionScreen()),
     );
-    if (created == true) {
-      await _viewModel.load();
-    }
   }
 
   void _logAttendance() {
@@ -75,48 +61,43 @@ class _TrainingScheduleScreenState extends State<TrainingScheduleScreen> {
           ),
         ],
       ),
-      body: ListenableBuilder(
-        listenable: _viewModel,
-        builder: (context, _) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Training Schedule',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      "Manage your squad's development drills and "
-                      'tactical sessions.',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 14),
-                    FilledButton.icon(
-                      onPressed: _openScheduleForm,
-                      icon: const Icon(Icons.add_circle_outline),
-                      label: const Text('Schedule New Session'),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(48),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _ScheduleTabs(
-                      showPast: _showPast,
-                      onChanged: (past) => setState(() => _showPast = past),
-                    ),
-                  ],
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Training Schedule',
+                  style: Theme.of(context).textTheme.headlineSmall,
                 ),
-              ),
-              Expanded(child: _buildBody()),
-            ],
-          );
-        },
+                const SizedBox(height: 2),
+                Text(
+                  "Manage your squad's development drills and "
+                  'tactical sessions.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: _openScheduleForm,
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Schedule New Session'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _ScheduleTabs(
+                  showPast: _showPast,
+                  onChanged: (past) => setState(() => _showPast = past),
+                ),
+              ],
+            ),
+          ),
+          Expanded(child: _buildBody()),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _openScheduleForm,
@@ -131,37 +112,40 @@ class _TrainingScheduleScreenState extends State<TrainingScheduleScreen> {
   }
 
   Widget _buildBody() {
-    if (_viewModel.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_viewModel.error != null) {
-      return DashboardErrorState(
-        message: _viewModel.error!,
-        onRetry: _viewModel.load,
-      );
-    }
-    final List<TrainingSession> sessions =
-        _showPast ? _viewModel.past : _viewModel.upcoming;
-    if (sessions.isEmpty) {
-      return Center(
-        child: Text(
-          _showPast
-              ? 'No past sessions yet.'
-              : 'No upcoming sessions. Schedule one to get started.',
-          textAlign: TextAlign.center,
+    final sessions =
+        ref.watch(_showPast ? pastSessionsProvider : upcomingSessionsProvider);
+    return sessions.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => DashboardErrorState(
+        message: friendlyErrorMessage(
+          e,
+          'Something went wrong loading the schedule.',
         ),
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: _viewModel.load,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        itemCount: sessions.length,
-        itemBuilder: (context, i) => TrainingSessionCard(
-          session: sessions[i],
-          onLogAttendance: _logAttendance,
-        ),
+        onRetry: () => ref.invalidate(trainingSessionsProvider),
       ),
+      data: (list) {
+        if (list.isEmpty) {
+          return Center(
+            child: Text(
+              _showPast
+                  ? 'No past sessions yet.'
+                  : 'No upcoming sessions. Schedule one to get started.',
+              textAlign: TextAlign.center,
+            ),
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: () => ref.refresh(trainingSessionsProvider.future),
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: list.length,
+            itemBuilder: (context, i) => TrainingSessionCard(
+              session: list[i],
+              onLogAttendance: _logAttendance,
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,27 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:footpath_cebu/core/di/service_locator.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
-import 'package:footpath_cebu/presentation/viewmodels/schedule_session_viewmodel.dart';
+import 'package:footpath_cebu/presentation/providers/error_text.dart';
+import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 
 /// Coach Portal — the Schedule New Session form.
 ///
 /// Collects the session details and hands a draft [TrainingSession] to
-/// [ScheduleSessionViewModel]. On success it pops back to the schedule with a
-/// `true` result so the list refreshes.
-class ScheduleSessionScreen extends StatefulWidget {
+/// [ScheduleSessionController]. On success it pops back to the schedule,
+/// which refreshes by itself (the controller invalidates the schedule
+/// provider).
+class ScheduleSessionScreen extends ConsumerStatefulWidget {
   const ScheduleSessionScreen({super.key});
 
   @override
-  State<ScheduleSessionScreen> createState() => _ScheduleSessionScreenState();
+  ConsumerState<ScheduleSessionScreen> createState() =>
+      _ScheduleSessionScreenState();
 }
 
-class _ScheduleSessionScreenState extends State<ScheduleSessionScreen> {
-  late final ScheduleSessionViewModel _viewModel = ScheduleSessionViewModel(
-    ServiceLocator.scheduleTrainingSession,
-  );
-
+class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   final _titleController = TextEditingController();
   final _locationController = TextEditingController();
 
@@ -57,7 +56,6 @@ class _ScheduleSessionScreenState extends State<ScheduleSessionScreen> {
   void dispose() {
     _titleController.dispose();
     _locationController.dispose();
-    _viewModel.dispose();
     super.dispose();
   }
 
@@ -115,7 +113,9 @@ class _ScheduleSessionScreenState extends State<ScheduleSessionScreen> {
       focus: _focus,
     );
 
-    final ok = await _viewModel.submit(draft);
+    final ok = await ref
+        .read(scheduleSessionControllerProvider.notifier)
+        .submit(draft);
     if (!mounted) return;
     if (ok) {
       ScaffoldMessenger.of(
@@ -123,14 +123,23 @@ class _ScheduleSessionScreenState extends State<ScheduleSessionScreen> {
       ).showSnackBar(SnackBar(content: Text('"$title" scheduled.')));
       Navigator.of(context).pop(true);
     } else {
+      final error = ref.read(scheduleSessionControllerProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_viewModel.error ?? 'Could not schedule.')),
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(
+              error,
+              'Could not schedule the session. Please try again.',
+            ),
+          ),
+        ),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isSaving = ref.watch(scheduleSessionControllerProvider).isLoading;
     return Scaffold(
       appBar: AppBar(
         title: const Row(
@@ -141,146 +150,141 @@ class _ScheduleSessionScreenState extends State<ScheduleSessionScreen> {
           ],
         ),
       ),
-      body: ListenableBuilder(
-        listenable: _viewModel,
-        builder: (context, _) {
-          return ListView(
-            padding: const EdgeInsets.all(16),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            'Schedule New Session',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Plan a new training session for your squad.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 20),
+
+          const _FieldLabel('Session Title'),
+          TextField(
+            controller: _titleController,
+            textCapitalization: TextCapitalization.words,
+            decoration: _fieldDecoration(
+              hint: 'e.g. Tactical Workshop',
+              suffix: const Icon(Icons.edit_outlined, size: 18),
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          const _FieldLabel('Date'),
+          _PickerField(
+            text: _date == null ? 'Select a date' : _formatDate(_date!),
+            placeholder: _date == null,
+            icon: Icons.calendar_today_outlined,
+            onTap: _pickDate,
+          ),
+          const SizedBox(height: 18),
+
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Schedule New Session',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Plan a new training session for your squad.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 20),
-
-              const _FieldLabel('Session Title'),
-              TextField(
-                controller: _titleController,
-                textCapitalization: TextCapitalization.words,
-                decoration: _fieldDecoration(
-                  hint: 'e.g. Tactical Workshop',
-                  suffix: const Icon(Icons.edit_outlined, size: 18),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _FieldLabel('Start Time'),
+                    _PickerField(
+                      text: _startTime?.format(context) ?? 'Start',
+                      placeholder: _startTime == null,
+                      icon: Icons.schedule,
+                      onTap: () => _pickTime(isStart: true),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 18),
-
-              const _FieldLabel('Date'),
-              _PickerField(
-                text: _date == null ? 'Select a date' : _formatDate(_date!),
-                placeholder: _date == null,
-                icon: Icons.calendar_today_outlined,
-                onTap: _pickDate,
-              ),
-              const SizedBox(height: 18),
-
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _FieldLabel('Start Time'),
-                        _PickerField(
-                          text: _startTime?.format(context) ?? 'Start',
-                          placeholder: _startTime == null,
-                          icon: Icons.schedule,
-                          onTap: () => _pickTime(isStart: true),
-                        ),
-                      ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _FieldLabel('End Time'),
+                    _PickerField(
+                      text: _endTime?.format(context) ?? 'End',
+                      placeholder: _endTime == null,
+                      icon: Icons.schedule,
+                      onTap: () => _pickTime(isStart: false),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const _FieldLabel('End Time'),
-                        _PickerField(
-                          text: _endTime?.format(context) ?? 'End',
-                          placeholder: _endTime == null,
-                          icon: Icons.schedule,
-                          onTap: () => _pickTime(isStart: false),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-
-              const _FieldLabel('Location'),
-              TextField(
-                controller: _locationController,
-                textCapitalization: TextCapitalization.words,
-                decoration: _fieldDecoration(
-                  hint: 'e.g. USJ-R Basak Pitch',
-                  suffix: const Icon(Icons.location_on_outlined, size: 18),
+                  ],
                 ),
               ),
-              const SizedBox(height: 18),
-
-              const _FieldLabel('Age Tiers'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilterChip(
-                    label: const Text('All Tiers'),
-                    selected: _allTiersSelected,
-                    onSelected: (_) => _toggleAllTiers(),
-                  ),
-                  for (final tier in AgeTier.values)
-                    FilterChip(
-                      label: Text('${tier.label} · ${tier.ageLabel}'),
-                      selected: _tiers.contains(tier),
-                      onSelected: (_) => _toggleTier(tier),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _TierSelectionHint(tiers: _tiers),
-              const SizedBox(height: 18),
-
-              const _FieldLabel('Session Focus'),
-              Wrap(
-                spacing: 10,
-                children: [
-                  for (final focus in SessionFocus.values)
-                    ChoiceChip(
-                      label: Text(focus.label),
-                      selected: _focus == focus,
-                      onSelected: (_) => setState(() => _focus = focus),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              FilledButton.icon(
-                onPressed: _viewModel.isSaving ? null : _submit,
-                icon: _viewModel.isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.event_available),
-                label: Text(
-                  _viewModel.isSaving ? 'Scheduling…' : 'Create Schedule',
-                ),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
-                ),
-              ),
-              const SizedBox(height: 20),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 18),
+
+          const _FieldLabel('Location'),
+          TextField(
+            controller: _locationController,
+            textCapitalization: TextCapitalization.words,
+            decoration: _fieldDecoration(
+              hint: 'e.g. USJ-R Basak Pitch',
+              suffix: const Icon(Icons.location_on_outlined, size: 18),
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          const _FieldLabel('Age Tiers'),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilterChip(
+                label: const Text('All Tiers'),
+                selected: _allTiersSelected,
+                onSelected: (_) => _toggleAllTiers(),
+              ),
+              for (final tier in AgeTier.values)
+                FilterChip(
+                  label: Text('${tier.label} · ${tier.ageLabel}'),
+                  selected: _tiers.contains(tier),
+                  onSelected: (_) => _toggleTier(tier),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _TierSelectionHint(tiers: _tiers),
+          const SizedBox(height: 18),
+
+          const _FieldLabel('Session Focus'),
+          Wrap(
+            spacing: 10,
+            children: [
+              for (final focus in SessionFocus.values)
+                ChoiceChip(
+                  label: Text(focus.label),
+                  selected: _focus == focus,
+                  onSelected: (_) => setState(() => _focus = focus),
+                ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          FilledButton.icon(
+            onPressed: isSaving ? null : _submit,
+            icon: isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.event_available),
+            label: Text(
+              isSaving ? 'Scheduling…' : 'Create Schedule',
+            ),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(50),
+            ),
+          ),
+          const SizedBox(height: 20),
+        ],
       ),
     );
   }

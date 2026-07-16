@@ -27,31 +27,24 @@ flutter run
 
 ### Switching to Firebase
 
-To use real Firebase authentication:
+To run a debug build against the real Firebase + Django backend, no code
+change is needed — pass a dart-define:
 
-1. Open `lib/main.dart`
-2. Change this line:
-```dart
-ServiceLocator.initMock();
-```
-to:
-```dart
-ServiceLocator.initFirebase();
-```
-
-3. Run the app:
 ```bash
-flutter run
+flutter run --dart-define=USE_MOCK=false
 ```
+
+A **release** build always uses the live backend (the mock auth must never
+ship — audit finding F1).
 
 ## How It Works
 
 ### Architecture
 
-- **`lib/repositories/auth_repository.dart`** — Abstract interface that both implementations follow
-- **`lib/repositories/mock_auth_repository.dart`** — Mock implementation with fake data
-- **`lib/repositories/firebase_auth_repository.dart`** — Real Firebase implementation
-- **`lib/repositories/service_locator.dart`** — Simple DI container to switch between them
+- **`lib/domain/repositories/auth_repository.dart`** — Abstract interface that both implementations follow
+- **`lib/data/repositories/mock_auth_repository.dart`** — Mock implementation with fake data
+- **`lib/data/repositories/firebase_auth_repository.dart`** — Real Firebase implementation
+- **`lib/core/di/providers.dart`** — Riverpod composition root; each repository provider picks mock vs live based on `useMockData`, and tests override the providers with fakes
 
 ### Mock Behavior
 

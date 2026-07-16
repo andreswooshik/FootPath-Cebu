@@ -24,9 +24,9 @@ abstract class AssessmentWriter {
 }
 
 /// Aggregate of the player-domain reads and writes. Concrete data sources
-/// implement this one interface, while each ViewModel depends only on the
-/// narrow interface it actually uses (Interface Segregation) — so a Coach
-/// ViewModel can't reach the guardian's or player's reads.
+/// implement this one interface, while each presentation provider depends only
+/// on the narrow interface it actually uses (Interface Segregation) — so the
+/// Coach's providers can't reach the guardian's or player's reads.
 abstract class PlayerRepository
     implements
         SquadRepository,

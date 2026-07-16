@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// Shared error state for dashboard screens: an icon, a message, and a retry
-/// button wired to the ViewModel's reload method.
+/// button (typically wired to `ref.invalidate` on the failed provider).
 class DashboardErrorState extends StatelessWidget {
   const DashboardErrorState({
     super.key,

@@ -1,7 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
-import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 
 import 'firebase_options.dart';
@@ -12,26 +11,8 @@ import 'firebase_options.dart';
 final GlobalKey<ScaffoldMessengerState> messengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
-/// Whether to wire the in-memory mock repositories instead of the live
-/// Firebase + Django backend.
-///
-/// A release build ALWAYS uses live data — the mock auth accepts a shared demo
-/// password for any email, so it must never ship (audit finding F1). In debug,
-/// mocks are the default for UI work; override with
-/// `--dart-define=USE_MOCK=false` to run debug against the real backend.
-bool get useMockData {
-  if (kReleaseMode) return false;
-  return const bool.fromEnvironment('USE_MOCK', defaultValue: true);
-}
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  if (useMockData) {
-    ServiceLocator.initMock();
-  } else {
-    ServiceLocator.initFirebase();
-  }
 
   String? setupError;
   try {
@@ -44,7 +25,10 @@ Future<void> main() async {
     setupError = '$e';
   }
 
-  runApp(FootPathApp(setupError: setupError));
+  // ProviderScope is the composition root's container: every repository and
+  // use-case provider (core/di/providers.dart) lives inside it, and tests
+  // swap implementations by overriding providers on their own scope.
+  runApp(ProviderScope(child: FootPathApp(setupError: setupError)));
 }
 
 class FootPathApp extends StatelessWidget {

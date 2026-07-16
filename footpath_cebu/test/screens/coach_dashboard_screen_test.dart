@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:footpath_cebu/core/di/service_locator.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
@@ -14,13 +14,16 @@ const _coach = UserProfile(
   roleDisplay: 'Coach',
 );
 
-void main() {
-  setUp(ServiceLocator.initMock);
-
-  testWidgets('shows a loading spinner, then the mock roster', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: CoachDashboardScreen(profile: _coach)),
+/// Each test gets its own ProviderScope, so provider state (squad, filters)
+/// never leaks between tests. The repository providers default to the
+/// in-memory mocks in a test environment (see core/di/providers.dart).
+Widget _app() => const ProviderScope(
+      child: MaterialApp(home: CoachDashboardScreen(profile: _coach)),
     );
+
+void main() {
+  testWidgets('shows a loading spinner, then the mock roster', (tester) async {
+    await tester.pumpWidget(_app());
 
     // First frame: squad is still loading.
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -34,9 +37,7 @@ void main() {
   });
 
   testWidgets('search filters the roster', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: CoachDashboardScreen(profile: _coach)),
-    );
+    await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'messi');
@@ -47,9 +48,7 @@ void main() {
   });
 
   testWidgets('renders a tier filter chip per tier, plus All', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: CoachDashboardScreen(profile: _coach)),
-    );
+    await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     // Counts come from the mock squad: 2 Foundation, 4 Development, 4 Pathway.
@@ -60,9 +59,7 @@ void main() {
   });
 
   testWidgets('tapping a tier chip shows only that tier', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: CoachDashboardScreen(profile: _coach)),
-    );
+    await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilterChip, 'Foundation (2)'));
@@ -81,9 +78,7 @@ void main() {
   });
 
   testWidgets('an empty tier explains itself', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: CoachDashboardScreen(profile: _coach)),
-    );
+    await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilterChip, 'Foundation (2)'));
@@ -95,9 +90,7 @@ void main() {
   });
 
   testWidgets('renders the bottom navigation destinations', (tester) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: CoachDashboardScreen(profile: _coach)),
-    );
+    await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
     expect(find.text('Squad'), findsOneWidget);

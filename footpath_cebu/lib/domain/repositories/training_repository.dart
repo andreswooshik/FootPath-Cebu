@@ -13,8 +13,8 @@ abstract class TrainingScheduleWriter {
 }
 
 /// Aggregate of the training-schedule operations. Concrete data sources
-/// implement this one interface, while each ViewModel depends only on the
-/// narrow use case it needs (Interface Segregation) — the schedule list can't
+/// implement this one interface, while each presentation provider depends only
+/// on the narrow use case it needs (Interface Segregation) — the schedule list can't
 /// reach the writer, and the form can't reach the reader.
 abstract class TrainingRepository
     implements TrainingScheduleReader, TrainingScheduleWriter {}
