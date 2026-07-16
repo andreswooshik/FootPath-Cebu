@@ -66,7 +66,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'footpath-cebu.firebasestorage.app',
     iosBundleId: 'com.example.footpathCebu',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyAK7Ek-fjQx84fdS9TqXPeSQc8ivvXtjuI',
     appId: '1:155194186459:ios:a0974b9e57bd65ba8ecafe',
