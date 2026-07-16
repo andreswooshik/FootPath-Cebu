@@ -35,8 +35,12 @@ SECRET_KEY = os.environ['DJANGO_SECRET_KEY']
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DJANGO_DEBUG') == '1'
 
-# 10.0.2.2 is the Android emulator's loopback to the host machine.
+# 10.0.2.2 is the Android emulator's loopback to the host machine. In
+# production, set DJANGO_ALLOWED_HOSTS (comma-separated) to the real hostnames.
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2']
+_extra_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
+if _extra_hosts:
+    ALLOWED_HOSTS += [h.strip() for h in _extra_hosts.split(',') if h.strip()]
 
 
 # Application definition
@@ -52,6 +56,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'accounts',
+    'academy',
     'console',
 ]
 
@@ -166,8 +171,16 @@ AUTH_USER_MODEL = 'accounts.User'
 # add/change forms in a same-origin iframe, so allow same-origin framing.
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Dev only: Flutter web runs on a random localhost port each launch.
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS. In development, Flutter web runs on a random localhost port each launch,
+# so allow all origins. In production, allow only the explicit origins from
+# CORS_ORIGINS (comma-separated) — never wildcard (audit finding F5).
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [
+        o.strip() for o in os.environ.get('CORS_ORIGINS', '').split(',') if o.strip()
+    ]
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -177,6 +190,20 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+# Production security hardening (audit finding F6). Applied only when DEBUG is
+# off so local HTTP development is unaffected. `manage.py check --deploy` should
+# be clean with these set. Assumes TLS is terminated by a proxy that sets
+# X-Forwarded-Proto.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # Path to the Firebase Admin SDK service-account JSON (kept out of git).
 FIREBASE_CREDENTIALS = BASE_DIR / os.environ.get(

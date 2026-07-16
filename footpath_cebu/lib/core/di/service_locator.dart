@@ -1,13 +1,16 @@
 import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/firebase_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_auth_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
+import 'package:footpath_cebu/domain/repositories/device_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
@@ -15,6 +18,8 @@ import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
 import 'package:footpath_cebu/domain/usecases/get_training_sessions.dart';
+import 'package:footpath_cebu/domain/usecases/register_device.dart';
+import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
 import 'package:footpath_cebu/domain/usecases/sign_in.dart';
@@ -32,9 +37,11 @@ class ServiceLocator {
   static late GetSquad getSquad;
   static late GetMyProfile getMyProfile;
   static late GetLinkedPlayers getLinkedPlayers;
+  static late SavePlayerAssessment savePlayerAssessment;
   static late GetPlayerAttendance getPlayerAttendance;
   static late GetTrainingSessions getTrainingSessions;
   static late ScheduleTrainingSession scheduleTrainingSession;
+  static late RegisterDevice registerDevice;
 
   /// Mock repositories for UI development without a backend.
   static void initMock() => _wire(
@@ -42,6 +49,7 @@ class ServiceLocator {
         MockPlayerRepository(),
         MockAttendanceRepository(),
         MockTrainingRepository(),
+        MockDeviceRepository(),
       );
 
   /// Live Firebase auth + Django REST repositories.
@@ -50,6 +58,7 @@ class ServiceLocator {
         ApiPlayerRepository(),
         ApiAttendanceRepository(),
         ApiTrainingRepository(),
+        ApiDeviceRepository(),
       );
 
   static void _wire(
@@ -57,6 +66,7 @@ class ServiceLocator {
     PlayerRepository players,
     AttendanceRepository attendance,
     TrainingRepository training,
+    DeviceRepository device,
   ) {
     signIn = SignIn(auth);
     signOut = SignOut(auth);
@@ -64,8 +74,10 @@ class ServiceLocator {
     getSquad = GetSquad(players);
     getMyProfile = GetMyProfile(players);
     getLinkedPlayers = GetLinkedPlayers(players);
+    savePlayerAssessment = SavePlayerAssessment(players);
     getPlayerAttendance = GetPlayerAttendance(attendance);
     getTrainingSessions = GetTrainingSessions(training);
     scheduleTrainingSession = ScheduleTrainingSession(training);
+    registerDevice = RegisterDevice(device);
   }
 }

@@ -19,6 +19,10 @@ class _FakePlayerRepository implements PlayerRepository {
 
   @override
   Future<List<Player>> fetchLinkedPlayers() async => _players;
+
+  @override
+  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async =>
+      _players.firstWhere((p) => p.id == playerId).copyWith(ratings: ratings);
 }
 
 /// Fake repo that always fails, to exercise the error path.
@@ -33,6 +37,10 @@ class _FailingPlayerRepository implements PlayerRepository {
 
   @override
   Future<List<Player>> fetchLinkedPlayers() async =>
+      throw PlayerRepositoryException('boom');
+
+  @override
+  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async =>
       throw PlayerRepositoryException('boom');
 }
 

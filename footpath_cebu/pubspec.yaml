@@ -36,6 +36,13 @@ dependencies:
   cupertino_icons: ^1.0.8
   firebase_core: ^4.11.0
   firebase_auth: 6.5.4
+  # firebase_messaging is intentionally NOT added yet: the latest release
+  # (16.4.2) is incompatible with the firebase_core_platform_interface (^7.1.0)
+  # that the pinned firebase_auth 6.5.4 requires. Push delivery is wired
+  # end-to-end except for the on-device token source — see
+  # data/repositories/api_device_repository.dart and
+  # docs/wiring-implementation-notes.md for how to enable it once a compatible
+  # firebase_messaging is pinned.
   http: ^1.6.0
   flutter_svg: ^2.0.10
 

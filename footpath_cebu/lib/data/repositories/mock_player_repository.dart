@@ -157,4 +157,18 @@ class MockPlayerRepository implements PlayerRepository {
     // Stand-in for a guardian's two linked children.
     return List.unmodifiable(_squad.where((p) => p.id == 'p2' || p.id == 'p3'));
   }
+
+  @override
+  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    final index = _squad.indexWhere((p) => p.id == playerId);
+    if (index == -1) {
+      throw PlayerRepositoryException('No such player.');
+    }
+    // Mutate in place so the change survives a later fetch, mirroring a real
+    // backend write.
+    final updated = _squad[index].copyWith(ratings: ratings);
+    _squad[index] = updated;
+    return updated;
+  }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/core/di/service_locator.dart';
@@ -28,6 +30,9 @@ class _LoginScreenState extends State<LoginScreen> {
     final profile = await _viewModel.signIn();
     if (!mounted) return;
     if (profile != null) {
+      // Register this device for push notifications (best-effort, fire and
+      // forget — never blocks navigation or fails the login).
+      unawaited(ServiceLocator.registerDevice());
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => HomeScreen(profile: profile)),
       );

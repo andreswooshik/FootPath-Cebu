@@ -31,16 +31,20 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
                 'Authentication service is not configured.'
             ) from exc
 
+        # Check token revocation on state-changing requests (writes, admin
+        # actions) so a signed-out or disabled account loses write access
+        # immediately, without paying the extra network round trip on every
+        # cheap read (audit finding F4).
+        check_revoked = request.method not in ('GET', 'HEAD', 'OPTIONS')
         try:
-            # check_revoked is deliberately off: it adds a network round trip
-            # per request. Enable it for sensitive endpoints when needed.
             decoded = firebase_auth.verify_id_token(
-                token, clock_skew_seconds=10
+                token, clock_skew_seconds=10, check_revoked=check_revoked
             )
         except firebase_auth.ExpiredIdTokenError:
             raise exceptions.AuthenticationFailed('Token expired.')
+        except firebase_auth.RevokedIdTokenError:
+            raise exceptions.AuthenticationFailed('Session revoked. Sign in again.')
         except (
-            firebase_auth.RevokedIdTokenError,
             firebase_auth.InvalidIdTokenError,
             ValueError,
         ):

@@ -167,6 +167,9 @@ class _Photo extends StatelessWidget {
               fit: BoxFit.cover,
               width: double.infinity,
               height: double.infinity,
+              // Decode at roster-card size rather than full resolution — the
+              // grid shows many small photos (audit finding F10).
+              cacheWidth: 300,
               errorBuilder: (context, error, stack) => const _PhotoFallback(),
             )
           : const _PhotoFallback(),

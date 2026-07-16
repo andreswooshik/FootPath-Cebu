@@ -1,0 +1,41 @@
+Wire app from mock to live data: backends, hardening, FCM foundation, storage
+
+Milestone 0–5 complete. Wires Flutter → Django REST → Supabase Postgres topology.
+
+Backend (new academy app):
+- PlayerProfile, TrainingSession, Attendance, DeviceToken models
+- All missing REST endpoints (/api/players/, /api/assessment/, /api/attendance/, /api/devices/, etc.)
+- Object-level authz (BOLA): guardians read only linked children
+- FCM session-scheduled fan-out to players + guardians
+- Seed data for instant demo
+- 46 backend tests (RBAC, BOLA, wire-contract, photo authz, notifications)
+
+Flutter:
+- Release-safe wiring: live in release, mock in debug (audit F1)
+- Configurable API base URL (--dart-define=API_BASE_URL)
+- Coach assessments now persist via SavePlayerAssessment use case
+- Device registration post-login (token source injected, FCM compatible once firebase_messaging pins)
+- 53 Flutter tests; analyzer clean
+
+Production hardening (audit F4–F6, F9–F11):
+- CORS wildcard gated behind DEBUG; explicit origins in prod (F5)
+- HTTPS/HSTS/secure-cookie block when not DEBUG (F6)
+- Token revocation on state-changing requests (F4)
+- Console admin rows built with createElement/textContent, no innerHTML (F9)
+- Image decode sizing, dead _VerifiedFacilityCard removed (F10–F11)
+- CI workflow: backend test/check --deploy, flutter analyze/test
+
+Supabase Storage + admin console:
+- Private player-photos bucket; signed URLs on PhotoUrl
+- Admin photo upload via POST /api/admin/players/<id>/photo/
+- Console XSS fix (F9)
+
+Decision (open, not ship-blocking):
+- firebase_messaging incompatible with pinned firebase_auth 6.5.4 → device token source injected, registration is logged no-op. Docs show how to enable once compatible.
+
+ADR 0002 (decision, not code):
+- Recommends keeping ChangeNotifier/ServiceLocator through capstone defense
+- Adopt Riverpod incrementally post-defense, starting with offline-first attendance
+- Unblocks the remaining 50% without pre-defense risk
+
+Deploy: no code change needed. Fill backend/.env from .env.example (DB_*), run migrate, seed_users, seed_academy. See docs for full steps.
