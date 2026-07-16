@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:footpath_cebu/core/di/service_locator.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_session_screen.dart';
 
 void main() {
-  setUp(ServiceLocator.initMock);
-
   /// The form is a lazy ListView, so anything below the fold is never built
   /// and can't be found. Give it a surface tall enough to hold the whole form
   /// rather than scrolling before every assertion.
@@ -13,7 +11,7 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(500, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      const MaterialApp(home: ScheduleSessionScreen()),
+      const ProviderScope(child: MaterialApp(home: ScheduleSessionScreen())),
     );
     await tester.pumpAndSettle();
   }

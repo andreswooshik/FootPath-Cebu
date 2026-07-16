@@ -1,6 +1,36 @@
-# ADR 0002 — State management: keep MVVM/ChangeNotifier now, adopt Riverpod incrementally for the long run
+# ADR 0002 — State management: migrate the presentation layer to Riverpod
 
-**Status:** Proposed · **Date:** 2026-07-16
+**Status:** Accepted (and implemented) · **Date:** 2026-07-16
+
+> **Amendment (2026-07-16):** the original proposal below recommended freezing
+> ChangeNotifier through the defense and adopting Riverpod incrementally
+> afterwards. The project owner decided to migrate **now**, before building the
+> remaining 50% scope, so every new feature (offline-first attendance, School
+> Staff, injuries, feedback) is written once in the final architecture instead
+> of being migrated later. The full migration shipped in one PR:
+>
+> - `flutter_riverpod ^3.3` using the **classic (non-codegen) syntax** — not
+>   the `@riverpod` codegen flavor originally recommended. Rationale: zero
+>   `build_runner` step and no generated files, which keeps the toolchain
+>   simple and every line of state code explainable at the defense; the
+>   semantics (`AsyncValue`, `Notifier`, autoDispose, overrides) are identical,
+>   and codegen can be layered on later without changing the architecture.
+> - The static `ServiceLocator` is replaced by a provider-based composition
+>   root (`core/di/providers.dart`): one `Provider` per repository (choosing
+>   mock vs live) and per use case. The F1 release guard (`useMockData`) lives
+>   there too.
+> - Every ViewModel became a provider/controller under
+>   `presentation/providers/`; every screen is a `ConsumerWidget` /
+>   `ConsumerStatefulWidget`; tests use `ProviderScope` (widgets) and
+>   `ProviderContainer` + `overrideWithValue(fake)` (units).
+> - The domain layer (entities, repository interfaces, use cases) is
+>   completely unchanged — ADR 0001 is unaffected, as predicted below.
+> - Two Riverpod 3 behaviors to know: failed providers **auto-retry** with
+>   exponential backoff (tests disable this via the container's `retry`
+>   parameter), and rebuilds are batched, so several synchronous state changes
+>   coalesce into one recompute.
+>
+> The original analysis is kept below for the record.
 
 ## Context
 

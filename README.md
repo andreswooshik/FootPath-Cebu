@@ -16,7 +16,7 @@ docs/            Requirements, setup, and detailed execution notes
 
 ### Flutter Clean Architecture (`footpath_cebu/lib/`)
 
-The app is organized into **Clean Architecture** layers with the Dependency Rule pointing inward: **presentation → domain ← data**. The domain layer is pure Dart (no Flutter, Firebase, or HTTP) and holds entities, repository *interfaces*, and **use cases** (interactors). ViewModels depend on use cases — never on a concrete data source — and the presentation layer within MVVM (View → ViewModel).
+The app is organized into **Clean Architecture** layers with the Dependency Rule pointing inward: **presentation → domain ← data**. The domain layer is pure Dart (no Flutter, Firebase, or HTTP) and holds entities, repository *interfaces*, and **use cases** (interactors). Presentation state is managed with **Riverpod** (see ADR 0002): screens are `ConsumerWidget`s that watch providers, and the providers depend on use cases — never on a concrete data source.
 
 ```
 lib/
@@ -26,21 +26,21 @@ lib/
     usecases/        One class per operation (SignIn, GetSquad, GetMyProfile, ...)
   data/            Implements the domain interfaces
     repositories/    mock_* (in-memory) + firebase_/api_* (live Django REST + Firebase)
-  presentation/    UI + state (MVVM)
-    viewmodels/      ChangeNotifier state holders — depend on use cases only
+  presentation/    UI + state (Riverpod)
+    providers/       FutureProviders, Notifiers and controllers — depend on use cases only
     screens/         Views (CoachDashboardScreen, LoginScreen, HomeScreen)
     widgets/         Reusable UI (PlayerCard — the FUT-style roster card)
   core/
     config/          ApiConfig (base URLs)
-    di/              service_locator.dart — composition root; swaps mock <-> live
+    di/              providers.dart — composition root; repository providers swap mock <-> live
 ```
 
 SOLID shows up concretely: use cases depend on **narrow** repository interfaces (`SquadRepository`, `PlayerProfileRepository`, `LinkedPlayersRepository` — Interface Segregation + Dependency Inversion); provider-specific concerns (Firebase, HTTP, JSON) stay in the data layer so domain and presentation stay provider-agnostic.
 
 **Feature trace — Coach dashboard "Active Squad Roster":**
-`CoachDashboardScreen` (View) → `CoachDashboardViewModel` → `GetSquad` (use case) → `SquadRepository` → `MockPlayerRepository` / `ApiPlayerRepository`. Swap mock/live in `main.dart` via `ServiceLocator.initMock()` / `initFirebase()`.
+`CoachDashboardScreen` (View) → `filteredSquadProvider`/`squadProvider` → `GetSquad` (use case) → `SquadRepository` → `MockPlayerRepository` / `ApiPlayerRepository`. Mock is the debug default; run against the live backend with `--dart-define=USE_MOCK=false` (release builds are always live).
 
-Tests live in `footpath_cebu/test/` (entity round-trips, ViewModel filtering/error paths, dashboard widget tests). Run with `flutter test`.
+Tests live in `footpath_cebu/test/` (entity round-trips, provider filtering/error paths via `ProviderContainer` overrides, dashboard widget tests inside `ProviderScope`). Run with `flutter test`.
 
 ---
 

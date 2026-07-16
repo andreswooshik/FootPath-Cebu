@@ -63,7 +63,7 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   /// Maps Firebase error codes to user-facing copy. Lives in the data layer so
-  /// the ViewModel depends only on [AuthException].
+  /// the presentation layer depends only on [AuthException].
   String _friendlyAuthMessage(FirebaseAuthException e) {
     switch (e.code) {
       case 'invalid-credential':

@@ -5,8 +5,8 @@ abstract class AuthRepository {
   /// Signs in with email and password, returning the typed user profile.
   ///
   /// Implementations translate provider-specific failures (e.g. Firebase's
-  /// [FirebaseAuthException]) into [AuthException] so callers — ViewModels —
-  /// never depend on the auth provider.
+  /// [FirebaseAuthException]) into [AuthException] so callers — the
+  /// presentation controllers — never depend on the auth provider.
   Future<UserProfile> signInAndFetchProfile({
     required String email,
     required String password,

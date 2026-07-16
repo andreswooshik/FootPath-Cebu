@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:footpath_cebu/core/di/service_locator.dart';
+import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_dashboard_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key, required this.profile});
 
   /// The signed-in user, from GET /api/auth/me/.
   final UserProfile profile;
 
-  Future<void> _signOut(BuildContext context) async {
-    await ServiceLocator.signOut();
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    await ref.read(signOutProvider)();
     if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -22,7 +23,7 @@ class HomeScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // Route each role to its dashboard; unknown roles fall through to the
     // generic placeholder below.
     switch (profile.role) {
@@ -41,7 +42,7 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
-            onPressed: () => _signOut(context),
+            onPressed: () => _signOut(context, ref),
           ),
         ],
       ),

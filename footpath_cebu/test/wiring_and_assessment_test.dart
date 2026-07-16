@@ -1,14 +1,15 @@
 import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/data/repositories/api_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/usecases/register_device.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
-import 'package:footpath_cebu/main.dart' show useMockData;
-import 'package:footpath_cebu/presentation/viewmodels/edit_performance_viewmodel.dart';
+import 'package:footpath_cebu/presentation/providers/edit_performance_controller.dart';
 
 void main() {
   group('F1 — release-safe wiring', () {
@@ -63,23 +64,30 @@ void main() {
       expect(same.ratings.shooting, 51);
     });
 
-    test('ViewModel surfaces success and error states', () async {
+    test('controller surfaces success and error states', () async {
       final repo = MockPlayerRepository();
-      final vm = EditPerformanceViewModel(SavePlayerAssessment(repo));
+      final container = ProviderContainer(
+        overrides: [playerRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+      final sub =
+          container.listen(editPerformanceControllerProvider, (_, _) {});
+      final controller =
+          container.read(editPerformanceControllerProvider.notifier);
       final squad = await repo.fetchSquad();
 
       const ratings = PlayerRatings(
         pace: 60, shooting: 60, passing: 60, dribbling: 60,
         defending: 60, physical: 60,
       );
-      final ok = await vm.submit(squad.first.id, ratings);
+      final ok = await controller.submit(squad.first.id, ratings);
       expect(ok, isNotNull);
-      expect(vm.error, isNull);
+      expect(sub.read().hasError, isFalse);
 
       // Unknown player id → error path, no throw.
-      final bad = await vm.submit('does-not-exist', ratings);
+      final bad = await controller.submit('does-not-exist', ratings);
       expect(bad, isNull);
-      expect(vm.error, isNotNull);
+      expect(sub.read().hasError, isTrue);
     });
   });
 }

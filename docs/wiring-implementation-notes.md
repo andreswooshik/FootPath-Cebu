@@ -32,17 +32,21 @@ The Flutter client never talks to Supabase directly.
   photo authz, notification fan-out). Backend total: **46 passing**.
 
 ### Flutter — flip to live + persistence
-- **Release-safe wiring (audit F1):** `main.dart` uses live data whenever
+- **Release-safe wiring (audit F1):** the composition root
+  (`core/di/providers.dart`, `useMockData`) selects live data whenever
   `kReleaseMode`; mock only in debug (override with `--dart-define=USE_MOCK=false`).
   A release build can no longer ship the demo-password mock auth.
 - **Configurable API base:** `--dart-define=API_BASE_URL=…` (falls back to the
   localhost/emulator defaults).
 - **Coach assessments persist:** new `AssessmentWriter` interface +
-  `SavePlayerAssessment` use case + `EditPerformanceViewModel`; the edit screen now
+  `SavePlayerAssessment` use case + `EditPerformanceController`; the edit screen now
   PUTs to the backend instead of only showing a snackbar.
 - **Device registration** through the existing layering (`DeviceRepository` →
   `RegisterDevice`, called once post-login).
-- Tests total: **53 passing**; analyzer clean.
+- **State management is Riverpod** (ADR 0002, accepted): providers/controllers in
+  `presentation/providers/`, `ConsumerWidget` screens, provider-based composition
+  root replacing the static `ServiceLocator`.
+- Tests total: **55 passing**; analyzer clean.
 
 ### Production hardening (audit F4–F6, F9–F11)
 - CORS wildcard gated behind `DEBUG`; explicit `CORS_ORIGINS` in prod (F5).
@@ -76,8 +80,9 @@ seam: `ApiDeviceRepository([PushTokenProvider? tokenProvider])`. With no provide
 just without push. Everything else (permission flow shape, the POST to
 `/api/devices/`, the backend fan-out) is in place.
 
-**To turn push on**, pick one and then pass a provider in
-`ServiceLocator.initFirebase()`:
+**To turn push on**, pick one and then pass a token provider where
+`deviceRepositoryProvider` builds `ApiDeviceRepository`
+(`lib/core/di/providers.dart`):
 
 1. **Unpin `firebase_auth`** (e.g. `^6.5.4` → let a newer `firebase_auth` +
    `firebase_core_platform_interface ^8` resolve), then add a compatible
@@ -87,7 +92,7 @@ just without push. Everything else (permission flow shape, the POST to
 
 Then:
 ```dart
-// service_locator.dart, initFirebase()
+// core/di/providers.dart, deviceRepositoryProvider
 ApiDeviceRepository(() async {
   await FirebaseMessaging.instance.requestPermission();
   return FirebaseMessaging.instance.getToken();
