@@ -1,0 +1,144 @@
+"""Populate academy demo data: player profiles, a training schedule, attendance,
+and a guardian link — so a fresh database (SQLite or Supabase) demos the coach,
+player, and guardian dashboards immediately.
+
+Idempotent: safe to rerun. Assumes `seed_users` has already created the five
+Firebase-backed role accounts (admin/coach/player/staff/guardian). The extra
+roster players created here are local-only (no Firebase login) — they exist to
+fill the coach's roster; the login demos use the seed_users accounts.
+"""
+from datetime import date, timedelta
+
+from django.core.management.base import BaseCommand
+from django.db import transaction
+
+from accounts.models import GuardianLink, Roles, User
+from academy.models import (
+    AgeTier,
+    Attendance,
+    AttendanceStatus,
+    Eligibility,
+    PlayerProfile,
+    SessionFocus,
+    TrainingSession,
+)
+
+# (email, first, last, age, class_year, tier, position, ratings, eligibility)
+ROSTER = [
+    ('miguel.reyes@footpathcebu.test', 'Miguel', 'Reyes', 14, 'Class of 2028',
+     AgeTier.DEVELOPMENT, 'ST', (82, 78, 70, 80, 45, 74), Eligibility.ELIGIBLE),
+    ('paolo.cruz@footpathcebu.test', 'Paolo', 'Cruz', 15, 'Class of 2027',
+     AgeTier.DEVELOPMENT, 'CM', (75, 68, 84, 79, 66, 71), Eligibility.ELIGIBLE),
+    ('liam.tan@footpathcebu.test', 'Liam', 'Tan', 11, 'Class of 2031',
+     AgeTier.FOUNDATION, 'GK', (60, 40, 55, 50, 78, 68), Eligibility.PENDING),
+    ('noah.uy@footpathcebu.test', 'Noah', 'Uy', 12, 'Class of 2030',
+     AgeTier.FOUNDATION, 'RW', (85, 66, 62, 82, 38, 60),
+     Eligibility.ACADEMIC_WARNING),
+    ('gabriel.lim@footpathcebu.test', 'Gabriel', 'Lim', 17, 'Class of 2025',
+     AgeTier.PATHWAY, 'CB', (68, 45, 66, 60, 85, 82), Eligibility.ELIGIBLE),
+    ('ethan.go@footpathcebu.test', 'Ethan', 'Go', 16, 'Class of 2026',
+     AgeTier.PATHWAY, 'LB', (79, 52, 74, 72, 77, 75),
+     Eligibility.NOT_ELIGIBLE),
+]
+
+
+class Command(BaseCommand):
+    help = 'Seed player profiles, training sessions, attendance, and a guardian link.'
+
+    @transaction.atomic
+    def handle(self, *args, **options):
+        coach = User.objects.filter(role=Roles.COACH).first()
+
+        # 1. Give the seeded login-player a profile, if present.
+        login_player = User.objects.filter(
+            email='player@footpathcebu.test'
+        ).first()
+        if login_player:
+            self._ensure_profile(
+                login_player, 15, 'Class of 2027', AgeTier.DEVELOPMENT, 'CAM',
+                (80, 81, 83, 85, 60, 72), Eligibility.ELIGIBLE,
+            )
+
+        # 2. Roster players (local-only; fill the coach's squad view).
+        players = []
+        for (email, first, last, age, cls, tier, pos, ratings, elig) in ROSTER:
+            user, _ = User.objects.update_or_create(
+                username=email,
+                defaults={
+                    'email': email, 'first_name': first, 'last_name': last,
+                    'role': Roles.PLAYER, 'is_active': True,
+                },
+            )
+            self._ensure_profile(user, age, cls, tier, pos, ratings, elig)
+            players.append(user)
+
+        # 3. Training schedule (two upcoming, one past).
+        sessions = self._seed_sessions(coach)
+
+        # 4. Attendance for the login-player across the past session.
+        past = next((s for s in sessions if s.date < date.today()), None)
+        if login_player and past:
+            Attendance.objects.update_or_create(
+                player=login_player, session=past,
+                defaults={'status': AttendanceStatus.PRESENT, 'recorded_by': coach},
+            )
+        for i, p in enumerate(players[:3]):
+            if past:
+                Attendance.objects.update_or_create(
+                    player=p, session=past,
+                    defaults={
+                        'status': [AttendanceStatus.PRESENT, AttendanceStatus.ABSENT,
+                                   AttendanceStatus.EXCUSED][i % 3],
+                        'recorded_by': coach,
+                    },
+                )
+
+        # 5. Link the seeded guardian to the login-player for the guardian demo.
+        guardian = User.objects.filter(email='guardian@footpathcebu.test').first()
+        if guardian and login_player:
+            GuardianLink.objects.get_or_create(
+                guardian=guardian, player=login_player
+            )
+
+        self.stdout.write(self.style.SUCCESS(
+            f'Seeded {PlayerProfile.objects.count()} player profiles, '
+            f'{TrainingSession.objects.count()} sessions, '
+            f'{Attendance.objects.count()} attendance records.'
+        ))
+
+    def _ensure_profile(self, user, age, cls, tier, pos, ratings, elig):
+        pace, shooting, passing, dribbling, defending, physical = ratings
+        PlayerProfile.objects.update_or_create(
+            user=user,
+            defaults={
+                'age': age, 'class_year': cls, 'age_tier': tier, 'position': pos,
+                'pace': pace, 'shooting': shooting, 'passing': passing,
+                'dribbling': dribbling, 'defending': defending, 'physical': physical,
+                'eligibility': elig,
+            },
+        )
+
+    def _seed_sessions(self, coach):
+        today = date.today()
+        specs = [
+            ('Evening Technical Training', today + timedelta(days=2), '04:30 PM',
+             '06:00 PM', 'Cebu City Sports Complex', SessionFocus.TECHNICAL,
+             [AgeTier.DEVELOPMENT, AgeTier.PATHWAY]),
+            ('Foundation Fundamentals', today + timedelta(days=5), '09:00 AM',
+             '10:30 AM', 'Abellana Field', SessionFocus.PHYSICAL,
+             [AgeTier.FOUNDATION]),
+            ('Match Prep & Mentality', today - timedelta(days=3), '05:00 PM',
+             '06:30 PM', 'Cebu City Sports Complex', SessionFocus.MENTAL,
+             [AgeTier.DEVELOPMENT, AgeTier.PATHWAY, AgeTier.FOUNDATION]),
+        ]
+        sessions = []
+        for (title, d, start, end, loc, focus, tiers) in specs:
+            session, _ = TrainingSession.objects.update_or_create(
+                title=title, date=d,
+                defaults={
+                    'start_time': start, 'end_time': end, 'location': loc,
+                    'focus': focus, 'age_tiers': list(tiers), 'created_by': coach,
+                },
+            )
+            sessions.append(session)
+        return sessions

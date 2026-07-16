@@ -101,7 +101,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
           FilledButton.icon(
             onPressed: _openEditor,
             icon: const Icon(Icons.edit_outlined),
-            label: const Text('Edit Performance Data'),
+            label: const Text('Update Performance Data'),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),

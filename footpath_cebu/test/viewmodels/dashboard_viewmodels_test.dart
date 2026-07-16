@@ -45,6 +45,10 @@ class _FakeRepo implements PlayerRepository {
 
   @override
   Future<List<Player>> fetchLinkedPlayers() async => children;
+
+  @override
+  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async =>
+      throw UnimplementedError();
 }
 
 class _FakeAttendanceRepo implements AttendanceRepository {

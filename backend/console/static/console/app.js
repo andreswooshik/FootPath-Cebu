@@ -41,6 +41,36 @@ async function apiFetch(path, options = {}) {
   return res.json();
 }
 
+// Multipart upload (photos). Does NOT set Content-Type — the browser adds the
+// multipart boundary. Same bearer auth as apiFetch.
+async function apiUpload(path, formData) {
+  const user = firebase.auth().currentUser;
+  if (!user) throw new Error('Not signed in.');
+  const token = await user.getIdToken();
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!res.ok) {
+    let detail = `Upload failed (${res.status})`;
+    try {
+      const body = await res.json();
+      detail = body.detail || JSON.stringify(body);
+    } catch (_) {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+// Build a table cell with plain text — never innerHTML with server data, so a
+// name/email containing markup can't inject script (audit finding F9).
+function textCell(text) {
+  const td = document.createElement('td');
+  td.textContent = text;
+  return td;
+}
+
 async function loadUsers() {
   const users = await apiFetch('/api/admin/users/');
   const tbody = el('users-table-body');
@@ -52,22 +82,78 @@ async function loadUsers() {
 
   for (const u of users) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${u.email}</td>
-      <td>${[u.first_name, u.last_name].filter(Boolean).join(' ') || '—'}</td>
-      <td><span class="badge">${u.role_display}</span></td>
-    `;
+    tr.appendChild(textCell(u.email));
+    tr.appendChild(
+      textCell([u.first_name, u.last_name].filter(Boolean).join(' ') || '—')
+    );
+
+    const roleCell = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = u.role_display;
+    roleCell.appendChild(badge);
+    tr.appendChild(roleCell);
+
+    // Photo uploader — players only.
+    const photoCell = document.createElement('td');
+    if (u.role === 'PLAYER') {
+      photoCell.appendChild(buildPhotoUploader(u));
+    } else {
+      photoCell.textContent = '—';
+    }
+    tr.appendChild(photoCell);
+
     tbody.appendChild(tr);
 
     if (u.role === 'GUARDIAN') {
-      const opt = new Option(u.email, u.id);
-      guardianSelect.add(opt);
+      guardianSelect.add(new Option(u.email, u.id));
     }
     if (u.role === 'PLAYER') {
-      const opt = new Option(u.email, u.id);
-      playerSelect.add(opt);
+      playerSelect.add(new Option(u.email, u.id));
     }
   }
+}
+
+// A file picker + Upload button that POSTs a photo to Supabase Storage (via the
+// Django admin endpoint) for one player.
+function buildPhotoUploader(user) {
+  const wrap = document.createElement('div');
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.width = 'auto';
+
+  const button = document.createElement('button');
+  button.textContent = 'Upload';
+  button.style.marginTop = '4px';
+
+  const status = document.createElement('span');
+  status.style.marginLeft = '8px';
+  status.style.fontSize = '0.8em';
+
+  button.addEventListener('click', async () => {
+    if (!input.files || !input.files[0]) {
+      status.textContent = 'Pick a file first.';
+      return;
+    }
+    const formData = new FormData();
+    formData.append('photo', input.files[0]);
+    button.disabled = true;
+    status.textContent = 'Uploading…';
+    try {
+      await apiUpload(`/api/admin/players/${user.id}/photo/`, formData);
+      status.textContent = 'Saved ✓';
+    } catch (e) {
+      status.textContent = e.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  wrap.appendChild(input);
+  wrap.appendChild(button);
+  wrap.appendChild(status);
+  return wrap;
 }
 
 async function loadLinks() {
@@ -76,19 +162,22 @@ async function loadLinks() {
   tbody.innerHTML = '';
   for (const link of links) {
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${link.guardian.email}</td>
-      <td>${link.player.email}</td>
-      <td><button data-id="${link.id}" class="secondary unlink-button">Unlink</button></td>
-    `;
-    tbody.appendChild(tr);
-  }
-  tbody.querySelectorAll('.unlink-button').forEach((btn) => {
+    tr.appendChild(textCell(link.guardian.email));
+    tr.appendChild(textCell(link.player.email));
+
+    const actionCell = document.createElement('td');
+    const btn = document.createElement('button');
+    btn.className = 'secondary';
+    btn.textContent = 'Unlink';
     btn.addEventListener('click', async () => {
-      await apiFetch(`/api/admin/guardian-links/${btn.dataset.id}/`, { method: 'DELETE' });
+      await apiFetch(`/api/admin/guardian-links/${link.id}/`, { method: 'DELETE' });
       await loadLinks();
     });
-  });
+    actionCell.appendChild(btn);
+    tr.appendChild(actionCell);
+
+    tbody.appendChild(tr);
+  }
 }
 
 async function refreshDashboard() {
@@ -140,10 +229,18 @@ el('create-user-button').addEventListener('click', async () => {
     });
     const box = el('create-user-result');
     box.style.display = 'block';
+    box.textContent = '';
+    box.append(`Account created for `);
+    const emailStrong = document.createElement('strong');
+    emailStrong.textContent = result.user.email;
+    box.append(emailStrong, '. ');
     if (result.temporary_password) {
-      box.innerHTML = `Account created for <strong>${result.user.email}</strong>. Temporary password (shown once): <code>${result.temporary_password}</code>`;
+      box.append('Temporary password (shown once): ');
+      const code = document.createElement('code');
+      code.textContent = result.temporary_password;
+      box.append(code);
     } else {
-      box.innerHTML = `Account created for <strong>${result.user.email}</strong>. ${result.note}`;
+      box.append(result.note);
     }
     el('create-email').value = '';
     el('create-first-name').value = '';

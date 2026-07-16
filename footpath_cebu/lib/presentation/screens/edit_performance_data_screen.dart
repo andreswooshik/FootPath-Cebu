@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 
+import 'package:footpath_cebu/core/di/service_locator.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/presentation/viewmodels/edit_performance_viewmodel.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 
 /// Coach Portal — the player assessment form.
 ///
 /// Following the same convention as the Schedule Session form, the editable
 /// values live here in the View and are handed back as a draft [PlayerRatings]
-/// when the coach saves. Pops with the draft so [PlayerProfileScreen] can apply
-/// it to the card immediately.
-///
-/// TODO: persist the draft once the backend exposes a player-assessment write
-/// endpoint — this currently updates the profile in memory only.
+/// when the coach saves. The draft is persisted through
+/// [EditPerformanceViewModel] (`PUT /api/players/<id>/assessment/`), then popped
+/// so [PlayerProfileScreen] can apply the saved ratings to the card.
 class EditPerformanceDataScreen extends StatefulWidget {
   const EditPerformanceDataScreen({
     super.key,
@@ -40,10 +40,14 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
   late int _physical = widget.player.ratings.physical;
 
   final _notesController = TextEditingController();
+  final _viewModel = EditPerformanceViewModel(
+    ServiceLocator.savePlayerAssessment,
+  );
 
   @override
   void dispose() {
     _notesController.dispose();
+    _viewModel.dispose();
     super.dispose();
   }
 
@@ -57,11 +61,19 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
         physical: _physical,
       );
 
-  void _save() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Assessment saved for ${widget.player.name}.')),
-    );
-    Navigator.of(context).pop(_draft);
+  Future<void> _save() async {
+    final saved = await _viewModel.submit(widget.player.id, _draft);
+    if (!mounted) return;
+    if (saved != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Assessment saved for ${widget.player.name}.')),
+      );
+      Navigator.of(context).pop(saved.ratings);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_viewModel.error ?? 'Could not save.')),
+      );
+    }
   }
 
   @override
@@ -69,7 +81,7 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit Performance Data'),
+        title: const Text('Update Performance Data'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -153,12 +165,21 @@ class _EditPerformanceDataScreenState extends State<EditPerformanceDataScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _save,
-            icon: const Icon(Icons.sync),
-            label: const Text('Save & Sync'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+          ListenableBuilder(
+            listenable: _viewModel,
+            builder: (context, _) => FilledButton.icon(
+              onPressed: _viewModel.isSaving ? null : _save,
+              icon: _viewModel.isSaving
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+              label: Text(_viewModel.isSaving ? 'Saving…' : 'Save & Sync'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
             ),
           ),
         ],

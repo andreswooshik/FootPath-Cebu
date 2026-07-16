@@ -23,6 +23,34 @@ class ApiPlayerRepository implements PlayerRepository {
     return Player.fromJson(json);
   }
 
+  @override
+  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async {
+    final idToken = await _requireIdToken();
+
+    final http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/players/$playerId/assessment/'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'ratings': ratings.toJson()}),
+      );
+    } catch (_) {
+      throw PlayerRepositoryException(
+        'Could not reach the server. Is it running?',
+      );
+    }
+
+    if (response.statusCode != 200) {
+      throw PlayerRepositoryException(
+        'Could not save the assessment (${response.statusCode}).',
+      );
+    }
+    return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
   /// GETs a single JSON object from [path] with the coach/player's ID token.
   Future<Map<String, dynamic>> _get(String path) async {
     final idToken = await _requireIdToken();
