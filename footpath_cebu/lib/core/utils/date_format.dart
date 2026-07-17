@@ -7,3 +7,8 @@ const _months = [
 String formatShortDate(DateTime date) {
   return '${_months[date.month - 1]} ${date.day}';
 }
+
+/// Full, human-readable date with year, e.g. "Jul 8, 2026".
+String formatFullDate(DateTime date) {
+  return '${_months[date.month - 1]} ${date.day}, ${date.year}';
+}

@@ -2,16 +2,44 @@ import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 
 /// In-memory attendance history for UI development without a backend. Seeded
-/// for the two players a guardian is linked to (p2, p3 in
+/// for the signed-in player (p1, [MockPlayerRepository.fetchMyProfile]) and
+/// the two players a guardian is linked to (p2, p3 in
 /// [MockPlayerRepository.fetchLinkedPlayers]).
 class MockAttendanceRepository implements AttendanceRepository {
   static final List<Attendance> _records = [
+    // p1 — Rhobert Ronaldo (MockPlayerRepository.fetchMyProfile's stand-in
+    // for "the signed-in player")
+    Attendance(
+      playerId: 'p1',
+      status: AttendanceStatus.present,
+      updatedAt: DateTime(2026, 7, 9),
+      sessionName: 'Finishing Practice',
+      effort: 92,
+      note: 'Clinical in front of goal. Keep working on weak-foot shots.',
+    ),
+    Attendance(
+      playerId: 'p1',
+      status: AttendanceStatus.present,
+      updatedAt: DateTime(2026, 7, 4),
+      sessionName: 'Match Simulation',
+      effort: 80,
+      note: 'Composed on the ball under pressure. Strong game sense.',
+    ),
+    Attendance(
+      playerId: 'p1',
+      status: AttendanceStatus.excused,
+      updatedAt: DateTime(2026, 6, 30),
+      sessionName: 'Fitness Drill',
+    ),
     // p2 — Ralf Andre Messi
     Attendance(
       playerId: 'p2',
       status: AttendanceStatus.present,
       updatedAt: DateTime(2026, 7, 8),
       sessionName: 'Evening Training',
+      effort: 55,
+      note: 'Good awareness of teammates. Work on the timing of the '
+          'defensive transition.',
     ),
     Attendance(
       playerId: 'p2',
@@ -49,6 +77,9 @@ class MockAttendanceRepository implements AttendanceRepository {
       status: AttendanceStatus.present,
       updatedAt: DateTime(2026, 7, 3),
       sessionName: 'Finishing Practice',
+      effort: 88,
+      note: 'Excellent footwork today. Focus on recovery breathing during '
+          'high-intensity intervals.',
     ),
   ];
 

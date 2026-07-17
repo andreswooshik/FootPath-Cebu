@@ -17,17 +17,24 @@ void main() {
 
     expect(find.text('My Profile'), findsOneWidget);
     expect(find.byType(PlayerCard), findsOneWidget);
+    // The shared portal shell's four tabs.
+    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.text('Schedule'), findsOneWidget);
+    expect(find.text('Progress'), findsOneWidget);
+    expect(find.text('Profile'), findsOneWidget);
 
-    // The feedback section sits below the fold — scroll it into view.
+    // The attendance section sits below the fold — scroll it into view.
     await tester.scrollUntilVisible(
-      find.text('Feedback & Ratings'),
+      find.text('Recent Attendance'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('Feedback & Ratings'), findsOneWidget);
+    expect(find.text('Recent Attendance'), findsOneWidget);
+    expect(find.text('View Full History'), findsOneWidget);
   });
 
-  testWidgets('Guardian dashboard shows the selected child', (tester) async {
+  testWidgets('Guardian dashboard shows the linked child, no child selector',
+      (tester) async {
     await tester.pumpWidget(
       const ProviderScope(child: MaterialApp(home: GuardianDashboardScreen())),
     );
@@ -42,11 +49,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('My Players'), findsOneWidget);
-    // The redesigned dashboard shows one child at a time (with a selector to
-    // switch between the two linked children, p2 + p3), not a list — so
-    // exactly one player card is on screen.
+    // The dashboard mirrors the Player portal now: the guardian's first
+    // linked child shows directly, with no picker to switch children.
     expect(find.byType(PlayerCard), findsOneWidget);
-    expect(find.byType(SegmentedButton<String>), findsOneWidget);
+    expect(find.byType(SegmentedButton<String>), findsNothing);
 
     // The attendance section sits below the fold — scroll it into view.
     await tester.scrollUntilVisible(
@@ -55,5 +61,6 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Recent Attendance'), findsOneWidget);
+    expect(find.text('View Full History'), findsOneWidget);
   });
 }
