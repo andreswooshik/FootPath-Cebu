@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 /// A FUT-style squad card. The ornate frame is an SVG asset
 /// (`assets/cards/card_frame.svg`); the live values — overall, position,
@@ -70,7 +71,7 @@ class PlayerCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        player.position,
+                        player.position?.code ?? '--',
                         style: TextStyle(
                           color: _gold,
                           fontWeight: FontWeight.w800,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/edit_performance_controller.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
@@ -262,7 +263,7 @@ class _PlayerHeader extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(
-          '${player.position} · ${player.ageTier.label}',
+          '${player.position?.code ?? 'No position'} · ${player.ageTier.label}',
           style: theme.textTheme.bodyMedium?.copyWith(
             color: Colors.grey.shade600,
           ),

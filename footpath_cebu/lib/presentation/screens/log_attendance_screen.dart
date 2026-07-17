@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/attendance_log_providers.dart';
@@ -561,7 +562,7 @@ class _PlayerAttendanceCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${player.position} · ${player.ageTier.label}',
+                        '${player.position?.code ?? 'No position'} · ${player.ageTier.label}',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: cs.onSurfaceVariant,
                         ),

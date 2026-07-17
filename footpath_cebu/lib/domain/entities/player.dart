@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 /// Academic eligibility, mirroring the backend enum. Never stores grades —
 /// only the gating status set by School Staff.
@@ -93,7 +94,7 @@ class Player {
     required this.age,
     required this.classYear,
     required this.ageTier,
-    required this.position,
+    this.position,
     required this.ratings,
     required this.eligibility,
     this.photoUrl,
@@ -110,8 +111,11 @@ class Player {
   /// [age] — see [AgeTierInfo.forAge].
   final AgeTier ageTier;
 
-  /// Field position abbreviation, e.g. ST, CM, GK.
-  final String position;
+  /// The player's position, or null when the coach hasn't assigned one yet.
+  ///
+  /// Null by design: the admin registers a player without a position, and the
+  /// coach sets it after evaluating them.
+  final PlayerPosition? position;
 
   final PlayerRatings ratings;
   final EligibilityStatus eligibility;
@@ -120,15 +124,23 @@ class Player {
   int get overall => ratings.overall;
 
   /// Returns a copy with selected fields replaced — used by the coach's
-  /// assessment form to apply edited ratings without mutating the original.
-  Player copyWith({PlayerRatings? ratings, EligibilityStatus? eligibility}) {
+  /// assessment form to apply edited ratings, and by the position picker.
+  ///
+  /// Note that a null argument means "leave unchanged", so this cannot clear
+  /// [position] back to unassigned. That's deliberate: a coach assigns or
+  /// changes a position, never un-assigns one.
+  Player copyWith({
+    PlayerRatings? ratings,
+    EligibilityStatus? eligibility,
+    PlayerPosition? position,
+  }) {
     return Player(
       id: id,
       name: name,
       age: age,
       classYear: classYear,
       ageTier: ageTier,
-      position: position,
+      position: position ?? this.position,
       ratings: ratings ?? this.ratings,
       eligibility: eligibility ?? this.eligibility,
       photoUrl: photoUrl,
@@ -142,7 +154,7 @@ class Player {
       age: json['age'] as int? ?? 0,
       classYear: json['classYear'] as String? ?? '',
       ageTier: AgeTierInfo.fromWire(json['ageTier'] as String? ?? ''),
-      position: json['position'] as String? ?? '',
+      position: PlayerPositionInfo.fromWire(json['position'] as String?),
       ratings: PlayerRatings.fromJson(
         (json['ratings'] as Map<String, dynamic>?) ?? const {},
       ),
@@ -159,7 +171,7 @@ class Player {
         'age': age,
         'classYear': classYear,
         'ageTier': ageTier.wire,
-        'position': position,
+        'position': position?.wire,
         'ratings': ratings.toJson(),
         'eligibility': eligibility.wire,
         'photoUrl': photoUrl,

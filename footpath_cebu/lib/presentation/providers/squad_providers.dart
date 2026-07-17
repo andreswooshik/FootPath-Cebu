@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 /// The coach's full squad roster, shared by the Coach dashboard and the
 /// Coach profile snapshot. autoDispose: refetched when the coach navigates
@@ -33,7 +34,10 @@ class RosterFilter {
       result = result
           .where((p) =>
               p.name.toLowerCase().contains(q) ||
-              p.position.toLowerCase().contains(q))
+              // Match the code ("st") or the full name ("striker"); an
+              // unassigned player simply never matches a position query.
+              (p.position?.code.toLowerCase().contains(q) ?? false) ||
+              (p.position?.label.toLowerCase().contains(q) ?? false))
           .toList(growable: false);
     }
     return result;

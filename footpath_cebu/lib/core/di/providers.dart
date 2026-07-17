@@ -25,6 +25,7 @@ import 'package:footpath_cebu/domain/usecases/get_training_sessions.dart';
 import 'package:footpath_cebu/domain/usecases/log_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/register_device.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
+import 'package:footpath_cebu/domain/usecases/save_player_position.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
 import 'package:footpath_cebu/domain/usecases/sign_in.dart';
@@ -107,6 +108,10 @@ final getLinkedPlayersProvider = Provider<GetLinkedPlayers>(
 
 final savePlayerAssessmentProvider = Provider<SavePlayerAssessment>(
   (ref) => SavePlayerAssessment(ref.watch(playerRepositoryProvider)),
+);
+
+final savePlayerPositionProvider = Provider<SavePlayerPosition>(
+  (ref) => SavePlayerPosition(ref.watch(playerRepositoryProvider)),
 );
 
 final getPlayerAttendanceProvider = Provider<GetPlayerAttendance>(

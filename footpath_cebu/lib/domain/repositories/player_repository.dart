@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 /// Squad roster reads — used by the Coach dashboard.
 abstract class SquadRepository {
@@ -23,6 +24,14 @@ abstract class AssessmentWriter {
   Future<Player> saveAssessment(String playerId, PlayerRatings ratings);
 }
 
+/// Persists the position a coach assigned to a player and returns the updated
+/// player — used by the coach's position picker. Separate from
+/// [AssessmentWriter]: a position is the player's identity, not one of the six
+/// ratings, and only a coach may set it.
+abstract class PositionWriter {
+  Future<Player> savePosition(String playerId, PlayerPosition position);
+}
+
 /// Aggregate of the player-domain reads and writes. Concrete data sources
 /// implement this one interface, while each presentation provider depends only
 /// on the narrow interface it actually uses (Interface Segregation) — so the
@@ -32,7 +41,8 @@ abstract class PlayerRepository
         SquadRepository,
         PlayerProfileRepository,
         LinkedPlayersRepository,
-        AssessmentWriter {}
+        AssessmentWriter,
+        PositionWriter {}
 
 /// Thrown when a player-domain read cannot be completed.
 class PlayerRepositoryException implements Exception {

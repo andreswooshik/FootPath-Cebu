@@ -5,6 +5,7 @@ import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
@@ -71,7 +72,7 @@ class GuardianDashboardScreen extends ConsumerWidget {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     Text(
-                      '${child.ageTier.label} · ${child.position}',
+                      '${child.ageTier.label} · ${child.position?.code ?? 'No position'}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Colors.grey.shade600,
                           ),

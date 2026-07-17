@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:footpath_cebu/core/config/api_config.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:http/http.dart' as http;
 
@@ -21,6 +22,17 @@ class ApiPlayerRepository implements PlayerRepository {
   Future<Player> fetchMyProfile() async {
     final json = await _get('/api/players/me/');
     return Player.fromJson(json);
+  }
+
+  @override
+  // Live backend wiring for the coach's position assignment is the backend
+  // task's job; the picker runs on MockPlayerRepository. This stub only
+  // satisfies the PlayerRepository interface so the app compiles.
+  // Suggested endpoint: PUT /api/players/<id>/position/  body {"position": "ST"}
+  // It must reject non-coach callers — the client role check is UX only.
+  @override
+  Future<Player> savePosition(String playerId, PlayerPosition position) {
+    throw UnimplementedError('savePosition: pending backend wiring.');
   }
 
   @override

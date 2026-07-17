@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 void main() {
   group('PlayerRatings', () {
@@ -41,7 +42,7 @@ void main() {
         age: 16,
         classYear: 'Class of 2026',
         ageTier: AgeTier.pathway,
-        position: 'ST',
+        position: PlayerPosition.striker,
         eligibility: EligibilityStatus.eligible,
         ratings: PlayerRatings(
           pace: 99,

@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/presentation/providers/error_text.dart';
+import 'package:footpath_cebu/presentation/providers/player_position_controller.dart';
 import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
+import 'package:footpath_cebu/presentation/widgets/position_picker_sheet.dart';
 
 /// Coach Portal — one player's profile, opened by tapping a card on the squad
-/// roster. Shows the FUT card, the six technical attributes, and the player's
-/// academic standing, and links to the assessment form.
+/// roster. Shows the FUT card, the six technical attributes, the player's
+/// position and academic standing, and links to the assessment form.
 ///
-/// Holds the player locally so ratings edited in [EditPerformanceDataScreen]
-/// are reflected on the card as soon as the coach saves.
-class PlayerProfileScreen extends StatefulWidget {
+/// Holds the player locally so ratings and the position edited here are
+/// reflected on the card as soon as the coach saves.
+class PlayerProfileScreen extends ConsumerStatefulWidget {
   const PlayerProfileScreen({
     super.key,
     required this.player,
@@ -25,10 +30,11 @@ class PlayerProfileScreen extends StatefulWidget {
   final UserProfile profile;
 
   @override
-  State<PlayerProfileScreen> createState() => _PlayerProfileScreenState();
+  ConsumerState<PlayerProfileScreen> createState() =>
+      _PlayerProfileScreenState();
 }
 
-class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
+class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   late Player _player = widget.player;
 
   Future<void> _openEditor() async {
@@ -42,6 +48,71 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     );
     if (updated == null) return;
     setState(() => _player = _player.copyWith(ratings: updated));
+  }
+
+  /// Pick a position, confirm it, then persist it.
+  ///
+  /// The confirmation names the old and new position: one mis-tap in a
+  /// ten-item list would otherwise silently re-label a player.
+  Future<void> _editPosition() async {
+    final picked = await showPositionPickerSheet(
+      context: context,
+      playerName: _player.name,
+      current: _player.position,
+    );
+    if (picked == null || !mounted) return;
+    if (picked == _player.position) return; // nothing changed
+
+    final previous = _player.position;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          previous == null ? 'Assign position?' : 'Change position?',
+        ),
+        content: Text(
+          previous == null
+              ? '${_player.name} will be assigned '
+                  '${picked.labelWithCode}.'
+              : '${_player.name} will change from '
+                  '${previous.labelWithCode} to ${picked.labelWithCode}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(previous == null ? 'Assign' : 'Change'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final updated = await ref
+        .read(playerPositionControllerProvider.notifier)
+        .submit(_player.id, picked);
+    if (!mounted) return;
+
+    if (updated == null) {
+      final error = ref.read(playerPositionControllerProvider).error;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, 'Could not update the position.'),
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => _player = updated);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${_player.name} is now ${picked.labelWithCode}.'),
+      ),
+    );
   }
 
   @override
@@ -96,6 +167,15 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          _PlayerPositionCard(
+            position: _player.position,
+            // Only a coach may assign a position; every other role sees the
+            // same card without an action. The server must enforce this too —
+            // a client-side check is UX, not authorisation.
+            onEdit: widget.profile.isCoach ? _editPosition : null,
+            isSaving: ref.watch(playerPositionControllerProvider).isLoading,
+          ),
+          const SizedBox(height: 16),
           _AcademicStandingCard(status: _player.eligibility),
           const SizedBox(height: 20),
           FilledButton.icon(
@@ -109,6 +189,109 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         ],
       ),
       bottomNavigationBar: CoachBottomNav(profile: widget.profile),
+    );
+  }
+}
+
+/// The player's position — read-only for every role except the coach, who can
+/// assign it (when unset) or change it.
+///
+/// An unassigned player is stated plainly rather than shown as a blank or a
+/// placeholder code: "not yet assigned" is real information, and it's the
+/// prompt for the coach to act after they've evaluated the player.
+class _PlayerPositionCard extends StatelessWidget {
+  const _PlayerPositionCard({
+    required this.position,
+    required this.onEdit,
+    required this.isSaving,
+  });
+
+  final PlayerPosition? position;
+
+  /// Null for non-coach roles, which makes the card view-only.
+  final VoidCallback? onEdit;
+  final bool isSaving;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final assigned = position != null;
+    final accent = assigned ? cs.primary : cs.tertiary;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+            child: assigned
+                ? Text(
+                    position!.code,
+                    style: TextStyle(
+                      color: cs.onPrimary,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  )
+                : Icon(Icons.help_outline, color: cs.onTertiary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Player Position',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  assigned ? position!.labelWithCode : 'Not yet assigned',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  assigned
+                      ? 'Set by the coach'
+                      : 'The coach assigns this after evaluating the player.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (onEdit != null) ...[
+            const SizedBox(width: 8),
+            isSaving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : assigned
+                    ? TextButton(onPressed: onEdit, child: const Text('Change'))
+                    : FilledButton.tonal(
+                        onPressed: onEdit,
+                        child: const Text('Assign'),
+                      ),
+          ],
+        ],
+      ),
     );
   }
 }

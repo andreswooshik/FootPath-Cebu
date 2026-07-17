@@ -34,6 +34,11 @@ class UserProfile {
   /// A label safe to display even if the backend omitted `role_display`.
   String get displayRole => roleDisplay.isNotEmpty ? roleDisplay : role;
 
+  /// True for a coach. Gates coach-only affordances such as assigning a
+  /// player's position — a UX gate only. The server is the source of truth for
+  /// what a role may actually write; never rely on this for authorisation.
+  bool get isCoach => role == 'COACH';
+
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
       id: json['id'].toString(),

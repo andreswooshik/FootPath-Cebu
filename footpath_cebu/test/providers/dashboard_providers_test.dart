@@ -4,6 +4,7 @@ import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
@@ -16,7 +17,7 @@ Player _player(String id, String name) => Player(
   age: 15,
   classYear: 'Class of 2026',
   ageTier: AgeTier.development,
-  position: 'CM',
+  position: PlayerPosition.centralMidfielder,
   eligibility: EligibilityStatus.eligible,
   ratings: const PlayerRatings(
     pace: 80,
@@ -45,6 +46,10 @@ class _FakeRepo implements PlayerRepository {
 
   @override
   Future<List<Player>> fetchLinkedPlayers() async => children;
+
+  @override
+  Future<Player> savePosition(String playerId, PlayerPosition position) =>
+      throw UnimplementedError();
 
   @override
   Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async =>

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
@@ -25,6 +26,10 @@ class _FakePlayerRepository implements PlayerRepository {
   @override
   Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async =>
       _players.firstWhere((p) => p.id == playerId).copyWith(ratings: ratings);
+
+  @override
+  Future<Player> savePosition(String playerId, PlayerPosition position) async =>
+      _players.firstWhere((p) => p.id == playerId).copyWith(position: position);
 }
 
 /// Fake repo that always fails, to exercise the error path.
@@ -44,12 +49,16 @@ class _FailingPlayerRepository implements PlayerRepository {
   @override
   Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async =>
       throw PlayerRepositoryException('boom');
+
+  @override
+  Future<Player> savePosition(String playerId, PlayerPosition position) async =>
+      throw PlayerRepositoryException('boom');
 }
 
 Player _player(
   String id,
   String name,
-  String position, {
+  PlayerPosition position, {
   AgeTier tier = AgeTier.development,
 }) =>
     Player(
@@ -86,8 +95,8 @@ void main() {
   group('squadProvider + filteredSquadProvider', () {
     test('loading the squad populates the filtered roster', () async {
       final container = _container(_FakePlayerRepository([
-        _player('1', 'Messi', 'CAM'),
-        _player('2', 'Ronaldo', 'ST'),
+        _player('1', 'Messi', PlayerPosition.attackingMidfielder),
+        _player('2', 'Ronaldo', PlayerPosition.striker),
       ]));
       final filtered = container.listen(filteredSquadProvider, (_, _) {});
 
@@ -100,8 +109,8 @@ void main() {
 
     test('search filters by name (case-insensitive)', () async {
       final container = _container(_FakePlayerRepository([
-        _player('1', 'Messi', 'CAM'),
-        _player('2', 'Ronaldo', 'ST'),
+        _player('1', 'Messi', PlayerPosition.attackingMidfielder),
+        _player('2', 'Ronaldo', PlayerPosition.striker),
       ]));
       final filtered = container.listen(filteredSquadProvider, (_, _) {});
       await container.read(squadProvider.future);
@@ -115,8 +124,8 @@ void main() {
 
     test('search matches position too', () async {
       final container = _container(_FakePlayerRepository([
-        _player('1', 'Messi', 'CAM'),
-        _player('2', 'Ronaldo', 'ST'),
+        _player('1', 'Messi', PlayerPosition.attackingMidfielder),
+        _player('2', 'Ronaldo', PlayerPosition.striker),
       ]));
       final filtered = container.listen(filteredSquadProvider, (_, _) {});
       await container.read(squadProvider.future);
@@ -127,7 +136,7 @@ void main() {
 
     test('clearing the query restores the full roster', () async {
       final container =
-          _container(_FakePlayerRepository([_player('1', 'Messi', 'CAM')]));
+          _container(_FakePlayerRepository([_player('1', 'Messi', PlayerPosition.attackingMidfielder)]));
       final filtered = container.listen(filteredSquadProvider, (_, _) {});
       await container.read(squadProvider.future);
 
@@ -153,10 +162,10 @@ void main() {
 
     test('filterByTier narrows the roster to that tier only', () async {
       final container = _container(_FakePlayerRepository([
-        _player('1', 'Messi', 'CAM', tier: AgeTier.development),
-        _player('2', 'Ronaldo', 'ST', tier: AgeTier.pathway),
-        _player('3', 'Yamal', 'RW', tier: AgeTier.foundation),
-        _player('4', 'Pedri', 'CM', tier: AgeTier.foundation),
+        _player('1', 'Messi', PlayerPosition.attackingMidfielder, tier: AgeTier.development),
+        _player('2', 'Ronaldo', PlayerPosition.striker, tier: AgeTier.pathway),
+        _player('3', 'Yamal', PlayerPosition.rightWinger, tier: AgeTier.foundation),
+        _player('4', 'Pedri', PlayerPosition.centralMidfielder, tier: AgeTier.foundation),
       ]));
       final filtered = container.listen(filteredSquadProvider, (_, _) {});
       await container.read(squadProvider.future);
@@ -171,8 +180,8 @@ void main() {
 
     test('filterByTier(null) restores the whole squad', () async {
       final container = _container(_FakePlayerRepository([
-        _player('1', 'Messi', 'CAM', tier: AgeTier.development),
-        _player('2', 'Yamal', 'RW', tier: AgeTier.foundation),
+        _player('1', 'Messi', PlayerPosition.attackingMidfielder, tier: AgeTier.development),
+        _player('2', 'Yamal', PlayerPosition.rightWinger, tier: AgeTier.foundation),
       ]));
       final filtered = container.listen(filteredSquadProvider, (_, _) {});
       await container.read(squadProvider.future);
@@ -186,9 +195,9 @@ void main() {
 
     test('tier filter and search narrow together', () async {
       final container = _container(_FakePlayerRepository([
-        _player('1', 'Messi', 'CAM', tier: AgeTier.foundation),
-        _player('2', 'Mbappe', 'ST', tier: AgeTier.pathway),
-        _player('3', 'Yamal', 'RW', tier: AgeTier.foundation),
+        _player('1', 'Messi', PlayerPosition.attackingMidfielder, tier: AgeTier.foundation),
+        _player('2', 'Mbappe', PlayerPosition.striker, tier: AgeTier.pathway),
+        _player('3', 'Yamal', PlayerPosition.rightWinger, tier: AgeTier.foundation),
       ]));
       final filtered = container.listen(filteredSquadProvider, (_, _) {});
       await container.read(squadProvider.future);
