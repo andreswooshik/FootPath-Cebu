@@ -4,15 +4,32 @@ API contract — do not rename without changing the client `fromJson` factories.
 """
 from rest_framework import serializers
 
+from accounts.models import Roles, User
+
 from .models import (
     AgeTier,
     Attendance,
+    AttendanceStatus,
+    Dispute,
+    DisputeCategory,
+    DisputeResponse,
+    DisputeStatus,
     Eligibility,
+    InjuryRecord,
+    InjuryStatus,
     PlayerProfile,
     SessionFocus,
     TrainingSession,
 )
 from .storage import signed_photo_url
+
+
+def _display_name(user):
+    """A user's readable name: 'First Last', falling back to the email stem."""
+    if user is None:
+        return None
+    full = f'{user.first_name} {user.last_name}'.strip()
+    return full or user.email.split('@')[0]
 
 
 class PlayerSerializer(serializers.ModelSerializer):
@@ -117,21 +134,207 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
-    """Matches Attendance.fromJson: playerId, status, updatedAt, sessionName,
-    coachUid."""
+    """Matches Attendance.fromJson: playerId, sessionId, status, effort, note,
+    updatedAt, sessionName, coachUid."""
 
     # Hard-cast to String on the client, so coerce the int PK to a string here.
     playerId = serializers.CharField(source='player.id', read_only=True)
+    sessionId = serializers.SerializerMethodField()
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     sessionName = serializers.SerializerMethodField()
     coachUid = serializers.SerializerMethodField()
+    note = serializers.SerializerMethodField()
 
     class Meta:
         model = Attendance
-        fields = ['playerId', 'status', 'updatedAt', 'sessionName', 'coachUid']
+        fields = [
+            'playerId', 'sessionId', 'status', 'effort', 'note',
+            'updatedAt', 'sessionName', 'coachUid',
+        ]
+
+    def get_sessionId(self, obj):
+        return str(obj.session_id) if obj.session_id else None
 
     def get_sessionName(self, obj):
         return obj.session.title if obj.session_id else None
 
     def get_coachUid(self, obj):
         return obj.recorded_by.firebase_uid if obj.recorded_by_id else None
+
+    def get_note(self, obj):
+        # The client treats note as nullable; a blank stored note is "no note".
+        return obj.note or None
+
+
+class InjuryRecordSerializer(serializers.ModelSerializer):
+    """Matches InjuryRecord.fromJson: id, playerId, description, bodyPart,
+    status, occurredOn, resolvedOn, notes, createdAt, updatedAt."""
+
+    id = serializers.CharField(read_only=True)
+    # Server-assigned (the signed-in player), never client-supplied.
+    playerId = serializers.CharField(source='player.id', read_only=True)
+    bodyPart = serializers.CharField(
+        source='body_part', required=False, allow_blank=True, max_length=80,
+    )
+    occurredOn = serializers.DateField(source='occurred_on')
+    resolvedOn = serializers.DateField(
+        source='resolved_on', required=False, allow_null=True,
+    )
+    notes = serializers.CharField(
+        required=False, allow_blank=True, max_length=1000,
+    )
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+
+    class Meta:
+        model = InjuryRecord
+        fields = [
+            'id', 'playerId', 'description', 'bodyPart', 'status',
+            'occurredOn', 'resolvedOn', 'notes', 'createdAt', 'updatedAt',
+        ]
+
+    def validate_status(self, value):
+        v = str(value).upper()
+        if v not in set(InjuryStatus.values):
+            raise serializers.ValidationError(f'Unknown status: {value}')
+        return v
+
+
+class DisputeResponseSerializer(serializers.ModelSerializer):
+    """Read shape for one thread entry. Matches DisputeResponse.fromJson:
+    id, authorName, authorRole, body, statusChangeTo, createdAt."""
+
+    id = serializers.CharField(read_only=True)
+    authorName = serializers.SerializerMethodField()
+    authorRole = serializers.SerializerMethodField()
+    statusChangeTo = serializers.CharField(
+        source='status_change_to', read_only=True,
+    )
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
+    class Meta:
+        model = DisputeResponse
+        fields = ['id', 'authorName', 'authorRole', 'body', 'statusChangeTo',
+                  'createdAt']
+
+    def get_authorName(self, obj):
+        return _display_name(obj.author)
+
+    def get_authorRole(self, obj):
+        return obj.author.role if obj.author_id else None
+
+
+class DisputeSerializer(serializers.ModelSerializer):
+    """Read shape for a dispute + its full thread. Matches Dispute.fromJson:
+    id, raisedByName, subjectPlayerId, subjectPlayerName, category, status,
+    summary, detail, createdAt, updatedAt, responses."""
+
+    id = serializers.CharField(read_only=True)
+    raisedByName = serializers.SerializerMethodField()
+    subjectPlayerId = serializers.SerializerMethodField()
+    subjectPlayerName = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    responses = DisputeResponseSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Dispute
+        fields = [
+            'id', 'raisedByName', 'subjectPlayerId', 'subjectPlayerName',
+            'category', 'status', 'summary', 'detail', 'createdAt',
+            'updatedAt', 'responses',
+        ]
+
+    def get_raisedByName(self, obj):
+        return _display_name(obj.raised_by)
+
+    def get_subjectPlayerId(self, obj):
+        return str(obj.subject_player_id) if obj.subject_player_id else None
+
+    def get_subjectPlayerName(self, obj):
+        return _display_name(obj.subject_player)
+
+
+class DisputeCreateSerializer(serializers.Serializer):
+    """Write side of POST /api/disputes/ — the coach's flag. `raised_by` is
+    the request user, never client-supplied."""
+
+    subjectPlayerId = serializers.IntegerField(required=False, allow_null=True)
+    category = serializers.CharField()
+    summary = serializers.CharField(max_length=200)
+    detail = serializers.CharField(
+        max_length=2000, required=False, allow_blank=True,
+    )
+
+    def validate_category(self, value):
+        v = str(value).upper()
+        if v not in set(DisputeCategory.values):
+            raise serializers.ValidationError(f'Unknown category: {value}')
+        return v
+
+    def validate_subjectPlayerId(self, value):
+        if value is None:
+            return None
+        if not User.objects.filter(pk=value, role=Roles.PLAYER).exists():
+            raise serializers.ValidationError(f'Unknown player id: {value}')
+        return value
+
+
+class DisputeResponseCreateSerializer(serializers.Serializer):
+    """Write side of POST /api/disputes/<pk>/responses/. `author` is the
+    request user; `statusChangeTo`, when present, moves the parent dispute."""
+
+    body = serializers.CharField(max_length=2000)
+    statusChangeTo = serializers.CharField(
+        required=False, allow_null=True, allow_blank=True,
+    )
+
+    def validate_statusChangeTo(self, value):
+        if not value:
+            return None
+        v = str(value).upper()
+        if v not in set(DisputeStatus.values):
+            raise serializers.ValidationError(f'Unknown status: {value}')
+        return v
+
+
+class SessionAttendanceRecordSerializer(serializers.Serializer):
+    """Write side of POST /api/attendance/session/<id>/ — one record in the
+    `records` array the coach's roll-call screen submits."""
+
+    playerId = serializers.IntegerField()
+    status = serializers.CharField()
+    effort = serializers.IntegerField(
+        min_value=0, max_value=100, required=False, allow_null=True,
+    )
+    note = serializers.CharField(
+        max_length=1000, required=False, allow_blank=True,
+    )
+
+    def validate_playerId(self, value):
+        if not User.objects.filter(pk=value, role=Roles.PLAYER).exists():
+            raise serializers.ValidationError(f'Unknown player id: {value}')
+        return value
+
+    def validate_status(self, value):
+        v = str(value).upper()
+        if v not in set(AttendanceStatus.values):
+            raise serializers.ValidationError(f'Unknown status: {value}')
+        return v
+
+
+class AdminCreatePlayerSerializer(serializers.Serializer):
+    """Write side of POST /api/admin/players/ — the console's dedicated Add
+    Player flow. Unlike accounts.AdminCreateUserSerializer, name fields here
+    are genuinely required (no allow_blank): this is the only path that
+    creates both the User and its PlayerProfile together."""
+
+    email = serializers.EmailField()
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    middle_initial = serializers.CharField(max_length=5)
+    date_of_birth = serializers.DateField()
+    guardian_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(role=Roles.GUARDIAN),
+        required=False, allow_null=True,
+    )

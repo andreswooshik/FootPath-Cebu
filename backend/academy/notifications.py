@@ -32,10 +32,26 @@ def _recipients_for_session(session):
     return player_ids | guardian_ids
 
 
-def notify_session_scheduled(session):
-    """Push a 'new training session' notification to everyone concerned.
+def _player_and_guardian_ids(player_id):
+    """The player plus every guardian linked to them."""
+    guardian_ids = set(
+        GuardianLink.objects.filter(player_id=player_id)
+        .values_list('guardian_id', flat=True)
+    )
+    return {player_id} | guardian_ids
 
-    Best-effort: logs and swallows all errors, prunes dead tokens.
+
+def _player_display_name(profile):
+    user = profile.user
+    full = f'{user.first_name} {user.last_name}'.strip()
+    return full or user.email.split('@')[0]
+
+
+def _send_to_users(user_ids, *, title, body, data):
+    """Fan one notification out to every device of `user_ids`.
+
+    Best-effort: logs and swallows all errors, prunes dead tokens. Returns
+    the number of successful sends.
     """
     try:
         ensure_initialized()
@@ -43,7 +59,6 @@ def notify_session_scheduled(session):
         logger.info('Skipping push (Firebase unavailable): %s', exc)
         return 0
 
-    user_ids = _recipients_for_session(session)
     tokens = list(
         DeviceToken.objects.filter(user_id__in=user_ids)
         .values_list('token', flat=True)
@@ -51,14 +66,10 @@ def notify_session_scheduled(session):
     if not tokens:
         return 0
 
-    tier_label = ', '.join(session.age_tiers or []) or 'all tiers'
     message = messaging.MulticastMessage(
         tokens=tokens,
-        notification=messaging.Notification(
-            title='New training session',
-            body=f'{session.title} on {session.date} · {tier_label}',
-        ),
-        data={'type': 'session_scheduled', 'sessionId': str(session.id)},
+        notification=messaging.Notification(title=title, body=body),
+        data=data,
     )
 
     try:
@@ -69,6 +80,48 @@ def notify_session_scheduled(session):
 
     _prune_dead_tokens(tokens, response)
     return response.success_count
+
+
+def notify_session_scheduled(session):
+    """Push a 'new training session' notification to everyone concerned."""
+    tier_label = ', '.join(session.age_tiers or []) or 'all tiers'
+    return _send_to_users(
+        _recipients_for_session(session),
+        title='New training session',
+        body=f'{session.title} on {session.date} · {tier_label}',
+        data={'type': 'session_scheduled', 'sessionId': str(session.id)},
+    )
+
+
+def notify_assessment_saved(profile):
+    """Push to the assessed player + linked guardians after a coach saves the
+    six-attribute assessment. Fires on the assessment save, not per-session
+    attendance — a 20-player roll call must not send 20 pushes."""
+    return _send_to_users(
+        _player_and_guardian_ids(profile.user_id),
+        title='Performance assessment updated',
+        body=f'New ratings were saved for {_player_display_name(profile)}.',
+        data={'type': 'assessment_saved', 'playerId': str(profile.user_id)},
+    )
+
+
+def notify_eligibility_changed(profile, previous):
+    """Push to the player + linked guardians when eligibility actually
+    changes (wired via signals, so every write path fires it)."""
+    return _send_to_users(
+        _player_and_guardian_ids(profile.user_id),
+        title='Eligibility updated',
+        body=(
+            f'{_player_display_name(profile)} is now '
+            f'{profile.get_eligibility_display()}.'
+        ),
+        data={
+            'type': 'eligibility_changed',
+            'playerId': str(profile.user_id),
+            'eligibility': profile.eligibility,
+            'previous': previous or '',
+        },
+    )
 
 
 def _prune_dead_tokens(tokens, response):

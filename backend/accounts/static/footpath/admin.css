@@ -1,20 +1,50 @@
 /* FootPath Cebu — admin theme polish (Jazzmin / AdminLTE 4 / Bootstrap 5).
    Loaded via JAZZMIN_SETTINGS['custom_css']. Targets Bootstrap 5 CSS variables
-   so it rides on top of the built-in light/dark theming instead of fighting it. */
+   so it rides on top of the built-in light/dark theming instead of fighting it.
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+   Palette is matched to the custom console (/console/): brand green #2e7d32 on a
+   light #f4f6f5 workspace with white cards, so the two admin surfaces look like
+   one product. Light is the default; the navbar toggle still offers dark. */
 
 :root {
-  --fp-emerald: #10B981;
-  --fp-emerald-dark: #059669;
+  /* Brand green matched to the console (#2e7d32 / hover #256428). */
+  --fp-emerald: #2e7d32;
+  --fp-emerald-dark: #256428;
   --fp-slate: #334155;
   --fp-slate-hover: #3f4b5f;
-  /* Control-bar surfaces — light-theme defaults, overridden for dark below. */
-  --fp-panel: #F8FAFC;
+  /* Control-bar surfaces — light-theme defaults (console: white cards,
+     #ccc input borders), overridden for dark below. */
+  --fp-panel: #FFFFFF;
   --fp-input-bg: #FFFFFF;
-  --fp-input-fg: #0F172A;
-  --fp-input-border: #CBD5E1;
+  --fp-input-fg: #1a1a1a;
+  --fp-input-border: #cccccc;
   --fp-ctrl-h: 42px;
+}
+
+/* ---- Light palette (default): console workspace — #f4f6f5 bg, white cards. ---- */
+[data-bs-theme="light"] {
+  --bs-body-bg: #f4f6f5;
+  --bs-body-color: #1a1a1a;
+  --bs-tertiary-bg: #f4f6f5;
+  --bs-secondary-bg: #ffffff;
+  --bs-emphasis-color: #1a1a1a;
+  --bs-border-color: #e0e0e0;
+  --bs-primary: var(--fp-emerald);
+  --bs-link-color: #2e7d32;
+  --bs-link-hover-color: #256428;
+}
+
+[data-bs-theme="light"] .card,
+[data-bs-theme="light"] .app-sidebar,
+[data-bs-theme="light"] .main-sidebar {
+  background-color: #ffffff;
+  border-color: #e0e0e0;
+}
+
+/* Console card silhouette (both themes): soft radius + subtle shadow. */
+.card {
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 [data-bs-theme="dark"] {
@@ -27,7 +57,8 @@
 body,
 .app-wrapper,
 .sidebar-menu {
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Console system-font stack — no web font, one fewer external request. */
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ---- Dark palette: deep charcoal workspace, slate cards/sidebar ---- */
@@ -50,7 +81,7 @@ body,
   border-color: rgba(148, 163, 184, 0.12);
 }
 
-/* ---- Primary actions in emerald (Add user, save, etc.) ---- */
+/* ---- Primary actions in brand green (Add user, save, etc.) ---- */
 .btn-success,
 .btn-primary {
   --bs-btn-bg: var(--fp-emerald);
@@ -58,6 +89,15 @@ body,
   --bs-btn-hover-bg: var(--fp-emerald-dark);
   --bs-btn-hover-border-color: var(--fp-emerald-dark);
   --bs-btn-active-bg: var(--fp-emerald-dark);
+}
+
+/* ---- Destructive actions in the console red (#b71c1c / hover #8f1414) ---- */
+.btn-danger {
+  --bs-btn-bg: #b71c1c;
+  --bs-btn-border-color: #b71c1c;
+  --bs-btn-hover-bg: #8f1414;
+  --bs-btn-hover-border-color: #8f1414;
+  --bs-btn-active-bg: #8f1414;
 }
 
 /* ---- Fluid list: drop heavy borders, use ultra-thin dividers ---- */
@@ -86,7 +126,7 @@ body,
   vertical-align: middle;
 }
 #result_list tbody tr:hover {
-  background-color: rgba(16, 185, 129, 0.07);
+  background-color: rgba(46, 125, 50, 0.07);
 }
 
 /* ============================================================================
@@ -271,12 +311,12 @@ body,
 .form-control:focus,
 .form-select:focus {
   border-color: var(--fp-emerald);
-  box-shadow: 0 0 0 0.2rem rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 0 0.2rem rgba(46, 125, 50, 0.2);
 }
 
 /* ---- Brand + sidebar active item in emerald ---- */
 .sidebar-menu .nav-link.active {
-  background-color: rgba(16, 185, 129, 0.15) !important;
+  background-color: rgba(46, 125, 50, 0.15) !important;
   color: var(--fp-emerald) !important;
   border-radius: 8px;
 }
@@ -327,7 +367,7 @@ body,
 .select2-container--default.select2-container--focus .select2-selection--multiple,
 .select2-container--default.select2-container--open .select2-selection--single {
   border-color: var(--fp-emerald);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.18);
   outline: none;
 }
 
@@ -409,7 +449,7 @@ body,
 }
 .select2-search--dropdown .select2-search__field:focus {
   border-color: var(--fp-emerald);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.18);
 }
 
 /* Options list: comfortable rows, thin custom scrollbar. */
@@ -435,7 +475,7 @@ body,
 /* Keyboard / hover highlight: sleek low-opacity emerald tint (not a hard block). */
 .select2-results__option--highlighted[aria-selected],
 .select2-container--default .select2-results__option--highlighted[aria-selected] {
-  background: rgba(16, 185, 129, 0.12) !important;
+  background: rgba(46, 125, 50, 0.12) !important;
   color: var(--fp-emerald) !important;
 }
 /* Currently-selected option: subtle slate fill with a check-like accent. */

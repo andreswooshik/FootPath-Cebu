@@ -77,8 +77,11 @@ async function loadUsers() {
   tbody.innerHTML = '';
   const guardianSelect = el('link-guardian');
   const playerSelect = el('link-player');
+  const playerGuardianSelect = el('player-guardian');
   guardianSelect.innerHTML = '';
   playerSelect.innerHTML = '';
+  playerGuardianSelect.innerHTML = '';
+  playerGuardianSelect.add(new Option('— none —', ''));
 
   for (const u of users) {
     const tr = document.createElement('tr');
@@ -107,6 +110,7 @@ async function loadUsers() {
 
     if (u.role === 'GUARDIAN') {
       guardianSelect.add(new Option(u.email, u.id));
+      playerGuardianSelect.add(new Option(u.email, u.id));
     }
     if (u.role === 'PLAYER') {
       playerSelect.add(new Option(u.email, u.id));
@@ -180,9 +184,73 @@ async function loadLinks() {
   }
 }
 
+let disputesCache = [];
+
+async function loadDisputes() {
+  disputesCache = await apiFetch('/api/disputes/');
+  const tbody = el('disputes-table-body');
+  tbody.innerHTML = '';
+  const select = el('respond-dispute');
+  const previous = select.value;
+  select.innerHTML = '';
+
+  for (const d of disputesCache) {
+    const tr = document.createElement('tr');
+    tr.appendChild(textCell(d.summary));
+    tr.appendChild(textCell(d.category));
+
+    const statusCell = document.createElement('td');
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = d.status;
+    statusCell.appendChild(badge);
+    tr.appendChild(statusCell);
+
+    tr.appendChild(textCell(d.raisedByName || '—'));
+    tr.appendChild(textCell(d.subjectPlayerName || '—'));
+    tr.appendChild(textCell(String(d.responses.length)));
+    tbody.appendChild(tr);
+
+    select.add(new Option(`${d.summary} (${d.status})`, d.id));
+  }
+  if (previous) select.value = previous;
+  renderDisputeThread();
+}
+
+// The thread for the dispute picked in the respond form — plain text nodes
+// only (server data never goes through innerHTML, audit finding F9).
+function renderDisputeThread() {
+  const container = el('dispute-thread');
+  container.innerHTML = '';
+  const dispute = disputesCache.find(
+    (d) => d.id === el('respond-dispute').value
+  );
+  if (!dispute) return;
+
+  const detail = document.createElement('p');
+  detail.textContent = dispute.detail || '(no detail)';
+  detail.style.fontStyle = 'italic';
+  container.appendChild(detail);
+
+  if (!dispute.responses.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No responses yet.';
+    container.appendChild(empty);
+    return;
+  }
+  for (const r of dispute.responses) {
+    const p = document.createElement('p');
+    const when = new Date(r.createdAt).toLocaleString();
+    const status = r.statusChangeTo ? ` → ${r.statusChangeTo}` : '';
+    p.textContent = `${r.authorName || '—'} (${r.authorRole || '?'}) · ${when}${status}: ${r.body}`;
+    container.appendChild(p);
+  }
+}
+
 async function refreshDashboard() {
   await loadUsers();
   await loadLinks();
+  await loadDisputes();
 }
 
 async function showApp(profile) {
@@ -251,6 +319,52 @@ el('create-user-button').addEventListener('click', async () => {
   }
 });
 
+el('add-player-button').addEventListener('click', async () => {
+  el('add-player-error').textContent = '';
+  el('add-player-result').style.display = 'none';
+  try {
+    const guardianId = el('player-guardian').value;
+    const payload = {
+      email: el('player-email').value.trim(),
+      first_name: el('player-first-name').value.trim(),
+      last_name: el('player-family-name').value.trim(),
+      middle_initial: el('player-mi').value.trim(),
+      date_of_birth: el('player-dob').value,
+    };
+    if (guardianId) payload.guardian_id = guardianId;
+
+    const result = await apiFetch('/api/admin/players/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const box = el('add-player-result');
+    box.style.display = 'block';
+    box.textContent = '';
+    box.append('Player created for ');
+    const emailStrong = document.createElement('strong');
+    emailStrong.textContent = result.user.email;
+    box.append(emailStrong, '. ');
+    if (result.temporary_password) {
+      box.append('Temporary password (shown once): ');
+      const code = document.createElement('code');
+      code.textContent = result.temporary_password;
+      box.append(code);
+    } else {
+      box.append(result.note);
+    }
+    el('player-email').value = '';
+    el('player-family-name').value = '';
+    el('player-first-name').value = '';
+    el('player-mi').value = '';
+    el('player-dob').value = '';
+    el('player-guardian').value = '';
+    await loadUsers();
+    await loadLinks();
+  } catch (e) {
+    el('add-player-error').textContent = e.message;
+  }
+});
+
 el('link-button').addEventListener('click', async () => {
   el('link-error').textContent = '';
   try {
@@ -267,6 +381,32 @@ el('link-button').addEventListener('click', async () => {
     await loadLinks();
   } catch (e) {
     el('link-error').textContent = e.message;
+  }
+});
+
+el('respond-dispute').addEventListener('change', renderDisputeThread);
+
+el('respond-button').addEventListener('click', async () => {
+  el('respond-error').textContent = '';
+  try {
+    const disputeId = el('respond-dispute').value;
+    const body = el('respond-body').value.trim();
+    if (!disputeId || !body) {
+      el('respond-error').textContent = 'Pick a dispute and write a response.';
+      return;
+    }
+    const payload = { body };
+    const statusChange = el('respond-status').value;
+    if (statusChange) payload.statusChangeTo = statusChange;
+    await apiFetch(`/api/disputes/${disputeId}/responses/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    el('respond-body').value = '';
+    el('respond-status').value = '';
+    await loadDisputes();
+  } catch (e) {
+    el('respond-error').textContent = e.message;
   }
 });
 

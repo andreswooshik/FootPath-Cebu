@@ -1,32 +1,52 @@
 from django.contrib import admin
 
-from .models import Attendance, DeviceToken, PlayerProfile, TrainingSession
+from .models import Dispute, DisputeResponse, InjuryRecord, PlayerEligibility
 
 
-@admin.register(PlayerProfile)
-class PlayerProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'age_tier', 'position', 'eligibility')
-    list_filter = ('age_tier', 'eligibility')
-    search_fields = ('user__email', 'user__username')
-    autocomplete_fields = ('user',)
+@admin.register(PlayerEligibility)
+class PlayerEligibilityAdmin(admin.ModelAdmin):
+    """Narrow eligibility-review screen. Players are created via the
+    console's Add Player flow (which also creates PlayerProfile), not here —
+    add is disabled so this stays a review-only surface."""
+
+    list_display = ('user', 'eligibility', 'date_of_birth')
+    list_filter = ('eligibility',)
+    search_fields = ('user__email', 'user__first_name', 'user__last_name')
+    fields = ('user', 'eligibility', 'date_of_birth', 'middle_initial')
+    readonly_fields = ('user', 'date_of_birth', 'middle_initial')
+
+    def has_add_permission(self, request):
+        return False
 
 
-@admin.register(TrainingSession)
-class TrainingSessionAdmin(admin.ModelAdmin):
-    list_display = ('title', 'date', 'focus', 'location', 'created_by')
-    list_filter = ('focus', 'date')
-    search_fields = ('title', 'location')
+class DisputeResponseInline(admin.TabularInline):
+    """The thread inline on the dispute — "Admin review" happens in one
+    screen. The API keeps the thread append-only (no update/delete
+    endpoints); the admin site is the trusted escape hatch."""
+
+    model = DisputeResponse
+    extra = 1
+    readonly_fields = ('created_at',)
 
 
-@admin.register(Attendance)
-class AttendanceAdmin(admin.ModelAdmin):
-    list_display = ('player', 'session', 'status', 'updated_at')
+@admin.register(Dispute)
+class DisputeAdmin(admin.ModelAdmin):
+    list_display = (
+        'summary', 'category', 'status', 'raised_by', 'subject_player',
+        'created_at',
+    )
+    list_filter = ('status', 'category')
+    search_fields = ('summary', 'detail', 'raised_by__email')
+    autocomplete_fields = ('raised_by', 'subject_player')
+    inlines = [DisputeResponseInline]
+
+
+@admin.register(InjuryRecord)
+class InjuryRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        'player', 'description', 'body_part', 'status',
+        'occurred_on', 'resolved_on',
+    )
     list_filter = ('status',)
-    search_fields = ('player__email',)
-    autocomplete_fields = ('player', 'session', 'recorded_by')
-
-
-@admin.register(DeviceToken)
-class DeviceTokenAdmin(admin.ModelAdmin):
-    list_display = ('user', 'platform', 'updated_at')
-    search_fields = ('user__email', 'token')
+    search_fields = ('player__email', 'description', 'body_part')
+    autocomplete_fields = ('player',)
