@@ -7,12 +7,33 @@ abstract class PlayerAttendanceReader {
   Future<List<Attendance>> fetchAttendanceForPlayer(String playerId);
 }
 
-/// Aggregate of the attendance reads. Concrete data sources implement this one
-/// interface, while each ViewModel depends only on the narrow interface it
-/// actually uses (Interface Segregation).
-abstract class AttendanceRepository implements PlayerAttendanceReader {}
+/// Reads every record already logged against one training session, so a coach
+/// re-opening a session sees what they marked last time.
+abstract class SessionAttendanceReader {
+  Future<List<Attendance>> fetchAttendanceForSession(String sessionId);
+}
 
-/// Thrown when an attendance read cannot be completed.
+/// Writes a session's attendance. Kept separate from the readers so a
+/// view-only consumer (the Guardian dashboard) cannot depend on a write it
+/// must never perform — Interface Segregation.
+abstract class SessionAttendanceWriter {
+  /// Replaces the session's records with [records]. Returns what was saved.
+  Future<List<Attendance>> saveSessionAttendance(
+    String sessionId,
+    List<Attendance> records,
+  );
+}
+
+/// Aggregate of the attendance reads and writes. Concrete data sources
+/// implement this one interface, while each consumer depends only on the
+/// narrow interface it actually uses (Interface Segregation).
+abstract class AttendanceRepository
+    implements
+        PlayerAttendanceReader,
+        SessionAttendanceReader,
+        SessionAttendanceWriter {}
+
+/// Thrown when an attendance read or write cannot be completed.
 class AttendanceRepositoryException implements Exception {
   AttendanceRepositoryException(this.message);
   final String message;

@@ -58,6 +58,19 @@ class _FakeAttendanceRepo implements AttendanceRepository {
   @override
   Future<List<Attendance>> fetchAttendanceForPlayer(String playerId) async =>
       records.where((a) => a.playerId == playerId).toList();
+
+  // The guardian dashboard only reads a player's history — the session
+  // read/write are never reached here.
+  @override
+  Future<List<Attendance>> fetchAttendanceForSession(String sessionId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<Attendance>> saveSessionAttendance(
+    String sessionId,
+    List<Attendance> records,
+  ) =>
+      throw UnimplementedError();
 }
 
 /// Automatic retry is disabled so error-path tests fail once instead of

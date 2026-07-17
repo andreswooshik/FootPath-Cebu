@@ -72,6 +72,14 @@ class TrainingSession {
   /// True when a player in [tier] is eligible for this session's attendance.
   bool includesTier(AgeTier tier) => ageTiers.contains(tier);
 
+  /// Names the session's tiers: "All Tiers" when it targets everything,
+  /// otherwise the tier names joined — "Foundation · Development".
+  String get tiersLabel {
+    if (ageTiers.isEmpty) return 'No tiers';
+    if (isAllTiers) return 'All Tiers';
+    return orderedTiers.map((t) => t.label).join(' · ');
+  }
+
   factory TrainingSession.fromJson(Map<String, dynamic> json) {
     return TrainingSession(
       id: json['id'].toString(),

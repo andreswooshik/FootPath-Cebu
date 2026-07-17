@@ -46,6 +46,28 @@ class ApiAttendanceRepository implements AttendanceRepository {
     return records;
   }
 
+  // Live backend wiring for per-session attendance is the backend task's job.
+  // The Attendance & Evaluation screen runs on MockAttendanceRepository; these
+  // stubs only satisfy the AttendanceRepository interface so the app compiles.
+  // Suggested endpoints: GET  {_path}?session=<id>
+  //                      POST {_path}session/<id>/  body {"records": [...]}
+  @override
+  Future<List<Attendance>> fetchAttendanceForSession(String sessionId) {
+    throw UnimplementedError(
+      'fetchAttendanceForSession: pending backend wiring.',
+    );
+  }
+
+  @override
+  Future<List<Attendance>> saveSessionAttendance(
+    String sessionId,
+    List<Attendance> records,
+  ) {
+    throw UnimplementedError(
+      'saveSessionAttendance: pending backend wiring.',
+    );
+  }
+
   Future<String> _requireIdToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {

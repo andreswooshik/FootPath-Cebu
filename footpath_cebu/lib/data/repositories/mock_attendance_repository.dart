@@ -53,6 +53,25 @@ class MockAttendanceRepository implements AttendanceRepository {
   ];
 
   @override
+  Future<List<Attendance>> fetchAttendanceForSession(String sessionId) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return List.unmodifiable(_records.where((a) => a.sessionId == sessionId));
+  }
+
+  @override
+  Future<List<Attendance>> saveSessionAttendance(
+    String sessionId,
+    List<Attendance> records,
+  ) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+    // Replace the session's records wholesale, so re-finalising a session
+    // corrects it rather than duplicating every player.
+    _records.removeWhere((a) => a.sessionId == sessionId);
+    _records.addAll(records);
+    return List.unmodifiable(records);
+  }
+
+  @override
   Future<List<Attendance>> fetchAttendanceForPlayer(String playerId) async {
     // Simulate network latency so loading states are exercised in the UI.
     await Future.delayed(const Duration(milliseconds: 300));

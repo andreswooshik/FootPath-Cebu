@@ -19,8 +19,10 @@ import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
+import 'package:footpath_cebu/domain/usecases/get_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
 import 'package:footpath_cebu/domain/usecases/get_training_sessions.dart';
+import 'package:footpath_cebu/domain/usecases/log_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/register_device.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
@@ -109,6 +111,14 @@ final savePlayerAssessmentProvider = Provider<SavePlayerAssessment>(
 
 final getPlayerAttendanceProvider = Provider<GetPlayerAttendance>(
   (ref) => GetPlayerAttendance(ref.watch(attendanceRepositoryProvider)),
+);
+
+final getSessionAttendanceProvider = Provider<GetSessionAttendance>(
+  (ref) => GetSessionAttendance(ref.watch(attendanceRepositoryProvider)),
+);
+
+final logSessionAttendanceProvider = Provider<LogSessionAttendance>(
+  (ref) => LogSessionAttendance(ref.watch(attendanceRepositoryProvider)),
 );
 
 final getTrainingSessionsProvider = Provider<GetTrainingSessions>(

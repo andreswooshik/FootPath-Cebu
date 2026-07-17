@@ -35,8 +35,11 @@ class Attendance {
     required this.playerId,
     required this.status,
     required this.updatedAt,
+    this.sessionId,
     this.sessionName,
     this.coachUid,
+    this.effort,
+    this.note,
   });
 
   final String playerId;
@@ -45,22 +48,40 @@ class Attendance {
   /// When the record was last set — used as the session date in read views.
   final DateTime updatedAt;
 
+  /// The training session this record belongs to. Required to tell two
+  /// same-named sessions apart; [sessionName] alone cannot.
+  final String? sessionId;
+
   /// The training session this attendance belongs to, e.g. "Evening Training".
   /// Optional: coach-side writes may not carry it.
   final String? sessionName;
   final String? coachUid;
 
+  /// Effort/intensity the coach observed, 0-100. Session-scoped and only
+  /// meaningful when [status] is present — it describes one day, unlike the
+  /// player's long-lived [PlayerRatings].
+  final int? effort;
+
+  /// The coach's short remark about this player on this day.
+  final String? note;
+
   Attendance copyWith({
     AttendanceStatus? status,
     DateTime? updatedAt,
+    String? sessionId,
     String? sessionName,
+    int? effort,
+    String? note,
   }) {
     return Attendance(
       playerId: playerId,
       status: status ?? this.status,
       updatedAt: updatedAt ?? this.updatedAt,
+      sessionId: sessionId ?? this.sessionId,
       sessionName: sessionName ?? this.sessionName,
       coachUid: coachUid,
+      effort: effort ?? this.effort,
+      note: note ?? this.note,
     );
   }
 
@@ -69,8 +90,11 @@ class Attendance {
       playerId: json['playerId'] as String,
       status: AttendanceStatusWire.fromWire(json['status'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      sessionId: json['sessionId']?.toString(),
       sessionName: json['sessionName'] as String?,
       coachUid: json['coachUid'] as String?,
+      effort: json['effort'] as int?,
+      note: json['note'] as String?,
     );
   }
 
@@ -78,7 +102,10 @@ class Attendance {
         'playerId': playerId,
         'status': status.wire,
         'updatedAt': updatedAt.toIso8601String(),
+        if (sessionId != null) 'sessionId': sessionId,
         if (sessionName != null) 'sessionName': sessionName,
         if (coachUid != null) 'coachUid': coachUid,
+        if (effort != null) 'effort': effort,
+        if (note != null) 'note': note,
       };
 }

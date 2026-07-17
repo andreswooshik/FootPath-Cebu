@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
+import 'package:footpath_cebu/presentation/screens/log_attendance_screen.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_session_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
@@ -36,9 +38,14 @@ class _TrainingScheduleScreenState
     );
   }
 
-  void _logAttendance() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Attendance logging is coming soon.')),
+  void _logAttendance(TrainingSession session) {
+    Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => LogAttendanceScreen(
+          session: session,
+          profile: widget.profile,
+        ),
+      ),
     );
   }
 
@@ -141,7 +148,8 @@ class _TrainingScheduleScreenState
             itemCount: list.length,
             itemBuilder: (context, i) => TrainingSessionCard(
               session: list[i],
-              onLogAttendance: _logAttendance,
+              onTap: () => _logAttendance(list[i]),
+              onLogAttendance: () => _logAttendance(list[i]),
             ),
           ),
         );
