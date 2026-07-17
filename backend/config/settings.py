@@ -213,9 +213,9 @@ FIREBASE_CREDENTIALS = BASE_DIR / os.environ.get(
 # django-jazzmin: theme for the built-in /admin/ site.
 JAZZMIN_SETTINGS = {
     'site_title': 'FootPath Cebu Admin',
-    'site_header': 'FootPath Cebu',
-    'site_brand': 'FootPath Cebu',
-    'welcome_sign': 'FootPath Cebu Admin',
+    'site_header': '⚽ FootPath Cebu',
+    'site_brand': '⚽ FootPath Cebu',
+    'welcome_sign': 'FootPath Cebu — Admin Console',
     'copyright': 'FootPath Cebu',
     'search_model': ['accounts.User'],
     'user_avatar': None,
@@ -244,13 +244,14 @@ JAZZMIN_SETTINGS = {
 
 JAZZMIN_UI_TWEAKS = {
     'theme': 'flatly',
-    # Default to the dark (charcoal) palette; navbar toggle still switches it.
-    'default_theme_mode': 'dark',
-    'navbar': 'navbar-dark',
+    # Light by default to match the custom console (/console/); the navbar
+    # toggle still offers dark.
+    'default_theme_mode': 'light',
+    'navbar': 'navbar-white navbar-light',
     'no_navbar_border': True,
     'navbar_fixed': True,
     'accent': 'accent-success',
-    'sidebar': 'sidebar-dark-success',
+    'sidebar': 'sidebar-light-success',
     'sidebar_fixed': True,
     'sidebar_nav_flat_style': True,
 }

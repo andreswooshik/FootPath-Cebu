@@ -75,13 +75,33 @@
       <label for="create-role">Role</label>
       <select id="create-role">
         <option value="COACH">Coach</option>
-        <option value="PLAYER">Player</option>
         <option value="SCHOOL_STAFF">School Staff</option>
         <option value="GUARDIAN">Guardian</option>
       </select>
       <button id="create-user-button">Create Account</button>
       <p id="create-user-error" class="error"></p>
       <div id="create-user-result" class="notice"></div>
+    </div>
+
+    <h2>Add Player</h2>
+    <div class="card">
+      <label for="player-email">Email</label>
+      <input id="player-email" type="email">
+      <label for="player-family-name">Family Name</label>
+      <input id="player-family-name" type="text">
+      <label for="player-first-name">First Name</label>
+      <input id="player-first-name" type="text">
+      <label for="player-mi">M.I.</label>
+      <input id="player-mi" type="text" maxlength="5">
+      <label for="player-dob">Date of Birth</label>
+      <input id="player-dob" type="date">
+      <label for="player-guardian">Guardian (optional)</label>
+      <select id="player-guardian">
+        <option value="">— none —</option>
+      </select>
+      <button id="add-player-button">Add Player</button>
+      <p id="add-player-error" class="error"></p>
+      <div id="add-player-result" class="notice"></div>
     </div>
 
     <h2>Users</h2>
@@ -108,6 +128,33 @@
         </thead>
         <tbody id="links-table-body"></tbody>
       </table>
+    </div>
+    <h2>Disputes</h2>
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Summary</th><th>Category</th><th>Status</th>
+            <th>Raised by</th><th>Player</th><th>Responses</th>
+          </tr>
+        </thead>
+        <tbody id="disputes-table-body"></tbody>
+      </table>
+      <label for="respond-dispute">Respond to</label>
+      <select id="respond-dispute"></select>
+      <div id="dispute-thread"></div>
+      <label for="respond-body">Response</label>
+      <input id="respond-body" type="text">
+      <label for="respond-status">Change status (optional)</label>
+      <select id="respond-status">
+        <option value="">No change</option>
+        <option value="OPEN">Open</option>
+        <option value="UNDER_REVIEW">Under Review</option>
+        <option value="RESOLVED">Resolved</option>
+        <option value="DISMISSED">Dismissed</option>
+      </select>
+      <button id="respond-button">Post Response</button>
+      <p id="respond-error" class="error"></p>
     </div>
   </section>
 

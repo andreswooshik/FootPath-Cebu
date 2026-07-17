@@ -109,7 +109,9 @@ class TrainingSession {
         'id': id,
         'title': title,
         'ageTiers': orderedTiers.map((t) => t.wire).toList(growable: false),
-        'date': date.toIso8601String(),
+        // Date-only wire format (YYYY-MM-DD): the backend `date` is a Django
+        // DateField and rejects a full ISO timestamp. Mirrors InjuryRecord.
+        'date': date.toIso8601String().split('T').first,
         'startTime': startTime,
         'endTime': endTime,
         'location': location,

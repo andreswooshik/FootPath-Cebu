@@ -13,11 +13,38 @@ urlpatterns = [
     ),
     path('attendance/', views.AttendanceListView.as_view(), name='attendance-list'),
     path(
+        'attendance/session/<int:session_id>/',
+        views.SessionAttendanceView.as_view(),
+        name='attendance-session',
+    ),
+    path(
         'training-sessions/',
         views.TrainingSessionListCreateView.as_view(),
         name='training-sessions',
     ),
+    path('disputes/', views.DisputeListCreateView.as_view(), name='disputes'),
+    path(
+        'disputes/<int:pk>/',
+        views.DisputeDetailView.as_view(),
+        name='dispute-detail',
+    ),
+    path(
+        'disputes/<int:pk>/responses/',
+        views.DisputeResponseCreateView.as_view(),
+        name='dispute-responses',
+    ),
+    path('injuries/', views.InjuryRecordListCreateView.as_view(), name='injuries'),
+    path(
+        'injuries/<int:pk>/',
+        views.InjuryRecordDetailView.as_view(),
+        name='injury-detail',
+    ),
     path('devices/', views.DeviceRegisterView.as_view(), name='devices'),
+    path(
+        'admin/players/',
+        views.AdminCreatePlayerView.as_view(),
+        name='admin-player-create',
+    ),
     path(
         'admin/players/<int:player_id>/photo/',
         views.PlayerPhotoUploadView.as_view(),

@@ -38,6 +38,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Register this device for push notifications (best-effort, fire and
       // forget — never blocks navigation or fails the login).
       unawaited(ref.read(registerDeviceProvider)());
+      // Begin draining any offline-queued attendance when connectivity
+      // allows (no-op in mock mode).
+      ref.read(attendanceSyncServiceProvider)?.start();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => HomeScreen(profile: profile)),
       );

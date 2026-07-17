@@ -7,6 +7,7 @@ import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/auth_controllers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
+import 'package:footpath_cebu/presentation/screens/dispute_list_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
@@ -91,6 +92,22 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
             _SectionTitle(title: 'Squad Snapshot'),
             const SizedBox(height: 8),
             _squadSnapshot(),
+            const SizedBox(height: 24),
+            _SectionTitle(title: 'Disputes'),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.flag_outlined),
+                title: const Text('Disputes'),
+                subtitle: const Text('Flagged issues and their threads'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const DisputeListScreen(),
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             _SectionTitle(title: 'Account'),
             const SizedBox(height: 8),

@@ -41,3 +41,11 @@ class AttendanceRepositoryException implements Exception {
   @override
   String toString() => message;
 }
+
+/// A connection-level failure — the server was never reached (offline, DNS,
+/// timeout). Kept distinct from the base exception so the offline-first
+/// decorator can queue these for later sync while still propagating HTTP-level
+/// failures (e.g. a 400 the coach can fix) immediately.
+class AttendanceNetworkException extends AttendanceRepositoryException {
+  AttendanceNetworkException(super.message);
+}

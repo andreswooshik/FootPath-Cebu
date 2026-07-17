@@ -17,7 +17,14 @@ from .models import (
     Attendance,
     AttendanceStatus,
     DeviceToken,
+    Dispute,
+    DisputeCategory,
+    DisputeResponse,
+    DisputeStatus,
     Eligibility,
+    InjuryRecord,
+    InjuryStatus,
+    PlayerEligibility,
     PlayerProfile,
     SessionFocus,
     TrainingSession,
@@ -153,7 +160,122 @@ class AttendanceAuthorizationTests(APITestCase):
         row = self.client.get(self._url(self.my_child.id)).data[0]
         self.assertEqual(
             set(row.keys()),
-            {'playerId', 'status', 'updatedAt', 'sessionName', 'coachUid'},
+            {'playerId', 'sessionId', 'status', 'effort', 'note',
+             'updatedAt', 'sessionName', 'coachUid'},
+        )
+
+
+class SessionAttendanceTests(APITestCase):
+    """The coach roll-call endpoint: GET coach/admin, POST coach-only with
+    replace-this-session upsert semantics."""
+
+    def setUp(self):
+        self.coach = make_user(Roles.COACH)
+        self.p1 = make_player('p1@footpathcebu.test')
+        self.p2 = make_player('p2@footpathcebu.test')
+        self.session = TrainingSession.objects.create(
+            title='Evening Training', date=date.today(),
+            age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+        )
+
+    def _url(self):
+        return reverse('attendance-session', args=[self.session.id])
+
+    def _payload(self):
+        return {'records': [
+            {'playerId': str(self.p1.id), 'status': 'PRESENT',
+             'effort': 85, 'note': 'Sharp in the final third.'},
+            {'playerId': str(self.p2.id), 'status': 'ABSENT'},
+        ]}
+
+    def test_coach_post_then_get_round_trip(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.post(self._url(), self._payload(), format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data), 2)
+
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        by_player = {r['playerId']: r for r in resp.data}
+        p1_row = by_player[str(self.p1.id)]
+        self.assertEqual(p1_row['status'], 'PRESENT')
+        self.assertEqual(p1_row['effort'], 85)
+        self.assertEqual(p1_row['note'], 'Sharp in the final third.')
+        self.assertEqual(p1_row['sessionId'], str(self.session.id))
+        self.assertEqual(p1_row['coachUid'], self.coach.firebase_uid)
+        p2_row = by_player[str(self.p2.id)]
+        self.assertEqual(p2_row['status'], 'ABSENT')
+        self.assertIsNone(p2_row['effort'])
+        self.assertIsNone(p2_row['note'])
+
+    def test_resubmit_replaces_not_duplicates(self):
+        self.client.force_authenticate(self.coach)
+        self.client.post(self._url(), self._payload(), format='json')
+
+        # Resubmit with p1 corrected and p2 dropped entirely.
+        resp = self.client.post(self._url(), {'records': [
+            {'playerId': str(self.p1.id), 'status': 'EXCUSED'},
+        ]}, format='json')
+        self.assertEqual(resp.status_code, 200)
+
+        records = Attendance.objects.filter(session=self.session)
+        self.assertEqual(records.count(), 1)
+        self.assertEqual(records.get().player_id, self.p1.id)
+        self.assertEqual(records.get().status, AttendanceStatus.EXCUSED)
+
+    def test_non_coach_post_denied(self):
+        for role in (Roles.PLAYER, Roles.GUARDIAN, Roles.SCHOOL_STAFF, Roles.ADMIN):
+            self.client.force_authenticate(make_user(role, f'{role}@x.test'))
+            resp = self.client.post(self._url(), self._payload(), format='json')
+            self.assertEqual(
+                resp.status_code, 403,
+                msg=f'{role} should not record attendance',
+            )
+
+    def test_admin_can_get_but_others_cannot(self):
+        self.client.force_authenticate(make_user(Roles.ADMIN))
+        self.assertEqual(self.client.get(self._url()).status_code, 200)
+        for role in (Roles.PLAYER, Roles.GUARDIAN, Roles.SCHOOL_STAFF):
+            self.client.force_authenticate(make_user(role, f'{role}@g.test'))
+            self.assertEqual(self.client.get(self._url()).status_code, 403)
+
+    def test_session_attendance_json_matches_flutter_contract(self):
+        self.client.force_authenticate(self.coach)
+        self.client.post(self._url(), self._payload(), format='json')
+        row = self.client.get(self._url()).data[0]
+        self.assertEqual(
+            set(row.keys()),
+            {'playerId', 'sessionId', 'status', 'effort', 'note',
+             'updatedAt', 'sessionName', 'coachUid'},
+        )
+
+    def test_invalid_status_rejected(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.post(self._url(), {'records': [
+            {'playerId': str(self.p1.id), 'status': 'LATE'},
+        ]}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_out_of_range_effort_rejected(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.post(self._url(), {'records': [
+            {'playerId': str(self.p1.id), 'status': 'PRESENT', 'effort': 101},
+        ]}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_unknown_player_rejected(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.post(self._url(), {'records': [
+            {'playerId': '999999', 'status': 'PRESENT'},
+        ]}, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+    def test_unknown_session_404(self):
+        self.client.force_authenticate(self.coach)
+        url = reverse('attendance-session', args=[999999])
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(
+            self.client.post(url, self._payload(), format='json').status_code, 404
         )
 
 
@@ -241,6 +363,267 @@ class TrainingSessionTests(APITestCase):
         self.assertEqual(len(resp.data), 1)
 
 
+class DisputeTests(APITestCase):
+    """The dispute foundation — coach flags, School Staff/Admin participate,
+    players/guardians have no access, and the response thread is the
+    append-only audit trail."""
+
+    def setUp(self):
+        self.coach = make_user(Roles.COACH)
+        self.staff = make_user(Roles.SCHOOL_STAFF)
+        self.admin = make_user(Roles.ADMIN)
+        self.player = make_player('p1@footpathcebu.test')
+        self.dispute = Dispute.objects.create(
+            raised_by=self.coach,
+            subject_player=self.player,
+            category=DisputeCategory.ATTENDANCE,
+            summary='Attendance mark disputed',
+            detail='Player claims they were present on July 10.',
+        )
+
+    def _payload(self):
+        return {
+            'subjectPlayerId': str(self.player.id),
+            'category': 'ASSESSMENT',
+            'summary': 'Rating query',
+            'detail': 'Guardian questioned the last assessment.',
+        }
+
+    def test_coach_creates_dispute(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.post(reverse('disputes'), self._payload(), format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['status'], 'OPEN')
+        self.assertEqual(resp.data['subjectPlayerId'], str(self.player.id))
+        # raised_by is the request user, never client-supplied.
+        dispute = Dispute.objects.get(pk=resp.data['id'])
+        self.assertEqual(dispute.raised_by, self.coach)
+
+    def test_dispute_without_subject_player_allowed(self):
+        self.client.force_authenticate(self.coach)
+        payload = self._payload()
+        del payload['subjectPlayerId']
+        resp = self.client.post(reverse('disputes'), payload, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertIsNone(resp.data['subjectPlayerId'])
+
+    def test_player_and_guardian_denied(self):
+        guardian = make_user(Roles.GUARDIAN)
+        GuardianLink.objects.create(guardian=guardian, player=self.player)
+        for user in (self.player, guardian):
+            self.client.force_authenticate(user)
+            self.assertEqual(self.client.get(reverse('disputes')).status_code, 403)
+            self.assertEqual(
+                self.client.get(
+                    reverse('dispute-detail', args=[self.dispute.id])
+                ).status_code, 403,
+            )
+            self.assertEqual(
+                self.client.post(
+                    reverse('disputes'), self._payload(), format='json'
+                ).status_code, 403,
+            )
+            self.assertEqual(
+                self.client.post(
+                    reverse('dispute-responses', args=[self.dispute.id]),
+                    {'body': 'hi'}, format='json',
+                ).status_code, 403,
+            )
+
+    def test_staff_and_admin_list_but_cannot_create(self):
+        for user in (self.staff, self.admin):
+            self.client.force_authenticate(user)
+            resp = self.client.get(reverse('disputes'))
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(len(resp.data), 1)
+            self.assertEqual(
+                self.client.post(
+                    reverse('disputes'), self._payload(), format='json'
+                ).status_code, 403,
+                msg=f'{user.role} must not raise disputes',
+            )
+
+    def test_response_with_status_change_moves_the_dispute(self):
+        self.client.force_authenticate(self.staff)
+        resp = self.client.post(
+            reverse('dispute-responses', args=[self.dispute.id]),
+            {'body': 'Reviewed the sign-in sheet; correcting the record.',
+             'statusChangeTo': 'RESOLVED'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['status'], 'RESOLVED')
+        self.dispute.refresh_from_db()
+        self.assertEqual(self.dispute.status, DisputeStatus.RESOLVED)
+        response = self.dispute.responses.get()
+        self.assertEqual(response.author, self.staff)
+        self.assertEqual(response.status_change_to, DisputeStatus.RESOLVED)
+
+    def test_response_without_status_change_leaves_status(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.post(
+            reverse('dispute-responses', args=[self.dispute.id]),
+            {'body': 'Adding context: the drill list from that day.'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 201)
+        self.dispute.refresh_from_db()
+        self.assertEqual(self.dispute.status, DisputeStatus.OPEN)
+
+    def test_invalid_category_and_status_rejected(self):
+        self.client.force_authenticate(self.coach)
+        payload = self._payload() | {'category': 'VIBES'}
+        self.assertEqual(
+            self.client.post(reverse('disputes'), payload, format='json')
+            .status_code, 400,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse('dispute-responses', args=[self.dispute.id]),
+                {'body': 'x', 'statusChangeTo': 'MAYBE'}, format='json',
+            ).status_code, 400,
+        )
+
+    def test_dispute_json_matches_flutter_contract(self):
+        DisputeResponse.objects.create(
+            dispute=self.dispute, author=self.staff, body='Looking into it.',
+            status_change_to=DisputeStatus.UNDER_REVIEW,
+        )
+        self.client.force_authenticate(self.coach)
+        row = self.client.get(reverse('disputes')).data[0]
+        self.assertEqual(
+            set(row.keys()),
+            {'id', 'raisedByName', 'subjectPlayerId', 'subjectPlayerName',
+             'category', 'status', 'summary', 'detail', 'createdAt',
+             'updatedAt', 'responses'},
+        )
+        self.assertEqual(
+            set(row['responses'][0].keys()),
+            {'id', 'authorName', 'authorRole', 'body', 'statusChangeTo',
+             'createdAt'},
+        )
+        self.assertIsInstance(row['id'], str)
+
+
+class InjuryRecordTests(APITestCase):
+    """Injury CRUD — the player owns their records; coach/admin read-only;
+    guardians (even linked ones) are denied: medical data, least-privilege."""
+
+    def setUp(self):
+        self.player = make_player('p1@footpathcebu.test')
+        self.other_player = make_player('p2@footpathcebu.test')
+        self.coach = make_user(Roles.COACH)
+        self.guardian = make_user(Roles.GUARDIAN)
+        GuardianLink.objects.create(guardian=self.guardian, player=self.player)
+        self.record = InjuryRecord.objects.create(
+            player=self.player, description='Sprained ankle',
+            body_part='Left ankle', status=InjuryStatus.RECOVERING,
+            occurred_on=date(2026, 7, 1), notes='Twisted landing from a header.',
+        )
+
+    def _detail(self, pk=None):
+        return reverse('injury-detail', args=[pk or self.record.id])
+
+    def _payload(self):
+        return {
+            'description': 'Hamstring strain', 'bodyPart': 'Right hamstring',
+            'status': 'ACTIVE', 'occurredOn': '2026-07-10',
+            'notes': 'Felt a pull during sprints.',
+        }
+
+    def test_player_creates_own_record(self):
+        self.client.force_authenticate(self.player)
+        resp = self.client.post(reverse('injuries'), self._payload(), format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['playerId'], str(self.player.id))
+        self.assertEqual(
+            InjuryRecord.objects.filter(player=self.player).count(), 2
+        )
+
+    def test_player_lists_own_records_only(self):
+        InjuryRecord.objects.create(
+            player=self.other_player, description='Bruised knee',
+            occurred_on=date(2026, 7, 5),
+        )
+        self.client.force_authenticate(self.player)
+        resp = self.client.get(reverse('injuries'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data[0]['playerId'], str(self.player.id))
+
+    def test_player_updates_and_deletes_own_record(self):
+        self.client.force_authenticate(self.player)
+        resp = self.client.put(
+            self._detail(), {'status': 'RECOVERED', 'resolvedOn': '2026-07-15'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.record.refresh_from_db()
+        self.assertEqual(self.record.status, InjuryStatus.RECOVERED)
+        self.assertEqual(self.record.resolved_on, date(2026, 7, 15))
+
+        resp = self.client.delete(self._detail())
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(InjuryRecord.objects.filter(pk=self.record.pk).exists())
+
+    def test_player_cannot_touch_another_players_record(self):
+        self.client.force_authenticate(self.other_player)
+        self.assertEqual(self.client.get(self._detail()).status_code, 403)
+        self.assertEqual(
+            self.client.put(self._detail(), {}, format='json').status_code, 403
+        )
+        self.assertEqual(self.client.delete(self._detail()).status_code, 403)
+
+    def test_coach_reads_all_but_cannot_write(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.get(reverse('injuries'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(self.client.get(self._detail()).status_code, 200)
+
+        # Narrowing to one player works for the coach's profile view.
+        resp = self.client.get(f"{reverse('injuries')}?player={self.player.id}")
+        self.assertEqual(len(resp.data), 1)
+
+        self.assertEqual(
+            self.client.post(
+                reverse('injuries'), self._payload(), format='json'
+            ).status_code, 403,
+        )
+        self.assertEqual(
+            self.client.put(
+                self._detail(), {'status': 'RECOVERED'}, format='json'
+            ).status_code, 403,
+        )
+        self.assertEqual(self.client.delete(self._detail()).status_code, 403)
+
+    def test_guardian_denied_even_when_linked(self):
+        self.client.force_authenticate(self.guardian)
+        self.assertEqual(self.client.get(reverse('injuries')).status_code, 403)
+        self.assertEqual(self.client.get(self._detail()).status_code, 403)
+        self.assertEqual(
+            self.client.post(
+                reverse('injuries'), self._payload(), format='json'
+            ).status_code, 403,
+        )
+
+    def test_injury_json_matches_flutter_contract(self):
+        self.client.force_authenticate(self.player)
+        row = self.client.get(reverse('injuries')).data[0]
+        self.assertEqual(
+            set(row.keys()),
+            {'id', 'playerId', 'description', 'bodyPart', 'status',
+             'occurredOn', 'resolvedOn', 'notes', 'createdAt', 'updatedAt'},
+        )
+        self.assertIsInstance(row['id'], str)
+
+    def test_invalid_status_rejected(self):
+        self.client.force_authenticate(self.player)
+        payload = self._payload() | {'status': 'BROKEN'}
+        resp = self.client.post(reverse('injuries'), payload, format='json')
+        self.assertEqual(resp.status_code, 400)
+
+
 class DeviceRegistrationTests(APITestCase):
     def test_upsert_by_token(self):
         user = make_user(Roles.PLAYER)
@@ -294,6 +677,84 @@ class PhotoUploadTests(APITestCase):
         self.assertEqual(resp.status_code, 400)
 
 
+class PushTriggerTests(APITestCase):
+    """The assessment-saved and eligibility-changed pushes target the player +
+    linked guardians (and nobody else), fire only on real transitions, and
+    only after commit."""
+
+    def setUp(self):
+        self.coach = make_user(Roles.COACH)
+        self.player = make_player('p@footpathcebu.test')
+        self.guardian = make_user(Roles.GUARDIAN)
+        other_player = make_player('other@footpathcebu.test')  # not notified
+        GuardianLink.objects.create(guardian=self.guardian, player=self.player)
+        for i, u in enumerate((self.player, self.guardian, other_player)):
+            DeviceToken.objects.create(user=u, token=f't{i}', platform='android')
+
+    def _mock_send(self, mock_messaging):
+        def _fake_send(msg):
+            class _R:
+                success_count = len(msg.tokens)
+                responses = [type('x', (), {'success': True, 'exception': None})()
+                             for _ in msg.tokens]
+            return _R()
+
+        mock_messaging.send_each_for_multicast.side_effect = _fake_send
+        mock_messaging.MulticastMessage.side_effect = \
+            lambda **kw: type('M', (), kw)()
+        mock_messaging.Notification.side_effect = lambda **kw: kw
+
+    @patch('academy.notifications.ensure_initialized')
+    @patch('academy.notifications.messaging')
+    def test_assessment_put_notifies_player_and_guardian(
+        self, mock_messaging, _mock_init
+    ):
+        self._mock_send(mock_messaging)
+        self.client.force_authenticate(self.coach)
+        url = reverse('player-assessment', args=[self.player.id])
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.put(
+                url, {'ratings': {'pace': 90, 'shooting': 91, 'passing': 92,
+                                  'dribbling': 93, 'defending': 94,
+                                  'physical': 95}},
+                format='json',
+            )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(mock_messaging.send_each_for_multicast.call_count, 1)
+        sent = mock_messaging.send_each_for_multicast.call_args[0][0]
+        self.assertEqual(set(sent.tokens), {'t0', 't1'})
+        self.assertEqual(sent.data['type'], 'assessment_saved')
+
+    @patch('academy.notifications.ensure_initialized')
+    @patch('academy.notifications.messaging')
+    def test_orm_eligibility_change_fires_regardless_of_write_path(
+        self, mock_messaging, _mock_init
+    ):
+        self._mock_send(mock_messaging)
+        profile = self.player.player_profile
+        with self.captureOnCommitCallbacks(execute=True):
+            profile.eligibility = Eligibility.ACADEMIC_WARNING
+            profile.save()
+
+        self.assertEqual(mock_messaging.send_each_for_multicast.call_count, 1)
+        sent = mock_messaging.send_each_for_multicast.call_args[0][0]
+        self.assertEqual(set(sent.tokens), {'t0', 't1'})
+        self.assertEqual(sent.data['type'], 'eligibility_changed')
+        self.assertEqual(sent.data['previous'], Eligibility.ELIGIBLE)
+
+    @patch('academy.notifications.ensure_initialized')
+    @patch('academy.notifications.messaging')
+    def test_unchanged_eligibility_save_does_not_fire(
+        self, mock_messaging, _mock_init
+    ):
+        self._mock_send(mock_messaging)
+        profile = self.player.player_profile
+        with self.captureOnCommitCallbacks(execute=True):
+            profile.age = 16  # a save that leaves eligibility untouched
+            profile.save()
+        mock_messaging.send_each_for_multicast.assert_not_called()
+
+
 class NotificationFanOutTests(APITestCase):
     """The session-scheduled push targets players in the session's tiers plus
     their linked guardians — and nobody else."""
@@ -339,3 +800,126 @@ class NotificationFanOutTests(APITestCase):
             mock_messaging.send_each_for_multicast.call_args[0][0].tokens
         )
         self.assertEqual(sent_tokens, {'t0', 't2'})
+
+
+def _fake_provision(*, email, first_name, last_name, role):
+    """Stand-in for accounts.services.provision_user that skips Firebase
+    entirely but still creates a real local User row, so callers see the
+    same (user, temp_password, note) shape the real function returns."""
+    user = User.objects.create(
+        username=email, email=email, first_name=first_name,
+        last_name=last_name, role=role, firebase_uid=f'uid-{email}',
+    )
+    return user, 'TempPass123', 'New Firebase account created.'
+
+
+class AdminCreatePlayerViewTests(APITestCase):
+    """POST /api/admin/players/ — the console's Add Player flow: creates the
+    User + PlayerProfile (with the now-required identity fields) together,
+    and optionally a GuardianLink, all in one atomic call."""
+
+    def setUp(self):
+        self.admin = make_user(Roles.ADMIN)
+        self.coach = make_user(Roles.COACH)
+        self.guardian = make_user(Roles.GUARDIAN, email='g@footpathcebu.test')
+        self.url = reverse('admin-player-create')
+
+    def _payload(self, **overrides):
+        payload = {
+            'email': 'newplayer@footpathcebu.test',
+            'first_name': 'Juan',
+            'last_name': 'Dela Cruz',
+            'middle_initial': 'S',
+            'date_of_birth': '2012-05-04',
+        }
+        payload.update(overrides)
+        return payload
+
+    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    def test_admin_creates_player_with_profile_and_guardian(self, _mock):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.url,
+            self._payload(guardian_id=self.guardian.id),
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        user = User.objects.get(email='newplayer@footpathcebu.test')
+        self.assertEqual(user.role, Roles.PLAYER)
+        profile = PlayerProfile.objects.get(user=user)
+        self.assertEqual(profile.middle_initial, 'S')
+        self.assertEqual(str(profile.date_of_birth), '2012-05-04')
+        self.assertTrue(
+            GuardianLink.objects.filter(
+                guardian=self.guardian, player=user
+            ).exists()
+        )
+        self.assertEqual(response.data['temporary_password'], 'TempPass123')
+
+    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    def test_guardian_is_optional(self, _mock):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(self.url, self._payload(), format='json')
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(GuardianLink.objects.count(), 0)
+
+    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    def test_missing_required_field_creates_nothing(self, _mock):
+        self.client.force_authenticate(self.admin)
+        payload = self._payload()
+        del payload['date_of_birth']
+        response = self.client.post(self.url, payload, format='json')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(
+            User.objects.filter(email='newplayer@footpathcebu.test').exists()
+        )
+        self.assertFalse(PlayerProfile.objects.exists())
+
+    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    def test_blank_name_is_rejected(self, _mock):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.url, self._payload(first_name=''), format='json'
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_non_admin_denied(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.post(self.url, self._payload(), format='json')
+        self.assertEqual(response.status_code, 403)
+
+    @patch('accounts.services.ensure_initialized')
+    @patch('accounts.services.firebase_auth')
+    def test_duplicate_email_rejected(self, mock_firebase_auth, _mock_init):
+        # Uses the REAL provision_user (only the Firebase SDK call is
+        # mocked), since its email-uniqueness guard runs before Firebase is
+        # ever touched — exactly the path this test exercises.
+        make_user(Roles.PLAYER, email='newplayer@footpathcebu.test')
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(self.url, self._payload(), format='json')
+
+        self.assertEqual(response.status_code, 400)
+        mock_firebase_auth.get_user_by_email.assert_not_called()
+        self.assertFalse(PlayerProfile.objects.exists())
+
+
+class AdminSiteRegistrationTests(APITestCase):
+    """The Academy admin index is trimmed to Academic Eligibility, Disputes,
+    and Injury records only — Attendances/Device tokens/Training
+    sessions/the full Player profiles admin are hidden (players are created
+    via the console's Add Player flow, not admin)."""
+
+    def test_only_the_intended_models_are_registered(self):
+        from django.contrib import admin as django_admin
+
+        registered = set(django_admin.site._registry.keys())
+        self.assertIn(PlayerEligibility, registered)
+        self.assertIn(Dispute, registered)
+        self.assertIn(InjuryRecord, registered)
+        self.assertNotIn(Attendance, registered)
+        self.assertNotIn(DeviceToken, registered)
+        self.assertNotIn(TrainingSession, registered)
+        self.assertNotIn(PlayerProfile, registered)

@@ -73,8 +73,24 @@ class PlayerProfile(models.Model):
     # URL, never this raw path. Null until an Admin uploads a photo.
     photo_path = models.CharField(max_length=255, null=True, blank=True)
 
+    # Required for every NEW player (enforced by AdminCreatePlayerSerializer),
+    # but nullable/blank at the DB level so existing rows created before this
+    # field existed don't break the migration.
+    middle_initial = models.CharField(max_length=5, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+
     def __str__(self):
         return f'{self.user.email} · {self.get_age_tier_display()}'
+
+
+class PlayerEligibility(PlayerProfile):
+    """Admin-only proxy: a narrow eligibility-review screen, distinct from
+    the full PlayerProfile (ratings/position/etc. stay hidden here)."""
+
+    class Meta:
+        proxy = True
+        verbose_name = 'Academic Eligibility'
+        verbose_name_plural = 'Academic Eligibility'
 
 
 class TrainingSession(models.Model):
@@ -128,6 +144,12 @@ class Attendance(models.Model):
         max_length=10, choices=AttendanceStatus.choices,
         default=AttendanceStatus.ABSENT,
     )
+    # Effort/intensity the coach observed for this one session, 0–100. Session-
+    # scoped, unlike the long-lived profile ratings. Null when not recorded
+    # (e.g. the player was absent).
+    effort = models.PositiveSmallIntegerField(null=True, blank=True)
+    # The coach's short remark about this player on this day.
+    note = models.CharField(max_length=1000, blank=True)
     recorded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -139,9 +161,129 @@ class Attendance(models.Model):
 
     class Meta:
         ordering = ['-updated_at']
+        # The session upsert keys on (player, session); without this nothing
+        # stops duplicate rows for the same player on the same session.
+        unique_together = ('player', 'session')
 
     def __str__(self):
         return f'{self.player.email} · {self.status} · {self.updated_at:%Y-%m-%d}'
+
+
+class InjuryStatus(models.TextChoices):
+    ACTIVE = 'ACTIVE', 'Active'
+    RECOVERING = 'RECOVERING', 'Recovering'
+    RECOVERED = 'RECOVERED', 'Recovered'
+
+
+class InjuryRecord(models.Model):
+    """A player's self-reported injury. Medical data: the player owns the
+    record (full CRUD), coach/admin read, guardians see nothing —
+    least-privilege, enforced in the views."""
+
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='injury_records',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    description = models.CharField(max_length=200)
+    body_part = models.CharField(max_length=80, blank=True)
+    status = models.CharField(
+        max_length=20, choices=InjuryStatus.choices, default=InjuryStatus.ACTIVE
+    )
+    occurred_on = models.DateField()
+    resolved_on = models.DateField(null=True, blank=True)
+    notes = models.CharField(max_length=1000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-occurred_on', '-id']
+
+    def __str__(self):
+        return f'{self.player.email} · {self.description} · {self.status}'
+
+
+class DisputeCategory(models.TextChoices):
+    ATTENDANCE = 'ATTENDANCE', 'Attendance'
+    ASSESSMENT = 'ASSESSMENT', 'Assessment'
+    ELIGIBILITY = 'ELIGIBILITY', 'Eligibility'
+    CONDUCT = 'CONDUCT', 'Conduct'
+    OTHER = 'OTHER', 'Other'
+
+
+class DisputeStatus(models.TextChoices):
+    OPEN = 'OPEN', 'Open'
+    UNDER_REVIEW = 'UNDER_REVIEW', 'Under Review'
+    RESOLVED = 'RESOLVED', 'Resolved'
+    DISMISSED = 'DISMISSED', 'Dismissed'
+
+
+class Dispute(models.Model):
+    """A flagged issue raised by a coach — a status ticket, not a generic
+    audit log. The append-only [DisputeResponse] thread is the audit trail:
+    responses are never updated or deleted."""
+
+    raised_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='raised_disputes',
+    )
+    # The player the dispute concerns, when there is one; a general dispute
+    # (e.g. scheduling) has none.
+    subject_player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='subject_disputes',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    category = models.CharField(
+        max_length=20, choices=DisputeCategory.choices,
+        default=DisputeCategory.OTHER,
+    )
+    status = models.CharField(
+        max_length=20, choices=DisputeStatus.choices,
+        default=DisputeStatus.OPEN,
+    )
+    summary = models.CharField(max_length=200)
+    detail = models.CharField(max_length=2000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.summary} · {self.status}'
+
+
+class DisputeResponse(models.Model):
+    """One append-only entry in a dispute's thread. May carry a status change,
+    which the create view applies to the parent dispute."""
+
+    dispute = models.ForeignKey(
+        Dispute, on_delete=models.CASCADE, related_name='responses'
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='dispute_responses',
+    )
+    body = models.CharField(max_length=2000)
+    status_change_to = models.CharField(
+        max_length=20, choices=DisputeStatus.choices, null=True, blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'Re: {self.dispute.summary} ({self.created_at:%Y-%m-%d})'
 
 
 class DeviceToken(models.Model):
