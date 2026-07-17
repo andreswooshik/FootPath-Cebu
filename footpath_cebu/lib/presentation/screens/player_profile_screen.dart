@@ -7,6 +7,8 @@ import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/player_position_controller.dart';
 import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
+import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
+import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/position_picker_sheet.dart';
@@ -123,6 +125,18 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
       appBar: AppBar(
         title: const Text('Player Profile'),
         actions: [
+          // Only a coach can flag a dispute (server-enforced; hiding the
+          // action for other roles is UX, not authorisation).
+          if (widget.profile.isCoach)
+            IconButton(
+              icon: const Icon(Icons.flag_outlined),
+              tooltip: 'Flag dispute',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => FlagDisputeScreen(player: _player),
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.share_outlined),
             tooltip: 'Share',
@@ -177,6 +191,27 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           ),
           const SizedBox(height: 16),
           _AcademicStandingCard(status: _player.eligibility),
+          const SizedBox(height: 16),
+          // Medical context for training decisions. Read-only for the coach —
+          // the player owns their records (and the server enforces it).
+          Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              leading: const Icon(Icons.healing_outlined),
+              title: const Text('Injury History'),
+              subtitle: const Text('View reported injuries'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => InjuryHistoryScreen(
+                    playerId: _player.id,
+                    playerName: _player.name,
+                    readOnly: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 20),
           FilledButton.icon(
             onPressed: _openEditor,

@@ -1,21 +1,34 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/data/local/attendance_outbox.dart';
+import 'package:footpath_cebu/data/local/attendance_sync_service.dart';
 import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_device_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_dispute_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/firebase_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_device_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_dispute_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
+import 'package:footpath_cebu/data/repositories/offline_first_attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/device_repository.dart';
+import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
+import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
+import 'package:footpath_cebu/domain/usecases/delete_injury.dart';
+import 'package:footpath_cebu/domain/usecases/get_disputes.dart';
+import 'package:footpath_cebu/domain/usecases/get_injuries.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
@@ -23,7 +36,10 @@ import 'package:footpath_cebu/domain/usecases/get_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
 import 'package:footpath_cebu/domain/usecases/get_training_sessions.dart';
 import 'package:footpath_cebu/domain/usecases/log_session_attendance.dart';
+import 'package:footpath_cebu/domain/usecases/raise_dispute.dart';
 import 'package:footpath_cebu/domain/usecases/register_device.dart';
+import 'package:footpath_cebu/domain/usecases/respond_to_dispute.dart';
+import 'package:footpath_cebu/domain/usecases/save_injury.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_position.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
@@ -63,19 +79,61 @@ final playerRepositoryProvider = Provider<PlayerRepository>(
   (ref) => useMockData ? MockPlayerRepository() : ApiPlayerRepository(),
 );
 
+/// Durable outbox for attendance saves made while offline. One app-wide
+/// instance so the repository decorator and the sync service drain the same
+/// queue.
+final attendanceOutboxProvider = Provider<AttendanceOutbox>((ref) {
+  final outbox = AttendanceOutbox();
+  ref.onDispose(outbox.close);
+  return outbox;
+});
+
 final attendanceRepositoryProvider = Provider<AttendanceRepository>(
-  (ref) => useMockData ? MockAttendanceRepository() : ApiAttendanceRepository(),
+  (ref) => useMockData
+      ? MockAttendanceRepository()
+      // Live attendance is offline-first: writes that fail at the network
+      // level are queued in the outbox and replayed by the sync service.
+      : OfflineFirstAttendanceRepository(
+          inner: ApiAttendanceRepository(),
+          outbox: ref.watch(attendanceOutboxProvider),
+        ),
 );
+
+/// Drains the offline outbox when connectivity returns. Null in mock mode
+/// (nothing real to sync). Started once post-login, alongside
+/// [registerDeviceProvider].
+final attendanceSyncServiceProvider = Provider<AttendanceSyncService?>((ref) {
+  if (useMockData) return null;
+  final service = AttendanceSyncService(
+    outbox: ref.watch(attendanceOutboxProvider),
+    inner: ApiAttendanceRepository(),
+  );
+  ref.onDispose(service.dispose);
+  return service;
+});
 
 final trainingRepositoryProvider = Provider<TrainingRepository>(
   (ref) => useMockData ? MockTrainingRepository() : ApiTrainingRepository(),
 );
 
+final injuryRepositoryProvider = Provider<InjuryRepository>(
+  (ref) => useMockData ? MockInjuryRepository() : ApiInjuryRepository(),
+);
+
+final disputeRepositoryProvider = Provider<DisputeRepository>(
+  (ref) => useMockData ? MockDisputeRepository() : ApiDisputeRepository(),
+);
+
 final deviceRepositoryProvider = Provider<DeviceRepository>(
-  // The live repository takes an optional PushTokenProvider; pass one here
-  // once a compatible firebase_messaging is pinned (see
-  // docs/wiring-implementation-notes.md).
-  (ref) => useMockData ? MockDeviceRepository() : ApiDeviceRepository(),
+  // The FCM plugin dependency lives here (the composition root), not in the
+  // repository — exactly the seam ApiDeviceRepository documents. Failures are
+  // swallowed inside registerCurrentDevice; push must never break login.
+  (ref) => useMockData
+      ? MockDeviceRepository()
+      : ApiDeviceRepository(() async {
+          await FirebaseMessaging.instance.requestPermission();
+          return FirebaseMessaging.instance.getToken();
+        }),
 );
 
 // ---------------------------------------------------------------------------
@@ -124,6 +182,30 @@ final getSessionAttendanceProvider = Provider<GetSessionAttendance>(
 
 final logSessionAttendanceProvider = Provider<LogSessionAttendance>(
   (ref) => LogSessionAttendance(ref.watch(attendanceRepositoryProvider)),
+);
+
+final getInjuriesProvider = Provider<GetInjuries>(
+  (ref) => GetInjuries(ref.watch(injuryRepositoryProvider)),
+);
+
+final saveInjuryProvider = Provider<SaveInjury>(
+  (ref) => SaveInjury(ref.watch(injuryRepositoryProvider)),
+);
+
+final deleteInjuryProvider = Provider<DeleteInjury>(
+  (ref) => DeleteInjury(ref.watch(injuryRepositoryProvider)),
+);
+
+final getDisputesProvider = Provider<GetDisputes>(
+  (ref) => GetDisputes(ref.watch(disputeRepositoryProvider)),
+);
+
+final raiseDisputeProvider = Provider<RaiseDispute>(
+  (ref) => RaiseDispute(ref.watch(disputeRepositoryProvider)),
+);
+
+final respondToDisputeProvider = Provider<RespondToDispute>(
+  (ref) => RespondToDispute(ref.watch(disputeRepositoryProvider)),
 );
 
 final getTrainingSessionsProvider = Provider<GetTrainingSessions>(

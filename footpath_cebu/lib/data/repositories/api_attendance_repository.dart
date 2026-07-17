@@ -22,7 +22,7 @@ class ApiAttendanceRepository implements AttendanceRepository {
         headers: {'Authorization': 'Bearer $idToken'},
       );
     } catch (_) {
-      throw AttendanceRepositoryException(
+      throw AttendanceNetworkException(
         'Could not reach the server. Is it running?',
       );
     }
@@ -33,39 +33,76 @@ class ApiAttendanceRepository implements AttendanceRepository {
       );
     }
 
-    final decoded = jsonDecode(response.body);
-    final list = decoded is Map<String, dynamic>
-        ? (decoded['results'] as List? ?? const [])
-        : (decoded as List? ?? const []);
-
-    final records = list
-        .cast<Map<String, dynamic>>()
-        .map(Attendance.fromJson)
-        .toList()
+    return _decodeRecords(response.body)
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return records;
   }
 
-  // Live backend wiring for per-session attendance is the backend task's job.
-  // The Attendance & Evaluation screen runs on MockAttendanceRepository; these
-  // stubs only satisfy the AttendanceRepository interface so the app compiles.
-  // Suggested endpoints: GET  {_path}?session=<id>
-  //                      POST {_path}session/<id>/  body {"records": [...]}
   @override
-  Future<List<Attendance>> fetchAttendanceForSession(String sessionId) {
-    throw UnimplementedError(
-      'fetchAttendanceForSession: pending backend wiring.',
-    );
+  Future<List<Attendance>> fetchAttendanceForSession(String sessionId) async {
+    final idToken = await _requireIdToken();
+
+    final http.Response response;
+    try {
+      response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}${_path}session/$sessionId/'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+    } catch (_) {
+      throw AttendanceNetworkException(
+        'Could not reach the server. Is it running?',
+      );
+    }
+
+    if (response.statusCode != 200) {
+      throw AttendanceRepositoryException(
+        'Request failed (${response.statusCode}).',
+      );
+    }
+
+    return _decodeRecords(response.body);
   }
 
   @override
   Future<List<Attendance>> saveSessionAttendance(
     String sessionId,
     List<Attendance> records,
-  ) {
-    throw UnimplementedError(
-      'saveSessionAttendance: pending backend wiring.',
-    );
+  ) async {
+    final idToken = await _requireIdToken();
+
+    final http.Response response;
+    try {
+      response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}${_path}session/$sessionId/'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'records': records.map((r) => r.toJson()).toList(),
+        }),
+      );
+    } catch (_) {
+      throw AttendanceNetworkException(
+        'Could not reach the server. Is it running?',
+      );
+    }
+
+    if (response.statusCode != 200) {
+      throw AttendanceRepositoryException(
+        'Request failed (${response.statusCode}).',
+      );
+    }
+
+    // The server echoes the session's saved records back.
+    return _decodeRecords(response.body);
+  }
+
+  List<Attendance> _decodeRecords(String body) {
+    final decoded = jsonDecode(body);
+    final list = decoded is Map<String, dynamic>
+        ? (decoded['results'] as List? ?? const [])
+        : (decoded as List? ?? const []);
+    return list.cast<Map<String, dynamic>>().map(Attendance.fromJson).toList();
   }
 
   Future<String> _requireIdToken() async {

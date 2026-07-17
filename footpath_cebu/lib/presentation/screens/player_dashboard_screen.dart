@@ -9,6 +9,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/providers/player_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/screens/attendance_history_screen.dart';
+import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
@@ -79,6 +80,8 @@ class PlayerDashboardScreen extends ConsumerWidget {
                   _StatRow(player: player),
                   const SizedBox(height: 16),
                   _RecentAttendanceCard(player: player),
+                  const SizedBox(height: 16),
+                  _InjuryHistoryCard(player: player),
                 ],
               ),
             ),
@@ -197,6 +200,33 @@ class _RecentAttendanceCard extends ConsumerWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Entry point to the player's own injury CRUD screen.
+class _InjuryHistoryCard extends StatelessWidget {
+  const _InjuryHistoryCard({required this.player});
+
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.healing_outlined),
+        title: const Text('Injury History'),
+        subtitle: const Text('Log and track your injuries'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => InjuryHistoryScreen(
+              playerId: player.id,
+              playerName: player.name,
+            ),
+          ),
         ),
       ),
     );
