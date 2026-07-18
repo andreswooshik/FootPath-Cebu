@@ -16,6 +16,7 @@ from .models import (
     DisputeResponse,
     DisputeStatus,
     Eligibility,
+    EligibilityHistory,
     InjuryRecord,
     InjuryStatus,
     PlayerProfile,
@@ -188,6 +189,40 @@ class SessionConfirmationSerializer(serializers.ModelSerializer):
     class Meta:
         model = SessionConfirmation
         fields = ['sessionId', 'playerId', 'status', 'respondedAt']
+
+
+class EligibilityHistorySerializer(serializers.ModelSerializer):
+    """Read shape for GET /api/players/<id>/eligibility-history/. Matches the
+    Flutter EligibilityChange.fromJson: id, oldStatus, newStatus, changedAt,
+    changedBy.
+
+    `changedBy` is privacy-aware: School Staff / Admin see the individual who
+    made the change; a Player or Guardian sees only the *role* that made it —
+    families get the full timeline and accountability, never a staff member's
+    personal identity. A change with no known actor reads as 'System'.
+    """
+
+    id = serializers.CharField(read_only=True)
+    oldStatus = serializers.CharField(source='old_status')
+    newStatus = serializers.CharField(source='new_status')
+    changedAt = serializers.DateTimeField(source='changed_at')
+    changedBy = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EligibilityHistory
+        fields = ['id', 'oldStatus', 'newStatus', 'changedAt', 'changedBy']
+
+    def get_changedBy(self, obj):
+        actor = obj.changed_by
+        if actor is None:
+            return 'System'
+        request = self.context.get('request')
+        viewer = getattr(request, 'user', None)
+        privileged = viewer is not None and viewer.role in (
+            Roles.SCHOOL_STAFF, Roles.ADMIN,
+        )
+        # Staff/Admin see the person; Player/Guardian see only the role.
+        return _display_name(actor) if privileged else actor.get_role_display()
 
 
 class InjuryRecordSerializer(serializers.ModelSerializer):

@@ -9,6 +9,8 @@ import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/screens/attendance_history_screen.dart';
+import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
+import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
@@ -88,6 +90,8 @@ class GuardianDashboardScreen extends ConsumerWidget {
                     _StatRow(child: child),
                     const SizedBox(height: 16),
                     _RecentAttendanceCard(child: child),
+                    const SizedBox(height: 16),
+                    _InjuryHistoryCard(child: child),
                   ],
                 ),
               );
@@ -120,6 +124,15 @@ class _StatRow extends ConsumerWidget {
             label: 'Academic Performance',
             value: child.eligibility.label,
             color: _eligibilityColor(child.eligibility),
+            subtitle: 'Tap for status history',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EligibilityHistoryScreen(
+                  playerId: child.id,
+                  playerName: child.name,
+                ),
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -133,6 +146,35 @@ class _StatRow extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Read-only entry point to the child's injury history. The server enforces
+/// the same rule: a guardian reads a linked child's records, never writes.
+class _InjuryHistoryCard extends StatelessWidget {
+  const _InjuryHistoryCard({required this.child});
+
+  final Player child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.healing_outlined),
+        title: const Text('Injury History'),
+        subtitle: Text("View ${child.name.split(' ').first}'s reported injuries"),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => InjuryHistoryScreen(
+              playerId: child.id,
+              playerName: child.name,
+              readOnly: true,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

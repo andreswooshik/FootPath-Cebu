@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from .models import Dispute, DisputeResponse, InjuryRecord, PlayerEligibility
+from .models import (
+    Dispute,
+    DisputeResponse,
+    EligibilityHistory,
+    InjuryRecord,
+    PlayerEligibility,
+)
 
 
 @admin.register(PlayerEligibility)
@@ -16,6 +22,33 @@ class PlayerEligibilityAdmin(admin.ModelAdmin):
     readonly_fields = ('user', 'date_of_birth', 'middle_initial')
 
     def has_add_permission(self, request):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        # Hand the acting admin to the eligibility signal so the history row it
+        # writes is attributed. Model signals have no request context otherwise.
+        obj._changed_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(EligibilityHistory)
+class EligibilityHistoryAdmin(admin.ModelAdmin):
+    """Read-only trail of eligibility transitions — append-only by design, so
+    no add/change/delete from the admin either."""
+
+    list_display = (
+        'player', 'old_status', 'new_status', 'changed_by', 'changed_at',
+    )
+    list_filter = ('new_status',)
+    search_fields = ('player__email', 'player__first_name', 'player__last_name')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False
 
 
