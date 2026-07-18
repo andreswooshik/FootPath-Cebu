@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/session_confirmation.dart';
 import 'package:footpath_cebu/presentation/providers/session_confirmation_providers.dart';
+import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 
 /// A Confirm/Confirmed toggle for one session, on the Player's schedule
 /// card. Tapping records the player's RSVP; tapping again un-confirms.
@@ -21,9 +22,11 @@ class SessionConfirmationButton extends ConsumerWidget {
     final confirmationsAsync = ref.watch(
       sessionConfirmationsProvider(playerId),
     );
-    final isSubmitting = ref.watch(
-      sessionConfirmationControllerProvider,
-    ).isLoading;
+    // Only spin this card's button — watch the in-flight set and check *this*
+    // session, so a submit on one session doesn't light up every other card.
+    final isSubmitting = ref
+        .watch(sessionConfirmationControllerProvider)
+        .contains(sessionId);
 
     return confirmationsAsync.when(
       // Nothing to show yet, but the card shouldn't jump around once the
@@ -50,9 +53,11 @@ class SessionConfirmationButton extends ConsumerWidget {
                 : () => respond(ConfirmationStatus.declined),
             icon: const Icon(Icons.check_circle, size: 18),
             label: const Text('Confirmed'),
+            // Text/icon inherit the theme's AA-safe default foreground; only
+            // the outline itself carries the brand teal (a border only needs
+            // the 3:1 non-text contrast minimum, which teal clears on white).
             style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF1B5E20),
-              side: const BorderSide(color: Color(0xFF1B5E20)),
+              side: const BorderSide(color: AppColors.teal),
             ),
           );
         }

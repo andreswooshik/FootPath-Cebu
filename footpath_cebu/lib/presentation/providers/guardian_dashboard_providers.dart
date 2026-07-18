@@ -55,4 +55,16 @@ extension AttendanceSummary on List<Attendance> {
         where((a) => a.status == AttendanceStatus.present).length;
     return ((present / length) * 100).round();
   }
+
+  /// Consecutive most-recent sessions the player showed up for. The list is
+  /// ordered newest-first, so this counts leading "present" records — the
+  /// streak the dashboard celebrates ("3 sessions in a row 🔥").
+  int get currentStreak {
+    var streak = 0;
+    for (final a in this) {
+      if (a.status != AttendanceStatus.present) break;
+      streak++;
+    }
+    return streak;
+  }
 }

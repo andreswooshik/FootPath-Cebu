@@ -15,11 +15,15 @@ const _coach = UserProfile(
   roleDisplay: 'Coach',
 );
 
-TrainingSession _session(Set<AgeTier> tiers) => TrainingSession(
+// Defaults to today so attendance can be logged — the coach may log from the
+// session day through two days after (TrainingSession.isAttendanceOpen). Tests
+// exercising the window gate pass an explicit past/future date.
+TrainingSession _session(Set<AgeTier> tiers, {DateTime? date}) =>
+    TrainingSession(
       id: 't1',
       title: 'Technical Drills',
       ageTiers: tiers,
-      date: DateTime(2026, 6, 28),
+      date: date ?? DateTime.now(),
       startTime: '06:00 AM',
       endTime: '08:00 AM',
       location: 'Dynamic Herb Sports Complex',
@@ -30,14 +34,18 @@ void main() {
   /// Tall surface: the roster is a lazy ListView, so cards below the fold are
   /// never built and can't be found. Repository providers default to the
   /// in-memory mocks in a test environment.
-  Future<void> pump(WidgetTester tester, {Set<AgeTier>? tiers}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    Set<AgeTier>? tiers,
+    DateTime? date,
+  }) async {
     await tester.binding.setSurfaceSize(const Size(520, 2200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
           home: LogAttendanceScreen(
-            session: _session(tiers ?? {AgeTier.foundation}),
+            session: _session(tiers ?? {AgeTier.foundation}, date: date),
             profile: _coach,
           ),
         ),
@@ -47,7 +55,7 @@ void main() {
   }
 
   testWidgets('shows the session details in the header', (tester) async {
-    await pump(tester);
+    await pump(tester, date: DateTime(2026, 6, 28));
 
     expect(find.text('Technical Drills'), findsOneWidget);
     expect(find.text('June 28, 2026 · 06:00 AM - 08:00 AM'), findsOneWidget);
@@ -130,6 +138,42 @@ void main() {
     final disabled =
         find.widgetWithText(FilledButton, 'Complete Training Session');
     expect(tester.widget<FilledButton>(disabled).onPressed, isNull);
+
+    await tester.tap(find.text('Present').first);
+    await tester.pumpAndSettle();
+
+    final enabled = find.widgetWithText(
+      FilledButton,
+      'Complete Training Session (1 present)',
+    );
+    expect(tester.widget<FilledButton>(enabled).onPressed, isNotNull);
+  });
+
+  testWidgets('attendance is locked outside the log window', (tester) async {
+    // More than two days after the session: the button is disabled and
+    // labelled, even after marking a player present.
+    await pump(tester, date: DateTime.now().subtract(const Duration(days: 5)));
+
+    await tester.tap(find.text('Present').first);
+    await tester.pumpAndSettle();
+
+    final locked =
+        find.widgetWithText(FilledButton, 'Available on the session day');
+    expect(locked, findsOneWidget);
+    expect(tester.widget<FilledButton>(locked).onPressed, isNull);
+    expect(
+      find.text(
+        'Attendance can only be logged on the session day or up to '
+        '2 days after.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('attendance stays open up to two days after the session',
+      (tester) async {
+    // Two days after is still within the grace window — the roll call saves.
+    await pump(tester, date: DateTime.now().subtract(const Duration(days: 2)));
 
     await tester.tap(find.text('Present').first);
     await tester.pumpAndSettle();

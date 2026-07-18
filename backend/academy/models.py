@@ -37,6 +37,11 @@ class AttendanceStatus(models.TextChoices):
     EXCUSED = 'EXCUSED', 'Excused'
 
 
+class ConfirmationStatus(models.TextChoices):
+    CONFIRMED = 'CONFIRMED', 'Confirmed'
+    DECLINED = 'DECLINED', 'Declined'
+
+
 class PlayerProfile(models.Model):
     """A player's football profile. One-to-one with a PLAYER-role user.
 
@@ -167,6 +172,40 @@ class Attendance(models.Model):
 
     def __str__(self):
         return f'{self.player.email} · {self.status} · {self.updated_at:%Y-%m-%d}'
+
+
+class SessionConfirmation(models.Model):
+    """A player's RSVP for one upcoming session — set by the player before the
+    session happens. Distinct from [Attendance], which the coach records
+    during/after: this is intent, that is fact.
+
+    One row per (player, session); confirming again flips the same row's status
+    rather than stacking new rows.
+    """
+
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='session_confirmations',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    session = models.ForeignKey(
+        TrainingSession,
+        on_delete=models.CASCADE,
+        related_name='confirmations',
+    )
+    status = models.CharField(
+        max_length=10, choices=ConfirmationStatus.choices,
+        default=ConfirmationStatus.CONFIRMED,
+    )
+    responded_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-responded_at']
+        unique_together = ('player', 'session')
+
+    def __str__(self):
+        return f'{self.player.email} · {self.status} · {self.session_id}'
 
 
 class InjuryStatus(models.TextChoices):

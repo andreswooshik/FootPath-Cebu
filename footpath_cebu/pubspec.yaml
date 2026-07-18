@@ -42,6 +42,7 @@ dependencies:
   firebase_messaging: ^16.4.3
   http: ^1.6.0
   flutter_svg: ^2.0.10
+  google_fonts: ^6.2.1
   flutter_riverpod: ^3.3.2
   sqflite: ^2.4.3
   connectivity_plus: ^7.3.0

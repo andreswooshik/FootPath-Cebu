@@ -14,6 +14,11 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     await tester.pumpAndSettle();
+    // Attendance loads on a second delayed timer, started once the streak and
+    // recent-attendance sections build. Drain it so none is left pending at
+    // teardown.
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
 
     expect(find.text('My Profile'), findsOneWidget);
     expect(find.byType(PlayerCard), findsOneWidget);
