@@ -26,6 +26,7 @@ from .models import (
     DeviceToken,
     Dispute,
     DisputeResponse,
+    EligibilityHistory,
     InjuryRecord,
     PlayerProfile,
     SessionConfirmation,
@@ -39,6 +40,7 @@ from .serializers import (
     DisputeCreateSerializer,
     DisputeResponseCreateSerializer,
     DisputeSerializer,
+    EligibilityHistorySerializer,
     InjuryRecordSerializer,
     PlayerSerializer,
     SessionAttendanceRecordSerializer,
@@ -55,6 +57,24 @@ from .storage import upload_photo
 def _guardian_may_read(user, player_id):
     """True if `user` is allowed to read the given player's data."""
     if user.role in (Roles.COACH, Roles.ADMIN):
+        return True
+    if user.role == Roles.PLAYER:
+        return str(user.id) == str(player_id)
+    if user.role == Roles.GUARDIAN:
+        return GuardianLink.objects.filter(
+            guardian=user, player_id=player_id
+        ).exists()
+    return False
+
+
+def _may_read_eligibility(user, player_id):
+    """True if `user` may read a player's eligibility history.
+
+    Deliberately narrower than [_guardian_may_read]: the coach is excluded —
+    academic eligibility is the School Staff's domain, not the coach's. Allowed:
+    the player themselves, their linked guardian(s), any School Staff, Admin.
+    """
+    if user.role in (Roles.SCHOOL_STAFF, Roles.ADMIN):
         return True
     if user.role == Roles.PLAYER:
         return str(user.id) == str(player_id)
@@ -341,12 +361,39 @@ class DisputeResponseCreateView(APIView):
         )
 
 
+class EligibilityHistoryView(APIView):
+    """GET /api/players/<id>/eligibility-history/ — a player's academic
+    eligibility transitions, newest first.
+
+    Object-scoped (audit finding F3): the player themselves, their linked
+    guardian(s), School Staff, and Admin may read; nobody else — notably not
+    the coach, since academic eligibility is not the coach's domain. The
+    serializer hides the acting staff member's identity from families.
+    """
+
+    def get(self, request, player_id):
+        if not _may_read_eligibility(request.user, player_id):
+            raise PermissionDenied(
+                'You may not view this player\'s eligibility history.'
+            )
+        get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
+        history = EligibilityHistory.objects.filter(
+            player_id=player_id
+        ).select_related('changed_by')
+        return Response(
+            EligibilityHistorySerializer(
+                history, many=True, context={'request': request},
+            ).data
+        )
+
+
 class InjuryRecordListCreateView(APIView):
     """GET/POST /api/injuries/ — a player's injury history.
 
-    Medical data gets least-privilege: the player CRUDs their own records
-    only, coach/admin read everything (read-only — ?player=<id> narrows to
-    one player), and guardians are denied entirely.
+    Medical data gets least-privilege. Reads: a player sees their own records;
+    a guardian sees a linked child's (read-only, ?player=<id> required); coach
+    and admin see everyone (?player=<id> narrows). Writes: the player only —
+    guardians and staff never create/edit/delete injuries.
     """
 
     def get(self, request):
@@ -357,6 +404,15 @@ class InjuryRecordListCreateView(APIView):
             player_id = request.query_params.get('player')
             if player_id:
                 records = records.filter(player_id=player_id)
+        elif request.user.role == Roles.GUARDIAN:
+            # A guardian may read only a child they are linked to, and must name
+            # which one — never the whole table.
+            player_id = request.query_params.get('player')
+            if not player_id or not GuardianLink.objects.filter(
+                guardian=request.user, player_id=player_id
+            ).exists():
+                raise PermissionDenied('You may not view this player.')
+            records = InjuryRecord.objects.filter(player_id=player_id)
         else:
             raise PermissionDenied('You may not view injury records.')
         return Response(InjuryRecordSerializer(records, many=True).data)
@@ -375,7 +431,8 @@ class InjuryRecordListCreateView(APIView):
 class InjuryRecordDetailView(APIView):
     """GET/PUT/DELETE /api/injuries/<pk>/ — one injury record.
 
-    Reads: the owning player, coach, admin. Writes: the owning player only.
+    Reads: the owning player, their linked guardian(s), coach, admin.
+    Writes: the owning player only.
     """
 
     def _get_record(self, request, pk, write):
@@ -389,6 +446,11 @@ class InjuryRecordDetailView(APIView):
             allowed = request.user.role in (Roles.COACH, Roles.ADMIN) or (
                 request.user.role == Roles.PLAYER
                 and record.player_id == request.user.id
+            ) or (
+                request.user.role == Roles.GUARDIAN
+                and GuardianLink.objects.filter(
+                    guardian=request.user, player_id=record.player_id
+                ).exists()
             )
         if not allowed:
             raise PermissionDenied('You may not access this injury record.')

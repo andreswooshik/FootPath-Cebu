@@ -23,6 +23,7 @@ from .models import (
     DisputeResponse,
     DisputeStatus,
     Eligibility,
+    EligibilityHistory,
     InjuryRecord,
     InjuryStatus,
     PlayerEligibility,
@@ -536,7 +537,8 @@ class DisputeTests(APITestCase):
 
 class InjuryRecordTests(APITestCase):
     """Injury CRUD — the player owns their records; coach/admin read-only;
-    guardians (even linked ones) are denied: medical data, least-privilege."""
+    a guardian reads a linked child's records only (never writes, never an
+    unlinked child): medical data, least-privilege."""
 
     def setUp(self):
         self.player = make_player('p1@footpathcebu.test')
@@ -626,15 +628,35 @@ class InjuryRecordTests(APITestCase):
         )
         self.assertEqual(self.client.delete(self._detail()).status_code, 403)
 
-    def test_guardian_denied_even_when_linked(self):
+    def test_guardian_reads_linked_child_only_and_never_writes(self):
         self.client.force_authenticate(self.guardian)
+        # Must name a linked child — no blanket listing, no unlinked child.
         self.assertEqual(self.client.get(reverse('injuries')).status_code, 403)
-        self.assertEqual(self.client.get(self._detail()).status_code, 403)
+        self.assertEqual(
+            self.client.get(
+                f"{reverse('injuries')}?player={self.other_player.id}"
+            ).status_code, 403,
+        )
+        resp = self.client.get(
+            f"{reverse('injuries')}?player={self.player.id}"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data[0]['playerId'], str(self.player.id))
+        # Detail read of the linked child's record works too.
+        self.assertEqual(self.client.get(self._detail()).status_code, 200)
+        # Writes stay player-only.
         self.assertEqual(
             self.client.post(
                 reverse('injuries'), self._payload(), format='json'
             ).status_code, 403,
         )
+        self.assertEqual(
+            self.client.put(
+                self._detail(), {'status': 'RECOVERED'}, format='json'
+            ).status_code, 403,
+        )
+        self.assertEqual(self.client.delete(self._detail()).status_code, 403)
 
     def test_injury_json_matches_flutter_contract(self):
         self.client.force_authenticate(self.player)
@@ -782,6 +804,129 @@ class PushTriggerTests(APITestCase):
             profile.age = 16  # a save that leaves eligibility untouched
             profile.save()
         mock_messaging.send_each_for_multicast.assert_not_called()
+
+
+class EligibilityHistorySignalTests(APITestCase):
+    """Every eligibility transition writes exactly one append-only history row;
+    non-transitions write none. Independent of the push — no device tokens, and
+    the on_commit push never runs inside the test transaction."""
+
+    def setUp(self):
+        # make_player provisions the profile at ELIGIBLE (a create, not a
+        # transition — so it records no history).
+        self.player = make_player('hist@footpathcebu.test')
+        self.staff = make_user(Roles.SCHOOL_STAFF)
+
+    def test_change_records_a_history_row(self):
+        self.assertFalse(EligibilityHistory.objects.exists())  # created ≠ change
+        profile = self.player.player_profile
+        profile._changed_by = self.staff
+        profile.eligibility = Eligibility.ACADEMIC_WARNING
+        profile.save()
+
+        rows = EligibilityHistory.objects.filter(player=self.player)
+        self.assertEqual(rows.count(), 1)
+        row = rows.get()
+        self.assertEqual(row.old_status, Eligibility.ELIGIBLE)
+        self.assertEqual(row.new_status, Eligibility.ACADEMIC_WARNING)
+        self.assertEqual(row.changed_by, self.staff)
+
+    def test_unchanged_save_records_no_history(self):
+        profile = self.player.player_profile
+        profile.age = 16  # a save that leaves eligibility untouched
+        profile.save()
+        self.assertFalse(EligibilityHistory.objects.exists())
+
+    def test_history_is_append_only_across_changes(self):
+        profile = self.player.player_profile
+        for status in (Eligibility.PENDING,
+                       Eligibility.NOT_ELIGIBLE,
+                       Eligibility.ELIGIBLE):
+            profile.eligibility = status
+            profile.save()
+        rows = EligibilityHistory.objects.filter(player=self.player)
+        self.assertEqual(rows.count(), 3)
+        # Ordering is newest-first; the last transition lands on top.
+        self.assertEqual(rows.first().new_status, Eligibility.ELIGIBLE)
+        self.assertEqual(rows.first().old_status, Eligibility.NOT_ELIGIBLE)
+
+
+class EligibilityHistoryEndpointTests(APITestCase):
+    """GET /api/players/<id>/eligibility-history/ — object-scoped reads and the
+    privacy-aware changedBy field."""
+
+    def setUp(self):
+        self.player = make_player('elig@footpathcebu.test')
+        self.other_player = make_player('elig-other@footpathcebu.test')
+        self.guardian = make_user(Roles.GUARDIAN)
+        GuardianLink.objects.create(guardian=self.guardian, player=self.player)
+        self.staff = make_user(Roles.SCHOOL_STAFF)
+        self.staff.first_name, self.staff.last_name = 'Maria', 'Santos'
+        self.staff.save()
+
+        # One attributed transition + one system (actor unknown) transition.
+        profile = self.player.player_profile
+        profile._changed_by = self.staff
+        profile.eligibility = Eligibility.ACADEMIC_WARNING
+        profile.save()
+        profile._changed_by = None
+        profile.eligibility = Eligibility.ELIGIBLE
+        profile.save()
+
+    def _url(self, player_id=None):
+        return reverse(
+            'eligibility-history', args=[player_id or self.player.id]
+        )
+
+    def test_player_reads_own_history_newest_first(self):
+        self.client.force_authenticate(self.player)
+        resp = self.client.get(self._url())
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data), 2)
+        self.assertEqual(resp.data[0]['newStatus'], Eligibility.ELIGIBLE)
+        self.assertEqual(resp.data[1]['newStatus'], Eligibility.ACADEMIC_WARNING)
+        self.assertEqual(
+            set(resp.data[0].keys()),
+            {'id', 'oldStatus', 'newStatus', 'changedAt', 'changedBy'},
+        )
+
+    def test_changed_by_is_role_only_for_families_full_name_for_staff(self):
+        # Player (and guardian) see the role, never the staff member's name.
+        self.client.force_authenticate(self.player)
+        rows = self.client.get(self._url()).data
+        self.assertEqual(rows[1]['changedBy'], 'School Staff')
+        self.assertEqual(rows[0]['changedBy'], 'System')
+
+        # School Staff see who actually made the change.
+        self.client.force_authenticate(self.staff)
+        rows = self.client.get(self._url()).data
+        self.assertEqual(rows[1]['changedBy'], 'Maria Santos')
+
+    def test_guardian_reads_linked_child_but_not_others(self):
+        self.client.force_authenticate(self.guardian)
+        self.assertEqual(self.client.get(self._url()).status_code, 200)
+        self.assertEqual(
+            self.client.get(self._url(self.other_player.id)).status_code, 403,
+        )
+
+    def test_player_cannot_read_another_players_history(self):
+        self.client.force_authenticate(self.other_player)
+        self.assertEqual(self.client.get(self._url()).status_code, 403)
+
+    def test_staff_and_admin_read_any_coach_denied(self):
+        for user, expected in (
+            (self.staff, 200),
+            (make_user(Roles.ADMIN), 200),
+            (make_user(Roles.COACH), 403),
+        ):
+            self.client.force_authenticate(user)
+            self.assertEqual(
+                self.client.get(self._url()).status_code, expected, user.role,
+            )
+
+    def test_unknown_player_404(self):
+        self.client.force_authenticate(self.staff)
+        self.assertEqual(self.client.get(self._url(999999)).status_code, 404)
 
 
 class NotificationFanOutTests(APITestCase):
@@ -946,6 +1091,7 @@ class AdminSiteRegistrationTests(APITestCase):
 
         registered = set(django_admin.site._registry.keys())
         self.assertIn(PlayerEligibility, registered)
+        self.assertIn(EligibilityHistory, registered)
         self.assertIn(Dispute, registered)
         self.assertIn(InjuryRecord, registered)
         self.assertNotIn(Attendance, registered)

@@ -7,6 +7,7 @@ import 'package:footpath_cebu/data/local/attendance_sync_service.dart';
 import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_dispute_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_session_confirmation_repository.dart';
@@ -16,6 +17,7 @@ import 'package:footpath_cebu/data/repositories/mock_attendance_repository.dart'
 import 'package:footpath_cebu/data/repositories/mock_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_dispute_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_session_confirmation_repository.dart';
@@ -25,6 +27,7 @@ import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/device_repository.dart';
 import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
+import 'package:footpath_cebu/domain/repositories/eligibility_history_repository.dart';
 import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/repositories/session_confirmation_repository.dart';
@@ -32,6 +35,7 @@ import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/domain/usecases/confirm_session.dart';
 import 'package:footpath_cebu/domain/usecases/delete_injury.dart';
 import 'package:footpath_cebu/domain/usecases/get_disputes.dart';
+import 'package:footpath_cebu/domain/usecases/get_eligibility_history.dart';
 import 'package:footpath_cebu/domain/usecases/get_injuries.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
@@ -129,6 +133,13 @@ final disputeRepositoryProvider = Provider<DisputeRepository>(
   (ref) => useMockData ? MockDisputeRepository() : ApiDisputeRepository(),
 );
 
+final eligibilityHistoryRepositoryProvider =
+    Provider<EligibilityHistoryRepository>(
+  (ref) => useMockData
+      ? MockEligibilityHistoryRepository()
+      : ApiEligibilityHistoryRepository(),
+);
+
 /// Player RSVPs now persist through the Django API (survive logout/restart and
 /// are visible to the coach); the in-memory mock stays the default for UI work.
 final sessionConfirmationRepositoryProvider =
@@ -212,6 +223,12 @@ final deleteInjuryProvider = Provider<DeleteInjury>(
 
 final getDisputesProvider = Provider<GetDisputes>(
   (ref) => GetDisputes(ref.watch(disputeRepositoryProvider)),
+);
+
+final getEligibilityHistoryProvider = Provider<GetEligibilityHistory>(
+  (ref) => GetEligibilityHistory(
+    ref.watch(eligibilityHistoryRepositoryProvider),
+  ),
 );
 
 final raiseDisputeProvider = Provider<RaiseDispute>(

@@ -98,6 +98,55 @@ class PlayerEligibility(PlayerProfile):
         verbose_name_plural = 'Academic Eligibility'
 
 
+class EligibilityHistory(models.Model):
+    """Append-only audit trail of a player's academic eligibility transitions.
+
+    One row per change, written by the PlayerProfile save-cycle signal (see
+    signals.py) so *every* write path — Django admin, console, a future
+    School Staff API — is captured with no per-view wiring. Never updated or
+    deleted: the trail is the record.
+
+    Only the status enum is stored, never a grade — same status-flags-only rule
+    the eligibility field itself follows.
+    """
+
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='eligibility_history',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    # Who made the change, when known. Model signals have no request context, so
+    # the acting user is stashed on the instance by the write path (the admin's
+    # save_model, a view) and read here; null when a path doesn't set it.
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='eligibility_changes_made',
+    )
+    # Blank for the very first status a player is given (no prior value).
+    old_status = models.CharField(
+        max_length=20, choices=Eligibility.choices, blank=True,
+    )
+    new_status = models.CharField(
+        max_length=20, choices=Eligibility.choices,
+    )
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at', '-id']
+        verbose_name = 'Eligibility history'
+        verbose_name_plural = 'Eligibility history'
+
+    def __str__(self):
+        return (
+            f'{self.player.email}: {self.old_status or "—"} → '
+            f'{self.new_status} ({self.changed_at:%Y-%m-%d})'
+        )
+
+
 class TrainingSession(models.Model):
     """A scheduled session. Times are display strings (e.g. "04:30 PM") to match
     the client entity, which never parses them as clock times."""

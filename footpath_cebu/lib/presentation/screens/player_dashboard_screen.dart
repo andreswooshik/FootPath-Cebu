@@ -10,6 +10,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/providers/player_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/screens/attendance_history_screen.dart';
+import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
@@ -84,7 +85,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   _StreakSection(player: player),
                   const SizedBox(height: 12),
-                  _EligibilityTile(status: player.eligibility),
+                  _EligibilityTile(player: player),
                   const SizedBox(height: 16),
                   _RecentAttendanceCard(player: player),
                   const SizedBox(height: 16),
@@ -120,19 +121,29 @@ class _StreakSection extends ConsumerWidget {
 }
 
 /// School standing in youth-friendly language — the muted eligibility enum
-/// becomes an at-a-glance "ready to play?" call.
+/// becomes an at-a-glance "ready to play?" call. Tapping opens the full
+/// status-change timeline.
 class _EligibilityTile extends StatelessWidget {
-  const _EligibilityTile({required this.status});
+  const _EligibilityTile({required this.player});
 
-  final EligibilityStatus status;
+  final Player player;
 
   @override
   Widget build(BuildContext context) {
     return StatTile(
       icon: Icons.school_outlined,
       label: 'School Grades',
-      value: _eligibilityHeadline(status),
-      color: _eligibilityColor(status),
+      value: _eligibilityHeadline(player.eligibility),
+      color: _eligibilityColor(player.eligibility),
+      subtitle: 'Tap for status history',
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EligibilityHistoryScreen(
+            playerId: player.id,
+            playerName: player.name,
+          ),
+        ),
+      ),
     );
   }
 }
