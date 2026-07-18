@@ -41,10 +41,8 @@ class _TrainingScheduleScreenState
   void _logAttendance(TrainingSession session) {
     Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => LogAttendanceScreen(
-          session: session,
-          profile: widget.profile,
-        ),
+        builder: (_) =>
+            LogAttendanceScreen(session: session, profile: widget.profile),
       ),
     );
   }
@@ -87,14 +85,7 @@ class _TrainingScheduleScreenState
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 14),
-                FilledButton.icon(
-                  onPressed: _openScheduleForm,
-                  icon: const Icon(Icons.add_circle_outline),
-                  label: const Text('Schedule New Session'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                ),
+
                 const SizedBox(height: 14),
                 _ScheduleTabs(
                   showPast: _showPast,
@@ -119,8 +110,9 @@ class _TrainingScheduleScreenState
   }
 
   Widget _buildBody() {
-    final sessions =
-        ref.watch(_showPast ? pastSessionsProvider : upcomingSessionsProvider);
+    final sessions = ref.watch(
+      _showPast ? pastSessionsProvider : upcomingSessionsProvider,
+    );
     return sessions.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => DashboardErrorState(
