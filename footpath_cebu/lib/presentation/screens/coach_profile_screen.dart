@@ -9,6 +9,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 import 'package:footpath_cebu/presentation/screens/dispute_list_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
+import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
@@ -180,7 +181,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
                     icon: Icons.groups_outlined,
                     label: 'Registered',
                     value: '${squad.length}',
-                    color: const Color(0xFF1B5E20),
+                    color: AppColors.teal,
                   ),
                 ),
                 const SizedBox(width: 12),

@@ -12,6 +12,7 @@ import 'package:footpath_cebu/presentation/screens/attendance_history_screen.dar
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
@@ -128,7 +129,7 @@ class _StatRow extends ConsumerWidget {
             label: 'Attendance',
             value: '${attendance.presentPercent}%',
             subtitle: 'Last ${attendance.sessionCount} sessions',
-            color: const Color(0xFF1B5E20),
+            color: AppColors.teal,
           ),
         ),
       ],

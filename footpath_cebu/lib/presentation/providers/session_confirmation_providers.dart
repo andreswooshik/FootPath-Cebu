@@ -10,13 +10,17 @@ final sessionConfirmationsProvider =
   (ref, playerId) => ref.watch(getSessionConfirmationsProvider)(playerId),
 );
 
-/// Drives the Confirm/Decline action on a schedule card.
+/// Drives the Confirm/Decline action on the schedule cards.
 ///
-/// Owns only the submit state ([AsyncValue] loading/error) — same shape as
-/// [ScheduleSessionController].
-class SessionConfirmationController extends AsyncNotifier<void> {
+/// State is the set of session ids with a submit in flight — not a single
+/// shared loading flag. Each card checks its *own* session, so tapping Confirm
+/// on one session only spins that card's button, never every card at once.
+class SessionConfirmationController extends Notifier<Set<String>> {
   @override
-  Future<void> build() async {}
+  Set<String> build() => const {};
+
+  /// Whether [sessionId]'s button should show its in-progress spinner.
+  bool isSubmitting(String sessionId) => state.contains(sessionId);
 
   /// Records [status] for [sessionId]/[playerId]. On success the player's
   /// confirmation list is invalidated so every open view refreshes.
@@ -25,20 +29,21 @@ class SessionConfirmationController extends AsyncNotifier<void> {
     String playerId,
     ConfirmationStatus status,
   ) async {
-    state = const AsyncLoading();
+    if (state.contains(sessionId)) return false; // already submitting
+    state = {...state, sessionId};
     try {
       await ref.read(confirmSessionProvider)(sessionId, playerId, status);
-      state = const AsyncData(null);
       ref.invalidate(sessionConfirmationsProvider(playerId));
       return true;
-    } catch (e, st) {
-      state = AsyncError(e, st);
+    } catch (_) {
       return false;
+    } finally {
+      state = state.where((id) => id != sessionId).toSet();
     }
   }
 }
 
 final sessionConfirmationControllerProvider =
-    AsyncNotifierProvider.autoDispose<SessionConfirmationController, void>(
+    NotifierProvider.autoDispose<SessionConfirmationController, Set<String>>(
   SessionConfirmationController.new,
 );

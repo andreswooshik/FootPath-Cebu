@@ -61,10 +61,11 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _date ?? now,
-      firstDate: DateTime(now.year - 1),
+      initialDate: _date ?? today,
+      firstDate: today,
       lastDate: DateTime(now.year + 2),
     );
     if (picked != null) setState(() => _date = picked);
@@ -98,6 +99,14 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
         const SnackBar(
           content: Text('Pick at least one age tier for this session.'),
         ),
+      );
+      return;
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (_date!.isBefore(today)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The session date cannot be in the past.')),
       );
       return;
     }

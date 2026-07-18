@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/presentation/widgets/tear_away_date.dart';
 
 /// A single training session, shared by the Coach's and Player/Guardian's
 /// schedules: a coloured age-tier header with the date, and a body with the
@@ -40,41 +41,49 @@ class TrainingSessionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Coloured tier header with the date.
+            // Coloured tier header with a tear-away calendar date.
             Container(
               color: tier.bg,
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: _TierPill(
-                            label: _tierLabel(session),
-                            fg: tier.fg,
+                  TearAwayDate(date: session.date, headerColor: cs.tertiary),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: _TierPill(
+                                  label: _tierLabel(session),
+                                  fg: tier.fg,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(
+                              _focusIcon(session.focus),
+                              size: 30,
+                              color: tier.fg.withValues(alpha: 0.8),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          _weekdayLong(session.date),
+                          style: TextStyle(
+                            color: tier.fg,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        _focusIcon(session.focus),
-                        size: 30,
-                        color: tier.fg.withValues(alpha: 0.8),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-                  Text(
-                    _formatDate(session.date),
-                    style: TextStyle(
-                      color: tier.fg,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
+                      ],
                     ),
                   ),
                 ],
@@ -114,16 +123,30 @@ class TrainingSessionCard extends StatelessWidget {
                           color: cs.primary,
                         ),
                         const Spacer(),
+                        // Attendance is logged from the session day through two
+                        // days after — the action stays visible but disabled
+                        // outside that window, so the coach sees it exists and
+                        // why it's not available (a future session) or closed.
                         TextButton.icon(
-                          onPressed: onLogAttendance,
+                          onPressed:
+                              session.isAttendanceOpen ? onLogAttendance : null,
                           style: TextButton.styleFrom(
                             foregroundColor: cs.primary,
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
                             ),
                           ),
-                          icon: const Text('Log Attendance'),
-                          label: const Icon(Icons.chevron_right, size: 18),
+                          icon: Text(
+                            session.isAttendanceOpen
+                                ? 'Log Attendance'
+                                : 'Log on the day',
+                          ),
+                          label: Icon(
+                            session.isAttendanceOpen
+                                ? Icons.chevron_right
+                                : Icons.lock_clock,
+                            size: 18,
+                          ),
                         ),
                       ],
                     ),
@@ -280,19 +303,14 @@ IconData _focusIcon(SessionFocus focus) {
   }
 }
 
-const _months = [
-  'JAN',
-  'FEB',
-  'MAR',
-  'APR',
-  'MAY',
-  'JUN',
-  'JUL',
-  'AUG',
-  'SEP',
-  'OCT',
-  'NOV',
-  'DEC',
+const _weekdaysLong = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
 ];
 
-String _formatDate(DateTime d) => '${_months[d.month - 1]} ${d.day}';
+String _weekdayLong(DateTime d) => _weekdaysLong[d.weekday - 1];

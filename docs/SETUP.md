@@ -1,57 +1,37 @@
 # FootPath-Cebu — Development Setup
 
 Two parts: the Django backend (`backend/`) and the Flutter app
-(`footpath_cebu/`). Firebase Authentication holds the credentials; the
-backend verifies ID tokens with the Firebase Admin SDK.
+(`footpath_cebu/`). Both need one shared secret file — ask whoever gave you
+this repo link for it (see step 0).
 
-## 1. Firebase project (one-time, manual — do this first)
+## 0. Get the shared secret file
 
-1. Go to <https://console.firebase.google.com> → **Add project** → name it
-   `footpath-cebu` (Google Analytics can stay disabled).
-2. In the project: **Build → Authentication → Get started → Sign-in method →
-   Email/Password → Enable** (leave "Email link" off).
-3. **Project settings (gear icon) → Service accounts → Firebase Admin SDK →
-   Generate new private key**. Save the downloaded JSON as:
+Download **`firebase-service-account.json`** from the team Google Drive and
+save it as:
 
-   ```
-   backend/secrets/firebase-service-account.json
-   ```
+```
+backend/secrets/firebase-service-account.json
+```
 
-   This file is gitignored. **Never commit it.**
-4. Install the CLI chain (PowerShell):
+That's the only file you need from outside the repo. It's gitignored —
+never commit it or share it outside the team.
 
-   ```powershell
-   npm install -g firebase-tools
-   firebase login          # opens a browser — sign in with the same Google account
-   dart pub global activate flutterfire_cli
-   ```
-
-   If `flutterfire` is "not recognized" afterwards, add
-   `%LOCALAPPDATA%\Pub\Cache\bin` to your PATH.
-5. Wire the Flutter app to the project (from `footpath_cebu/`):
-
-   ```powershell
-   flutterfire configure --project=footpath-cebu
-   ```
-
-   Select at least **android** and **web**. This overwrites the placeholder
-   `lib/firebase_options.dart` with real config. If it offers to apply the
-   google-services gradle plugin, decline — Dart-only initialization is
-   sufficient here.
-6. Note the **Web API Key** (Project settings → General, or inside the
-   generated `firebase_options.dart`) — needed for the token test below.
-
-## 2. Backend
+## 1. Backend
 
 ```powershell
 cd backend
 py -m venv .venv                                  # first time only
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-copy .env.example .env                            # first time only; set a real DJANGO_SECRET_KEY
+copy .env.example .env                            # first time only
 .\.venv\Scripts\python.exe manage.py migrate
-.\.venv\Scripts\python.exe manage.py seed_users   # needs the service-account JSON in place
+.\.venv\Scripts\python.exe manage.py seed_users
 .\.venv\Scripts\python.exe manage.py runserver 0.0.0.0:8000
 ```
+
+Open `backend\.env` and set `DJANGO_SECRET_KEY` to any random string (or
+generate one: `python -c "from django.core.management.utils import get_random_secret_key as k; print(k())"`).
+Everything else in `.env.example` can stay commented out — no database
+setup needed, it defaults to a local SQLite file.
 
 `0.0.0.0` matters: the Android emulator reaches the host via `10.0.2.2`.
 
@@ -66,36 +46,37 @@ default password `FootPath!2026`, override with `--password`):
 | staff@footpathcebu.test | School Staff |
 | guardian@footpathcebu.test | Guardian |
 
-## 3. Flutter app
+These five log into the **Flutter app** and the custom **admin console**
+(`http://localhost:8000/console/`) with their email + the password above —
+the console requires the ADMIN role.
+
+The **Django admin site** (`http://localhost:8000/admin/`) is separate: it
+needs a Django superuser, not a seeded account:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py createsuperuser
+```
+
+Log in there with the **username** you set (not an email).
+
+## 2. Flutter app
 
 ```powershell
 cd footpath_cebu
 flutter pub get
-flutter run -d chrome    # fastest loop; or an Android emulator
+flutter run -d chrome --dart-define=USE_MOCK=false
 ```
+
+**`--dart-define=USE_MOCK=false` matters** — in debug builds the app defaults
+to in-memory mock data (no backend needed) unless this flag is set. Omit it
+to work on UI without the backend running; include it to test against the
+real backend. Release builds (`flutter run --release`) always use the live
+backend regardless.
 
 The app picks the backend URL automatically: `http://localhost:8000` on
-web/desktop, `http://10.0.2.2:8000` on the Android emulator
-(`lib/config/api_config.dart`).
-
-## 4. Verify end-to-end (no app needed)
-
-```powershell
-# health + auth gate
-Invoke-RestMethod http://localhost:8000/api/health/            # -> status: ok
-Invoke-WebRequest http://localhost:8000/api/auth/me/           # -> 401
-
-# mint a real ID token via the Firebase Auth REST API and call /me
-$apiKey = "<Web API Key>"
-$body = @{ email = "coach@footpathcebu.test"; password = "FootPath!2026"; returnSecureToken = $true } | ConvertTo-Json
-$r = Invoke-RestMethod -Method Post -ContentType "application/json" -Body $body `
-     -Uri "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$apiKey"
-Invoke-RestMethod http://localhost:8000/api/auth/me/ -Headers @{ Authorization = "Bearer $($r.idToken)" }
-# -> role: COACH; repeat with the other four accounts
-```
-
-A Firebase user with no provisioned backend account gets **401 "No account
-for this login."** — that is the no-self-registration guarantee.
+web/desktop, `http://10.0.2.2:8000` on the Android emulator. Override with
+`--dart-define=API_BASE_URL=http://<lan-ip>:8000` for a physical device on
+the same Wi-Fi (run the server as `runserver 0.0.0.0:8000` in that case).
 
 ## Troubleshooting
 
@@ -104,6 +85,24 @@ for this login."** — that is the no-self-registration guarantee.
 - **Connection errors from the emulator**: confirm the server runs on
   `0.0.0.0:8000` and the manifest has `android:usesCleartextTraffic="true"`
   (dev-only; production uses HTTPS).
+- **`seed_users` fails / Firebase errors**: the service-account JSON is
+  missing or in the wrong place — re-check step 0.
 - **Pylance/IDE import warnings in `backend/`**: point VS Code's Python
   interpreter at `backend\.venv\Scripts\python.exe`
   (Ctrl+Shift+P → "Python: Select Interpreter").
+
+## No access to the shared file? Set up your own Firebase project
+
+Only needed if you don't have the Drive file and can't get it — this spins
+up a completely separate Firebase project for yourself.
+
+1. <https://console.firebase.google.com> → **Add project** → any name.
+2. **Build → Authentication → Sign-in method → Email/Password → Enable**.
+3. **Project settings → Service accounts → Generate new private key** → save
+   as `backend/secrets/firebase-service-account.json`.
+4. `npm install -g firebase-tools && dart pub global activate flutterfire_cli`,
+   then from `footpath_cebu/`: `flutterfire configure --project=<your-project>`
+   (overwrites `lib/firebase_options.dart` — select at least android + web).
+5. Continue from step 1 above. Note you'll only be able to log in with
+   accounts `seed_users` creates in *your* project — you won't share
+   accounts/data with teammates on the real project.

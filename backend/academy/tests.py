@@ -16,6 +16,7 @@ from .models import (
     AgeTier,
     Attendance,
     AttendanceStatus,
+    ConfirmationStatus,
     DeviceToken,
     Dispute,
     DisputeCategory,
@@ -26,6 +27,7 @@ from .models import (
     InjuryStatus,
     PlayerEligibility,
     PlayerProfile,
+    SessionConfirmation,
     SessionFocus,
     TrainingSession,
 )
@@ -277,6 +279,33 @@ class SessionAttendanceTests(APITestCase):
         self.assertEqual(
             self.client.post(url, self._payload(), format='json').status_code, 404
         )
+
+    def _post_to_session_dated(self, when):
+        session = TrainingSession.objects.create(
+            title=f'session {when}', date=when,
+            age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+        )
+        url = reverse('attendance-session', args=[session.id])
+        return self.client.post(url, self._payload(), format='json')
+
+    def test_attendance_window_is_session_day_through_two_days_after(self):
+        # Open: the session day and up to two days after.
+        self.client.force_authenticate(self.coach)
+        for offset in (0, 1, 2):
+            when = date.today() - timedelta(days=offset)
+            self.assertEqual(
+                self._post_to_session_dated(when).status_code, 200,
+                msg=f'{offset} day(s) after should be open',
+            )
+
+    def test_attendance_closed_before_session_and_after_two_days(self):
+        # Closed: before the session, and more than two days after.
+        self.client.force_authenticate(self.coach)
+        for when in (date.today() + timedelta(days=1),
+                     date.today() - timedelta(days=3)):
+            self.assertEqual(
+                self._post_to_session_dated(when).status_code, 400, msg=str(when),
+            )
 
 
 class AssessmentTests(APITestCase):
@@ -923,3 +952,103 @@ class AdminSiteRegistrationTests(APITestCase):
         self.assertNotIn(DeviceToken, registered)
         self.assertNotIn(TrainingSession, registered)
         self.assertNotIn(PlayerProfile, registered)
+
+
+class SessionConfirmationTests(APITestCase):
+    """Player RSVPs: the player POSTs their own confirmation, it persists and is
+    upserted on (player, session), and reads are object-scoped like attendance.
+    This is the persistence the in-memory mock never gave — a confirmation now
+    survives logout/restart and is readable by the coach.
+    """
+
+    def setUp(self):
+        self.player = make_player('rsvp@footpathcebu.test')
+        self.guardian = make_user(Roles.GUARDIAN)
+        GuardianLink.objects.create(guardian=self.guardian, player=self.player)
+        self.other = make_player('other-rsvp@footpathcebu.test')
+        self.session = TrainingSession.objects.create(
+            title='Evening Training', date=date.today(),
+            age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+        )
+
+    def _url(self, player_id=None):
+        base = reverse('session-confirmations')
+        return f'{base}?player={player_id}' if player_id else base
+
+    def test_player_confirms_and_it_persists(self):
+        self.client.force_authenticate(self.player)
+        resp = self.client.post(
+            self._url(),
+            {'sessionId': str(self.session.id), 'status': 'CONFIRMED'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 201)
+        # Persisted server-side, and readable back on a fresh request.
+        self.assertEqual(SessionConfirmation.objects.count(), 1)
+        rows = self.client.get(self._url(self.player.id)).data
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['status'], 'CONFIRMED')
+
+    def test_reconfirming_upserts_the_same_row(self):
+        self.client.force_authenticate(self.player)
+        body = {'sessionId': str(self.session.id), 'status': 'CONFIRMED'}
+        self.client.post(self._url(), body, format='json')
+        # Flip to declined — the same (player, session) row updates in place.
+        self.client.post(
+            self._url(),
+            {'sessionId': str(self.session.id), 'status': 'DECLINED'},
+            format='json',
+        )
+        self.assertEqual(SessionConfirmation.objects.count(), 1)
+        row = SessionConfirmation.objects.get()
+        self.assertEqual(row.status, ConfirmationStatus.DECLINED)
+
+    def test_json_matches_flutter_contract(self):
+        SessionConfirmation.objects.create(
+            player=self.player, session=self.session,
+            status=ConfirmationStatus.CONFIRMED,
+        )
+        self.client.force_authenticate(self.player)
+        row = self.client.get(self._url(self.player.id)).data[0]
+        self.assertEqual(
+            set(row.keys()), {'sessionId', 'playerId', 'status', 'respondedAt'},
+        )
+        self.assertEqual(row['playerId'], str(self.player.id))
+        self.assertEqual(row['sessionId'], str(self.session.id))
+
+    def test_only_players_can_confirm(self):
+        body = {'sessionId': str(self.session.id), 'status': 'CONFIRMED'}
+        for role in (Roles.COACH, Roles.GUARDIAN, Roles.SCHOOL_STAFF):
+            self.client.force_authenticate(make_user(role, f'{role}@rsvp.test'))
+            resp = self.client.post(self._url(), body, format='json')
+            self.assertEqual(resp.status_code, 403, role)
+        self.assertFalse(SessionConfirmation.objects.exists())
+
+    def test_guardian_reads_linked_child_but_not_others(self):
+        SessionConfirmation.objects.create(
+            player=self.player, session=self.session,
+            status=ConfirmationStatus.CONFIRMED,
+        )
+        self.client.force_authenticate(self.guardian)
+        self.assertEqual(
+            self.client.get(self._url(self.player.id)).status_code, 200,
+        )
+        self.assertEqual(
+            self.client.get(self._url(self.other.id)).status_code, 403,
+        )
+
+    def test_coach_can_read_any_player(self):
+        self.client.force_authenticate(make_user(Roles.COACH))
+        self.assertEqual(
+            self.client.get(self._url(self.player.id)).status_code, 200,
+        )
+
+    def test_unknown_status_is_rejected(self):
+        self.client.force_authenticate(self.player)
+        resp = self.client.post(
+            self._url(),
+            {'sessionId': str(self.session.id), 'status': 'MAYBE'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(SessionConfirmation.objects.exists())

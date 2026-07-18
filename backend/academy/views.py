@@ -8,6 +8,7 @@ Authorization is enforced two ways, both server-side (never trust the client):
 """
 from django.db import transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -21,11 +22,13 @@ from accounts.services import ProvisioningError, provision_user
 
 from .models import (
     Attendance,
+    ConfirmationStatus,
     DeviceToken,
     Dispute,
     DisputeResponse,
     InjuryRecord,
     PlayerProfile,
+    SessionConfirmation,
     TrainingSession,
 )
 from .notifications import notify_assessment_saved, notify_session_scheduled
@@ -39,6 +42,7 @@ from .serializers import (
     InjuryRecordSerializer,
     PlayerSerializer,
     SessionAttendanceRecordSerializer,
+    SessionConfirmationSerializer,
     TrainingSessionSerializer,
 )
 
@@ -159,6 +163,15 @@ class SessionAttendanceView(APIView):
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can record attendance.')
         session = get_object_or_404(TrainingSession, pk=session_id)
+        # Attendance is recorded close to when it happens: the session day
+        # through two days after — never before the session. Mirrors the
+        # client's TrainingSession.isAttendanceOpen guard.
+        days_since = (timezone.localdate() - session.date).days
+        if not 0 <= days_since <= 2:
+            raise ValidationError(
+                'Attendance can only be logged on the session day or up to '
+                '2 days after.'
+            )
         serializer = SessionAttendanceRecordSerializer(
             data=request.data.get('records', []), many=True
         )
@@ -203,6 +216,50 @@ class TrainingSessionListCreateView(APIView):
         transaction.on_commit(lambda: notify_session_scheduled(session))
         return Response(
             TrainingSessionSerializer(session).data, status=status.HTTP_201_CREATED
+        )
+
+
+class SessionConfirmationView(APIView):
+    """GET/POST /api/session-confirmations/ — a player's RSVPs for sessions.
+
+    GET ?player=<id>: that player's confirmations, most recent first. Same
+    object-level authz as attendance — a guardian only reads a linked player, a
+    player only themselves, coach/admin anyone (audit finding F3).
+
+    POST {sessionId, status}: the signed-in player RSVPs. The player is taken
+    from the request, never the client, and the row is upserted on
+    (player, session) so re-confirming flips the same row rather than stacking.
+    """
+
+    def get(self, request):
+        player_id = request.query_params.get('player')
+        if not player_id:
+            raise ValidationError('A player query parameter is required.')
+        if not _guardian_may_read(request.user, player_id):
+            raise PermissionDenied('You may not view this player.')
+        records = SessionConfirmation.objects.select_related('session').filter(
+            player_id=player_id
+        )
+        return Response(SessionConfirmationSerializer(records, many=True).data)
+
+    def post(self, request):
+        if request.user.role != Roles.PLAYER:
+            raise PermissionDenied('Only players can confirm their own sessions.')
+        session_id = request.data.get('sessionId')
+        status_value = str(request.data.get('status', '')).upper()
+        if not session_id:
+            raise ValidationError('A sessionId is required.')
+        if status_value not in set(ConfirmationStatus.values):
+            raise ValidationError(f'Unknown status: {status_value or "(none)"}.')
+        session = get_object_or_404(TrainingSession, pk=session_id)
+        confirmation, _ = SessionConfirmation.objects.update_or_create(
+            player=request.user,
+            session=session,
+            defaults={'status': status_value},
+        )
+        return Response(
+            SessionConfirmationSerializer(confirmation).data,
+            status=status.HTTP_201_CREATED,
         )
 
 

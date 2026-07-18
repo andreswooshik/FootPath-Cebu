@@ -9,6 +9,7 @@ import 'package:footpath_cebu/data/repositories/api_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/firebase_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_attendance_repository.dart';
@@ -128,11 +129,13 @@ final disputeRepositoryProvider = Provider<DisputeRepository>(
   (ref) => useMockData ? MockDisputeRepository() : ApiDisputeRepository(),
 );
 
-/// No live endpoint exists for session confirmations yet — always mock
-/// until the backend adds one.
+/// Player RSVPs now persist through the Django API (survive logout/restart and
+/// are visible to the coach); the in-memory mock stays the default for UI work.
 final sessionConfirmationRepositoryProvider =
     Provider<SessionConfirmationRepository>(
-  (ref) => MockSessionConfirmationRepository(),
+  (ref) => useMockData
+      ? MockSessionConfirmationRepository()
+      : ApiSessionConfirmationRepository(),
 );
 
 final deviceRepositoryProvider = Provider<DeviceRepository>(

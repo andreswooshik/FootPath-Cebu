@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/domain/entities/card_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
@@ -9,9 +10,11 @@ import 'package:footpath_cebu/presentation/providers/player_position_controller.
 import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
 import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
+import 'package:footpath_cebu/presentation/widgets/attribute_radar_chart.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/position_picker_sheet.dart';
+import 'package:footpath_cebu/presentation/widgets/tier_badge.dart';
 
 /// Coach Portal — one player's profile, opened by tapping a card on the squad
 /// roster. Shows the FUT card, the six technical attributes, the player's
@@ -155,6 +158,18 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
               child: PlayerCard(player: _player),
             ),
           ),
+          const SizedBox(height: 12),
+          Center(child: TierBadge(tier: CardTier.forPlayer(_player))),
+          const SizedBox(height: 24),
+          Text(
+            'Attribute Web',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Center(child: AttributeRadarChart(ratings: r, size: 240)),
           const SizedBox(height: 24),
           Text(
             'Technical Performance',

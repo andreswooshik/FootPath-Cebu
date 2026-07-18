@@ -22,6 +22,11 @@ urlpatterns = [
         views.TrainingSessionListCreateView.as_view(),
         name='training-sessions',
     ),
+    path(
+        'session-confirmations/',
+        views.SessionConfirmationView.as_view(),
+        name='session-confirmations',
+    ),
     path('disputes/', views.DisputeListCreateView.as_view(), name='disputes'),
     path(
         'disputes/<int:pk>/',

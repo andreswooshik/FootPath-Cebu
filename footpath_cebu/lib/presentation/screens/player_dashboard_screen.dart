@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
+import 'package:footpath_cebu/domain/entities/card_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
@@ -16,6 +17,8 @@ import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
+import 'package:footpath_cebu/presentation/widgets/streak_counter.dart';
+import 'package:footpath_cebu/presentation/widgets/tier_badge.dart';
 
 /// Player Portal — the signed-in player's own profile and status.
 ///
@@ -76,8 +79,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
                       child: PlayerCard(player: player),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Center(child: TierBadge(tier: CardTier.forPlayer(player))),
                   const SizedBox(height: 16),
-                  _StatRow(player: player),
+                  _StreakSection(player: player),
+                  const SizedBox(height: 12),
+                  _EligibilityTile(status: player.eligibility),
                   const SizedBox(height: 16),
                   _RecentAttendanceCard(player: player),
                   const SizedBox(height: 16),
@@ -95,8 +102,9 @@ class PlayerDashboardScreen extends ConsumerWidget {
   }
 }
 
-class _StatRow extends ConsumerWidget {
-  const _StatRow({required this.player});
+/// The gamified attendance section — a streak flame instead of a raw "0%".
+class _StreakSection extends ConsumerWidget {
+  const _StreakSection({required this.player});
 
   final Player player;
 
@@ -104,30 +112,37 @@ class _StatRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final attendance =
         ref.watch(childAttendanceProvider(player.id)).value ?? const [];
-    return Row(
-      children: [
-        Expanded(
-          child: StatTile(
-            icon: Icons.school_outlined,
-            label: 'Academic Performance',
-            value: player.eligibility.label,
-            color: _eligibilityColor(player.eligibility),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: StatTile(
-            icon: Icons.event_available_outlined,
-            label: 'Attendance',
-            value: '${attendance.presentPercent}%',
-            subtitle: 'Last ${attendance.sessionCount} sessions',
-            color: const Color(0xFF1B5E20),
-          ),
-        ),
-      ],
+    return StreakCounter(
+      streak: attendance.currentStreak,
+      presentPercent: attendance.presentPercent,
     );
   }
 }
+
+/// School standing in youth-friendly language — the muted eligibility enum
+/// becomes an at-a-glance "ready to play?" call.
+class _EligibilityTile extends StatelessWidget {
+  const _EligibilityTile({required this.status});
+
+  final EligibilityStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    return StatTile(
+      icon: Icons.school_outlined,
+      label: 'School Grades',
+      value: _eligibilityHeadline(status),
+      color: _eligibilityColor(status),
+    );
+  }
+}
+
+String _eligibilityHeadline(EligibilityStatus status) => switch (status) {
+      EligibilityStatus.eligible => 'Ready to Play! 🚀',
+      EligibilityStatus.academicWarning => 'Almost there — hit the books 📚',
+      EligibilityStatus.notEligible => 'Bench time — grades first 📖',
+      EligibilityStatus.pending => 'Check pending ⏳',
+    };
 
 class _RecentAttendanceCard extends ConsumerWidget {
   const _RecentAttendanceCard({required this.player});

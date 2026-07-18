@@ -6,6 +6,7 @@ import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
+import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 
@@ -62,7 +63,7 @@ class ProgressScreen extends ConsumerWidget {
 /// Buckets a 0-100 effort score into the label/colour shown on the entry.
 ({String label, Color color}) _intensity(int? effort) {
   final value = effort ?? 0;
-  if (value >= 90) return (label: 'ELITE', color: const Color(0xFF1B5E20));
+  if (value >= 90) return (label: 'ELITE', color: AppColors.tealDark);
   if (value >= 67) return (label: 'HIGH', color: Colors.deepOrange);
   if (value >= 34) return (label: 'MED', color: Colors.orange);
   return (label: 'LOW', color: Colors.blueGrey);

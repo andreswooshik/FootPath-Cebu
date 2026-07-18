@@ -150,6 +150,22 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   }
 
   Future<void> _finalize(List<Player> roster) async {
+    // Attendance is a record of who showed up — the coach can log it on the
+    // session day and up to two days after, never before. The button is
+    // already disabled outside that window; this guards the path anyway (and
+    // the server enforces it too).
+    if (!widget.session.isAttendanceOpen) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Attendance can only be logged on the session day or up to '
+            '2 days after.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final unmarked = roster.length - _marks.length;
     if (unmarked > 0) {
       final proceed = await showDialog<bool>(
@@ -303,6 +319,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
             presentCount: _presentCount(),
             unmarkedCount: roster.length - _marks.length,
             isSaving: isSaving,
+            canLog: widget.session.isAttendanceOpen,
             onFinalize: () => _finalize(roster),
           ),
           orElse: () => null,
@@ -842,6 +859,7 @@ class _FinalizeBar extends StatelessWidget {
     required this.presentCount,
     required this.unmarkedCount,
     required this.isSaving,
+    required this.canLog,
     required this.onFinalize,
   });
 
@@ -849,6 +867,9 @@ class _FinalizeBar extends StatelessWidget {
   final int presentCount;
   final int unmarkedCount;
   final bool isSaving;
+
+  /// Whether attendance may be logged now — false unless it's the session day.
+  final bool canLog;
   final VoidCallback onFinalize;
 
   @override
@@ -860,7 +881,27 @@ class _FinalizeBar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (unmarkedCount > 0)
+            if (!canLog)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.lock_clock, size: 16, color: cs.onSurfaceVariant),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Attendance can only be logged on the session day or '
+                        'up to 2 days after.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (unmarkedCount > 0)
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
@@ -869,19 +910,23 @@ class _FinalizeBar extends StatelessWidget {
                 ),
               ),
             FilledButton.icon(
-              onPressed: isSaving || markedCount == 0 ? null : onFinalize,
+              onPressed: !canLog || isSaving || markedCount == 0
+                  ? null
+                  : onFinalize,
               icon: isSaving
                   ? const SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.how_to_reg),
+                  : Icon(canLog ? Icons.how_to_reg : Icons.lock_clock),
               label: Text(
                 isSaving
                     ? 'Saving…'
-                    : 'Complete Training Session'
-                        '${markedCount > 0 ? ' ($presentCount present)' : ''}',
+                    : !canLog
+                        ? 'Available on the session day'
+                        : 'Complete Training Session'
+                            '${markedCount > 0 ? ' ($presentCount present)' : ''}',
               ),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),

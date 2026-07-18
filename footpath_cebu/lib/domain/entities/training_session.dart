@@ -69,6 +69,19 @@ class TrainingSession {
   /// True when the session targets every tier the academy runs.
   bool get isAllTiers => ageTiers.length == AgeTier.values.length;
 
+  /// True while the coach may still log this session's attendance: from the
+  /// session day itself through two days after. You record who showed up close
+  /// to when it happened — never before the session, and not indefinitely late
+  /// (a two-day grace covers a coach who couldn't finish the roll call on the
+  /// day, then the window closes).
+  bool get isAttendanceOpen {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(date.year, date.month, date.day);
+    final daysSince = today.difference(day).inDays;
+    return daysSince >= 0 && daysSince <= 2;
+  }
+
   /// True when a player in [tier] is eligible for this session's attendance.
   bool includesTier(AgeTier tier) => ageTiers.contains(tier);
 

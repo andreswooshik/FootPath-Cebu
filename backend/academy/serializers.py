@@ -2,6 +2,7 @@
 parse (footpath_cebu/lib/domain/entities/). Field names and casing here are the
 API contract — do not rename without changing the client `fromJson` factories.
 """
+from django.utils import timezone
 from rest_framework import serializers
 
 from accounts.models import Roles, User
@@ -18,6 +19,7 @@ from .models import (
     InjuryRecord,
     InjuryStatus,
     PlayerProfile,
+    SessionConfirmation,
     SessionFocus,
     TrainingSession,
 )
@@ -132,6 +134,13 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f'Unknown focus: {value}')
         return v
 
+    def validate_date(self, value):
+        if value < timezone.localdate():
+            raise serializers.ValidationError(
+                'The session date cannot be in the past.'
+            )
+        return value
+
 
 class AttendanceSerializer(serializers.ModelSerializer):
     """Matches Attendance.fromJson: playerId, sessionId, status, effort, note,
@@ -164,6 +173,21 @@ class AttendanceSerializer(serializers.ModelSerializer):
     def get_note(self, obj):
         # The client treats note as nullable; a blank stored note is "no note".
         return obj.note or None
+
+
+class SessionConfirmationSerializer(serializers.ModelSerializer):
+    """Matches SessionConfirmation.fromJson: sessionId, playerId, status,
+    respondedAt. Read-only shape — writes go through the view, which sets the
+    player from the request and upserts on (player, session)."""
+
+    # Hard-cast to String on the client, so coerce the int PKs to strings.
+    playerId = serializers.CharField(source='player.id', read_only=True)
+    sessionId = serializers.CharField(source='session.id', read_only=True)
+    respondedAt = serializers.DateTimeField(source='responded_at', read_only=True)
+
+    class Meta:
+        model = SessionConfirmation
+        fields = ['sessionId', 'playerId', 'status', 'respondedAt']
 
 
 class InjuryRecordSerializer(serializers.ModelSerializer):
