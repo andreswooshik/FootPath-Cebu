@@ -34,7 +34,9 @@ class PortalBottomNav extends StatelessWidget {
             Navigator.of(context).popUntil((route) => route.isFirst);
           case 1:
             Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ScheduleTabScreen()),
+              MaterialPageRoute(
+                builder: (_) => ScheduleTabScreen(player: player),
+              ),
             );
           case 2:
             Navigator.of(context).push(

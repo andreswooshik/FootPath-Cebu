@@ -1,16 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/session_confirmation_button.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 
-/// Schedule tab — upcoming/past training sessions, read-only. Shared by the
-/// Player and Guardian portals (unlike the Coach's Training Schedule screen,
-/// there's no "Schedule New Session" action here).
+/// Schedule tab — upcoming/past training sessions. Shared by the Player and
+/// Guardian portals (unlike the Coach's Training Schedule screen, there's no
+/// "Schedule New Session" action here). Upcoming sessions carry a
+/// confirmation control so [player] can RSVP; past sessions don't.
 class ScheduleTabScreen extends ConsumerStatefulWidget {
-  const ScheduleTabScreen({super.key});
+  const ScheduleTabScreen({super.key, required this.player});
+
+  final Player player;
 
   @override
   ConsumerState<ScheduleTabScreen> createState() => _ScheduleTabScreenState();
@@ -74,8 +79,15 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
                       vertical: 8,
                     ),
                     itemCount: sessions.length,
-                    itemBuilder: (context, i) =>
-                        TrainingSessionCard(session: sessions[i]),
+                    itemBuilder: (context, i) => TrainingSessionCard(
+                      session: sessions[i],
+                      trailing: _showPast
+                          ? null
+                          : SessionConfirmationButton(
+                              sessionId: sessions[i].id,
+                              playerId: widget.player.id,
+                            ),
+                    ),
                   ),
                 );
               },

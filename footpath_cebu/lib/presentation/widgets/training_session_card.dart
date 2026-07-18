@@ -3,21 +3,29 @@ import 'package:flutter/material.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 
-/// A single training session on the coach's schedule: a coloured age-tier
-/// header with the date, and a body with the title, time, location, attendees
-/// and a Log Attendance action. Colours are drawn from the app's [ColorScheme]
-/// so the card stays on-theme.
+/// A single training session, shared by the Coach's and Player/Guardian's
+/// schedules: a coloured age-tier header with the date, and a body with the
+/// title, time, and location. The row below that is role-specific — the
+/// Coach sees attendees + a Log Attendance action ([onLogAttendance]); the
+/// Player sees a session-confirmation control instead ([trailing]). Colours
+/// are drawn from the app's [ColorScheme] so the card stays on-theme.
 class TrainingSessionCard extends StatelessWidget {
   const TrainingSessionCard({
     super.key,
     required this.session,
     this.onLogAttendance,
     this.onTap,
+    this.trailing,
   });
 
   final TrainingSession session;
   final VoidCallback? onLogAttendance;
   final VoidCallback? onTap;
+
+  /// Replaces the attendees/Log Attendance row when set — used by the
+  /// Player's schedule for a session-confirmation control instead of the
+  /// Coach's roll-call action.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -96,26 +104,29 @@ class TrainingSessionCard extends StatelessWidget {
                     text: session.location,
                   ),
                   const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      if (onLogAttendance != null)
+                  if (trailing != null)
+                    Align(alignment: Alignment.centerRight, child: trailing)
+                  else if (onLogAttendance != null)
+                    Row(
+                      children: [
                         _Attendees(
-                        count: session.attendeeCount,
-                        color: cs.primary,
-                      ),
-                      const Spacer(),
-                      if (onLogAttendance != null)
-                        TextButton.icon(
-                        onPressed: onLogAttendance,
-                        style: TextButton.styleFrom(
-                          foregroundColor: cs.primary,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          count: session.attendeeCount,
+                          color: cs.primary,
                         ),
-                        icon: const Text('Log Attendance'),
-                        label: const Icon(Icons.chevron_right, size: 18),
-                      ),
-                    ],
-                  ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: onLogAttendance,
+                          style: TextButton.styleFrom(
+                            foregroundColor: cs.primary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                            ),
+                          ),
+                          icon: const Text('Log Attendance'),
+                          label: const Icon(Icons.chevron_right, size: 18),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),

@@ -17,6 +17,7 @@ import 'package:footpath_cebu/data/repositories/mock_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/offline_first_attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
@@ -25,7 +26,9 @@ import 'package:footpath_cebu/domain/repositories/device_repository.dart';
 import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/repositories/session_confirmation_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
+import 'package:footpath_cebu/domain/usecases/confirm_session.dart';
 import 'package:footpath_cebu/domain/usecases/delete_injury.dart';
 import 'package:footpath_cebu/domain/usecases/get_disputes.dart';
 import 'package:footpath_cebu/domain/usecases/get_injuries.dart';
@@ -33,6 +36,7 @@ import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_session_attendance.dart';
+import 'package:footpath_cebu/domain/usecases/get_session_confirmations.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
 import 'package:footpath_cebu/domain/usecases/get_training_sessions.dart';
 import 'package:footpath_cebu/domain/usecases/log_session_attendance.dart';
@@ -124,6 +128,13 @@ final disputeRepositoryProvider = Provider<DisputeRepository>(
   (ref) => useMockData ? MockDisputeRepository() : ApiDisputeRepository(),
 );
 
+/// No live endpoint exists for session confirmations yet — always mock
+/// until the backend adds one.
+final sessionConfirmationRepositoryProvider =
+    Provider<SessionConfirmationRepository>(
+  (ref) => MockSessionConfirmationRepository(),
+);
+
 final deviceRepositoryProvider = Provider<DeviceRepository>(
   // The FCM plugin dependency lives here (the composition root), not in the
   // repository — exactly the seam ApiDeviceRepository documents. Failures are
@@ -206,6 +217,16 @@ final raiseDisputeProvider = Provider<RaiseDispute>(
 
 final respondToDisputeProvider = Provider<RespondToDispute>(
   (ref) => RespondToDispute(ref.watch(disputeRepositoryProvider)),
+);
+
+final getSessionConfirmationsProvider = Provider<GetSessionConfirmations>(
+  (ref) => GetSessionConfirmations(
+    ref.watch(sessionConfirmationRepositoryProvider),
+  ),
+);
+
+final confirmSessionProvider = Provider<ConfirmSession>(
+  (ref) => ConfirmSession(ref.watch(sessionConfirmationRepositoryProvider)),
 );
 
 final getTrainingSessionsProvider = Provider<GetTrainingSessions>(
