@@ -98,12 +98,14 @@ class TrainingSessionCard extends StatelessWidget {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      _Attendees(
+                      if (onLogAttendance != null)
+                        _Attendees(
                         count: session.attendeeCount,
                         color: cs.primary,
                       ),
                       const Spacer(),
-                      TextButton.icon(
+                      if (onLogAttendance != null)
+                        TextButton.icon(
                         onPressed: onLogAttendance,
                         style: TextButton.styleFrom(
                           foregroundColor: cs.primary,
