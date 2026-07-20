@@ -55,13 +55,50 @@ void main() {
       );
 
       final save = SavePlayerAssessment(repo);
-      final updated = await save(target.id, newRatings);
+      final updated = await save(
+        target.id,
+        newRatings,
+        coachNotes: 'Excellent movement off the ball.',
+      );
       expect(updated.ratings.pace, 50);
 
       // Re-fetch: the mutation persisted (mirrors a real backend write).
       final refetched = await repo.fetchSquad();
       final same = refetched.firstWhere((p) => p.id == target.id);
       expect(same.ratings.shooting, 51);
+    });
+
+    test('the coach note is persisted, not silently dropped', () async {
+      // Regression guard: the assessment form once rendered a notes field that
+      // no layer carried, so every note a coach typed was discarded on save.
+      final repo = MockPlayerRepository();
+      final target = (await repo.fetchSquad()).first;
+      const ratings = PlayerRatings(
+        pace: 70, shooting: 70, passing: 70, dribbling: 70,
+        defending: 70, physical: 70,
+      );
+
+      final save = SavePlayerAssessment(repo);
+      final updated = await save(
+        target.id,
+        ratings,
+        coachNotes: 'Needs to scan before receiving.',
+      );
+      expect(updated.coachNotes, 'Needs to scan before receiving.');
+
+      // And it survives a re-fetch, like the ratings do.
+      final refetched = await repo.fetchSquad();
+      final same = refetched.firstWhere((p) => p.id == target.id);
+      expect(same.coachNotes, 'Needs to scan before receiving.');
+    });
+
+    test('a note round-trips through Player JSON', () async {
+      // The wire contract is what the Django serializer emits; if `coachNotes`
+      // were dropped from fromJson/toJson the note would vanish on reload.
+      final target = (await MockPlayerRepository().fetchSquad()).first;
+      final withNote = target.copyWith(coachNotes: 'Composed under pressure.');
+      final restored = Player.fromJson(withNote.toJson());
+      expect(restored.coachNotes, 'Composed under pressure.');
     });
 
     test('controller surfaces success and error states', () async {
@@ -80,12 +117,21 @@ void main() {
         pace: 60, shooting: 60, passing: 60, dribbling: 60,
         defending: 60, physical: 60,
       );
-      final ok = await controller.submit(squad.first.id, ratings);
+      final ok = await controller.submit(
+        squad.first.id,
+        ratings,
+        coachNotes: 'Strong session.',
+      );
       expect(ok, isNotNull);
+      expect(ok!.coachNotes, 'Strong session.');
       expect(sub.read().hasError, isFalse);
 
       // Unknown player id → error path, no throw.
-      final bad = await controller.submit('does-not-exist', ratings);
+      final bad = await controller.submit(
+        'does-not-exist',
+        ratings,
+        coachNotes: '',
+      );
       expect(bad, isNull);
       expect(sub.read().hasError, isTrue);
     });

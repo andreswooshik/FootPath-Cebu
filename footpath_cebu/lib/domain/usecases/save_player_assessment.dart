@@ -10,6 +10,10 @@ class SavePlayerAssessment {
 
   final AssessmentWriter _repository;
 
-  Future<Player> call(String playerId, PlayerRatings ratings) =>
-      _repository.saveAssessment(playerId, ratings);
+  Future<Player> call(
+    String playerId,
+    PlayerRatings ratings, {
+    required String coachNotes,
+  }) =>
+      _repository.saveAssessment(playerId, ratings, coachNotes: coachNotes);
 }

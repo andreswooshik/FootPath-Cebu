@@ -52,7 +52,11 @@ class _FakeRepo implements PlayerRepository {
       throw UnimplementedError();
 
   @override
-  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async =>
+  Future<Player> saveAssessment(
+    String playerId,
+    PlayerRatings ratings, {
+    required String coachNotes,
+  }) async =>
       throw UnimplementedError();
 }
 

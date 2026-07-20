@@ -79,7 +79,7 @@ class SquadEndpointTests(APITestCase):
         self.assertEqual(
             set(row.keys()),
             {'id', 'name', 'age', 'classYear', 'ageTier', 'position',
-             'ratings', 'eligibility', 'photoUrl'},
+             'ratings', 'eligibility', 'photoUrl', 'coachNotes'},
         )
         self.assertEqual(
             set(row['ratings'].keys()),
@@ -326,6 +326,66 @@ class AssessmentTests(APITestCase):
         self.assertEqual(resp.data['ratings']['pace'], 90)
         self.player.player_profile.refresh_from_db()
         self.assertEqual(self.player.player_profile.shooting, 91)
+
+    def test_coach_note_is_saved_alongside_ratings(self):
+        """Regression guard: the note used to be dropped when the serializer
+        flattened the payload down to its `ratings` object."""
+        self.client.force_authenticate(self.coach)
+        url = reverse('player-assessment', args=[self.player.id])
+        resp = self.client.put(
+            url,
+            {
+                'ratings': {'pace': 80, 'shooting': 80, 'passing': 80,
+                            'dribbling': 80, 'defending': 80, 'physical': 80},
+                'coachNotes': 'Reads the game well; needs a weaker foot.',
+            },
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp.data['coachNotes'], 'Reads the game well; needs a weaker foot.'
+        )
+        self.player.player_profile.refresh_from_db()
+        self.assertEqual(
+            self.player.player_profile.coach_notes,
+            'Reads the game well; needs a weaker foot.',
+        )
+
+    def test_omitting_the_note_leaves_the_existing_one_intact(self):
+        """A client that sends only ratings must not blank a saved note."""
+        profile = self.player.player_profile
+        profile.coach_notes = 'Existing evaluation.'
+        profile.save(update_fields=['coach_notes'])
+
+        self.client.force_authenticate(self.coach)
+        resp = self.client.put(
+            reverse('player-assessment', args=[self.player.id]),
+            {'ratings': {'pace': 70, 'shooting': 70, 'passing': 70,
+                         'dribbling': 70, 'defending': 70, 'physical': 70}},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        profile.refresh_from_db()
+        self.assertEqual(profile.coach_notes, 'Existing evaluation.')
+
+    def test_note_can_be_cleared_explicitly(self):
+        """Sending an empty string is how a coach deletes their note — that is
+        different from omitting the field entirely."""
+        profile = self.player.player_profile
+        profile.coach_notes = 'To be removed.'
+        profile.save(update_fields=['coach_notes'])
+
+        self.client.force_authenticate(self.coach)
+        resp = self.client.put(
+            reverse('player-assessment', args=[self.player.id]),
+            {'ratings': {'pace': 70, 'shooting': 70, 'passing': 70,
+                         'dribbling': 70, 'defending': 70, 'physical': 70},
+             'coachNotes': ''},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        profile.refresh_from_db()
+        self.assertEqual(profile.coach_notes, '')
 
     def test_non_coach_cannot_assess(self):
         self.client.force_authenticate(make_user(Roles.GUARDIAN))

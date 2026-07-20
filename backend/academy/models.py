@@ -71,6 +71,11 @@ class PlayerProfile(models.Model):
     defending = models.PositiveSmallIntegerField(default=0)
     physical = models.PositiveSmallIntegerField(default=0)
 
+    # The coach's standing qualitative evaluation, saved alongside the six
+    # ratings. Overwritten on each assessment (it is the *current* view of the
+    # player) — the per-session running commentary lives on Attendance.note.
+    coach_notes = models.TextField(blank=True, default='')
+
     eligibility = models.CharField(
         max_length=20, choices=Eligibility.choices, default=Eligibility.PENDING
     )

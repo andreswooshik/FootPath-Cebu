@@ -36,7 +36,11 @@ class ApiPlayerRepository implements PlayerRepository {
   }
 
   @override
-  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async {
+  Future<Player> saveAssessment(
+    String playerId,
+    PlayerRatings ratings, {
+    required String coachNotes,
+  }) async {
     final idToken = await _requireIdToken();
 
     final http.Response response;
@@ -47,7 +51,10 @@ class ApiPlayerRepository implements PlayerRepository {
           'Authorization': 'Bearer $idToken',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({'ratings': ratings.toJson()}),
+        body: jsonEncode({
+          'ratings': ratings.toJson(),
+          'coachNotes': coachNotes,
+        }),
       );
     } catch (_) {
       throw PlayerRepositoryException(

@@ -42,7 +42,11 @@ class _EditPerformanceDataScreenState
   late int _defending = widget.player.ratings.defending;
   late int _physical = widget.player.ratings.physical;
 
-  final _notesController = TextEditingController();
+  /// Seeded with the note already on file so the form opens showing the
+  /// current evaluation. Starting it empty would let a coach who only came to
+  /// nudge a slider silently overwrite an existing note with a blank one.
+  late final _notesController =
+      TextEditingController(text: widget.player.coachNotes);
 
   @override
   void dispose() {
@@ -63,13 +67,17 @@ class _EditPerformanceDataScreenState
   Future<void> _save() async {
     final saved = await ref
         .read(editPerformanceControllerProvider.notifier)
-        .submit(widget.player.id, _draft);
+        .submit(
+          widget.player.id,
+          _draft,
+          coachNotes: _notesController.text.trim(),
+        );
     if (!mounted) return;
     if (saved != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Assessment saved for ${widget.player.name}.')),
       );
-      Navigator.of(context).pop(saved.ratings);
+      Navigator.of(context).pop(saved);
     } else {
       final error = ref.read(editPerformanceControllerProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(

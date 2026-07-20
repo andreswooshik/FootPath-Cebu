@@ -47,12 +47,13 @@ class PlayerSerializer(serializers.ModelSerializer):
     ageTier = serializers.CharField(source='age_tier')
     ratings = serializers.SerializerMethodField()
     photoUrl = serializers.SerializerMethodField()
+    coachNotes = serializers.CharField(source='coach_notes', read_only=True)
 
     class Meta:
         model = PlayerProfile
         fields = [
             'id', 'name', 'age', 'classYear', 'ageTier', 'position',
-            'ratings', 'eligibility', 'photoUrl',
+            'ratings', 'eligibility', 'photoUrl', 'coachNotes',
         ]
 
     def get_name(self, obj):
@@ -75,7 +76,8 @@ class PlayerSerializer(serializers.ModelSerializer):
 
 class AssessmentSerializer(serializers.ModelSerializer):
     """Write side for PUT /api/players/<id>/assessment/ — the six coach-editable
-    ratings. Accepts the nested `ratings` object the client sends."""
+    ratings plus the coach's qualitative note. Accepts the nested `ratings`
+    object the client sends."""
 
     pace = serializers.IntegerField(min_value=0, max_value=99)
     shooting = serializers.IntegerField(min_value=0, max_value=99)
@@ -83,16 +85,30 @@ class AssessmentSerializer(serializers.ModelSerializer):
     dribbling = serializers.IntegerField(min_value=0, max_value=99)
     defending = serializers.IntegerField(min_value=0, max_value=99)
     physical = serializers.IntegerField(min_value=0, max_value=99)
+    # Optional so an older client that posts only ratings still succeeds; when
+    # omitted the existing note is left untouched rather than blanked.
+    coachNotes = serializers.CharField(
+        source='coach_notes', required=False, allow_blank=True, max_length=2000,
+    )
 
     class Meta:
         model = PlayerProfile
-        fields = ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical']
+        fields = [
+            'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical',
+            'coachNotes',
+        ]
 
     def to_internal_value(self, data):
-        # The client posts {"ratings": {pace: .., ...}}; accept that shape as
-        # well as a flat body, so the endpoint is forgiving.
+        # The client posts {"ratings": {pace: .., ...}, "coachNotes": ".."};
+        # flatten that into the shape the field declarations expect, while still
+        # accepting an already-flat body so the endpoint stays forgiving.
         if 'ratings' in data and isinstance(data['ratings'], dict):
-            data = data['ratings']
+            flattened = dict(data['ratings'])
+            # Carry the sibling note across — flattening to `ratings` alone is
+            # exactly how the note used to get dropped.
+            if 'coachNotes' in data:
+                flattened['coachNotes'] = data['coachNotes']
+            data = flattened
         return super().to_internal_value(data)
 
 

@@ -18,10 +18,19 @@ abstract class LinkedPlayersRepository {
   Future<List<Player>> fetchLinkedPlayers();
 }
 
-/// Persists a coach's performance assessment (the six ratings) for a player and
-/// returns the updated player — used by the coach's assessment form.
+/// Persists a coach's performance assessment — the six ratings *and* the
+/// written evaluation — for a player, and returns the updated player. Used by
+/// the coach's assessment form.
 abstract class AssessmentWriter {
-  Future<Player> saveAssessment(String playerId, PlayerRatings ratings);
+  /// [coachNotes] is required rather than optional on purpose: the form once
+  /// rendered a notes field that no layer carried, so it was silently
+  /// discarded on save. Making it required means the compiler, not a demo,
+  /// catches the next caller that forgets it. Pass `''` to clear the note.
+  Future<Player> saveAssessment(
+    String playerId,
+    PlayerRatings ratings, {
+    required String coachNotes,
+  });
 }
 
 /// Persists the position a coach assigned to a player and returns the updated

@@ -98,6 +98,7 @@ class Player {
     required this.ratings,
     required this.eligibility,
     this.photoUrl,
+    this.coachNotes = '',
   });
 
   final String id;
@@ -121,6 +122,14 @@ class Player {
   final EligibilityStatus eligibility;
   final String? photoUrl;
 
+  /// The coach's standing written evaluation, saved with the assessment.
+  ///
+  /// Empty when no coach has written one yet — never null, so the UI can test
+  /// `isNotEmpty` without a null check. Distinct from the per-session remarks
+  /// on [Attendance], which are a running commentary rather than a current
+  /// summary.
+  final String coachNotes;
+
   int get overall => ratings.overall;
 
   /// Returns a copy with selected fields replaced — used by the coach's
@@ -133,6 +142,7 @@ class Player {
     PlayerRatings? ratings,
     EligibilityStatus? eligibility,
     PlayerPosition? position,
+    String? coachNotes,
   }) {
     return Player(
       id: id,
@@ -144,6 +154,7 @@ class Player {
       ratings: ratings ?? this.ratings,
       eligibility: eligibility ?? this.eligibility,
       photoUrl: photoUrl,
+      coachNotes: coachNotes ?? this.coachNotes,
     );
   }
 
@@ -162,6 +173,7 @@ class Player {
         json['eligibility'] as String? ?? 'PENDING',
       ),
       photoUrl: json['photoUrl'] as String?,
+      coachNotes: json['coachNotes'] as String? ?? '',
     );
   }
 
@@ -175,5 +187,6 @@ class Player {
         'ratings': ratings.toJson(),
         'eligibility': eligibility.wire,
         'photoUrl': photoUrl,
+        'coachNotes': coachNotes,
       };
 }

@@ -24,8 +24,14 @@ class _FakePlayerRepository implements PlayerRepository {
   Future<List<Player>> fetchLinkedPlayers() async => _players;
 
   @override
-  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async =>
-      _players.firstWhere((p) => p.id == playerId).copyWith(ratings: ratings);
+  Future<Player> saveAssessment(
+    String playerId,
+    PlayerRatings ratings, {
+    required String coachNotes,
+  }) async =>
+      _players
+          .firstWhere((p) => p.id == playerId)
+          .copyWith(ratings: ratings, coachNotes: coachNotes);
 
   @override
   Future<Player> savePosition(String playerId, PlayerPosition position) async =>
@@ -47,7 +53,11 @@ class _FailingPlayerRepository implements PlayerRepository {
       throw PlayerRepositoryException('boom');
 
   @override
-  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async =>
+  Future<Player> saveAssessment(
+    String playerId,
+    PlayerRatings ratings, {
+    required String coachNotes,
+  }) async =>
       throw PlayerRepositoryException('boom');
 
   @override

@@ -12,15 +12,22 @@ class EditPerformanceController extends AsyncNotifier<void> {
   @override
   Future<void> build() async {}
 
-  /// Persists [ratings] for [playerId]. Returns the updated player on success,
-  /// or null on failure (with the error in [state] for the View to show).
-  /// On success the squad roster is invalidated so the card's overall rating
-  /// refreshes wherever it is shown.
-  Future<Player?> submit(String playerId, PlayerRatings ratings) async {
+  /// Persists [ratings] and [coachNotes] for [playerId]. Returns the updated
+  /// player on success, or null on failure (with the error in [state] for the
+  /// View to show). On success the squad roster is invalidated so the card's
+  /// overall rating refreshes wherever it is shown.
+  Future<Player?> submit(
+    String playerId,
+    PlayerRatings ratings, {
+    required String coachNotes,
+  }) async {
     state = const AsyncLoading();
     try {
-      final updated =
-          await ref.read(savePlayerAssessmentProvider)(playerId, ratings);
+      final updated = await ref.read(savePlayerAssessmentProvider)(
+        playerId,
+        ratings,
+        coachNotes: coachNotes,
+      );
       state = const AsyncData(null);
       ref.invalidate(squadProvider);
       return updated;

@@ -43,7 +43,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   late Player _player = widget.player;
 
   Future<void> _openEditor() async {
-    final updated = await Navigator.of(context).push<PlayerRatings>(
+    // The editor returns the whole saved Player, not just the ratings: the
+    // assessment also writes the coach's note, and popping ratings alone would
+    // leave this screen showing a stale one.
+    final updated = await Navigator.of(context).push<Player>(
       MaterialPageRoute(
         builder: (_) => EditPerformanceDataScreen(
           player: _player,
@@ -52,7 +55,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
       ),
     );
     if (updated == null) return;
-    setState(() => _player = _player.copyWith(ratings: updated));
+    setState(() => _player = updated);
   }
 
   /// Pick a position, confirm it, then persist it.
@@ -204,6 +207,8 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             onEdit: widget.profile.isCoach ? _editPosition : null,
             isSaving: ref.watch(playerPositionControllerProvider).isLoading,
           ),
+          const SizedBox(height: 16),
+          _CoachEvaluationCard(notes: _player.coachNotes),
           const SizedBox(height: 16),
           _AcademicStandingCard(status: _player.eligibility),
           const SizedBox(height: 16),
@@ -388,6 +393,61 @@ class _AttributeTile extends StatelessWidget {
                 minHeight: 4,
                 backgroundColor: Colors.grey.shade300,
                 color: theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The coach's standing written evaluation, saved with the assessment.
+///
+/// Always rendered, even with no note yet: an empty state tells the coach the
+/// evaluation exists and is theirs to fill, where a hidden card would read as a
+/// missing feature.
+class _CoachEvaluationCard extends StatelessWidget {
+  const _CoachEvaluationCard({required this.notes});
+
+  final String notes;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasNotes = notes.trim().isNotEmpty;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.rate_review_outlined,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Coach Evaluation',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              hasNotes ? notes : 'No written evaluation yet.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontStyle: hasNotes ? FontStyle.normal : FontStyle.italic,
+                color: hasNotes
+                    ? null
+                    : theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
               ),
             ),
           ],

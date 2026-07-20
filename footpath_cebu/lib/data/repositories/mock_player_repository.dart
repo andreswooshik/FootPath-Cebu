@@ -176,7 +176,11 @@ class MockPlayerRepository implements PlayerRepository {
   }
 
   @override
-  Future<Player> saveAssessment(String playerId, PlayerRatings ratings) async {
+  Future<Player> saveAssessment(
+    String playerId,
+    PlayerRatings ratings, {
+    required String coachNotes,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 300));
     final index = _squad.indexWhere((p) => p.id == playerId);
     if (index == -1) {
@@ -184,7 +188,8 @@ class MockPlayerRepository implements PlayerRepository {
     }
     // Mutate in place so the change survives a later fetch, mirroring a real
     // backend write.
-    final updated = _squad[index].copyWith(ratings: ratings);
+    final updated =
+        _squad[index].copyWith(ratings: ratings, coachNotes: coachNotes);
     _squad[index] = updated;
     return updated;
   }
