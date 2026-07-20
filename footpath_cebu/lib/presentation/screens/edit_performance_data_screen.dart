@@ -42,6 +42,15 @@ class _EditPerformanceDataScreenState
   late int _defending = widget.player.ratings.defending;
   late int _physical = widget.player.ratings.physical;
 
+  // GK six — seeded even for an outfield player so a later position change
+  // doesn't lose whatever was on file. Only shown/edited when [_isGoalkeeper].
+  late int _diving = widget.player.ratings.diving;
+  late int _handling = widget.player.ratings.handling;
+  late int _kicking = widget.player.ratings.kicking;
+  late int _reflexes = widget.player.ratings.reflexes;
+  late int _speed = widget.player.ratings.speed;
+  late int _positioning = widget.player.ratings.positioning;
+
   /// Seeded with the note already on file so the form opens showing the
   /// current evaluation. Starting it empty would let a coach who only came to
   /// nudge a slider silently overwrite an existing note with a blank one.
@@ -54,7 +63,12 @@ class _EditPerformanceDataScreenState
     super.dispose();
   }
 
-  /// The live draft — the header's overall badge recomputes as sliders move.
+  bool get _isGoalkeeper =>
+      widget.player.position?.group == PositionGroup.goalkeeper;
+
+  /// The live draft. Always carries all twelve fields, not just the six shown
+  /// on screen for this position — editing a GK's reflexes must not silently
+  /// zero their (unedited, unseen) outfield six, and vice versa.
   PlayerRatings get _draft => PlayerRatings(
         pace: _pace,
         shooting: _shooting,
@@ -62,7 +76,18 @@ class _EditPerformanceDataScreenState
         dribbling: _dribbling,
         defending: _defending,
         physical: _physical,
+        diving: _diving,
+        handling: _handling,
+        kicking: _kicking,
+        reflexes: _reflexes,
+        speed: _speed,
+        positioning: _positioning,
       );
+
+  /// The header badge's live number as sliders move — position-aware via
+  /// [Player.overall], so this screen doesn't re-implement that branch.
+  int get _draftOverall =>
+      widget.player.copyWith(ratings: _draft).overall;
 
   Future<void> _save() async {
     final saved = await ref
@@ -110,7 +135,7 @@ class _EditPerformanceDataScreenState
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _PlayerHeader(player: widget.player, overall: _draft.overall),
+          _PlayerHeader(player: widget.player, overall: _draftOverall),
           const SizedBox(height: 24),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -134,36 +159,69 @@ class _EditPerformanceDataScreenState
             ],
           ),
           const SizedBox(height: 8),
-          _AttributeSlider(
-            label: 'PAC (Pace)',
-            value: _pace,
-            onChanged: (v) => setState(() => _pace = v),
-          ),
-          _AttributeSlider(
-            label: 'SHO (Shooting)',
-            value: _shooting,
-            onChanged: (v) => setState(() => _shooting = v),
-          ),
-          _AttributeSlider(
-            label: 'PAS (Passing)',
-            value: _passing,
-            onChanged: (v) => setState(() => _passing = v),
-          ),
-          _AttributeSlider(
-            label: 'DRI (Dribbling)',
-            value: _dribbling,
-            onChanged: (v) => setState(() => _dribbling = v),
-          ),
-          _AttributeSlider(
-            label: 'DEF (Defending)',
-            value: _defending,
-            onChanged: (v) => setState(() => _defending = v),
-          ),
-          _AttributeSlider(
-            label: 'PHY (Physicality)',
-            value: _physical,
-            onChanged: (v) => setState(() => _physical = v),
-          ),
+          if (_isGoalkeeper) ...[
+            _AttributeSlider(
+              label: 'DIV (Diving)',
+              value: _diving,
+              onChanged: (v) => setState(() => _diving = v),
+            ),
+            _AttributeSlider(
+              label: 'HAN (Handling)',
+              value: _handling,
+              onChanged: (v) => setState(() => _handling = v),
+            ),
+            _AttributeSlider(
+              label: 'KIC (Kicking)',
+              value: _kicking,
+              onChanged: (v) => setState(() => _kicking = v),
+            ),
+            _AttributeSlider(
+              label: 'REF (Reflexes)',
+              value: _reflexes,
+              onChanged: (v) => setState(() => _reflexes = v),
+            ),
+            _AttributeSlider(
+              label: 'SPD (Speed)',
+              value: _speed,
+              onChanged: (v) => setState(() => _speed = v),
+            ),
+            _AttributeSlider(
+              label: 'POS (Positioning)',
+              value: _positioning,
+              onChanged: (v) => setState(() => _positioning = v),
+            ),
+          ] else ...[
+            _AttributeSlider(
+              label: 'PAC (Pace)',
+              value: _pace,
+              onChanged: (v) => setState(() => _pace = v),
+            ),
+            _AttributeSlider(
+              label: 'SHO (Shooting)',
+              value: _shooting,
+              onChanged: (v) => setState(() => _shooting = v),
+            ),
+            _AttributeSlider(
+              label: 'PAS (Passing)',
+              value: _passing,
+              onChanged: (v) => setState(() => _passing = v),
+            ),
+            _AttributeSlider(
+              label: 'DRI (Dribbling)',
+              value: _dribbling,
+              onChanged: (v) => setState(() => _dribbling = v),
+            ),
+            _AttributeSlider(
+              label: 'DEF (Defending)',
+              value: _defending,
+              onChanged: (v) => setState(() => _defending = v),
+            ),
+            _AttributeSlider(
+              label: 'PHY (Physicality)',
+              value: _physical,
+              onChanged: (v) => setState(() => _physical = v),
+            ),
+          ],
           const SizedBox(height: 16),
           Text(
             'Coach Evaluation',

@@ -18,6 +18,9 @@ class ProfileTabScreen extends ConsumerWidget {
 
   final Player player;
 
+  bool get _isGoalkeeper =>
+      player.position?.group == PositionGroup.goalkeeper;
+
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     await ref.read(signOutProvider)();
     if (!context.mounted) return;
@@ -57,14 +60,26 @@ class ProfileTabScreen extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
-                children: [
-                  _attributeRow('Pace', player.ratings.pace),
-                  _attributeRow('Shooting', player.ratings.shooting),
-                  _attributeRow('Passing', player.ratings.passing),
-                  _attributeRow('Dribbling', player.ratings.dribbling),
-                  _attributeRow('Defending', player.ratings.defending),
-                  _attributeRow('Physical', player.ratings.physical),
-                ],
+                children: _isGoalkeeper
+                    ? [
+                        _attributeRow('Diving', player.ratings.diving),
+                        _attributeRow('Handling', player.ratings.handling),
+                        _attributeRow('Kicking', player.ratings.kicking),
+                        _attributeRow('Reflexes', player.ratings.reflexes),
+                        _attributeRow('Speed', player.ratings.speed),
+                        _attributeRow(
+                          'Positioning',
+                          player.ratings.positioning,
+                        ),
+                      ]
+                    : [
+                        _attributeRow('Pace', player.ratings.pace),
+                        _attributeRow('Shooting', player.ratings.shooting),
+                        _attributeRow('Passing', player.ratings.passing),
+                        _attributeRow('Dribbling', player.ratings.dribbling),
+                        _attributeRow('Defending', player.ratings.defending),
+                        _attributeRow('Physical', player.ratings.physical),
+                      ],
               ),
             ),
           ),

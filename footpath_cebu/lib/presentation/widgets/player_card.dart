@@ -111,7 +111,12 @@ class PlayerCard extends StatelessWidget {
                     y: 516,
                     w: 432,
                     h: 188,
-                    child: _StatsPanel(ratings: r, scale: s)),
+                    child: _StatsPanel(
+                      ratings: r,
+                      scale: s,
+                      isGoalkeeper:
+                          player.position?.group == PositionGroup.goalkeeper,
+                    )),
 
                 // Academic-standing badge.
                 _place(s,
@@ -193,36 +198,54 @@ class _PhotoFallback extends StatelessWidget {
   }
 }
 
-/// Two columns of three attributes each, matching the six ratings.
+/// Two columns of three attributes each — the outfield six or, for a
+/// goalkeeper, the GK six.
 class _StatsPanel extends StatelessWidget {
-  const _StatsPanel({required this.ratings, required this.scale});
+  const _StatsPanel({
+    required this.ratings,
+    required this.scale,
+    required this.isGoalkeeper,
+  });
 
   final PlayerRatings ratings;
   final double scale;
+  final bool isGoalkeeper;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _StatColumn(scale: scale, stats: [
+    // Same "first three left, last three right" split as the outfield card,
+    // applied to the GK six in their declared order (DIV/HAN/KIC/REF/SPD/POS).
+    final left = isGoalkeeper
+        ? [
+            ('DIV', ratings.diving),
+            ('HAN', ratings.handling),
+            ('KIC', ratings.kicking),
+          ]
+        : [
             ('PAC', ratings.pace),
             ('SHO', ratings.shooting),
             ('PAS', ratings.passing),
-          ]),
-        ),
+          ];
+    final right = isGoalkeeper
+        ? [
+            ('REF', ratings.reflexes),
+            ('SPD', ratings.speed),
+            ('POS', ratings.positioning),
+          ]
+        : [
+            ('DRI', ratings.dribbling),
+            ('DEF', ratings.defending),
+            ('PHY', ratings.physical),
+          ];
+    return Row(
+      children: [
+        Expanded(child: _StatColumn(scale: scale, stats: left)),
         Container(
           width: 2 * scale,
           margin: EdgeInsets.symmetric(vertical: 8 * scale),
           color: PlayerCard._gold.withValues(alpha: 0.4),
         ),
-        Expanded(
-          child: _StatColumn(scale: scale, stats: [
-            ('DRI', ratings.dribbling),
-            ('DEF', ratings.defending),
-            ('PHY', ratings.physical),
-          ]),
-        ),
+        Expanded(child: _StatColumn(scale: scale, stats: right)),
       ],
     );
   }

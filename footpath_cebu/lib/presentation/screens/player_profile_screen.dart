@@ -42,6 +42,9 @@ class PlayerProfileScreen extends ConsumerStatefulWidget {
 class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   late Player _player = widget.player;
 
+  bool get _isGoalkeeper =>
+      _player.position?.group == PositionGroup.goalkeeper;
+
   Future<void> _openEditor() async {
     // The editor returns the whole saved Player, not just the ratings: the
     // assessment also writes the coach's note, and popping ratings alone would
@@ -172,7 +175,13 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Center(child: AttributeRadarChart(ratings: r, size: 240)),
+          Center(
+            child: AttributeRadarChart(
+              ratings: r,
+              isGoalkeeper: _isGoalkeeper,
+              size: 240,
+            ),
+          ),
           const SizedBox(height: 24),
           Text(
             'Technical Performance',
@@ -189,14 +198,23 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
             childAspectRatio: 1.05,
-            children: [
-              _AttributeTile(label: 'PAC', value: r.pace),
-              _AttributeTile(label: 'SHO', value: r.shooting),
-              _AttributeTile(label: 'PAS', value: r.passing),
-              _AttributeTile(label: 'DRI', value: r.dribbling),
-              _AttributeTile(label: 'DEF', value: r.defending),
-              _AttributeTile(label: 'PHY', value: r.physical),
-            ],
+            children: _isGoalkeeper
+                ? [
+                    _AttributeTile(label: 'DIV', value: r.diving),
+                    _AttributeTile(label: 'HAN', value: r.handling),
+                    _AttributeTile(label: 'KIC', value: r.kicking),
+                    _AttributeTile(label: 'REF', value: r.reflexes),
+                    _AttributeTile(label: 'SPD', value: r.speed),
+                    _AttributeTile(label: 'POS', value: r.positioning),
+                  ]
+                : [
+                    _AttributeTile(label: 'PAC', value: r.pace),
+                    _AttributeTile(label: 'SHO', value: r.shooting),
+                    _AttributeTile(label: 'PAS', value: r.passing),
+                    _AttributeTile(label: 'DRI', value: r.dribbling),
+                    _AttributeTile(label: 'DEF', value: r.defending),
+                    _AttributeTile(label: 'PHY', value: r.physical),
+                  ],
           ),
           const SizedBox(height: 16),
           _PlayerPositionCard(

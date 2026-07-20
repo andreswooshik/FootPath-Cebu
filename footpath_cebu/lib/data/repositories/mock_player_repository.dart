@@ -92,9 +92,15 @@ class MockPlayerRepository implements PlayerRepository {
       ageTier: AgeTier.pathway,
       position: PlayerPosition.goalkeeper,
       eligibility: EligibilityStatus.notEligible,
+      // The lone goalkeeper in the mock squad — exercises the GK attribute
+      // set and gk-Overall throughout the UI. Outfield six kept for shape
+      // parity with every other Player, but Player.overall ignores them for
+      // a keeper (see Player.overall).
       ratings: PlayerRatings(
         pace: 55, shooting: 22, passing: 74, dribbling: 60, defending: 48,
         physical: 88,
+        diving: 88, handling: 85, kicking: 70, reflexes: 92, speed: 62,
+        positioning: 86,
       ),
     ),
     const Player(

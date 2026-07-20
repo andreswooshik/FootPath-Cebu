@@ -8,32 +8,52 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 /// [CustomPainter] so it needs no charting package. The filled polygon animates
 /// from the centre outward the first time it's shown.
 ///
-/// Axis order clockwise from the top: PAC, SHO, PAS, PHY, DEF, DRI — mirroring
-/// the FUT card so the two read as the same player.
+/// Axis order clockwise from the top mirrors [PlayerCard]'s two-column stat
+/// panel so the two read as the same player: walk down the card's left column,
+/// then back up its right column. Outfield: PAC, SHO, PAS (left, top→bottom),
+/// then PHY, DEF, DRI (right, bottom→top). Goalkeeper: DIV, HAN, KIC (left),
+/// then POS, SPD, REF (right, reversed) — the same rule applied to the GK
+/// six's own left/right split (see `_StatsPanel` in player_card.dart).
 class AttributeRadarChart extends StatelessWidget {
   const AttributeRadarChart({
     super.key,
     required this.ratings,
+    required this.isGoalkeeper,
     this.fillColor,
     this.size = 220,
   });
 
   final PlayerRatings ratings;
 
+  /// True to relabel the six axes to the GK set instead of the outfield six.
+  final bool isGoalkeeper;
+
   /// Polygon colour; defaults to the theme primary.
   final Color? fillColor;
   final double size;
 
-  static const _axes = <String>['PAC', 'SHO', 'PAS', 'PHY', 'DEF', 'DRI'];
+  static const _outfieldAxes = <String>['PAC', 'SHO', 'PAS', 'PHY', 'DEF', 'DRI'];
+  static const _gkAxes = <String>['DIV', 'HAN', 'KIC', 'POS', 'SPD', 'REF'];
 
-  List<double> get _values => [
-        ratings.pace / 99,
-        ratings.shooting / 99,
-        ratings.passing / 99,
-        ratings.physical / 99,
-        ratings.defending / 99,
-        ratings.dribbling / 99,
-      ];
+  List<String> get _axes => isGoalkeeper ? _gkAxes : _outfieldAxes;
+
+  List<double> get _values => isGoalkeeper
+      ? [
+          ratings.diving / 99,
+          ratings.handling / 99,
+          ratings.kicking / 99,
+          ratings.positioning / 99,
+          ratings.speed / 99,
+          ratings.reflexes / 99,
+        ]
+      : [
+          ratings.pace / 99,
+          ratings.shooting / 99,
+          ratings.passing / 99,
+          ratings.physical / 99,
+          ratings.defending / 99,
+          ratings.dribbling / 99,
+        ];
 
   @override
   Widget build(BuildContext context) {

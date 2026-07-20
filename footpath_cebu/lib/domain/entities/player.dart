@@ -42,7 +42,13 @@ extension EligibilityStatusLabel on EligibilityStatus {
   }
 }
 
-/// The six standardized attributes shown on the player's FUT-style card.
+/// The six standardized attributes shown on the player's FUT-style card,
+/// plus an optional goalkeeper six used only when the player is a keeper.
+///
+/// A single flat class rather than two subtypes: every [Player] — outfield or
+/// keeper — carries one [PlayerRatings], and the six that actually apply are
+/// chosen by [Player.overall] and the position-aware UI, not by this class.
+/// [PlayerRatings] itself stays position-unaware; see [overall] vs [gkOverall].
 class PlayerRatings {
   const PlayerRatings({
     required this.pace,
@@ -51,6 +57,12 @@ class PlayerRatings {
     required this.dribbling,
     required this.defending,
     required this.physical,
+    this.diving = 0,
+    this.handling = 0,
+    this.kicking = 0,
+    this.reflexes = 0,
+    this.speed = 0,
+    this.positioning = 0,
   });
 
   final int pace;
@@ -60,9 +72,37 @@ class PlayerRatings {
   final int defending;
   final int physical;
 
-  /// Overall rating — the big number on the card corner.
+  /// Goalkeeper attribute — shot-stopping on the ground and in the air.
+  final int diving;
+
+  /// Goalkeeper attribute — catching and holding crosses/shots.
+  final int handling;
+
+  /// Goalkeeper attribute — distribution with the ball at their feet.
+  final int kicking;
+
+  /// Goalkeeper attribute — reaction speed on close-range shots.
+  final int reflexes;
+
+  /// Goalkeeper attribute — mobility off the line. Distinct from the outfield
+  /// [pace]: a keeper's speed is judged on sweeping and closing angles, not
+  /// sprinting the length of the pitch.
+  final int speed;
+
+  /// Goalkeeper attribute — reading the game and starting position.
+  final int positioning;
+
+  /// Overall for an outfield player — the big number on the card corner.
+  /// Ignores the GK six; see [gkOverall] for the goalkeeper equivalent and
+  /// [Player.overall] for which one actually gets shown.
   int get overall =>
       ((pace + shooting + passing + dribbling + defending + physical) / 6)
+          .round();
+
+  /// Overall for a goalkeeper — the same corner number, computed from the GK
+  /// six instead. Ignores the outfield six.
+  int get gkOverall =>
+      ((diving + handling + kicking + reflexes + speed + positioning) / 6)
           .round();
 
   factory PlayerRatings.fromJson(Map<String, dynamic> json) {
@@ -73,6 +113,12 @@ class PlayerRatings {
       dribbling: json['dribbling'] as int? ?? 0,
       defending: json['defending'] as int? ?? 0,
       physical: json['physical'] as int? ?? 0,
+      diving: json['diving'] as int? ?? 0,
+      handling: json['handling'] as int? ?? 0,
+      kicking: json['kicking'] as int? ?? 0,
+      reflexes: json['reflexes'] as int? ?? 0,
+      speed: json['speed'] as int? ?? 0,
+      positioning: json['positioning'] as int? ?? 0,
     );
   }
 
@@ -83,6 +129,12 @@ class PlayerRatings {
         'dribbling': dribbling,
         'defending': defending,
         'physical': physical,
+        'diving': diving,
+        'handling': handling,
+        'kicking': kicking,
+        'reflexes': reflexes,
+        'speed': speed,
+        'positioning': positioning,
       };
 }
 
@@ -130,7 +182,16 @@ class Player {
   /// summary.
   final String coachNotes;
 
-  int get overall => ratings.overall;
+  /// The overall rating shown on the card corner.
+  ///
+  /// Goalkeepers are judged on the GK six (diving/handling/kicking/reflexes/
+  /// speed/positioning); every other position — and an unassigned player,
+  /// preserving prior behaviour — uses the outfield six. [CardTier] thresholds
+  /// apply identically to either number: it consumes [overall] without caring
+  /// which six produced it.
+  int get overall => position?.group == PositionGroup.goalkeeper
+      ? ratings.gkOverall
+      : ratings.overall;
 
   /// Returns a copy with selected fields replaced — used by the coach's
   /// assessment form to apply edited ratings, and by the position picker.
