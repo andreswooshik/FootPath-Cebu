@@ -1,0 +1,61 @@
+{% extends 'portal/base.html' %}
+{% block title %}Guardians · FootPath{% endblock %}
+{% block page_title %}<span class="text-xl font-bold text-gray-900">Guardians</span>{% endblock %}
+{% block breadcrumb %}<span class="text-sm text-gray-500">Home / Guardians</span>{% endblock %}
+
+{% block content %}
+<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 mb-4">
+  👨‍👩‍👦 {{ guardian_list|length }} guardian{{ guardian_list|length|pluralize }}
+</span>
+
+{% if guardian_list %}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+  <table class="w-full">
+    <thead>
+      <tr class="bg-gray-50 border-b border-gray-200">
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Guardian</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Linked players</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for guardian in guardian_list %}
+      <tr class="hover:bg-green-50 transition-colors border-b border-gray-100 align-top">
+        <td class="px-6 py-4 text-sm text-gray-900">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+              {{ guardian.first_name|first|upper }}
+            </div>
+            <div>
+              <div class="font-medium text-gray-900">{{ guardian.get_full_name|default:guardian.email }}</div>
+              <div class="text-xs text-gray-500">{{ guardian.email }}</div>
+            </div>
+          </div>
+        </td>
+        <td class="px-6 py-4 text-sm text-gray-700">
+          {% with links=guardian.guardian_links.all %}
+            {% if links %}
+              {% for link in links %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 mr-1 mb-1">
+                  {{ link.player.get_full_name|default:link.player.email }}
+                </span>
+              {% endfor %}
+            {% else %}
+              <span class="text-gray-400 text-xs">No linked players yet.</span>
+            {% endif %}
+          {% endwith %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="text-center py-16 text-gray-400">
+  <div class="text-5xl mb-4">👨‍👩‍👦</div>
+  <p class="font-medium text-gray-600">No guardians yet</p>
+  <p class="text-sm mt-1">Create your first guardian in
+    <a href="{% url 'portal:create-account' %}" class="text-green-600 hover:underline">Create Accounts</a>
+  </p>
+</div>
+{% endif %}
+{% endblock %}

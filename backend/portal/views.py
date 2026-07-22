@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
 from academy.models import PlayerProfile
-from accounts.models import Roles
+from accounts.models import Roles, User
 from accounts.services import ProvisioningError
 
 from .decorators import portal_role_required
@@ -137,6 +137,41 @@ def players(request):
         .order_by('user__last_name', 'user__first_name')
     )
     return render(request, 'portal/players.html', {'roster': roster})
+
+
+@portal_role_required(Roles.COORDINATOR)
+def coaches(request):
+    club = request.user.club
+    coach_list = User.objects.filter(
+        club=club, role=Roles.COACH
+    ).order_by('last_name', 'first_name')
+    # There is no per-coach roster assignment anywhere in the schema — club
+    # is the only tenancy boundary, so every coach in a club can coach/assess
+    # every player in it. This is the same roster for every coach, not a
+    # subset; the template says so explicitly rather than implying otherwise.
+    roster = (
+        PlayerProfile.objects.select_related('user')
+        .filter(user__club=club)
+        .order_by('user__last_name', 'user__first_name')
+    )
+    return render(
+        request, 'portal/coaches.html',
+        {'coach_list': coach_list, 'roster': roster},
+    )
+
+
+@portal_role_required(Roles.COORDINATOR)
+def guardians(request):
+    club = request.user.club
+    guardian_list = (
+        User.objects.filter(club=club, role=Roles.GUARDIAN)
+        .prefetch_related('guardian_links__player')
+        .order_by('last_name', 'first_name')
+    )
+    return render(
+        request, 'portal/guardians.html',
+        {'guardian_list': guardian_list},
+    )
 
 
 @portal_role_required(Roles.SCHOOL_STAFF)

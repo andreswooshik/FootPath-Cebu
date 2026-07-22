@@ -24,5 +24,7 @@ urlpatterns = [
     ),
     path('accounts/new/', views.create_account, name='create-account'),
     path('players/', views.players, name='players'),
+    path('coaches/', views.coaches, name='coaches'),
+    path('guardians/', views.guardians, name='guardians'),
     path('eligibility/', views.staff_eligibility, name='staff-eligibility'),
 ]

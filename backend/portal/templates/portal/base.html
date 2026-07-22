@@ -49,6 +49,14 @@
            class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'players' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
           ⚽ Players
         </a>
+        <a href="{% url 'portal:coaches' %}"
+           class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'coaches' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
+          🏃 Coaches
+        </a>
+        <a href="{% url 'portal:guardians' %}"
+           class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'guardians' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
+          👨‍👩‍👦 Guardians
+        </a>
       {% elif user.role == 'SCHOOL_STAFF' %}
         {% if request.user.club.is_school_affiliated %}
           <a href="{% url 'portal:staff-eligibility' %}"
