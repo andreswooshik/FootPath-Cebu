@@ -1,0 +1,25 @@
+{% extends 'portal/base.html' %}
+{% block title %}Coordinator sign up · FootPath Cebu{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Club coordinator sign up</h1>
+  <p class="muted">
+    Register your club and coordinator account. New coordinators are reviewed by
+    a FootPath developer before the first login.
+  </p>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <label class="field">
+        <span>{{ field.label }}</span>
+        {{ field }}
+        {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
+        {% for e in field.errors %}<small class="error">{{ e }}</small>{% endfor %}
+      </label>
+    {% endfor %}
+    <button class="btn" type="submit">Create account</button>
+  </form>
+  <p class="muted">Already approved? <a href="{% url 'portal:login' %}">Log in</a>.</p>
+</section>
+{% endblock %}

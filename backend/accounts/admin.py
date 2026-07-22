@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import Group
 from django.utils.html import format_html
 
-from .models import GuardianLink, Roles, User
+from .models import Club, GuardianLink, Roles, User
 from .services import link_or_create_firebase_user
 
 # This project authorizes by the custom User.role field (see accounts.permissions),
@@ -15,6 +15,7 @@ admin.site.unregister(Group)
 # on a saturated background stays legible in both light and dark theme.
 _ROLE_COLORS = {
     Roles.ADMIN: '#7C3AED',         # violet
+    Roles.COORDINATOR: '#DB2777',   # rose
     Roles.COACH: '#EA580C',         # orange
     Roles.PLAYER: '#2563EB',        # blue
     Roles.SCHOOL_STAFF: '#0D9488',  # teal
@@ -42,27 +43,55 @@ class BulkActionLabelMixin:
 
 @admin.register(User)
 class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
-    list_display = ('email', 'full_name', 'role_badge', 'status_chip', 'access_chip')
+    list_display = (
+        'email', 'full_name', 'role_badge', 'club', 'status_chip', 'access_chip'
+    )
     list_display_links = ('email',)
-    list_filter = ('role', 'is_active', 'is_staff')
+    list_filter = ('role', 'club', 'is_active', 'is_staff')
     ordering = ('email',)
     search_fields = ('username', 'email', 'firebase_uid')
+    autocomplete_fields = ('club',)
+    actions = ['approve_coordinators']
 
     # Rebuilt from scratch (rather than appending to UserAdmin.fieldsets) to drop
     # the groups / user_permissions dual-listbox widgets this project never uses.
     fieldsets = (
         ('Account', {'fields': ('username', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name', 'email')}),
-        ('Role & Firebase', {'fields': ('role', 'firebase_uid')}),
+        ('Role & Club', {'fields': ('role', 'club', 'firebase_uid')}),
         ('Access', {'fields': ('is_active', 'is_staff', 'is_superuser')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('username', 'email', 'password1', 'password2', 'role'),
+            'fields': ('username', 'email', 'password1', 'password2', 'role', 'club'),
         }),
     )
+
+    @admin.action(description='Approve selected coordinators (activate login)')
+    def approve_coordinators(self, request, queryset):
+        """Superadmin approval gate: flip pending coordinator signups active.
+
+        A coordinator signs up via the web portal with is_active=False; until a
+        developer runs this action they cannot log in (Django's ModelBackend
+        rejects inactive users). Only pending COORDINATOR rows are touched.
+        """
+        pending = queryset.filter(role=Roles.COORDINATOR, is_active=False)
+        approved = pending.count()
+        pending.update(is_active=True)
+        if approved:
+            self.message_user(
+                request,
+                f'Approved and activated {approved} coordinator account(s).',
+                level=messages.SUCCESS,
+            )
+        else:
+            self.message_user(
+                request,
+                'No pending coordinator accounts were in the selection.',
+                level=messages.WARNING,
+            )
 
     def save_model(self, request, obj, form, change):
         """Auto-sync a Firebase identity when an Admin creates an app account.
@@ -164,3 +193,31 @@ class GuardianLinkAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     )
     autocomplete_fields = ('guardian', 'player')
     readonly_fields = ('created_at',)
+
+
+@admin.register(Club)
+class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
+    list_display = ('name', 'coordinator_email', 'member_count', 'active_chip', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'slug')
+    prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = ('created_at',)
+
+    @admin.display(description='Coordinator')
+    def coordinator_email(self, obj):
+        coordinator = obj.coordinator
+        return coordinator.email if coordinator else '—'
+
+    @admin.display(description='Members')
+    def member_count(self, obj):
+        return obj.members.count()
+
+    @admin.display(description='Status', ordering='is_active')
+    def active_chip(self, obj):
+        if obj.is_active:
+            style = _PILL.format(extra='color:#10B981;background:rgba(16,185,129,.15);')
+            label = '● Active'
+        else:
+            style = _PILL.format(extra='color:#94A3B8;background:rgba(148,163,184,.18);')
+            label = '○ Inactive'
+        return format_html('<span style="{}">{}</span>', style, label)

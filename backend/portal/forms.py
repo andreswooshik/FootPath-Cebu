@@ -1,0 +1,138 @@
+"""Portal forms — the input-validation boundary for the web surfaces.
+
+Each account-creation form is scoped to the coordinator's club: the guardian /
+player pickers only ever offer members of `club`, and the club is never taken
+from form input (it is derived from `request.user.club` server-side).
+"""
+from django import forms
+from django.contrib.auth.password_validation import validate_password
+
+from academy.models import Eligibility, PlayerProfile
+from accounts.models import Club, Roles, User
+
+
+class CoordinatorSignupForm(forms.Form):
+    """Public self-registration: creates a club + a pending coordinator."""
+
+    first_name = forms.CharField(max_length=150)
+    last_name = forms.CharField(max_length=150)
+    email = forms.EmailField()
+    club_name = forms.CharField(max_length=120, label='Club / academy name')
+    password1 = forms.CharField(widget=forms.PasswordInput, label='Password')
+    password2 = forms.CharField(
+        widget=forms.PasswordInput, label='Confirm password'
+    )
+
+    def clean_email(self):
+        email = self.cleaned_data['email'].strip().lower()
+        # Generic wording avoids confirming which emails are registered
+        # (OWASP A07 — user enumeration).
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('This email cannot be used.')
+        return email
+
+    def clean_club_name(self):
+        name = self.cleaned_data['club_name'].strip()
+        if Club.objects.filter(name__iexact=name).exists():
+            raise forms.ValidationError('A club with this name already exists.')
+        return name
+
+    def clean_password1(self):
+        password = self.cleaned_data['password1']
+        validate_password(password)  # honours AUTH_PASSWORD_VALIDATORS
+        return password
+
+    def clean(self):
+        cleaned = super().clean()
+        p1, p2 = cleaned.get('password1'), cleaned.get('password2')
+        if p1 and p2 and p1 != p2:
+            self.add_error('password2', 'The two passwords do not match.')
+        return cleaned
+
+
+class _BaseCreateAccountForm(forms.Form):
+    """Common identity fields for every coordinator-created account.
+
+    Accepts (and ignores, unless a subclass uses it) a `club` kwarg so the view
+    can instantiate every form uniformly.
+    """
+
+    first_name = forms.CharField(max_length=150)
+    last_name = forms.CharField(max_length=150)
+    email = forms.EmailField()
+
+    def __init__(self, *args, club=None, **kwargs):
+        self.club = club
+        super().__init__(*args, **kwargs)
+
+    def clean_email(self):
+        email = self.cleaned_data['email'].strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('An account with this email already exists.')
+        return email
+
+
+class CreateCoachForm(_BaseCreateAccountForm):
+    """Coach = a mobile-app (Firebase) account, no extra profile."""
+
+
+class CreateStaffForm(_BaseCreateAccountForm):
+    """School staff = a web-portal (Django session) account."""
+
+
+class CreatePlayerForm(_BaseCreateAccountForm):
+    middle_initial = forms.CharField(max_length=5, required=False)
+    date_of_birth = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'})
+    )
+    guardian = forms.ModelChoiceField(
+        queryset=User.objects.none(),
+        required=False,
+        help_text='Optionally link an existing guardian in your club.',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.club is not None:
+            self.fields['guardian'].queryset = User.objects.filter(
+                role=Roles.GUARDIAN, club=self.club
+            ).order_by('last_name', 'first_name')
+        self.fields['guardian'].label_from_instance = _user_label
+
+
+class CreateGuardianForm(_BaseCreateAccountForm):
+    player = forms.ModelChoiceField(
+        queryset=User.objects.none(),
+        required=False,
+        help_text='Optionally link an existing player in your club.',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.club is not None:
+            self.fields['player'].queryset = User.objects.filter(
+                role=Roles.PLAYER, club=self.club
+            ).order_by('last_name', 'first_name')
+        self.fields['player'].label_from_instance = _user_label
+
+
+class EligibilityUpdateForm(forms.Form):
+    """School-staff eligibility change, scoped to the staff member's club."""
+
+    player = forms.ModelChoiceField(queryset=PlayerProfile.objects.none())
+    eligibility = forms.ChoiceField(choices=Eligibility.choices)
+
+    def __init__(self, *args, club=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        qs = PlayerProfile.objects.select_related('user')
+        if club is not None:
+            qs = qs.filter(user__club=club)
+        self.fields['player'].queryset = qs.order_by(
+            'user__last_name', 'user__first_name'
+        )
+        self.fields['player'].label_from_instance = lambda p: _user_label(p.user)
+
+
+def _user_label(user):
+    name = f'{user.first_name} {user.last_name}'.strip()
+    return f'{name} ({user.email})' if name else user.email

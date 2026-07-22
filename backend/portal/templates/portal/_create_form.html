@@ -1,0 +1,18 @@
+{% comment %}One account-creation form section. Params: title, type, form.{% endcomment %}
+<section class="card" id="{{ type }}">
+  <h2>{{ title }}</h2>
+  <form method="post" action="{% url 'portal:create-account' %}#{{ type }}" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="account_type" value="{{ type }}">
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <label class="field">
+        <span>{{ field.label }}{% if field.field.required %} *{% endif %}</span>
+        {{ field }}
+        {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
+        {% for e in field.errors %}<small class="error">{{ e }}</small>{% endfor %}
+      </label>
+    {% endfor %}
+    <button class="btn" type="submit">Create {{ title|lower }}</button>
+  </form>
+</section>
