@@ -1,32 +1,66 @@
 {% extends 'portal/base.html' %}
-{% block title %}Dashboard · FootPath Cebu{% endblock %}
-{% block content %}
-<section class="card">
-  <h1>Welcome, {{ user.first_name|default:user.email }}</h1>
-  {% if user.club %}<p class="muted">Club: <strong>{{ user.club.name }}</strong></p>{% endif %}
+{% block title %}Dashboard · FootPath{% endblock %}
 
-  {% if user.role == 'COORDINATOR' %}
-    <div class="tiles">
-      <a class="tile" href="{% url 'portal:create-account' %}">
-        <h2>Create accounts</h2>
-        <p>Add players, coaches, school staff and guardians to your club.</p>
-      </a>
-      <a class="tile" href="{% url 'portal:players' %}">
-        <h2>Players</h2>
-        <p>View your club's roster.</p>
-      </a>
-    </div>
-  {% elif user.role == 'SCHOOL_STAFF' %}
-    <div class="tiles">
-      <a class="tile" href="{% url 'portal:staff-eligibility' %}">
-        <h2>Academic eligibility</h2>
-        <p>Update the academic eligibility of your club's players.</p>
-      </a>
-    </div>
-  {% elif user.is_superuser or user.role == 'ADMIN' %}
-    <p>You're an administrator — manage everything in the <a href="/admin/">Django admin</a>.</p>
-  {% else %}
-    <p class="muted">Your account has no portal actions.</p>
-  {% endif %}
-</section>
+{% block page_title %}
+  <div>
+    <span class="text-xl font-bold text-gray-900">Dashboard</span>
+    <p class="text-sm text-gray-500 mt-0.5">
+      Welcome back, {{ user.first_name|default:user.email }}!
+      {% if request.user.club %}Managing {{ request.user.club.name }}.{% endif %}
+    </p>
+  </div>
+{% endblock %}
+{% block breadcrumb %}<span class="text-sm text-gray-500">Home</span>{% endblock %}
+
+{% block content %}
+{% if user.role == 'COORDINATOR' %}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+    <a href="{% url 'portal:create-account' %}"
+       class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md hover:border-green-200 transition-all group">
+      <div class="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-2xl mb-4">👥</div>
+      <div class="text-lg font-semibold text-gray-900 group-hover:text-green-600 transition-colors">Create accounts</div>
+      <p class="text-sm text-gray-500 mt-1">Add players, coaches, school staff and guardians to your club.</p>
+      <span class="text-green-500 font-bold mt-4 block">→</span>
+    </a>
+    <a href="{% url 'portal:players' %}"
+       class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md hover:border-green-200 transition-all group">
+      <div class="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-2xl mb-4">⚽</div>
+      <div class="text-lg font-semibold text-gray-900 group-hover:text-green-600 transition-colors">Players</div>
+      <p class="text-sm text-gray-500 mt-1">View your club's roster.</p>
+      <span class="text-green-500 font-bold mt-4 block">→</span>
+    </a>
+  </div>
+
+  <div class="mt-8 bg-white rounded-xl border border-gray-100 shadow-sm px-6 py-4 flex flex-wrap items-center gap-6 text-sm text-gray-600 max-w-4xl">
+    <span>🏟️ Club: <strong class="text-gray-900">{{ request.user.club.name|default:"—" }}</strong></span>
+    <span>👤 Coordinator: <strong class="text-gray-900">{{ user.get_full_name|default:user.email }}</strong></span>
+    {% if request.user.club.is_school_affiliated %}
+      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">🎓 School Affiliated</span>
+    {% else %}
+      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">⚽ Club</span>
+    {% endif %}
+  </div>
+
+{% elif user.role == 'SCHOOL_STAFF' %}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+    <a href="{% url 'portal:staff-eligibility' %}"
+       class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md hover:border-green-200 transition-all group">
+      <div class="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-2xl mb-4">🎓</div>
+      <div class="text-lg font-semibold text-gray-900 group-hover:text-green-600 transition-colors">Academic eligibility</div>
+      <p class="text-sm text-gray-500 mt-1">Update the academic eligibility of your club's players.</p>
+      <span class="text-green-500 font-bold mt-4 block">→</span>
+    </a>
+  </div>
+
+{% elif user.is_superuser or user.role == 'ADMIN' %}
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-2xl text-sm text-gray-700">
+    You're an administrator — manage everything in the
+    <a href="/admin/" class="text-green-600 hover:underline font-medium">Django admin</a>.
+  </div>
+
+{% else %}
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-2xl text-sm text-gray-500">
+    Your account has no portal actions.
+  </div>
+{% endif %}
 {% endblock %}

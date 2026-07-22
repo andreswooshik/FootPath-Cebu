@@ -1,13 +1,45 @@
-{% extends 'portal/base.html' %}
-{% block title %}Signup received · FootPath Cebu{% endblock %}
-{% block content %}
-<section class="card">
-  <h1>Thanks — your signup is pending approval</h1>
-  <p>
-    Your club and coordinator account have been created. A FootPath developer
-    will review and approve your account shortly. You'll be able to log in and
-    start creating player, coach, staff and guardian accounts once it's approved.
-  </p>
-  <a class="btn" href="{% url 'portal:login' %}">Go to login</a>
-</section>
-{% endblock %}
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Signup received · FootPath</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="{% static 'portal/portal.css' %}">
+</head>
+<body class="font-sans bg-gray-50 min-h-screen flex flex-col">
+
+  <div class="bg-[#16C172] px-8 py-4">
+    <span class="text-white font-bold text-lg">⚽ FootPath</span>
+  </div>
+
+  <main class="flex-1 flex items-center justify-center p-8">
+    <div class="bg-white rounded-2xl shadow-md border border-gray-100 max-w-md w-full p-10 text-center">
+      <div class="text-5xl mb-4">✅</div>
+      <h1 class="text-2xl font-bold text-gray-900">Application received!</h1>
+      <p class="text-sm text-gray-500 text-center mt-3">
+        Your coordinator account is pending approval by a FootPath administrator.
+        You will be able to log in once approved.
+      </p>
+      <a href="{% url 'portal:login' %}"
+         class="inline-block mt-6 text-green-600 hover:underline font-medium text-sm">
+        Back to login
+      </a>
+    </div>
+  </main>
+
+</body>
+</html>

@@ -1,43 +1,68 @@
 {% extends 'portal/base.html' %}
-{% block title %}Academic eligibility · FootPath Cebu{% endblock %}
-{% block content %}
-<h1>Academic eligibility — {{ user.club.name }}</h1>
+{% block title %}Academic eligibility · FootPath{% endblock %}
+{% block page_title %}<span class="text-xl font-bold text-gray-900">Academic Eligibility</span>{% endblock %}
+{% block breadcrumb %}<span class="text-sm text-gray-500">Home / Academic Eligibility</span>{% endblock %}
 
-<section class="card">
-  <h2>Update eligibility</h2>
-  <form method="post" novalidate>
+{% block content %}
+<p class="mb-6 text-sm text-gray-500">
+  Set eligibility status for players at your school.
+  No grades are stored — status only.
+</p>
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+  <h2 class="text-base font-semibold text-gray-900 mb-4">Update Eligibility</h2>
+  <form method="post" novalidate class="flex gap-4 items-end flex-wrap">
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {% for field in form %}
-      <label class="field">
-        <span>{{ field.label }}</span>
-        {{ field }}
-        {% for e in field.errors %}<small class="error">{{ e }}</small>{% endfor %}
-      </label>
-    {% endfor %}
-    <button class="btn" type="submit">Save eligibility</button>
+    <div class="flex-1 min-w-[200px]">
+      {{ form.player.label_tag }}
+      {{ form.player }}
+      {% for e in form.player.errors %}<p class="errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <div class="w-52">
+      {{ form.eligibility.label_tag }}
+      {{ form.eligibility }}
+      {% for e in form.eligibility.errors %}<p class="errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <button type="submit"
+            class="bg-[#16C172] text-white rounded-lg px-5 py-2.5 font-medium hover:bg-[#059669] transition-colors">
+      Update
+    </button>
   </form>
-</section>
+</div>
 
-<section class="card">
-  <h2>Current roster</h2>
-  {% if roster %}
-  <div class="table-wrap">
-    <table class="table">
-      <thead><tr><th>Player</th><th>Email</th><th>Eligibility</th></tr></thead>
-      <tbody>
-        {% for p in roster %}
-        <tr>
-          <td>{{ p.user.first_name }} {{ p.user.last_name }}</td>
-          <td>{{ p.user.email }}</td>
-          <td>{{ p.get_eligibility_display }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <p class="muted">No players in your club yet.</p>
-  {% endif %}
-</section>
+{% if roster %}
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+  <table class="w-full">
+    <thead>
+      <tr class="bg-gray-50 border-b border-gray-200">
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Eligibility</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for profile in roster %}
+      <tr class="hover:bg-green-50 transition-colors border-b border-gray-100">
+        <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ profile.user.get_full_name }}</td>
+        <td class="px-6 py-4 text-sm text-gray-500">{{ profile.user.email }}</td>
+        <td class="px-6 py-4 text-sm">
+          {% with elig=profile.get_eligibility_display %}
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+            {% if elig == 'Eligible' %}bg-[#D1FAE5] text-[#065F46]
+            {% elif elig == 'Academic Warning' %}bg-[#FEF3C7] text-[#92400E]
+            {% elif elig == 'Not Eligible' %}bg-[#FEE2E2] text-[#991B1B]
+            {% else %}bg-[#F3F4F6] text-[#374151]{% endif %}">
+            {{ elig }}
+          </span>
+          {% endwith %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="text-sm text-gray-500">No players in your club yet.</p>
+{% endif %}
 {% endblock %}

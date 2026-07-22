@@ -1,16 +1,70 @@
-{% extends 'portal/base.html' %}
-{% block title %}Log in · FootPath Cebu{% endblock %}
-{% block content %}
-<section class="card">
-  <h1>Portal login</h1>
-  <p class="muted">For club coordinators and school staff.</p>
-  <form method="post" novalidate>
-    {% csrf_token %}
-    {{ form.non_field_errors }}
-    <label class="field"><span>Email</span>{{ form.username }}</label>
-    <label class="field"><span>Password</span>{{ form.password }}</label>
-    <button class="btn" type="submit">Log in</button>
-  </form>
-  <p class="muted">New club? <a href="{% url 'portal:signup' %}">Sign up as a coordinator</a>.</p>
-</section>
-{% endblock %}
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in · FootPath</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="{% static 'portal/portal.css' %}">
+</head>
+<body class="font-sans bg-gray-50 min-h-screen flex flex-col">
+
+  <div class="bg-[#16C172] px-8 py-4">
+    <span class="text-white font-bold text-lg">⚽ FootPath</span>
+  </div>
+
+  <main class="flex-1 flex items-center justify-center p-8">
+    <div class="bg-white rounded-2xl shadow-md border border-gray-100 max-w-md w-full p-10">
+      <div class="text-center mb-8">
+        <div class="text-4xl mb-2">⚽</div>
+        <div class="text-2xl font-bold text-green-500">FootPath</div>
+        <p class="text-sm text-gray-500 mt-1">Club Coordinator Portal</p>
+      </div>
+
+      <h1 class="text-xl font-semibold text-gray-900">Portal login</h1>
+      <p class="text-sm text-gray-500 mb-6">For club coordinators and school staff.</p>
+
+      {% if form.non_field_errors %}
+        <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="mb-4">
+          <label for="{{ form.username.id_for_label }}">Email</label>
+          {{ form.username }}
+        </div>
+        <div class="mb-4">
+          <label for="{{ form.password.id_for_label }}">Password</label>
+          {{ form.password }}
+        </div>
+        <button type="submit"
+                class="w-full bg-[#16C172] hover:bg-[#059669] text-white rounded-lg py-2.5 font-medium text-sm transition-colors">
+          Log in
+        </button>
+      </form>
+
+      <p class="text-center text-sm text-gray-500 mt-4">
+        New club?
+        <a href="{% url 'portal:signup' %}" class="text-green-600 hover:underline">Sign up as a coordinator</a>.
+      </p>
+    </div>
+  </main>
+
+</body>
+</html>

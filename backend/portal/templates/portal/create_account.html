@@ -1,31 +1,35 @@
 {% extends 'portal/base.html' %}
-{% block title %}Create accounts · FootPath Cebu{% endblock %}
+{% block title %}Create accounts · FootPath{% endblock %}
+{% block page_title %}<span class="text-xl font-bold text-gray-900">Create Accounts</span>{% endblock %}
+{% block breadcrumb %}<span class="text-sm text-gray-500">Home / Create Accounts</span>{% endblock %}
+
 {% block content %}
-<h1>Create accounts — {{ user.club.name }}</h1>
-<p class="muted">
+<div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm text-blue-800 max-w-3xl">
   Players, coaches and guardians receive a one-time password for the mobile app.
   School staff receive a password for this web portal.
-</p>
+</div>
 
-{% if created %}
-<section class="card success-banner">
-  <h2>{{ created.role }} account created</h2>
-  <p>Email: <strong>{{ created.email }}</strong></p>
-  {% if created.credential %}
-    <p>Temporary password — shown once, copy it now and share it securely:</p>
-    <p class="cred">{{ created.credential }}</p>
-    <p class="muted">
-      {% if created.is_web %}This account logs into this web portal.
-      {% else %}This account logs into the FootPath mobile app.{% endif %}
-    </p>
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-8 max-w-3xl">
+  {% if created %}
+  <section class="card success-banner">
+    <h2>{{ created.role }} account created</h2>
+    <p>Email: <strong>{{ created.email }}</strong></p>
+    {% if created.credential %}
+      <p>Temporary password — shown once, copy it now and share it securely:</p>
+      <p class="cred">{{ created.credential }}</p>
+      <p class="muted">
+        {% if created.is_web %}This account logs into this web portal.
+        {% else %}This account logs into the FootPath mobile app.{% endif %}
+      </p>
+    {% endif %}
+  </section>
   {% endif %}
-</section>
-{% endif %}
 
-{% include 'portal/_create_form.html' with title='Player' type='player' form=forms.player %}
-{% include 'portal/_create_form.html' with title='Coach' type='coach' form=forms.coach %}
-{% if user.club.is_school_affiliated %}
-{% include 'portal/_create_form.html' with title='School Staff' type='staff' form=forms.staff %}
-{% endif %}
-{% include 'portal/_create_form.html' with title='Guardian' type='guardian' form=forms.guardian %}
+  {% include 'portal/_create_form.html' with title='Player' type='player' form=forms.player %}
+  {% include 'portal/_create_form.html' with title='Coach' type='coach' form=forms.coach %}
+  {% if user.club.is_school_affiliated %}
+  {% include 'portal/_create_form.html' with title='School Staff' type='staff' form=forms.staff %}
+  {% endif %}
+  {% include 'portal/_create_form.html' with title='Guardian' type='guardian' form=forms.guardian %}
+</div>
 {% endblock %}

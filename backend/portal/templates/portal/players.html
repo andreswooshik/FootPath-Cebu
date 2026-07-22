@@ -1,27 +1,63 @@
 {% extends 'portal/base.html' %}
-{% block title %}Players · FootPath Cebu{% endblock %}
+{% block title %}Players · FootPath{% endblock %}
+{% block page_title %}<span class="text-xl font-bold text-gray-900">Players Roster</span>{% endblock %}
+{% block breadcrumb %}<span class="text-sm text-gray-500">Home / Players</span>{% endblock %}
+
 {% block content %}
-<h1>Players — {{ user.club.name }}</h1>
+<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 mb-4">
+  ⚽ {{ roster|length }} player{{ roster|length|pluralize }}
+</span>
+
 {% if roster %}
-<div class="table-wrap">
-  <table class="table">
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+  <table class="w-full">
     <thead>
-      <tr><th>Name</th><th>Email</th><th>Age tier</th><th>Position</th><th>Eligibility</th></tr>
+      <tr class="bg-gray-50 border-b border-gray-200">
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age Tier</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Eligibility</th>
+      </tr>
     </thead>
     <tbody>
-      {% for p in roster %}
-      <tr>
-        <td>{{ p.user.first_name }} {{ p.user.last_name }}</td>
-        <td>{{ p.user.email }}</td>
-        <td>{{ p.get_age_tier_display }}</td>
-        <td>{{ p.position|default:'—' }}</td>
-        <td>{{ p.get_eligibility_display }}</td>
+      {% for profile in roster %}
+      <tr class="hover:bg-green-50 transition-colors border-b border-gray-100">
+        <td class="px-6 py-4 text-sm text-gray-900">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-green-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+              {{ profile.user.first_name|first|upper }}
+            </div>
+            <div>
+              <div class="font-medium text-gray-900">{{ profile.user.get_full_name }}</div>
+              <div class="text-xs text-gray-500">{{ profile.user.email }}</div>
+            </div>
+          </div>
+        </td>
+        <td class="px-6 py-4 text-sm text-gray-900">{{ profile.position|default:'—' }}</td>
+        <td class="px-6 py-4 text-sm text-gray-900">{{ profile.get_age_tier_display }}</td>
+        <td class="px-6 py-4 text-sm text-gray-900">
+          {% with elig=profile.get_eligibility_display %}
+          <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
+            {% if elig == 'Eligible' %}bg-[#D1FAE5] text-[#065F46]
+            {% elif elig == 'Academic Warning' %}bg-[#FEF3C7] text-[#92400E]
+            {% elif elig == 'Not Eligible' %}bg-[#FEE2E2] text-[#991B1B]
+            {% else %}bg-[#F3F4F6] text-[#374151]{% endif %}">
+            {{ elig }}
+          </span>
+          {% endwith %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 {% else %}
-<p class="muted">No players yet. <a href="{% url 'portal:create-account' %}">Create one</a>.</p>
+<div class="text-center py-16 text-gray-400">
+  <div class="text-5xl mb-4">⚽</div>
+  <p class="font-medium text-gray-600">No players yet</p>
+  <p class="text-sm mt-1">Create your first player in
+    <a href="{% url 'portal:create-account' %}" class="text-green-600 hover:underline">Create Accounts</a>
+  </p>
+</div>
 {% endif %}
 {% endblock %}

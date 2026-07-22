@@ -1,25 +1,69 @@
-{% extends 'portal/base.html' %}
-{% block title %}Coordinator sign up · FootPath Cebu{% endblock %}
-{% block content %}
-<section class="card">
-  <h1>Club coordinator sign up</h1>
-  <p class="muted">
-    Register your club and coordinator account. New coordinators are reviewed by
-    a FootPath developer before the first login.
-  </p>
-  <form method="post" enctype="multipart/form-data" novalidate>
-    {% csrf_token %}
-    {{ form.non_field_errors }}
-    {% for field in form %}
-      <label class="field">
-        <span>{{ field.label }}</span>
-        {{ field }}
-        {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
-        {% for e in field.errors %}<small class="error">{{ e }}</small>{% endfor %}
-      </label>
-    {% endfor %}
-    <button class="btn" type="submit">Create account</button>
-  </form>
-  <p class="muted">Already approved? <a href="{% url 'portal:login' %}">Log in</a>.</p>
-</section>
-{% endblock %}
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coordinator sign up · FootPath</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="{% static 'portal/portal.css' %}">
+</head>
+<body class="font-sans bg-gray-50 min-h-screen flex flex-col">
+
+  <div class="bg-[#16C172] px-8 py-4">
+    <span class="text-white font-bold text-lg">⚽ FootPath</span>
+  </div>
+
+  <main class="flex-1 flex items-center justify-center p-8">
+    <div class="bg-white rounded-2xl shadow-md border border-gray-100 max-w-lg w-full p-10">
+      <h1 class="text-xl font-semibold text-gray-900">Club coordinator sign up</h1>
+      <p class="text-sm text-gray-500 mb-6">
+        Register your club and coordinator account. New coordinators are reviewed by
+        a FootPath developer before the first login.
+      </p>
+
+      {% if form.non_field_errors %}
+        <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        {% for field in form %}
+          <div class="mb-4">
+            {{ field.label_tag }}
+            {{ field }}
+            {% if field.help_text %}<p class="text-xs text-gray-500 mt-1">{{ field.help_text }}</p>{% endif %}
+            {% if field.errors %}
+              <ul class="errorlist">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+            {% endif %}
+          </div>
+        {% endfor %}
+        <button type="submit"
+                class="w-full bg-[#16C172] hover:bg-[#059669] text-white rounded-lg py-2.5 font-medium text-sm transition-colors mt-2">
+          Create account
+        </button>
+      </form>
+
+      <p class="text-center text-sm text-gray-500 mt-4">
+        Already approved?
+        <a href="{% url 'portal:login' %}" class="text-green-600 hover:underline">Log in</a>.
+      </p>
+    </div>
+  </main>
+
+</body>
+</html>
