@@ -1,0 +1,43 @@
+{% extends 'portal/base.html' %}
+{% block title %}Academic eligibility · FootPath Cebu{% endblock %}
+{% block content %}
+<h1>Academic eligibility — {{ user.club.name }}</h1>
+
+<section class="card">
+  <h2>Update eligibility</h2>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+      <label class="field">
+        <span>{{ field.label }}</span>
+        {{ field }}
+        {% for e in field.errors %}<small class="error">{{ e }}</small>{% endfor %}
+      </label>
+    {% endfor %}
+    <button class="btn" type="submit">Save eligibility</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Current roster</h2>
+  {% if roster %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Player</th><th>Email</th><th>Eligibility</th></tr></thead>
+      <tbody>
+        {% for p in roster %}
+        <tr>
+          <td>{{ p.user.first_name }} {{ p.user.last_name }}</td>
+          <td>{{ p.user.email }}</td>
+          <td>{{ p.get_eligibility_display }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No players in your club yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

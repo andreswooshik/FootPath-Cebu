@@ -54,10 +54,24 @@ DISPUTE_ROLES = (Roles.COACH, Roles.SCHOOL_STAFF, Roles.ADMIN)
 from .storage import upload_photo
 
 
+def _in_same_club(user, player_id):
+    """True if `player_id` names a user in `user`'s club (multi-tenant scope).
+
+    Matches on club_id including NULL==NULL, so legacy club-less accounts still
+    interoperate; returns False when no such user exists. ADMIN is club-less by
+    design and is always handled by an explicit branch before this is called.
+    """
+    row = User.objects.filter(pk=player_id).values('club_id').first()
+    return row is not None and row['club_id'] == user.club_id
+
+
 def _guardian_may_read(user, player_id):
     """True if `user` is allowed to read the given player's data."""
-    if user.role in (Roles.COACH, Roles.ADMIN):
+    if user.role == Roles.ADMIN:
         return True
+    if user.role == Roles.COACH:
+        # Coaches are club-scoped: only players in their own club (tenancy).
+        return _in_same_club(user, player_id)
     if user.role == Roles.PLAYER:
         return str(user.id) == str(player_id)
     if user.role == Roles.GUARDIAN:
@@ -72,10 +86,13 @@ def _may_read_eligibility(user, player_id):
 
     Deliberately narrower than [_guardian_may_read]: the coach is excluded —
     academic eligibility is the School Staff's domain, not the coach's. Allowed:
-    the player themselves, their linked guardian(s), any School Staff, Admin.
+    the player themselves, their linked guardian(s), any School Staff (in the
+    same club), Admin.
     """
-    if user.role in (Roles.SCHOOL_STAFF, Roles.ADMIN):
+    if user.role == Roles.ADMIN:
         return True
+    if user.role == Roles.SCHOOL_STAFF:
+        return _in_same_club(user, player_id)
     if user.role == Roles.PLAYER:
         return str(user.id) == str(player_id)
     if user.role == Roles.GUARDIAN:
@@ -85,13 +102,33 @@ def _may_read_eligibility(user, player_id):
     return False
 
 
+def _sessions_for(user):
+    """The TrainingSession queryset visible to `user`: their own club's
+    sessions, or every club's for Admin."""
+    qs = TrainingSession.objects.all()
+    if user.role == Roles.ADMIN:
+        return qs
+    return qs.filter(club=user.club)
+
+
+def _session_in_user_scope(user, session):
+    """True if `user` may see/act on `session` under club tenancy (Admin: any
+    club; everyone else: only their own club's sessions)."""
+    if user.role == Roles.ADMIN:
+        return True
+    return session.club_id == user.club_id
+
+
 class SquadListView(APIView):
-    """GET /api/players/ — the full roster. Coach and Admin only."""
+    """GET /api/players/ — the roster. Coach (own club only) and Admin (all)."""
 
     def get(self, request):
         if request.user.role not in (Roles.COACH, Roles.ADMIN):
             raise PermissionDenied('Only coaches can view the squad.')
-        profiles = PlayerProfile.objects.select_related('user').all()
+        profiles = PlayerProfile.objects.select_related('user')
+        # Coaches see only their own club's roster; Admin sees every club.
+        if request.user.role == Roles.COACH:
+            profiles = profiles.filter(user__club=request.user.club)
         return Response(PlayerSerializer(profiles, many=True).data)
 
 
@@ -131,6 +168,9 @@ class PlayerAssessmentView(APIView):
         profile = get_object_or_404(
             PlayerProfile.objects.select_related('user'), user_id=player_id
         )
+        # Tenancy: a coach may only assess players in their own club.
+        if profile.user.club_id != request.user.club_id:
+            raise PermissionDenied('That player is not in your club.')
         serializer = AssessmentSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -173,7 +213,9 @@ class SessionAttendanceView(APIView):
     def get(self, request, session_id):
         if request.user.role not in (Roles.COACH, Roles.ADMIN):
             raise PermissionDenied('Only coaches can view session attendance.')
-        get_object_or_404(TrainingSession, pk=session_id)
+        session = get_object_or_404(TrainingSession, pk=session_id)
+        if not _session_in_user_scope(request.user, session):
+            raise PermissionDenied('That session is not in your club.')
         records = Attendance.objects.select_related('session', 'recorded_by').filter(
             session_id=session_id
         )
@@ -183,6 +225,8 @@ class SessionAttendanceView(APIView):
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can record attendance.')
         session = get_object_or_404(TrainingSession, pk=session_id)
+        if not _session_in_user_scope(request.user, session):
+            raise PermissionDenied('That session is not in your club.')
         # Attendance is recorded close to when it happens: the session day
         # through two days after — never before the session. Mirrors the
         # client's TrainingSession.isAttendanceOpen guard.
@@ -196,6 +240,16 @@ class SessionAttendanceView(APIView):
             data=request.data.get('records', []), many=True
         )
         serializer.is_valid(raise_exception=True)
+        # Tenancy: every player in the roll call must be in the coach's own club
+        # (the serializer only checks the PLAYER role, not the club).
+        submitted_ids = {r['playerId'] for r in serializer.validated_data}
+        in_club = set(
+            User.objects.filter(
+                pk__in=submitted_ids, club_id=request.user.club_id
+            ).values_list('id', flat=True)
+        )
+        if in_club != submitted_ids:
+            raise PermissionDenied('One or more players are not in your club.')
         with transaction.atomic():
             kept_player_ids = []
             for record in serializer.validated_data:
@@ -220,10 +274,11 @@ class SessionAttendanceView(APIView):
 
 
 class TrainingSessionListCreateView(APIView):
-    """GET (any authenticated) / POST (coach only) /api/training-sessions/."""
+    """GET (own club's sessions; Admin all) / POST (coach only)
+    /api/training-sessions/."""
 
     def get(self, request):
-        sessions = TrainingSession.objects.all()
+        sessions = _sessions_for(request.user)
         return Response(TrainingSessionSerializer(sessions, many=True).data)
 
     def post(self, request):
@@ -231,7 +286,11 @@ class TrainingSessionListCreateView(APIView):
             raise PermissionDenied('Only coaches can schedule sessions.')
         serializer = TrainingSessionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        session = serializer.save(created_by=request.user)
+        # Tenancy: the session belongs to the scheduling coach's club (set
+        # server-side; the client never supplies it).
+        session = serializer.save(
+            created_by=request.user, club=request.user.club
+        )
         # Fan out the push only after the row is durably committed.
         transaction.on_commit(lambda: notify_session_scheduled(session))
         return Response(
@@ -272,6 +331,9 @@ class SessionConfirmationView(APIView):
         if status_value not in set(ConfirmationStatus.values):
             raise ValidationError(f'Unknown status: {status_value or "(none)"}.')
         session = get_object_or_404(TrainingSession, pk=session_id)
+        # Tenancy: a player may only RSVP to sessions in their own club.
+        if not _session_in_user_scope(request.user, session):
+            raise PermissionDenied('That session is not in your club.')
         confirmation, _ = SessionConfirmation.objects.update_or_create(
             player=request.user,
             session=session,
@@ -283,11 +345,26 @@ class SessionConfirmationView(APIView):
         )
 
 
+def _dispute_in_user_scope(user, dispute):
+    """True if `user` may act on `dispute` under club tenancy.
+
+    Admin sees every club; coach/staff only disputes raised within their own
+    club (a dispute's club is its raiser's club).
+    """
+    if user.role == Roles.ADMIN:
+        return True
+    return (
+        dispute.raised_by_id is not None
+        and dispute.raised_by.club_id == user.club_id
+    )
+
+
 class DisputeListCreateView(APIView):
     """GET/POST /api/disputes/.
 
-    GET: every dispute, for all three dispute roles. POST: coach only — the
-    coach flags, staff/admin respond via the thread endpoint.
+    GET: disputes visible to the caller (own club for coach/staff, all for
+    Admin). POST: coach only — the coach flags, staff/admin respond via the
+    thread endpoint.
     """
 
     def get(self, request):
@@ -296,6 +373,9 @@ class DisputeListCreateView(APIView):
         disputes = Dispute.objects.select_related(
             'raised_by', 'subject_player'
         ).prefetch_related('responses__author')
+        # Tenancy: coach/staff see only their own club's disputes; Admin all.
+        if request.user.role != Roles.ADMIN:
+            disputes = disputes.filter(raised_by__club=request.user.club)
         return Response(DisputeSerializer(disputes, many=True).data)
 
     def post(self, request):
@@ -304,6 +384,12 @@ class DisputeListCreateView(APIView):
         serializer = DisputeCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        # Tenancy: the subject player, if any, must be in the coach's own club.
+        subject_id = data.get('subjectPlayerId')
+        if subject_id is not None and not User.objects.filter(
+            pk=subject_id, club_id=request.user.club_id
+        ).exists():
+            raise PermissionDenied('That player is not in your club.')
         dispute = Dispute.objects.create(
             raised_by=request.user,
             subject_player_id=data.get('subjectPlayerId'),
@@ -327,6 +413,8 @@ class DisputeDetailView(APIView):
             .prefetch_related('responses__author'),
             pk=pk,
         )
+        if not _dispute_in_user_scope(request.user, dispute):
+            raise PermissionDenied('You may not view this dispute.')
         return Response(DisputeSerializer(dispute).data)
 
 
@@ -341,7 +429,11 @@ class DisputeResponseCreateView(APIView):
     def post(self, request, pk):
         if request.user.role not in DISPUTE_ROLES:
             raise PermissionDenied('You may not respond to disputes.')
-        dispute = get_object_or_404(Dispute, pk=pk)
+        dispute = get_object_or_404(
+            Dispute.objects.select_related('raised_by'), pk=pk
+        )
+        if not _dispute_in_user_scope(request.user, dispute):
+            raise PermissionDenied('You may not respond to this dispute.')
         serializer = DisputeResponseCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -373,6 +465,12 @@ class EligibilityHistoryView(APIView):
 
     def get(self, request, player_id):
         if not _may_read_eligibility(request.user, player_id):
+            # Authorized reviewers (Admin / School Staff) who named a player
+            # that does not exist get a 404; a real player in another club still
+            # falls through to the 403 below (multi-tenant scope). Families and
+            # coaches get 403 without revealing whether the id exists.
+            if request.user.role in (Roles.ADMIN, Roles.SCHOOL_STAFF):
+                get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
             raise PermissionDenied(
                 'You may not view this player\'s eligibility history.'
             )
@@ -400,7 +498,10 @@ class InjuryRecordListCreateView(APIView):
         if request.user.role == Roles.PLAYER:
             records = InjuryRecord.objects.filter(player=request.user)
         elif request.user.role in (Roles.COACH, Roles.ADMIN):
-            records = InjuryRecord.objects.select_related('player').all()
+            records = InjuryRecord.objects.select_related('player')
+            # Coaches are club-scoped; Admin sees every club.
+            if request.user.role == Roles.COACH:
+                records = records.filter(player__club=request.user.club)
             player_id = request.query_params.get('player')
             if player_id:
                 records = records.filter(player_id=player_id)
@@ -443,14 +544,22 @@ class InjuryRecordDetailView(APIView):
                 and record.player_id == request.user.id
             )
         else:
-            allowed = request.user.role in (Roles.COACH, Roles.ADMIN) or (
-                request.user.role == Roles.PLAYER
-                and record.player_id == request.user.id
-            ) or (
-                request.user.role == Roles.GUARDIAN
-                and GuardianLink.objects.filter(
-                    guardian=request.user, player_id=record.player_id
-                ).exists()
+            allowed = (
+                request.user.role == Roles.ADMIN
+                or (
+                    request.user.role == Roles.COACH
+                    and record.player.club_id == request.user.club_id
+                )
+                or (
+                    request.user.role == Roles.PLAYER
+                    and record.player_id == request.user.id
+                )
+                or (
+                    request.user.role == Roles.GUARDIAN
+                    and GuardianLink.objects.filter(
+                        guardian=request.user, player_id=record.player_id
+                    ).exists()
+                )
             )
         if not allowed:
             raise PermissionDenied('You may not access this injury record.')

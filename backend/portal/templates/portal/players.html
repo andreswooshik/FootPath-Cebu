@@ -1,0 +1,27 @@
+{% extends 'portal/base.html' %}
+{% block title %}Players · FootPath Cebu{% endblock %}
+{% block content %}
+<h1>Players — {{ user.club.name }}</h1>
+{% if roster %}
+<div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Age tier</th><th>Position</th><th>Eligibility</th></tr>
+    </thead>
+    <tbody>
+      {% for p in roster %}
+      <tr>
+        <td>{{ p.user.first_name }} {{ p.user.last_name }}</td>
+        <td>{{ p.user.email }}</td>
+        <td>{{ p.get_age_tier_display }}</td>
+        <td>{{ p.position|default:'—' }}</td>
+        <td>{{ p.get_eligibility_display }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="muted">No players yet. <a href="{% url 'portal:create-account' %}">Create one</a>.</p>
+{% endif %}
+{% endblock %}

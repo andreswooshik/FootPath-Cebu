@@ -1,0 +1,16 @@
+{% extends 'portal/base.html' %}
+{% block title %}Log in · FootPath Cebu{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Portal login</h1>
+  <p class="muted">For club coordinators and school staff.</p>
+  <form method="post" novalidate>
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <label class="field"><span>Email</span>{{ form.username }}</label>
+    <label class="field"><span>Password</span>{{ form.password }}</label>
+    <button class="btn" type="submit">Log in</button>
+  </form>
+  <p class="muted">New club? <a href="{% url 'portal:signup' %}">Sign up as a coordinator</a>.</p>
+</section>
+{% endblock %}

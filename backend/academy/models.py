@@ -174,6 +174,16 @@ class TrainingSession(models.Model):
         blank=True,
         related_name='created_sessions',
     )
+    # The club that owns this session (multi-tenancy). Set from the scheduling
+    # coach's club; null for legacy rows created before tenancy. SET_NULL so a
+    # removed club never deletes its calendar history.
+    club = models.ForeignKey(
+        'accounts.Club',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='training_sessions',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

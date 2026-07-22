@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'accounts',
     'academy',
     'console',
+    'portal',
 ]
 
 MIDDLEWARE = [
@@ -69,6 +70,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Strict Content-Security-Policy + security headers for the /portal/ pages.
+    'portal.middleware.PortalSecurityHeadersMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -167,6 +170,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model — must be set before the first migrate ever runs.
 AUTH_USER_MODEL = 'accounts.User'
 
+# Session-authenticated web portal (coordinators / school staff). App users
+# authenticate via Firebase and never reach these pages.
+LOGIN_URL = '/portal/login/'
+LOGIN_REDIRECT_URL = '/portal/'
+LOGOUT_REDIRECT_URL = '/portal/login/'
+
 # Django defaults this to 'DENY'. Jazzmin's related_modal_active loads admin
 # add/change forms in a same-origin iframe, so allow same-origin framing.
 X_FRAME_OPTIONS = 'SAMEORIGIN'
@@ -225,6 +234,7 @@ JAZZMIN_SETTINGS = {
     'icons': {
         'accounts.User': 'fas fa-user',
         'accounts.GuardianLink': 'fas fa-link',
+        'accounts.Club': 'fas fa-shield-alt',
     },
     'default_icon_parents': 'fas fa-chevron-circle-right',
     'default_icon_children': 'fas fa-circle',

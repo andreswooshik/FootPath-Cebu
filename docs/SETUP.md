@@ -57,9 +57,38 @@ needs a Django superuser, not a seeded account:
 .\.venv\Scripts\python.exe manage.py createsuperuser
 ```
 
-Log in there with the **username** you set (not an email).
+Log in there with the **username** you set (not an email). Use it to approve
+club-coordinator signups too — see section 2.
 
-## 2. Flutter app
+## 2. Web portal — club coordinators & school staff
+
+The portal (`http://localhost:8000/portal/`) is the multi-club admin surface,
+separate from the Flutter app. It is server-rendered and uses **Django session
+login** (email + password), **not** Firebase — its users never touch the mobile
+app.
+
+**Club coordinator** — self-registers, then provisions their own club's accounts:
+
+1. Sign up at `http://localhost:8000/portal/signup/` (name, email, club name,
+   password). This creates a **Club** and a coordinator account held **pending**.
+2. A developer approves it in the Django admin: `/admin/` → **Users** → filter
+   **Role = Club Coordinator** + **Active = No**, tick the row, then run the
+   **"Approve selected coordinators (activate login)"** action. (Until then the
+   coordinator cannot log in.)
+3. The coordinator logs in at `/portal/login/` and, from **Create accounts**,
+   provisions **players, coaches, school staff and guardians** — all scoped to
+   their club. Players / coaches / guardians get a one-time password for the
+   **mobile app** (Firebase); school staff get one for the **portal**.
+
+**School staff** — log in at `/portal/` and open **Academic eligibility** to set
+their club's players' eligibility (Eligible / Not Eligible / Pending / Academic
+Warning). Each change is recorded in the append-only eligibility history.
+
+> Everything is isolated per club: a coordinator, coach or staff member only
+> ever sees their own club's players, roster, sessions and eligibility. Django
+> superusers / the ADMIN role are the only cross-club view.
+
+## 3. Flutter app
 
 ```powershell
 cd footpath_cebu
@@ -87,6 +116,12 @@ the same Wi-Fi (run the server as `runserver 0.0.0.0:8000` in that case).
   (dev-only; production uses HTTPS).
 - **`seed_users` fails / Firebase errors**: the service-account JSON is
   missing or in the wrong place — re-check step 0.
+- **`Bad state: databaseFactory not initialized`** in the browser console when
+  running the app on **Chrome/desktop**: the offline attendance queue uses
+  `sqflite`, which only ships a platform database on Android/iOS. It is
+  **non-fatal** — login and every screen still work; only the *offline*
+  attendance sync is unavailable on web. Run on an Android emulator to exercise
+  offline attendance.
 - **Pylance/IDE import warnings in `backend/`**: point VS Code's Python
   interpreter at `backend\.venv\Scripts\python.exe`
   (Ctrl+Shift+P → "Python: Select Interpreter").

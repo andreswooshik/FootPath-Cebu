@@ -1,0 +1,29 @@
+{% extends 'portal/base.html' %}
+{% block title %}Create accounts · FootPath Cebu{% endblock %}
+{% block content %}
+<h1>Create accounts — {{ user.club.name }}</h1>
+<p class="muted">
+  Players, coaches and guardians receive a one-time password for the mobile app.
+  School staff receive a password for this web portal.
+</p>
+
+{% if created %}
+<section class="card success-banner">
+  <h2>{{ created.role }} account created</h2>
+  <p>Email: <strong>{{ created.email }}</strong></p>
+  {% if created.credential %}
+    <p>Temporary password — shown once, copy it now and share it securely:</p>
+    <p class="cred">{{ created.credential }}</p>
+    <p class="muted">
+      {% if created.is_web %}This account logs into this web portal.
+      {% else %}This account logs into the FootPath mobile app.{% endif %}
+    </p>
+  {% endif %}
+</section>
+{% endif %}
+
+{% include 'portal/_create_form.html' with title='Player' type='player' form=forms.player %}
+{% include 'portal/_create_form.html' with title='Coach' type='coach' form=forms.coach %}
+{% include 'portal/_create_form.html' with title='School Staff' type='staff' form=forms.staff %}
+{% include 'portal/_create_form.html' with title='Guardian' type='guardian' form=forms.guardian %}
+{% endblock %}

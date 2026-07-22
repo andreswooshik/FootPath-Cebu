@@ -1,0 +1,42 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}FootPath Cebu Portal{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'portal/portal.css' %}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{% url 'portal:dashboard' %}">⚽ FootPath Cebu</a>
+    <nav class="nav">
+      {% if user.is_authenticated %}
+        {% if user.role == 'COORDINATOR' %}
+          <a href="{% url 'portal:create-account' %}">Create accounts</a>
+          <a href="{% url 'portal:players' %}">Players</a>
+        {% elif user.role == 'SCHOOL_STAFF' %}
+          <a href="{% url 'portal:staff-eligibility' %}">Eligibility</a>
+        {% endif %}
+        <span class="who">{{ user.email }}</span>
+        <form class="logout" method="post" action="{% url 'portal:logout' %}">
+          {% csrf_token %}
+          <button type="submit">Log out</button>
+        </form>
+      {% else %}
+        <a href="{% url 'portal:login' %}">Log in</a>
+        <a href="{% url 'portal:signup' %}">Sign up</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  <main class="content">
+    {% if messages %}
+      <ul class="messages">
+        {% for m in messages %}<li class="msg {{ m.tags }}">{{ m }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

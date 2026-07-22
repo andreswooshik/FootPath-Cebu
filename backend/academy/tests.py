@@ -10,8 +10,9 @@ from unittest.mock import patch
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from accounts.models import GuardianLink, Roles, User
+from accounts.models import Club, GuardianLink, Roles, User
 
+from .notifications import _recipients_for_session
 from .models import (
     AgeTier,
     Attendance,
@@ -1257,4 +1258,88 @@ class SessionConfirmationTests(APITestCase):
             format='json',
         )
         self.assertEqual(resp.status_code, 400)
+
+
+def _club_user(club, role, email):
+    user = make_user(role, email)
+    user.club = club
+    user.save(update_fields=['club'])
+    return user
+
+
+def _club_player(club, email, tier=AgeTier.DEVELOPMENT):
+    user = make_player(email, tier=tier)
+    user.club = club
+    user.save(update_fields=['club'])
+    return user
+
+
+class SessionTenancyTests(APITestCase):
+    """Training sessions are partitioned by club: a coach only sees and creates
+    within their own club, players only RSVP to their club's sessions, and a new
+    session's push never reaches another club's players."""
+
+    def setUp(self):
+        self.club_a = Club.objects.create(name='Club A', slug='club-a')
+        self.club_b = Club.objects.create(name='Club B', slug='club-b')
+        self.coach_a = _club_user(self.club_a, Roles.COACH, 'coach-a@t.test')
+        self.session_a = TrainingSession.objects.create(
+            title='A Session', date=date.today(), age_tiers=[AgeTier.DEVELOPMENT],
+            focus=SessionFocus.TECHNICAL, club=self.club_a,
+        )
+        self.session_b = TrainingSession.objects.create(
+            title='B Session', date=date.today(), age_tiers=[AgeTier.DEVELOPMENT],
+            focus=SessionFocus.TECHNICAL, club=self.club_b,
+        )
+
+    def test_coach_lists_only_own_club_sessions(self):
+        self.client.force_authenticate(self.coach_a)
+        data = self.client.get(reverse('training-sessions')).data
+        self.assertEqual({s['title'] for s in data}, {'A Session'})
+
+    def test_admin_lists_every_clubs_sessions(self):
+        self.client.force_authenticate(make_user(Roles.ADMIN, 'admin@t.test'))
+        data = self.client.get(reverse('training-sessions')).data
+        self.assertEqual(len(data), 2)
+
+    @patch('academy.views.notify_session_scheduled')
+    def test_created_session_is_stamped_with_coach_club(self, _mock_notify):
+        self.client.force_authenticate(self.coach_a)
+        resp = self.client.post(reverse('training-sessions'), {
+            'title': 'Fresh', 'date': str(date.today() + timedelta(days=1)),
+            'ageTiers': ['DEVELOPMENT'], 'focus': 'TECHNICAL',
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(
+            TrainingSession.objects.get(title='Fresh').club, self.club_a
+        )
+
+    def test_coach_cannot_view_other_club_rollcall(self):
+        self.client.force_authenticate(self.coach_a)
+        url = reverse('attendance-session', args=[self.session_b.id])
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_coach_cannot_record_attendance_for_other_club_session(self):
+        self.client.force_authenticate(self.coach_a)
+        url = reverse('attendance-session', args=[self.session_b.id])
+        resp = self.client.post(url, {'records': []}, format='json')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_player_cannot_rsvp_to_other_club_session(self):
+        player_a = _club_player(self.club_a, 'pa@t.test')
+        self.client.force_authenticate(player_a)
+        resp = self.client.post(
+            reverse('session-confirmations'),
+            {'sessionId': str(self.session_b.id), 'status': 'CONFIRMED'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertFalse(SessionConfirmation.objects.exists())
+
+    def test_session_push_targets_only_its_own_club(self):
+        player_a = _club_player(self.club_a, 'push-a@t.test')
+        player_b = _club_player(self.club_b, 'push-b@t.test')
+        recipients = _recipients_for_session(self.session_a)
+        self.assertIn(player_a.id, recipients)
+        self.assertNotIn(player_b.id, recipients)
         self.assertFalse(SessionConfirmation.objects.exists())

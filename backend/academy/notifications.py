@@ -18,12 +18,16 @@ logger = logging.getLogger(__name__)
 
 
 def _recipients_for_session(session):
-    """User ids to notify about `session`: players whose tier is targeted, plus
-    the guardians linked to those players."""
+    """User ids to notify about `session`: players in the session's club whose
+    tier is targeted, plus the guardians linked to those players.
+
+    Scoped to `session.club` so a club's new session never pushes to another
+    club's players (multi-tenancy)."""
     tiers = session.age_tiers or []
     player_ids = set(
-        PlayerProfile.objects.filter(age_tier__in=tiers)
-        .values_list('user_id', flat=True)
+        PlayerProfile.objects.filter(
+            age_tier__in=tiers, user__club_id=session.club_id
+        ).values_list('user_id', flat=True)
     )
     guardian_ids = set(
         GuardianLink.objects.filter(player_id__in=player_ids)

@@ -49,8 +49,11 @@ def link_or_create_firebase_user(user, *, password=None):
     return temp_password
 
 
-def provision_user(*, email, first_name, last_name, role):
+def provision_user(*, email, first_name, last_name, role, club=None):
     """Create a Firebase account (if needed) and a linked local User.
+
+    For app users (player / coach / guardian) who authenticate via Firebase.
+    `club` scopes the account to a tenant (None for cross-club ADMIN accounts).
 
     Returns (user, temporary_password_or_None, note). The temporary password
     is only returned when a brand-new Firebase account was created; if an
@@ -66,6 +69,7 @@ def provision_user(*, email, first_name, last_name, role):
         first_name=first_name,
         last_name=last_name,
         role=role,
+        club=club,
     )
     temp_password = link_or_create_firebase_user(user)
 
@@ -89,3 +93,36 @@ def provision_user(*, email, first_name, last_name, role):
         else 'Existing Firebase account linked; its current password was left unchanged.'
     )
     return user, temp_password, note
+
+
+def provision_web_user(
+    *, email, first_name, last_name, role, club, password=None, is_active=True
+):
+    """Create a web-portal user (Coordinator / School Staff) with a usable
+    Django session password and NO Firebase identity.
+
+    These accounts authenticate against the Django session on the web portal
+    only — they never use the Firebase-authenticated mobile app, so no Firebase
+    account is created and no `firebase_uid` is stamped. `is_active=False` holds
+    a coordinator signup pending superadmin approval (Django's ModelBackend
+    refuses inactive logins).
+
+    Returns (user, password) — the caller relays `password` to the person
+    (the one supplied, or a generated temporary one).
+    """
+    if User.objects.filter(email__iexact=email).exists():
+        raise ProvisioningError(f'{email} is already provisioned.')
+
+    generated = password or get_random_string(12, allowed_chars=_PASSWORD_CHARS)
+    user = User(
+        username=email,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        role=role,
+        club=club,
+        is_active=is_active,
+    )
+    user.set_password(generated)
+    user.save()
+    return user, generated

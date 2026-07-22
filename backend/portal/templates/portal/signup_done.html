@@ -1,0 +1,13 @@
+{% extends 'portal/base.html' %}
+{% block title %}Signup received · FootPath Cebu{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Thanks — your signup is pending approval</h1>
+  <p>
+    Your club and coordinator account have been created. A FootPath developer
+    will review and approve your account shortly. You'll be able to log in and
+    start creating player, coach, staff and guardian accounts once it's approved.
+  </p>
+  <a class="btn" href="{% url 'portal:login' %}">Go to login</a>
+</section>
+{% endblock %}

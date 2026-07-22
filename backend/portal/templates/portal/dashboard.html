@@ -1,0 +1,32 @@
+{% extends 'portal/base.html' %}
+{% block title %}Dashboard · FootPath Cebu{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Welcome, {{ user.first_name|default:user.email }}</h1>
+  {% if user.club %}<p class="muted">Club: <strong>{{ user.club.name }}</strong></p>{% endif %}
+
+  {% if user.role == 'COORDINATOR' %}
+    <div class="tiles">
+      <a class="tile" href="{% url 'portal:create-account' %}">
+        <h2>Create accounts</h2>
+        <p>Add players, coaches, school staff and guardians to your club.</p>
+      </a>
+      <a class="tile" href="{% url 'portal:players' %}">
+        <h2>Players</h2>
+        <p>View your club's roster.</p>
+      </a>
+    </div>
+  {% elif user.role == 'SCHOOL_STAFF' %}
+    <div class="tiles">
+      <a class="tile" href="{% url 'portal:staff-eligibility' %}">
+        <h2>Academic eligibility</h2>
+        <p>Update the academic eligibility of your club's players.</p>
+      </a>
+    </div>
+  {% elif user.is_superuser or user.role == 'ADMIN' %}
+    <p>You're an administrator — manage everything in the <a href="/admin/">Django admin</a>.</p>
+  {% else %}
+    <p class="muted">Your account has no portal actions.</p>
+  {% endif %}
+</section>
+{% endblock %}
