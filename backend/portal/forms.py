@@ -13,7 +13,7 @@ from academy.models import Eligibility, PlayerProfile
 from accounts.models import Club, Roles, User
 
 # Coach-license upload guardrails (public, unauthenticated form — keep tight).
-COACH_LICENSE_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+COACH_LICENSE_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
 _COACH_LICENSE_EXTS = {'.jpg', '.jpeg', '.png', '.pdf'}
 _COACH_LICENSE_TYPES = {'image/jpeg', 'image/png', 'application/pdf'}
 
@@ -28,7 +28,7 @@ class CoordinatorSignupForm(forms.Form):
     head_coach_name = forms.CharField(max_length=150, label='Head coach name')
     coach_license = forms.FileField(
         label='Coach license',
-        help_text='JPG, PNG or PDF, max 5 MB.',
+        help_text='JPG, PNG or PDF, max 50 MB.',
     )
     cvfa_membership = forms.CharField(
         max_length=80, label='CVFA membership number'
@@ -69,7 +69,7 @@ class CoordinatorSignupForm(forms.Form):
         if content_type and content_type not in _COACH_LICENSE_TYPES:
             raise forms.ValidationError('Unsupported file type. Use JPG, PNG or PDF.')
         if upload.size > COACH_LICENSE_MAX_BYTES:
-            raise forms.ValidationError('The file must be 5 MB or smaller.')
+            raise forms.ValidationError('The file must be 50 MB or smaller.')
         return upload
 
     def clean_password1(self):

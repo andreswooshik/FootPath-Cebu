@@ -134,15 +134,23 @@ class CoordinatorSignupTests(TestCase):
         self.assertFalse(Club.objects.filter(name='BadType FC').exists())
 
     def test_license_rejects_oversize(self):
-        big = SimpleUploadedFile(
-            'big.pdf', b'%PDF-' + b'0' * (5 * 1024 * 1024 + 16),
-            content_type='application/pdf',
+        # Validate at the form level so the size cap is asserted without
+        # allocating a 50 MB payload — a POST round-trip would recompute size
+        # from the real bytes and ignore an overridden .size.
+        from .forms import COACH_LICENSE_MAX_BYTES, CoordinatorSignupForm
+        big = SimpleUploadedFile('big.pdf', b'%PDF-1.4', content_type='application/pdf')
+        big.size = COACH_LICENSE_MAX_BYTES + 1  # pretend it's over the cap
+        form = CoordinatorSignupForm(
+            data={
+                'club_name': 'Big FC', 'coordinator_name': 'A B',
+                'head_coach_name': 'HC', 'cvfa_membership': 'X-1',
+                'email': 'big@club.test',
+                'password1': _PASSWORD, 'password2': _PASSWORD,
+            },
+            files={'coach_license': big},
         )
-        resp = self.client.post(reverse('portal:signup'), _signup_data(
-            email='big@club.test', club_name='Big FC', coach_license=big,
-        ))
-        self.assertEqual(resp.status_code, 200)
-        self.assertFalse(Club.objects.filter(name='Big FC').exists())
+        self.assertFalse(form.is_valid())
+        self.assertIn('coach_license', form.errors)
 
     def test_duplicate_email_rejected(self):
         make_coordinator(email='dupe@club.test', club_name='First FC')
