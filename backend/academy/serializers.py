@@ -112,6 +112,23 @@ class AssessmentSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
 
+class PlayerPositionSerializer(serializers.ModelSerializer):
+    """Write side for PUT /api/players/<id>/position/ — the coach assigns or
+    changes a player's position. Matches the ten codes PlayerPositionInfo.wire
+    emits on the client (GK/CB/LB/RB/CDM/CM/CAM/LW/RW/ST)."""
+
+    class Meta:
+        model = PlayerProfile
+        fields = ['position']
+
+    def validate_position(self, value):
+        v = str(value).upper()
+        valid = {'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'}
+        if v not in valid:
+            raise serializers.ValidationError(f'Unknown position: {value}')
+        return v
+
+
 class TrainingSessionSerializer(serializers.ModelSerializer):
     """Matches TrainingSession.fromJson/toJson: id, title, ageTiers, date,
     startTime, endTime, location, focus, attendeeCount."""

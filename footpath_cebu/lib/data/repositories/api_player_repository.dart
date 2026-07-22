@@ -25,14 +25,31 @@ class ApiPlayerRepository implements PlayerRepository {
   }
 
   @override
-  // Live backend wiring for the coach's position assignment is the backend
-  // task's job; the picker runs on MockPlayerRepository. This stub only
-  // satisfies the PlayerRepository interface so the app compiles.
-  // Suggested endpoint: PUT /api/players/<id>/position/  body {"position": "ST"}
-  // It must reject non-coach callers — the client role check is UX only.
-  @override
-  Future<Player> savePosition(String playerId, PlayerPosition position) {
-    throw UnimplementedError('savePosition: pending backend wiring.');
+  Future<Player> savePosition(String playerId, PlayerPosition position) async {
+    final idToken = await _requireIdToken();
+
+    final http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/players/$playerId/position/'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'position': position.wire}),
+      );
+    } catch (_) {
+      throw PlayerRepositoryException(
+        'Could not reach the server. Is it running?',
+      );
+    }
+
+    if (response.statusCode != 200) {
+      throw PlayerRepositoryException(
+        'Could not save the position (${response.statusCode}).',
+      );
+    }
+    return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
   @override

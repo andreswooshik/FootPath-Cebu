@@ -12,6 +12,11 @@ urlpatterns = [
         name='player-assessment',
     ),
     path(
+        'players/<int:player_id>/position/',
+        views.PlayerPositionView.as_view(),
+        name='player-position',
+    ),
+    path(
         'players/<int:player_id>/eligibility-history/',
         views.EligibilityHistoryView.as_view(),
         name='eligibility-history',

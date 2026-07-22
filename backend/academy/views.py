@@ -42,6 +42,7 @@ from .serializers import (
     DisputeSerializer,
     EligibilityHistorySerializer,
     InjuryRecordSerializer,
+    PlayerPositionSerializer,
     PlayerSerializer,
     SessionAttendanceRecordSerializer,
     SessionConfirmationSerializer,
@@ -177,6 +178,29 @@ class PlayerAssessmentView(APIView):
         # Notify the player + guardians only after the ratings are durably
         # committed (same pattern as session scheduling).
         transaction.on_commit(lambda: notify_assessment_saved(profile))
+        return Response(PlayerSerializer(profile).data)
+
+
+class PlayerPositionView(APIView):
+    """PUT /api/players/<id>/position/ — coach assigns or changes a player's
+    position. Was a client-side stub (ApiPlayerRepository.savePosition threw
+    UnimplementedError) with no backend endpoint at all until this view."""
+
+    def put(self, request, player_id):
+        if request.user.role != Roles.COACH:
+            raise PermissionDenied('Only coaches can assign a position.')
+        profile = get_object_or_404(
+            PlayerProfile.objects.select_related('user'), user_id=player_id
+        )
+        # Tenancy: a coach may only edit players in their own club — same
+        # check as PlayerAssessmentView.
+        if profile.user.club_id != request.user.club_id:
+            raise PermissionDenied('That player is not in your club.')
+        serializer = PlayerPositionSerializer(
+            profile, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(PlayerSerializer(profile).data)
 
 
