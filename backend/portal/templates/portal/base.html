@@ -37,31 +37,31 @@
     <nav class="flex-1 px-3 py-4 space-y-1">
       <a href="{% url 'portal:dashboard' %}"
          class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'dashboard' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
-        🏠 Dashboard
+        Dashboard
       </a>
 
       {% if user.role == 'COORDINATOR' %}
         <a href="{% url 'portal:create-account' %}"
            class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'create-account' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
-          👥 Create Accounts
+          Create Accounts
         </a>
         <a href="{% url 'portal:players' %}"
            class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'players' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
-          ⚽ Players
+          Players
         </a>
         <a href="{% url 'portal:coaches' %}"
            class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'coaches' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
-          🏃 Coaches
+          Coaches
         </a>
         <a href="{% url 'portal:guardians' %}"
            class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'guardians' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
-          👨‍👩‍👦 Guardians
+          Guardians
         </a>
       {% elif user.role == 'SCHOOL_STAFF' %}
         {% if request.user.club.is_school_affiliated %}
           <a href="{% url 'portal:staff-eligibility' %}"
              class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'staff-eligibility' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
-            🎓 Academic Eligibility
+            Academic Eligibility
           </a>
         {% endif %}
       {% endif %}
