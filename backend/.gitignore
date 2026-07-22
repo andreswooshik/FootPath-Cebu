@@ -7,3 +7,4 @@ db.sqlite3
 secrets/
 .env
 staticfiles/
+media/

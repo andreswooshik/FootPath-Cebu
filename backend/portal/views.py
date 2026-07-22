@@ -35,19 +35,32 @@ _ACCOUNT_FORMS = {
 }
 
 
+def _split_name(full_name):
+    """Split a single 'Full Name' field into (first, last) for the User model."""
+    parts = full_name.strip().split(None, 1)
+    return parts[0], (parts[1] if len(parts) > 1 else '')
+
+
 def signup(request):
-    """Public coordinator signup → creates a club + a pending account."""
+    """Public club registration → creates a club + a pending coordinator."""
     if request.user.is_authenticated:
         return redirect('portal:dashboard')
     if request.method == 'POST':
-        form = CoordinatorSignupForm(request.POST)
+        form = CoordinatorSignupForm(request.POST, request.FILES)
         if form.is_valid():
+            cd = form.cleaned_data
+            first_name, last_name = _split_name(cd['coordinator_name'])
             register_coordinator(
-                first_name=form.cleaned_data['first_name'],
-                last_name=form.cleaned_data['last_name'],
-                email=form.cleaned_data['email'],
-                club_name=form.cleaned_data['club_name'],
-                password=form.cleaned_data['password1'],
+                first_name=first_name,
+                last_name=last_name,
+                email=cd['email'],
+                club_name=cd['club_name'],
+                password=cd['password1'],
+                is_school_affiliated=cd['is_school_affiliated'],
+                school_name=cd.get('school_name', ''),
+                head_coach_name=cd['head_coach_name'],
+                coach_license=cd['coach_license'],
+                cvfa_membership=cd['cvfa_membership'],
             )
             return redirect('portal:signup-done')
     else:
@@ -67,15 +80,20 @@ def dashboard(request):
 @portal_role_required(Roles.COORDINATOR)
 def create_account(request):
     club = request.user.club
-    forms = {key: cls(club=club) for key, cls in _ACCOUNT_FORMS.items()}
+    # School staff exist only for school-affiliated clubs — drop the form
+    # entirely so it can neither render nor be submitted (server-side gate).
+    available = dict(_ACCOUNT_FORMS)
+    if not club.allows_school_staff:
+        available.pop('staff', None)
+    forms = {key: cls(club=club) for key, cls in available.items()}
     active_tab = 'player'
     created = None
 
     if request.method == 'POST':
         account_type = request.POST.get('account_type')
-        form_cls = _ACCOUNT_FORMS.get(account_type)
+        form_cls = available.get(account_type)
         if form_cls is None:
-            messages.error(request, 'Unknown account type.')
+            messages.error(request, 'Unknown or unavailable account type.')
             return redirect('portal:create-account')
 
         active_tab = account_type

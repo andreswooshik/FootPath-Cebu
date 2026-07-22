@@ -4,20 +4,42 @@ Each account-creation form is scoped to the coordinator's club: the guardian /
 player pickers only ever offer members of `club`, and the club is never taken
 from form input (it is derived from `request.user.club` server-side).
 """
+import os
+
 from django import forms
 from django.contrib.auth.password_validation import validate_password
 
 from academy.models import Eligibility, PlayerProfile
 from accounts.models import Club, Roles, User
 
+# Coach-license upload guardrails (public, unauthenticated form — keep tight).
+COACH_LICENSE_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+_COACH_LICENSE_EXTS = {'.jpg', '.jpeg', '.png', '.pdf'}
+_COACH_LICENSE_TYPES = {'image/jpeg', 'image/png', 'application/pdf'}
+
 
 class CoordinatorSignupForm(forms.Form):
-    """Public self-registration: creates a club + a pending coordinator."""
+    """Public club registration → creates a club + a pending coordinator."""
 
-    first_name = forms.CharField(max_length=150)
-    last_name = forms.CharField(max_length=150)
-    email = forms.EmailField()
-    club_name = forms.CharField(max_length=120, label='Club / academy name')
+    club_name = forms.CharField(max_length=120, label='Club name')
+    coordinator_name = forms.CharField(
+        max_length=150, label='Name of the coordinator'
+    )
+    head_coach_name = forms.CharField(max_length=150, label='Head coach name')
+    coach_license = forms.FileField(
+        label='Coach license',
+        help_text='JPG, PNG or PDF, max 5 MB.',
+    )
+    cvfa_membership = forms.CharField(
+        max_length=80, label='CVFA membership number'
+    )
+    is_school_affiliated = forms.BooleanField(
+        required=False, label='This club is affiliated with a school',
+    )
+    school_name = forms.CharField(
+        max_length=150, required=False, label='School name (if affiliated)',
+    )
+    email = forms.EmailField(label='Coordinator email')
     password1 = forms.CharField(widget=forms.PasswordInput, label='Password')
     password2 = forms.CharField(
         widget=forms.PasswordInput, label='Confirm password'
@@ -37,6 +59,19 @@ class CoordinatorSignupForm(forms.Form):
             raise forms.ValidationError('A club with this name already exists.')
         return name
 
+    def clean_coach_license(self):
+        upload = self.cleaned_data['coach_license']
+        ext = os.path.splitext(upload.name)[1].lower()
+        content_type = getattr(upload, 'content_type', None)
+        # Allowlist by BOTH extension and declared content-type, and cap size.
+        if ext not in _COACH_LICENSE_EXTS:
+            raise forms.ValidationError('Upload a JPG, PNG or PDF file.')
+        if content_type and content_type not in _COACH_LICENSE_TYPES:
+            raise forms.ValidationError('Unsupported file type. Use JPG, PNG or PDF.')
+        if upload.size > COACH_LICENSE_MAX_BYTES:
+            raise forms.ValidationError('The file must be 5 MB or smaller.')
+        return upload
+
     def clean_password1(self):
         password = self.cleaned_data['password1']
         validate_password(password)  # honours AUTH_PASSWORD_VALIDATORS
@@ -47,6 +82,10 @@ class CoordinatorSignupForm(forms.Form):
         p1, p2 = cleaned.get('password1'), cleaned.get('password2')
         if p1 and p2 and p1 != p2:
             self.add_error('password2', 'The two passwords do not match.')
+        if cleaned.get('is_school_affiliated') and not cleaned.get('school_name'):
+            self.add_error(
+                'school_name', 'Enter the school name for an affiliated club.'
+            )
         return cleaned
 
 

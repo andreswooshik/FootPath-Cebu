@@ -5,11 +5,13 @@ account creation (players/coaches/staff/guardians), tenant isolation, and the
 staff eligibility flow. Firebase is mocked wherever an app user (player / coach
 / guardian) is provisioned, so the suite runs offline like the rest.
 """
+import tempfile
 from datetime import date
 from unittest.mock import Mock, patch
 
 from django.contrib.admin.sites import site
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from firebase_admin import auth as firebase_auth
 
@@ -30,11 +32,41 @@ _fb_patches = lambda fn: patch('accounts.services.ensure_initialized')(  # noqa:
 )
 
 
-def make_coordinator(email='coord@club.test', club_name='Alpha FC'):
-    """An approved (active) coordinator owning a fresh club."""
+_MEDIA_ROOT = tempfile.mkdtemp()
+
+
+def _license_file():
+    """A fresh in-memory PDF upload (SimpleUploadedFile is single-read)."""
+    return SimpleUploadedFile(
+        'license.pdf', b'%PDF-1.4 test license', content_type='application/pdf'
+    )
+
+
+def _signup_data(**overrides):
+    """Full valid club-registration POST payload; override individual fields."""
+    data = {
+        'club_name': 'Cebu United',
+        'coordinator_name': 'Jane Doe',
+        'head_coach_name': 'Coach Carter',
+        'cvfa_membership': 'CVFA-12345',
+        'email': 'jane@club.test',
+        'password1': _PASSWORD,
+        'password2': _PASSWORD,
+        'coach_license': _license_file(),
+    }
+    data.update(overrides)
+    return data
+
+
+def make_coordinator(email='coord@club.test', club_name='Alpha FC',
+                     is_school_affiliated=True):
+    """An approved (active) coordinator owning a fresh club (school-affiliated
+    by default so the staff / eligibility surfaces are available)."""
     user, club = register_coordinator(
         first_name='Coord', last_name='One', email=email,
         club_name=club_name, password=_PASSWORD,
+        is_school_affiliated=is_school_affiliated,
+        school_name='Demo School' if is_school_affiliated else '',
     )
     user.is_active = True
     user.save(update_fields=['is_active'])
@@ -52,41 +84,79 @@ def make_player(club, email):
     return user, profile
 
 
+@override_settings(MEDIA_ROOT=_MEDIA_ROOT)
 class CoordinatorSignupTests(TestCase):
     def test_signup_creates_club_and_pending_coordinator(self):
-        resp = self.client.post(reverse('portal:signup'), {
-            'first_name': 'Jane', 'last_name': 'Doe',
-            'email': 'Jane@Club.Test',  # mixed case -> normalised
-            'club_name': 'Cebu United',
-            'password1': _PASSWORD, 'password2': _PASSWORD,
-        })
+        resp = self.client.post(reverse('portal:signup'), _signup_data(
+            coordinator_name='Jane Doe', email='Jane@Club.Test',  # normalised
+            club_name='Cebu United',
+        ))
         self.assertRedirects(resp, reverse('portal:signup-done'))
 
         club = Club.objects.get(name='Cebu United')
         user = User.objects.get(email='jane@club.test')
         self.assertEqual(user.role, Roles.COORDINATOR)
+        self.assertEqual((user.first_name, user.last_name), ('Jane', 'Doe'))
         self.assertEqual(user.club, club)
         self.assertFalse(user.is_active)          # pending superadmin approval
         self.assertTrue(user.has_usable_password())  # web session login
         self.assertIsNone(user.firebase_uid)      # no Firebase for web users
+        # Registration details are captured on the club.
+        self.assertFalse(club.is_school_affiliated)   # checkbox left unticked
+        self.assertEqual(club.head_coach_name, 'Coach Carter')
+        self.assertEqual(club.cvfa_membership, 'CVFA-12345')
+        self.assertTrue(club.coach_license.name.startswith('coach-licenses/'))
+
+    def test_school_affiliated_signup_sets_flag(self):
+        resp = self.client.post(reverse('portal:signup'), _signup_data(
+            email='sa@club.test', club_name='Academy FC',
+            is_school_affiliated='on', school_name='Cebu High',
+        ))
+        self.assertRedirects(resp, reverse('portal:signup-done'))
+        club = Club.objects.get(name='Academy FC')
+        self.assertTrue(club.is_school_affiliated)
+        self.assertEqual(club.school_name, 'Cebu High')
+
+    def test_affiliated_without_school_name_rejected(self):
+        resp = self.client.post(reverse('portal:signup'), _signup_data(
+            email='ns@club.test', club_name='NoName FC',
+            is_school_affiliated='on',  # missing school_name
+        ))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Club.objects.filter(name='NoName FC').exists())
+
+    def test_license_rejects_wrong_type(self):
+        bad = SimpleUploadedFile('x.txt', b'nope', content_type='text/plain')
+        resp = self.client.post(reverse('portal:signup'), _signup_data(
+            email='bt@club.test', club_name='BadType FC', coach_license=bad,
+        ))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Club.objects.filter(name='BadType FC').exists())
+
+    def test_license_rejects_oversize(self):
+        big = SimpleUploadedFile(
+            'big.pdf', b'%PDF-' + b'0' * (5 * 1024 * 1024 + 16),
+            content_type='application/pdf',
+        )
+        resp = self.client.post(reverse('portal:signup'), _signup_data(
+            email='big@club.test', club_name='Big FC', coach_license=big,
+        ))
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Club.objects.filter(name='Big FC').exists())
 
     def test_duplicate_email_rejected(self):
         make_coordinator(email='dupe@club.test', club_name='First FC')
-        resp = self.client.post(reverse('portal:signup'), {
-            'first_name': 'X', 'last_name': 'Y', 'email': 'dupe@club.test',
-            'club_name': 'Second FC',
-            'password1': _PASSWORD, 'password2': _PASSWORD,
-        })
+        resp = self.client.post(reverse('portal:signup'), _signup_data(
+            email='dupe@club.test', club_name='Second FC',
+        ))
         self.assertEqual(resp.status_code, 200)  # re-rendered with an error
         self.assertEqual(User.objects.filter(email='dupe@club.test').count(), 1)
         self.assertFalse(Club.objects.filter(name='Second FC').exists())
 
     def test_password_mismatch_rejected(self):
-        resp = self.client.post(reverse('portal:signup'), {
-            'first_name': 'X', 'last_name': 'Y', 'email': 'mm@club.test',
-            'club_name': 'MM FC',
-            'password1': _PASSWORD, 'password2': 'different',
-        })
+        resp = self.client.post(reverse('portal:signup'), _signup_data(
+            email='mm@club.test', club_name='MM FC', password2='different',
+        ))
         self.assertEqual(resp.status_code, 200)
         self.assertFalse(User.objects.filter(email='mm@club.test').exists())
 
@@ -105,6 +175,53 @@ class CoordinatorSignupTests(TestCase):
         self.assertTrue(
             self.client.login(username='pending@club.test', password=_PASSWORD)
         )
+
+
+class SchoolStaffGatingTests(TestCase):
+    """School staff exist only for school-affiliated clubs."""
+
+    def test_non_affiliated_club_hides_staff_tab(self):
+        coord, _club = make_coordinator(
+            email='na@club.test', club_name='NoSchool FC',
+            is_school_affiliated=False,
+        )
+        self.client.force_login(coord)
+        resp = self.client.get(reverse('portal:create-account'))
+        self.assertNotContains(resp, 'value="staff"')
+
+    def test_non_affiliated_club_rejects_staff_post(self):
+        coord, _club = make_coordinator(
+            email='na2@club.test', club_name='NoSchool2 FC',
+            is_school_affiliated=False,
+        )
+        self.client.force_login(coord)
+        resp = self.client.post(reverse('portal:create-account'), {
+            'account_type': 'staff', 'first_name': 'S', 'last_name': 'T',
+            'email': 'blocked@club.test',
+        })
+        self.assertEqual(resp.status_code, 302)  # error redirect, not created
+        self.assertFalse(User.objects.filter(email='blocked@club.test').exists())
+
+    def test_service_refuses_staff_for_non_affiliated_club(self):
+        from django.core.exceptions import PermissionDenied
+
+        from .services import create_club_account
+        _coord, club = make_coordinator(
+            email='na3@club.test', club_name='NoSchool3 FC',
+            is_school_affiliated=False,
+        )
+        with self.assertRaises(PermissionDenied):
+            create_club_account(account_type='staff', club=club, data={
+                'first_name': 'S', 'last_name': 'T', 'email': 'x@club.test',
+            })
+
+    def test_affiliated_club_shows_staff_tab(self):
+        coord, _club = make_coordinator(
+            email='aff@club.test', club_name='Aff FC', is_school_affiliated=True,
+        )
+        self.client.force_login(coord)
+        resp = self.client.get(reverse('portal:create-account'))
+        self.assertContains(resp, 'value="staff"')
 
 
 class AccessControlTests(TestCase):

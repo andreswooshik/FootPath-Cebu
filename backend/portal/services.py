@@ -25,10 +25,23 @@ def _unique_club_slug(name):
 
 
 @transaction.atomic
-def register_coordinator(*, first_name, last_name, email, club_name, password):
-    """Create a club and its pending coordinator (is_active=False until a
-    superadmin approves). Returns (user, club)."""
-    club = Club.objects.create(name=club_name, slug=_unique_club_slug(club_name))
+def register_coordinator(
+    *, first_name, last_name, email, club_name, password,
+    is_school_affiliated=False, school_name='', head_coach_name='',
+    coach_license=None, cvfa_membership='',
+):
+    """Create a club (with its registration details) and its pending
+    coordinator (is_active=False until a superadmin approves). Returns
+    (user, club)."""
+    club = Club.objects.create(
+        name=club_name,
+        slug=_unique_club_slug(club_name),
+        is_school_affiliated=is_school_affiliated,
+        school_name=school_name,
+        head_coach_name=head_coach_name,
+        coach_license=coach_license,
+        cvfa_membership=cvfa_membership,
+    )
     user, _password = provision_web_user(
         email=email,
         first_name=first_name,
@@ -60,6 +73,10 @@ def create_club_account(*, account_type, club, data):
         return user, temp_password
 
     if account_type == 'staff':
+        # School staff exist only for school-affiliated clubs (defence in depth
+        # — the view also hides the tab and drops the form).
+        if not club.is_school_affiliated:
+            raise PermissionDenied('This club is not affiliated with a school.')
         return provision_web_user(
             email=data['email'],
             first_name=data['first_name'],

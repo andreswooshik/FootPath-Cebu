@@ -1,3 +1,6 @@
+import os
+from uuid import uuid4
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
@@ -9,6 +12,16 @@ class Roles(models.TextChoices):
     PLAYER = 'PLAYER', 'Player'
     SCHOOL_STAFF = 'SCHOOL_STAFF', 'School Staff'
     GUARDIAN = 'GUARDIAN', 'Guardian'
+
+
+def coach_license_upload_to(instance, filename):
+    """Store an uploaded coach license under a random name, keeping only a safe
+    extension. Never trust the client-supplied filename (guards against path
+    traversal, overwrites, and executable/content-type spoofing)."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext not in {'.jpg', '.jpeg', '.png', '.pdf'}:
+        ext = ''
+    return f'coach-licenses/{uuid4().hex}{ext}'
 
 
 class Club(models.Model):
@@ -28,6 +41,17 @@ class Club(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Registration details captured at signup and reviewed by a superadmin
+    # before the coordinator is approved. School staff / academic eligibility
+    # exist only for school-affiliated clubs.
+    is_school_affiliated = models.BooleanField(default=False)
+    school_name = models.CharField(max_length=150, blank=True)
+    head_coach_name = models.CharField(max_length=150, blank=True)
+    coach_license = models.FileField(
+        upload_to=coach_license_upload_to, null=True, blank=True
+    )
+    cvfa_membership = models.CharField(max_length=80, blank=True)
+
     class Meta:
         ordering = ['name']
 
@@ -38,6 +62,12 @@ class Club(models.Model):
     def coordinator(self):
         """The owning coordinator (a club has exactly one), or None."""
         return self.members.filter(role=Roles.COORDINATOR).first()
+
+    @property
+    def allows_school_staff(self):
+        """School-staff accounts and academic eligibility exist only for
+        school-affiliated clubs."""
+        return self.is_school_affiliated
 
 
 class User(AbstractUser):

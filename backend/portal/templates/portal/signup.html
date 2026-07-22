@@ -7,7 +7,7 @@
     Register your club and coordinator account. New coordinators are reviewed by
     a FootPath developer before the first login.
   </p>
-  <form method="post" novalidate>
+  <form method="post" enctype="multipart/form-data" novalidate>
     {% csrf_token %}
     {{ form.non_field_errors }}
     {% for field in form %}

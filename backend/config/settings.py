@@ -162,6 +162,13 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Uploaded files (coach licenses submitted at club registration). Kept out of
+# git (see .gitignore); in DEBUG they are served by config/urls.py. A hard size
+# cap is enforced in the signup form; this is a request-body backstop.
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024  # 6 MB request-body backstop
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

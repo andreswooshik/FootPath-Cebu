@@ -197,9 +197,12 @@ class GuardianLinkAdmin(BulkActionLabelMixin, admin.ModelAdmin):
 
 @admin.register(Club)
 class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
-    list_display = ('name', 'coordinator_email', 'member_count', 'active_chip', 'created_at')
-    list_filter = ('is_active',)
-    search_fields = ('name', 'slug')
+    list_display = (
+        'name', 'coordinator_email', 'member_count', 'school_chip',
+        'active_chip', 'created_at',
+    )
+    list_filter = ('is_active', 'is_school_affiliated')
+    search_fields = ('name', 'slug', 'head_coach_name', 'cvfa_membership')
     prepopulated_fields = {'slug': ('name',)}
     readonly_fields = ('created_at',)
 
@@ -207,6 +210,15 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     def coordinator_email(self, obj):
         coordinator = obj.coordinator
         return coordinator.email if coordinator else '—'
+
+    @admin.display(description='School', ordering='is_school_affiliated')
+    def school_chip(self, obj):
+        if obj.is_school_affiliated:
+            style = _PILL.format(extra='color:#0D9488;background:rgba(13,148,136,.15);')
+            return format_html(
+                '<span style="{}">{}</span>', style, obj.school_name or 'Affiliated'
+            )
+        return format_html('<span style="color:#64748B;">—</span>')
 
     @admin.display(description='Members')
     def member_count(self, obj):

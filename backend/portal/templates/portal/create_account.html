@@ -24,6 +24,8 @@
 
 {% include 'portal/_create_form.html' with title='Player' type='player' form=forms.player %}
 {% include 'portal/_create_form.html' with title='Coach' type='coach' form=forms.coach %}
+{% if user.club.is_school_affiliated %}
 {% include 'portal/_create_form.html' with title='School Staff' type='staff' form=forms.staff %}
+{% endif %}
 {% include 'portal/_create_form.html' with title='Guardian' type='guardian' form=forms.guardian %}
 {% endblock %}
