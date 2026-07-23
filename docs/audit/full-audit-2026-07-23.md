@@ -110,6 +110,13 @@ config model, endpoint, or UI.
 `/api/admin/users/` is list+create only; there is no endpoint or UI to change
 a role or adjust permissions post-creation.
 
+> **Status: FIXED (July 23, evening).** `PATCH /api/admin/users/<pk>/`
+> switches between Coach / School Staff / Guardian (issuing the right
+> credential when crossing the Firebase↔Django-password line) or
+> (de)activates an account — deactivation locks out API and portal
+> immediately. Players/coordinators are role-locked by design; Admin
+> accounts are unreachable. Console Users table gained the controls.
+
 ### F7 — LOW · Coach "Progress" (trends) tab is still a stub
 [coach_bottom_nav.dart:44-47](../../footpath_cebu/lib/presentation/widgets/coach_bottom_nav.dart#L44-L47)
 shows "Coming soon." for the Progress destination (and
@@ -117,11 +124,20 @@ shows "Coming soon." for the Progress destination (and
 has another coming-soon action). Backend already has the attendance/effort
 data a trends view needs.
 
+> **Status: FIXED (July 23, evening).** New `GET /api/progress/squad/`
+> aggregate endpoint + a real Progress screen (squad headline numbers,
+> per-player attendance bar and average effort). The Share button stub on
+> the player profile remains — cosmetic only.
+
 ### F8 — LOW · School Staff cannot *view* eligibility history in the portal
 The REST endpoint permits staff reads, but the portal's
 [staff eligibility page](../../backend/portal/templates/portal/staff_eligibility.html)
 shows only the roster + update form — no history list. Spec explicitly gives
 staff "view the eligibility status history of linked players."
+
+> **Status: FIXED (July 23, evening).** The staff eligibility page now
+> lists the club's 50 most recent transitions (when, player, old → new,
+> changed by), club-scoped.
 
 ### F9 — INFO · School Staff / Coordinators no longer use Firebase login
 Spec: "Firebase-authenticated login for all roles." Staff and coordinators are
@@ -131,6 +147,12 @@ still use Firebase. Reasonable architecture, but document the divergence.
 ### F10 — INFO · No general audit log
 Disputes (append-only threads) and eligibility history are proper audit
 trails; other sensitive changes (assessments, role/club edits) have none.
+
+> **Status: FIXED (July 23, evening).** Append-only `AuditLog` (actor,
+> action, target, detail) written from every sensitive path — assessments,
+> positions, session scheduling/edit/cancel, account lifecycle, guardian
+> links, eligibility (mirrored from the signal) — read-only in the Django
+> admin.
 
 ### Housekeeping — all done July 23
 - ~~Two stray virtualenvs in `backend/` (`venv/` and `venc/`), neither of
@@ -159,7 +181,7 @@ Legend: ✅ live · ⚠️ partial/divergent · ❌ missing
 | Feature | Status | Notes |
 |---|---|---|
 | Provision accounts incl. guardian links | ✅ | API + console + coordinator portal |
-| Manage role permissions | ⚠️ | Create-time only (F6) |
+| Manage role permissions | ✅ | Fixed July 23 PM: role switch + (de)activation via PATCH + console (F6) |
 | Configure age tiers | ✅ | Fixed July 23: `AgeTierSetting` + admin/console UI + API (F5) |
 | Three age tiers | ✅ | |
 
@@ -171,7 +193,7 @@ Legend: ✅ live · ⚠️ partial/divergent · ❌ missing
 | 1–10 position-aware rubric + GK variant | ⚠️ | 0–99 FUT model (F2 divergence remains); GK variant now persists end-to-end (F1 fixed July 23) |
 | Qualitative feedback | ✅ | Per-session note + standing coach notes |
 | View player profiles | ✅ | |
-| View performance trends | ⚠️ | Tab is a stub (F7) |
+| View performance trends | ✅ | Fixed July 23 PM: Progress tab + squad-aggregate endpoint (F7) |
 | Position assignment | ✅ | **New:** wired end-to-end July 23 |
 
 ### Player
@@ -188,7 +210,7 @@ Legend: ✅ live · ⚠️ partial/divergent · ❌ missing
 | Feature | Status | Notes |
 |---|---|---|
 | Update eligibility (no grades) | ✅ | **New:** live via portal, club-scoped, school-affiliated clubs only |
-| View eligibility history | ⚠️ | API allows it; no portal surface (F8) |
+| View eligibility history | ✅ | Fixed July 23 PM: history section on the staff page (F8) |
 | Status flags only, never grades | ✅ | |
 
 ### Guardian
@@ -202,7 +224,7 @@ Legend: ✅ live · ⚠️ partial/divergent · ❌ missing
 | Feature | Status | Notes |
 |---|---|---|
 | Push notifications | ✅ | Schedule, assessment, eligibility |
-| Dispute + audit foundation | ✅/⚠️ | Disputes + eligibility trail live; no general audit log (F10) |
+| Dispute + audit foundation | ✅ | Disputes + eligibility trail + general AuditLog (F10 fixed July 23 PM) |
 
 ### Beyond spec (new since July 16)
 Multi-club tenancy · Coordinator role + portal (registration/approval,
@@ -234,9 +256,11 @@ and server.
 ## Recommended order of attack
 
 ~~F1 (GK persistence)~~, ~~F4 (registration decision)~~, ~~F5 (tier
-config)~~, and ~~housekeeping~~ were closed on July 23. Remaining:
+config)~~, ~~F6 (role management)~~, ~~F7 (trends tab)~~, ~~F8 (staff
+history)~~, ~~F10 (audit log)~~, and ~~housekeeping~~ were all closed on
+July 23 — along with session edit/cancel, app-side configurable tier bands,
+portal password change, and coordinator link/photo management. Remaining:
 
 1. Decide F2 (1–10 rubric vs 0–99 attributes) with the team lead.
-2. Build F3 (match stats) — biggest remaining scope item.
-3. Close the small ones: F8 staff history view, F7 trends tab, F6 role
-   management.
+2. Build F3 (match stats) — the last unstarted scope item.
+3. Cosmetic: the player-profile Share button is still a stub.
