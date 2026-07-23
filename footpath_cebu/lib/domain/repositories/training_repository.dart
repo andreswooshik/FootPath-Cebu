@@ -6,10 +6,18 @@ abstract class TrainingScheduleReader {
   Future<List<TrainingSession>> fetchSessions();
 }
 
-/// Creates new sessions on the coach's calendar.
+/// Mutates the coach's calendar — create, edit, cancel.
 abstract class TrainingScheduleWriter {
   /// Persists [draft] and returns the stored session (with its assigned id).
   Future<TrainingSession> createSession(TrainingSession draft);
+
+  /// Saves changes to an existing session (matched by [session.id]) and
+  /// returns the stored result.
+  Future<TrainingSession> updateSession(TrainingSession session);
+
+  /// Cancels (deletes) the session with [id]. Recorded attendance survives
+  /// server-side; only the calendar entry goes away.
+  Future<void> deleteSession(String id);
 }
 
 /// Aggregate of the training-schedule operations. Concrete data sources

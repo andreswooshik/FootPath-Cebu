@@ -97,6 +97,27 @@ def notify_session_scheduled(session):
     )
 
 
+def notify_session_updated(session):
+    """Push after a coach edits a scheduled session (new time/place/etc.)."""
+    return _send_to_users(
+        _recipients_for_session(session),
+        title='Training session updated',
+        body=f'{session.title} on {session.date} was changed — check the schedule.',
+        data={'type': 'session_updated', 'sessionId': str(session.id)},
+    )
+
+
+def notify_session_cancelled(session):
+    """Push after a coach cancels (deletes) a session. Called BEFORE the row
+    is deleted so the recipient query can still see it."""
+    return _send_to_users(
+        _recipients_for_session(session),
+        title='Training session cancelled',
+        body=f'{session.title} on {session.date} was cancelled.',
+        data={'type': 'session_cancelled', 'sessionId': str(session.id)},
+    )
+
+
 def notify_assessment_saved(profile):
     """Push to the assessed player + linked guardians after a coach saves the
     six-attribute assessment. Fires on the assessment save, not per-session

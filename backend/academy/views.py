@@ -33,7 +33,12 @@ from .models import (
     SessionConfirmation,
     TrainingSession,
 )
-from .notifications import notify_assessment_saved, notify_session_scheduled
+from .notifications import (
+    notify_assessment_saved,
+    notify_session_cancelled,
+    notify_session_scheduled,
+    notify_session_updated,
+)
 from .serializers import (
     AdminCreatePlayerSerializer,
     AgeTierSettingSerializer,
@@ -322,6 +327,41 @@ class TrainingSessionListCreateView(APIView):
         return Response(
             TrainingSessionSerializer(session).data, status=status.HTTP_201_CREATED
         )
+
+
+class TrainingSessionDetailView(APIView):
+    """PUT/DELETE /api/training-sessions/<pk>/ — a coach edits or cancels a
+    scheduled session. Club-scoped like creation: any coach in the owning
+    club may manage it (there is no per-coach ownership anywhere else in the
+    schema either). Cancelled sessions notify the same recipients as
+    scheduling; attendance rows survive a cancellation (FK is SET_NULL), so
+    recorded history is never destroyed."""
+
+    def _session_for(self, request, pk):
+        if request.user.role != Roles.COACH:
+            raise PermissionDenied('Only coaches can manage sessions.')
+        session = get_object_or_404(TrainingSession, pk=pk)
+        if session.club_id != request.user.club_id:
+            raise PermissionDenied('That session is not in your club.')
+        return session
+
+    def put(self, request, pk):
+        session = self._session_for(request, pk)
+        serializer = TrainingSessionSerializer(
+            session, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        session = serializer.save()
+        transaction.on_commit(lambda: notify_session_updated(session))
+        return Response(TrainingSessionSerializer(session).data)
+
+    def delete(self, request, pk):
+        session = self._session_for(request, pk)
+        # Sent before the delete: the recipient query needs the row, and the
+        # notify helpers never raise into the request path.
+        notify_session_cancelled(session)
+        session.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SessionConfirmationView(APIView):

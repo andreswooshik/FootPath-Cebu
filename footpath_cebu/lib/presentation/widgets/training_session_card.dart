@@ -17,6 +17,8 @@ class TrainingSessionCard extends StatelessWidget {
     this.onLogAttendance,
     this.onTap,
     this.trailing,
+    this.onEdit,
+    this.onCancelSession,
   });
 
   final TrainingSession session;
@@ -27,6 +29,11 @@ class TrainingSessionCard extends StatelessWidget {
   /// Player's schedule for a session-confirmation control instead of the
   /// Coach's roll-call action.
   final Widget? trailing;
+
+  /// Coach-only management actions; when either is set, a ⋮ menu appears
+  /// beside the title.
+  final VoidCallback? onEdit;
+  final VoidCallback? onCancelSession;
 
   @override
   Widget build(BuildContext context) {
@@ -96,11 +103,39 @@ class TrainingSessionCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    session.title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          session.title,
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      if (onEdit != null || onCancelSession != null)
+                        PopupMenuButton<String>(
+                          tooltip: 'Manage session',
+                          padding: EdgeInsets.zero,
+                          onSelected: (choice) => choice == 'edit'
+                              ? onEdit?.call()
+                              : onCancelSession?.call(),
+                          itemBuilder: (_) => [
+                            if (onEdit != null)
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Edit session'),
+                              ),
+                            if (onCancelSession != null)
+                              const PopupMenuItem(
+                                value: 'cancel',
+                                child: Text('Cancel session'),
+                              ),
+                          ],
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   _DetailRow(

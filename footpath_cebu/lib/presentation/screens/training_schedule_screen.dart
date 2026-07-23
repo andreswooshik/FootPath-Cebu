@@ -38,6 +38,55 @@ class _TrainingScheduleScreenState
     );
   }
 
+  void _editSession(TrainingSession session) {
+    Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ScheduleSessionScreen(existing: session),
+      ),
+    );
+  }
+
+  Future<void> _cancelSession(TrainingSession session) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel this session?'),
+        content: Text(
+          '"${session.title}" will be removed from the schedule and players '
+          'and guardians will be notified. Recorded attendance is kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep session'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Cancel session'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final ok = await ref
+        .read(scheduleSessionControllerProvider.notifier)
+        .cancel(session.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? '"${session.title}" cancelled.'
+              : friendlyErrorMessage(
+                  ref.read(scheduleSessionControllerProvider).error,
+                  'Could not cancel the session. Please try again.',
+                ),
+        ),
+      ),
+    );
+  }
+
   void _logAttendance(TrainingSession session) {
     Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -142,6 +191,8 @@ class _TrainingScheduleScreenState
               session: list[i],
               onTap: () => _logAttendance(list[i]),
               onLogAttendance: () => _logAttendance(list[i]),
+              onEdit: () => _editSession(list[i]),
+              onCancelSession: () => _cancelSession(list[i]),
             ),
           ),
         );

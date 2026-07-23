@@ -34,6 +34,11 @@ urlpatterns = [
         name='training-sessions',
     ),
     path(
+        'training-sessions/<int:pk>/',
+        views.TrainingSessionDetailView.as_view(),
+        name='training-session-detail',
+    ),
+    path(
         'session-confirmations/',
         views.SessionConfirmationView.as_view(),
         name='session-confirmations',

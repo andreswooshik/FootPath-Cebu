@@ -48,10 +48,22 @@ class ScheduleSessionController extends AsyncNotifier<void> {
   /// Persists [draft]. Returns true on success so the screen can pop back to
   /// the schedule — which refreshes by itself, because this invalidates
   /// [trainingSessionsProvider].
-  Future<bool> submit(TrainingSession draft) async {
+  Future<bool> submit(TrainingSession draft) =>
+      _run(() => ref.read(scheduleTrainingSessionProvider)(draft));
+
+  /// Saves changes to an existing session (same success/refresh contract as
+  /// [submit]). Named to avoid colliding with [AsyncNotifier.update].
+  Future<bool> saveChanges(TrainingSession session) =>
+      _run(() => ref.read(updateTrainingSessionProvider)(session));
+
+  /// Cancels (deletes) a scheduled session.
+  Future<bool> cancel(String sessionId) =>
+      _run(() => ref.read(cancelTrainingSessionProvider)(sessionId));
+
+  Future<bool> _run(Future<Object?> Function() action) async {
     state = const AsyncLoading();
     try {
-      await ref.read(scheduleTrainingSessionProvider)(draft);
+      await action();
       state = const AsyncData(null);
       ref.invalidate(trainingSessionsProvider);
       return true;

@@ -97,4 +97,21 @@ class MockTrainingRepository implements TrainingRepository {
     _sessions.add(saved);
     return saved;
   }
+
+  @override
+  Future<TrainingSession> updateSession(TrainingSession session) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+    final index = _sessions.indexWhere((s) => s.id == session.id);
+    if (index < 0) {
+      throw TrainingRepositoryException('Session ${session.id} not found.');
+    }
+    _sessions[index] = session;
+    return session;
+  }
+
+  @override
+  Future<void> deleteSession(String id) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    _sessions.removeWhere((s) => s.id == id);
+  }
 }

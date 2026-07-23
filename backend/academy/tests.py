@@ -545,6 +545,74 @@ class TrainingSessionTests(APITestCase):
         )
         self.assertEqual(resp.status_code, 403)
 
+    @patch('academy.views.notify_session_updated')
+    def test_coach_edits_a_session(self, mock_notify):
+        session = TrainingSession.objects.create(
+            title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+        )
+        self.client.force_authenticate(self.coach)
+        # The push is deferred to on_commit, which a wrapped test transaction
+        # never reaches — capture and execute the callbacks explicitly.
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.put(
+                reverse('training-session-detail', args=[session.id]),
+                {'title': 'Moved to the annex', 'location': 'Annex Pitch'},
+                format='json',
+            )
+        self.assertEqual(resp.status_code, 200)
+        session.refresh_from_db()
+        self.assertEqual(session.title, 'Moved to the annex')
+        self.assertEqual(session.location, 'Annex Pitch')
+        mock_notify.assert_called_once()
+
+    @patch('academy.views.notify_session_cancelled')
+    def test_coach_cancels_a_session_and_attendance_survives(self, mock_notify):
+        player = make_player('att@footpathcebu.test')
+        session = TrainingSession.objects.create(
+            title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+        )
+        record = Attendance.objects.create(
+            player=player, session=session, status=AttendanceStatus.PRESENT,
+        )
+        self.client.force_authenticate(self.coach)
+        resp = self.client.delete(
+            reverse('training-session-detail', args=[session.id])
+        )
+        self.assertEqual(resp.status_code, 204)
+        self.assertFalse(TrainingSession.objects.filter(pk=session.pk).exists())
+        # Recorded history is never destroyed: the FK just goes null.
+        record.refresh_from_db()
+        self.assertIsNone(record.session)
+        mock_notify.assert_called_once()
+
+    def test_non_coach_cannot_edit_or_cancel(self):
+        session = TrainingSession.objects.create(
+            title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+        )
+        url = reverse('training-session-detail', args=[session.id])
+        self.client.force_authenticate(make_user(Roles.PLAYER))
+        self.assertEqual(
+            self.client.put(url, {'title': 'H'}, format='json').status_code, 403
+        )
+        self.assertEqual(self.client.delete(url).status_code, 403)
+
+    @patch('academy.views.notify_session_updated')
+    def test_coach_cannot_touch_another_clubs_session(self, _mock):
+        other_club = Club.objects.create(name='Rival FC', slug='rival-fc')
+        session = TrainingSession.objects.create(
+            title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL, club=other_club,
+        )
+        url = reverse('training-session-detail', args=[session.id])
+        self.client.force_authenticate(self.coach)
+        self.assertEqual(
+            self.client.put(url, {'title': 'H'}, format='json').status_code, 403
+        )
+        self.assertEqual(self.client.delete(url).status_code, 403)
+
     def test_session_without_tier_rejected(self):
         self.client.force_authenticate(self.coach)
         payload = self._payload()

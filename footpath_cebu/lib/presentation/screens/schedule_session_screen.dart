@@ -6,14 +6,19 @@ import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 
-/// Coach Portal — the Schedule New Session form.
+/// Coach Portal — the Schedule New Session form, doubling as the edit form
+/// when [existing] is set (fields arrive prefilled and submit saves changes
+/// instead of creating).
 ///
 /// Collects the session details and hands a draft [TrainingSession] to
 /// [ScheduleSessionController]. On success it pops back to the schedule,
 /// which refreshes by itself (the controller invalidates the schedule
 /// provider).
 class ScheduleSessionScreen extends ConsumerStatefulWidget {
-  const ScheduleSessionScreen({super.key});
+  const ScheduleSessionScreen({super.key, this.existing});
+
+  /// When set, the form edits this session instead of creating a new one.
+  final TrainingSession? existing;
 
   @override
   ConsumerState<ScheduleSessionScreen> createState() =>
@@ -21,18 +26,25 @@ class ScheduleSessionScreen extends ConsumerStatefulWidget {
 }
 
 class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
-  final _titleController = TextEditingController();
-  final _locationController = TextEditingController();
+  late final _titleController =
+      TextEditingController(text: widget.existing?.title ?? '');
+  late final _locationController =
+      TextEditingController(text: widget.existing?.location ?? '');
 
-  DateTime? _date;
+  late DateTime? _date = widget.existing?.date;
+  // Times are kept as display strings on the wire ("04:30 PM"), so an edit
+  // keeps the original string until the coach re-picks; only a fresh pick
+  // produces a TimeOfDay to format.
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
-  SessionFocus _focus = SessionFocus.technical;
+  late SessionFocus _focus = widget.existing?.focus ?? SessionFocus.technical;
+
+  bool get _isEditing => widget.existing != null;
 
   /// Tiers the session is for. Starts empty so the coach must choose — a
   /// pre-selected tier is how sessions end up silently assigned to the wrong
-  /// players.
-  final Set<AgeTier> _tiers = {};
+  /// players. (When editing, the session's current tiers carry over.)
+  late final Set<AgeTier> _tiers = {...?widget.existing?.ageTiers};
 
   bool get _allTiersSelected => _tiers.length == AgeTier.values.length;
 
@@ -62,10 +74,13 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    // Editing a past session must not crash the picker (initialDate would be
+    // before firstDate) — widen the range back to the session's own date.
+    final first = (_date != null && _date!.isBefore(today)) ? _date! : today;
     final picked = await showDatePicker(
       context: context,
       initialDate: _date ?? today,
-      firstDate: today,
+      firstDate: first,
       lastDate: DateTime(now.year + 2),
     );
     if (picked != null) setState(() => _date = picked);
@@ -84,11 +99,14 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   Future<void> _submit() async {
     final title = _titleController.text.trim();
     final location = _locationController.text.trim();
+    final startLabel =
+        _startTime?.format(context) ?? widget.existing?.startTime;
+    final endLabel = _endTime?.format(context) ?? widget.existing?.endTime;
     if (title.isEmpty ||
         location.isEmpty ||
         _date == null ||
-        _startTime == null ||
-        _endTime == null) {
+        startLabel == null ||
+        endLabel == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all the fields.')),
       );
@@ -104,7 +122,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    if (_date!.isBefore(today)) {
+    if (_date!.isBefore(today) && !_isEditing) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('The session date cannot be in the past.')),
       );
@@ -112,24 +130,28 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     }
 
     final draft = TrainingSession(
-      id: '',
+      id: widget.existing?.id ?? '',
       title: title,
       ageTiers: Set.of(_tiers),
       date: _date!,
-      startTime: _startTime!.format(context),
-      endTime: _endTime!.format(context),
+      startTime: startLabel,
+      endTime: endLabel,
       location: location,
       focus: _focus,
+      attendeeCount: widget.existing?.attendeeCount ?? 0,
     );
 
-    final ok = await ref
-        .read(scheduleSessionControllerProvider.notifier)
-        .submit(draft);
+    final controller = ref.read(scheduleSessionControllerProvider.notifier);
+    final ok = _isEditing
+        ? await controller.saveChanges(draft)
+        : await controller.submit(draft);
     if (!mounted) return;
     if (ok) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('"$title" scheduled.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_isEditing ? '"$title" updated.' : '"$title" scheduled.'),
+        ),
+      );
       Navigator.of(context).pop(true);
     } else {
       final error = ref.read(scheduleSessionControllerProvider).error;
@@ -138,7 +160,9 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
           content: Text(
             friendlyErrorMessage(
               error,
-              'Could not schedule the session. Please try again.',
+              _isEditing
+                  ? 'Could not save the changes. Please try again.'
+                  : 'Could not schedule the session. Please try again.',
             ),
           ),
         ),
@@ -163,12 +187,14 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(
-            'Schedule New Session',
+            _isEditing ? 'Edit Session' : 'Schedule New Session',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 2),
           Text(
-            'Plan a new training session for your squad.',
+            _isEditing
+                ? 'Change the details — players and guardians are notified.'
+                : 'Plan a new training session for your squad.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 20),
@@ -202,8 +228,11 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                   children: [
                     const _FieldLabel('Start Time'),
                     _PickerField(
-                      text: _startTime?.format(context) ?? 'Start',
-                      placeholder: _startTime == null,
+                      text: _startTime?.format(context) ??
+                          widget.existing?.startTime ??
+                          'Start',
+                      placeholder:
+                          _startTime == null && widget.existing == null,
                       icon: Icons.schedule,
                       onTap: () => _pickTime(isStart: true),
                     ),
@@ -217,8 +246,10 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                   children: [
                     const _FieldLabel('End Time'),
                     _PickerField(
-                      text: _endTime?.format(context) ?? 'End',
-                      placeholder: _endTime == null,
+                      text: _endTime?.format(context) ??
+                          widget.existing?.endTime ??
+                          'End',
+                      placeholder: _endTime == null && widget.existing == null,
                       icon: Icons.schedule,
                       onTap: () => _pickTime(isStart: false),
                     ),
@@ -286,7 +317,9 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                   )
                 : const Icon(Icons.event_available),
             label: Text(
-              isSaving ? 'Scheduling…' : 'Create Schedule',
+              isSaving
+                  ? 'Saving…'
+                  : (_isEditing ? 'Save Changes' : 'Create Schedule'),
             ),
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(50),

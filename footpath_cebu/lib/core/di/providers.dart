@@ -51,7 +51,9 @@ import 'package:footpath_cebu/domain/usecases/respond_to_dispute.dart';
 import 'package:footpath_cebu/domain/usecases/save_injury.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_position.dart';
+import 'package:footpath_cebu/domain/usecases/cancel_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
+import 'package:footpath_cebu/domain/usecases/update_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
 import 'package:footpath_cebu/domain/usecases/sign_in.dart';
 import 'package:footpath_cebu/domain/usecases/sign_out.dart';
@@ -255,6 +257,14 @@ final getTrainingSessionsProvider = Provider<GetTrainingSessions>(
 
 final scheduleTrainingSessionProvider = Provider<ScheduleTrainingSession>(
   (ref) => ScheduleTrainingSession(ref.watch(trainingRepositoryProvider)),
+);
+
+final updateTrainingSessionProvider = Provider<UpdateTrainingSession>(
+  (ref) => UpdateTrainingSession(ref.watch(trainingRepositoryProvider)),
+);
+
+final cancelTrainingSessionProvider = Provider<CancelTrainingSession>(
+  (ref) => CancelTrainingSession(ref.watch(trainingRepositoryProvider)),
 );
 
 final registerDeviceProvider = Provider<RegisterDevice>(

@@ -74,6 +74,59 @@ class ApiTrainingRepository implements TrainingRepository {
     );
   }
 
+  @override
+  Future<TrainingSession> updateSession(TrainingSession session) async {
+    final idToken = await _requireIdToken();
+
+    final http.Response response;
+    try {
+      response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}$_path${session.id}/'),
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(session.toJson()),
+      );
+    } catch (_) {
+      throw TrainingRepositoryException(
+        'Could not reach the server. Is it running?',
+      );
+    }
+
+    if (response.statusCode != 200) {
+      throw TrainingRepositoryException(
+        'Could not save the session (${response.statusCode}).',
+      );
+    }
+    return TrainingSession.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<void> deleteSession(String id) async {
+    final idToken = await _requireIdToken();
+
+    final http.Response response;
+    try {
+      response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}$_path$id/'),
+        headers: {'Authorization': 'Bearer $idToken'},
+      );
+    } catch (_) {
+      throw TrainingRepositoryException(
+        'Could not reach the server. Is it running?',
+      );
+    }
+
+    if (response.statusCode != 204 && response.statusCode != 200) {
+      throw TrainingRepositoryException(
+        'Could not cancel the session (${response.statusCode}).',
+      );
+    }
+  }
+
   Future<String> _requireIdToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
