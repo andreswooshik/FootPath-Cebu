@@ -24,13 +24,22 @@ live in the Django database, keyed to the Firebase UID.
 
 ## Roles
 
-Five roles: **Admin, Coach, Player, School Staff, Guardian**.
+Five core roles: **Admin, Coach, Player, School Staff, Guardian** — plus
+**Club Coordinator**, added with multi-club support: a coordinator owns one
+club and provisions every account in it through the web portal.
 
-- Role-based access control (RBAC) across all five roles.
-- Account creation is **restricted to Admin** — there is no public
-  self-registration. A Firebase account alone grants no access; the backend
-  rejects any UID it has not provisioned.
-- Firebase-authenticated login for all roles using Admin-issued credentials.
+- Role-based access control (RBAC) across all roles.
+- Account creation for end users (Coach, Player, School Staff, Guardian) is
+  **restricted to Admin and the club's Coordinator** — there is no public
+  self-registration for these roles. A Firebase account alone grants no
+  access; the backend rejects any UID it has not provisioned.
+- **Club registration is the one public signup** (decision, July 23 2026):
+  a coordinator registers their club through the portal, the account stays
+  inactive until a superadmin approves it, and all other accounts in that
+  club are then provisioned by the coordinator.
+- Firebase-authenticated login for app roles (Coach, Player, Guardian) using
+  issued credentials; Coordinators and School Staff are web-portal users with
+  Django session login.
 
 ## Age Tiers
 
@@ -93,8 +102,10 @@ Three age tiers, configurable by Admin:
 
 Everything not listed above, including (non-exhaustive): match management
 beyond viewing statistics, advanced analytics/reporting, payments/fees,
-messaging/chat, production deployment hardening (HTTPS, PostgreSQL), and any
-public-facing registration flows (permanently out of scope by design).
+messaging/chat, production deployment hardening (HTTPS, PostgreSQL), and
+self-registration for Coach/Player/School Staff/Guardian accounts
+(permanently out of scope by design — the approval-gated club registration
+signup is the sanctioned exception).
 
 ## Development Schedule Anchor
 
