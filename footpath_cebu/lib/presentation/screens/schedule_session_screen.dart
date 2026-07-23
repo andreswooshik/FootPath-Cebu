@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/presentation/providers/age_tier_providers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 
@@ -283,7 +284,10 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
               ),
               for (final tier in AgeTier.values)
                 FilterChip(
-                  label: Text('${tier.label} · ${tier.ageLabel}'),
+                  label: Text(
+                    '${tier.label} · '
+                    '${tierAgeLabel(tier, ref.watch(ageTierBandsProvider).value)}',
+                  ),
                   selected: _tiers.contains(tier),
                   onSelected: (_) => _toggleTier(tier),
                 ),

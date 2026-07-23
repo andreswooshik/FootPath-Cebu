@@ -19,7 +19,10 @@ extension AgeTierInfo on AgeTier {
     }
   }
 
-  /// Inclusive age bounds for the tier.
+  /// Inclusive age bounds for the tier — the compiled-in FALLBACK only.
+  /// The authoritative bands are Admin-configured on the server
+  /// (GET /api/age-tiers/, surfaced via `ageTierBandsProvider`); UI printing
+  /// a band should prefer those and fall back here while loading/offline.
   ({int min, int max}) get ageRange {
     switch (this) {
       case AgeTier.foundation:

@@ -5,6 +5,8 @@ import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/domain/repositories/age_tier_repository.dart';
+import 'package:footpath_cebu/presentation/providers/age_tier_providers.dart';
 import 'package:footpath_cebu/presentation/providers/coach_overview_providers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
@@ -199,7 +201,12 @@ class _RosterSliver extends ConsumerWidget {
                 child: Padding(
                   padding: const EdgeInsets.all(48),
                   child: Center(
-                    child: Text(_emptyMessage(ref.watch(rosterFilterProvider))),
+                    child: Text(
+                      _emptyMessage(
+                        ref.watch(rosterFilterProvider),
+                        ref.watch(ageTierBandsProvider).value,
+                      ),
+                    ),
                   ),
                 ),
               );
@@ -240,7 +247,7 @@ class _RosterSliver extends ConsumerWidget {
   /// Names the reason the roster is empty. "No players match your search" is a
   /// lie when the coach hasn't typed anything and simply picked a tier nobody
   /// is registered to yet.
-  String _emptyMessage(RosterFilter filter) {
+  String _emptyMessage(RosterFilter filter, Map<AgeTier, AgeBand>? bands) {
     final tier = filter.tier;
     final searching = filter.query.isNotEmpty;
     if (tier == null) {
@@ -250,7 +257,7 @@ class _RosterSliver extends ConsumerWidget {
     }
     return searching
         ? 'No ${tier.label} players match your search.'
-        : 'No players in ${tier.label} (${tier.ageLabel}) yet.';
+        : 'No players in ${tier.label} (${tierAgeLabel(tier, bands)}) yet.';
   }
 }
 
