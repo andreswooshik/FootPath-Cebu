@@ -126,6 +126,16 @@ else:
     }
 
 
+# Password hashing — Argon2id first (via argon2-cffi); PBKDF2 kept so existing
+# hashes still verify and get upgraded to Argon2 on next login.
+# https://docs.djangoproject.com/en/5.2/topics/auth/passwords/
+
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+]
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 

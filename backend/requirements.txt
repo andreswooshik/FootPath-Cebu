@@ -3,6 +3,8 @@ django-jazzmin~=3.0
 djangorestframework~=3.16
 firebase-admin>=6.5,<8
 django-cors-headers~=4.7
+# Argon2id password hashing for the session-authenticated portal accounts.
+argon2-cffi~=25.1
 python-dotenv~=1.1
 # Supabase Storage REST calls (player photo upload + signed URLs).
 httpx~=0.28
