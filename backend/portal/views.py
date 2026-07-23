@@ -19,6 +19,7 @@ from accounts.models import GuardianLink, Roles, User
 from accounts.services import ProvisioningError
 
 from .decorators import portal_role_required
+from .ratelimit import is_rate_limited
 from .forms import (
     CoordinatorSignupForm,
     CreateCoachForm,
@@ -55,6 +56,20 @@ def signup(request):
     if request.user.is_authenticated:
         return redirect('portal:dashboard')
     if request.method == 'POST':
+        # Throttle the anonymous create-and-upload so it cannot be scripted to
+        # spam pending clubs or spool large files (audit finding S3).
+        if is_rate_limited(
+            request, scope='signup', limit=5, window_seconds=3600
+        ):
+            messages.error(
+                request,
+                'Too many registration attempts from your network. Please try '
+                'again later.',
+            )
+            return render(
+                request, 'portal/signup.html',
+                {'form': CoordinatorSignupForm()}, status=429,
+            )
         form = CoordinatorSignupForm(request.POST, request.FILES)
         if form.is_valid():
             cd = form.cleaned_data

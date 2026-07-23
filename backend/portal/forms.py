@@ -16,6 +16,24 @@ from accounts.models import Club, Roles, User
 COACH_LICENSE_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
 _COACH_LICENSE_EXTS = {'.jpg', '.jpeg', '.png', '.pdf'}
 _COACH_LICENSE_TYPES = {'image/jpeg', 'image/png', 'application/pdf'}
+# First-bytes signatures for the allowed types. The extension and the
+# browser-supplied content-type are both attacker-controlled, so we also verify
+# what the file actually *is* — a .pdf-named script or an HTML/JS polyglot would
+# otherwise sail through the two checks above (audit finding S3).
+_COACH_LICENSE_SIGNATURES = (
+    b'\xff\xd8\xff',          # JPEG
+    b'\x89PNG\r\n\x1a\n',     # PNG
+    b'%PDF-',                 # PDF
+)
+
+
+def _has_allowed_signature(upload):
+    """True if the upload's leading bytes match a JPG/PNG/PDF signature. Seeks
+    back to 0 so the later save reads the whole file."""
+    upload.seek(0)
+    header = upload.read(8)
+    upload.seek(0)
+    return any(header.startswith(sig) for sig in _COACH_LICENSE_SIGNATURES)
 
 
 class CoordinatorSignupForm(forms.Form):
@@ -70,6 +88,12 @@ class CoordinatorSignupForm(forms.Form):
             raise forms.ValidationError('Unsupported file type. Use JPG, PNG or PDF.')
         if upload.size > COACH_LICENSE_MAX_BYTES:
             raise forms.ValidationError('The file must be 50 MB or smaller.')
+        # Last line of defence: the bytes must actually be a JPG/PNG/PDF, not
+        # just named like one.
+        if not _has_allowed_signature(upload):
+            raise forms.ValidationError(
+                'That file does not look like a real JPG, PNG or PDF.'
+            )
         return upload
 
     def clean_password1(self):

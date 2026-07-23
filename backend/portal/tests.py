@@ -185,6 +185,39 @@ class CoordinatorSignupTests(TestCase):
         )
 
 
+@override_settings(MEDIA_ROOT=_MEDIA_ROOT, RATELIMIT_ENABLE=True)
+class SignupHardeningTests(TestCase):
+    """Abuse resistance on the public signup (audit finding S3)."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()  # isolate the per-IP counter from other tests
+
+    def test_license_rejects_forged_signature(self):
+        # Correct extension AND declared content-type, but the bytes are HTML —
+        # exactly the polyglot the extension/content-type checks alone accept.
+        forged = SimpleUploadedFile(
+            'license.pdf', b'<html><script>alert(1)</script></html>',
+            content_type='application/pdf',
+        )
+        resp = self.client.post(reverse('portal:signup'), _signup_data(
+            email='forge@club.test', club_name='Forge FC', coach_license=forged,
+        ))
+        self.assertEqual(resp.status_code, 200)  # re-rendered with an error
+        self.assertFalse(Club.objects.filter(name='Forge FC').exists())
+
+    def test_signup_is_rate_limited_per_ip(self):
+        # The limiter runs before the form, so even invalid POSTs are counted:
+        # five are allowed through, the sixth is throttled with 429.
+        for _ in range(5):
+            self.assertEqual(
+                self.client.post(reverse('portal:signup'), {}).status_code, 200
+            )
+        self.assertEqual(
+            self.client.post(reverse('portal:signup'), {}).status_code, 429
+        )
+
+
 class SchoolStaffGatingTests(TestCase):
     """School staff exist only for school-affiliated clubs."""
 

@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -55,6 +56,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    # Brute-force / credential-stuffing protection for the session logins
+    # (/portal/login/ and /admin/). Inert for the Firebase API, which Firebase
+    # rate-limits itself. See AXES_* below (audit finding S1).
+    'axes',
     'accounts',
     'academy',
     'console',
@@ -72,6 +77,17 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Strict Content-Security-Policy + security headers for the /portal/ pages.
     'portal.middleware.PortalSecurityHeadersMiddleware',
+    # django-axes must be the LAST middleware so it sees the resolved user.
+    'axes.middleware.AxesMiddleware',
+]
+
+# django-axes plugs in ahead of the normal ModelBackend so a locked-out
+# (username, IP) pair is rejected before any password is even checked. The
+# standalone backend does not authenticate itself — it only gates — so the
+# regular ModelBackend still does the real login.
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -216,6 +232,41 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+# Cache. LocMemCache needs no external service, so a fresh clone and the test
+# suite work with zero setup. It is per-process, so a multi-worker deployment
+# should point this at a shared backend (Redis/Memcached) — otherwise the
+# axes lockout counters, the signup rate limiter, and the read-revocation
+# window below are only consistent within a single worker.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'footpath-local',
+    }
+}
+
+# django-axes (audit finding S1) — lock out brute-force / credential-stuffing
+# against the Django session logins.
+#   * Disabled under `manage.py test` so the suite's repeated logins don't trip
+#     the limiter (the threat model is production traffic, not the tests).
+#   * Locks on the (username, IP) pair, not username alone, so an attacker
+#     cannot lock a legitimate user out of their account just by guessing their
+#     email (account-lockout denial of service).
+#   * A successful login clears the counter for that pair.
+AXES_ENABLED = not TESTING
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=30)
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
+AXES_RESET_ON_SUCCESS = True
+# Behind a TLS-terminating proxy in production, tell axes how many proxies sit
+# in front so it reads the real client IP from X-Forwarded-For rather than the
+# proxy's. Left at 0 for local development (no proxy).
+AXES_IPWARE_PROXY_COUNT = int(os.environ.get('AXES_PROXY_COUNT', '0'))
+
+# Cache-backed rate limiting for the public, unauthenticated portal endpoints
+# (portal.ratelimit — audit finding S3). Off during tests so unrelated suites
+# that post repeatedly are not throttled.
+RATELIMIT_ENABLE = not TESTING
 
 # Production security hardening (audit finding F6). Applied only when DEBUG is
 # off so local HTTP development is unaffected. `manage.py check --deploy` should
