@@ -4,9 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
-import 'package:footpath_cebu/presentation/providers/auth_controllers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
+import 'package:footpath_cebu/presentation/screens/change_password_screen.dart';
 import 'package:footpath_cebu/presentation/screens/dispute_list_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
@@ -58,29 +58,8 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
     );
   }
 
-  Future<void> _changePassword() async {
-    final ok = await ref
-        .read(passwordResetControllerProvider.notifier)
-        .send(widget.profile.email);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          ok
-              ? 'Password reset email sent to ${widget.profile.email}.'
-              : friendlyErrorMessage(
-                  ref.read(passwordResetControllerProvider).error,
-                  'Could not send the reset email. Please try again.',
-                ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isSendingReset =
-        ref.watch(passwordResetControllerProvider).isLoading;
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       body: RefreshIndicator(
@@ -116,15 +95,14 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
               child: ListTile(
                 leading: const Icon(Icons.lock_reset_outlined),
                 title: const Text('Change password'),
-                subtitle: const Text('Emails you a reset link'),
-                trailing: isSendingReset
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.chevron_right),
-                onTap: isSendingReset ? null : _changePassword,
+                subtitle: const Text('Requires your current password'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        ChangePasswordScreen(email: widget.profile.email),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 20),

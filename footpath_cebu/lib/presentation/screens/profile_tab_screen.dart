@@ -5,6 +5,7 @@ import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/presentation/screens/change_password_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
@@ -84,6 +85,24 @@ class ProfileTabScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
+          Text('Account', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          // Acts on whoever is signed in (player or guardian), like Log out
+          // below — not on the viewed player.
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.lock_reset_outlined),
+              title: const Text('Change password'),
+              subtitle: const Text('Requires your current password'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const ChangePasswordScreen(),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(

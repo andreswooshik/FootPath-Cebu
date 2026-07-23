@@ -59,6 +59,18 @@ class MockAuthRepository implements AuthRepository {
   Future<void> sendPasswordResetEmail({required String email}) async {
     await Future.delayed(const Duration(milliseconds: 500));
   }
+
+  @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 500));
+    // Every mock account signs in with the shared demo password.
+    if (currentPassword != 'demo123') {
+      throw AuthException('Current password is incorrect.');
+    }
+  }
 }
 
 extension on String {

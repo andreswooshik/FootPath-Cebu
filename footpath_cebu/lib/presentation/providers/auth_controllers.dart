@@ -115,3 +115,90 @@ final passwordResetControllerProvider =
     AsyncNotifierProvider.autoDispose<PasswordResetController, void>(
   PasswordResetController.new,
 );
+
+/// What the change-password form is doing right now. Immutable, same
+/// transition discipline as [LoginState].
+class ChangePasswordState {
+  const ChangePasswordState({
+    this.isSaving = false,
+    this.showPasswords = false,
+    this.error,
+  });
+
+  final bool isSaving;
+  final bool showPasswords;
+  final String? error;
+}
+
+/// Validates and submits a password change. The View only renders
+/// [ChangePasswordState] and forwards the three field values here.
+class ChangePasswordController extends Notifier<ChangePasswordState> {
+  /// Stricter than Firebase's 6-char minimum; admins issue 12-char temp
+  /// passwords, so users should not downgrade to something trivial.
+  static const minPasswordLength = 8;
+
+  @override
+  ChangePasswordState build() => const ChangePasswordState();
+
+  void togglePasswordVisibility() =>
+      state = _next(showPasswords: !state.showPasswords, error: state.error);
+
+  /// Returns true when the password was changed, so the View can confirm
+  /// and close.
+  Future<bool> submit({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final validationError =
+        _validate(currentPassword, newPassword, confirmPassword);
+    if (validationError != null) {
+      state = _next(error: validationError);
+      return false;
+    }
+
+    state = _next(isSaving: true);
+    try {
+      await ref.read(changePasswordProvider)(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      state = _next();
+      return true;
+    } on AuthException catch (e) {
+      state = _next(error: e.message);
+    } catch (_) {
+      state = _next(error: 'Could not change password. Is the server running?');
+    }
+    return false;
+  }
+
+  /// The form rules, kept here (not in the View) so they are unit-testable.
+  String? _validate(String current, String next, String confirm) {
+    if (current.isEmpty) return 'Enter your current password.';
+    if (next.length < minPasswordLength) {
+      return 'New password must be at least $minPasswordLength characters.';
+    }
+    if (next == current) {
+      return 'New password must be different from your current password.';
+    }
+    if (next != confirm) return 'New passwords do not match.';
+    return null;
+  }
+
+  ChangePasswordState _next({
+    bool isSaving = false,
+    bool? showPasswords,
+    String? error,
+  }) =>
+      ChangePasswordState(
+        isSaving: isSaving,
+        showPasswords: showPasswords ?? state.showPasswords,
+        error: error,
+      );
+}
+
+final changePasswordControllerProvider = NotifierProvider.autoDispose<
+    ChangePasswordController, ChangePasswordState>(
+  ChangePasswordController.new,
+);

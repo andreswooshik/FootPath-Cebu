@@ -62,6 +62,45 @@ class FirebaseAuthRepository implements AuthRepository {
     }
   }
 
+  @override
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) {
+      throw AuthException('Your session has expired. Please sign in again.');
+    }
+
+    // Firebase requires a recent sign-in before sensitive changes; proving
+    // the current password satisfies that and stops someone with a borrowed
+    // unlocked phone from silently taking over the account.
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(
+          email: user.email!,
+          password: currentPassword,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        // The generic mapping says "Incorrect email or password", which is
+        // misleading here — only the current password can be wrong.
+        case 'invalid-credential':
+        case 'wrong-password':
+          throw AuthException('Current password is incorrect.');
+        default:
+          throw AuthException(_friendlyAuthMessage(e));
+      }
+    }
+
+    try {
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendlyAuthMessage(e));
+    }
+  }
+
   /// Maps Firebase error codes to user-facing copy. Lives in the data layer so
   /// the presentation layer depends only on [AuthException].
   String _friendlyAuthMessage(FirebaseAuthException e) {
@@ -78,6 +117,10 @@ class FirebaseAuthRepository implements AuthRepository {
         return 'Too many attempts. Try again later.';
       case 'network-request-failed':
         return 'Network error. Check your connection.';
+      case 'weak-password':
+        return 'New password is too weak. Use at least 8 characters.';
+      case 'requires-recent-login':
+        return 'For security, please sign out, sign in again, and retry.';
       default:
         return 'Sign-in failed (${e.code}).';
     }
