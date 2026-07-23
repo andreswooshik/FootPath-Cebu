@@ -25,7 +25,20 @@ class UserSerializer(serializers.ModelSerializer):
             'last_name',
             'role',
             'role_display',
+            'is_active',
         ]
+
+
+class AdminUpdateUserSerializer(serializers.Serializer):
+    """PATCH /api/admin/users/<pk>/ — post-creation lifecycle: switch the role
+    or (de)activate. Both optional; an omitted field stays untouched. The
+    role/auth-mode rules live in accounts.services.change_role."""
+
+    role = serializers.ChoiceField(
+        choices=[Roles.COACH, Roles.SCHOOL_STAFF, Roles.GUARDIAN],
+        required=False,
+    )
+    is_active = serializers.BooleanField(required=False)
 
 
 class AdminCreateUserSerializer(serializers.Serializer):

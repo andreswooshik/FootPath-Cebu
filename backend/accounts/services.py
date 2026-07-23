@@ -3,7 +3,7 @@ from django.utils.crypto import get_random_string
 from firebase_admin import auth as firebase_auth
 
 from .firebase import ensure_initialized
-from .models import User
+from .models import Roles, User
 
 # Excludes visually-ambiguous characters (0/O, 1/l/I) for readability when an
 # admin has to relay this password to someone by hand.
@@ -93,6 +93,64 @@ def provision_user(*, email, first_name, last_name, role, club=None):
         else 'Existing Firebase account linked; its current password was left unchanged.'
     )
     return user, temp_password, note
+
+
+# Roles an account may be switched between after creation. PLAYER is excluded
+# (a player is created together with their profile by a dedicated flow, and
+# the profile depends on the role) and COORDINATOR is excluded (a coordinator
+# owns their club).
+SWITCHABLE_ROLES = (Roles.COACH, Roles.SCHOOL_STAFF, Roles.GUARDIAN)
+
+
+def change_role(user, new_role):
+    """Switch `user` to `new_role`, handling the auth-mode change.
+
+    School Staff sign in with a Django password on the web portal; coaches and
+    guardians with Firebase in the app. Crossing that line issues the
+    credential the new surface needs. Returns (temp_password_or_None, note) —
+    the temp password, when present, is relayed once by the admin.
+    """
+    if user.is_superuser or user.role == Roles.ADMIN:
+        raise ProvisioningError('Admin accounts cannot be changed here.')
+    if user.role == Roles.PLAYER or hasattr(user, 'player_profile'):
+        raise ProvisioningError(
+            'Player accounts keep the PLAYER role — their profile depends on it.'
+        )
+    if user.role == Roles.COORDINATOR:
+        raise ProvisioningError(
+            'A coordinator owns their club and cannot change role.'
+        )
+    if new_role not in SWITCHABLE_ROLES:
+        raise ProvisioningError(f'Accounts cannot be switched to {new_role}.')
+    if (
+        user.role == Roles.GUARDIAN
+        and new_role != Roles.GUARDIAN
+        and user.guardian_links.exists()
+    ):
+        raise ProvisioningError(
+            "Remove this guardian's player links before changing their role."
+        )
+
+    temp_password = None
+    note = ''
+    if new_role == Roles.SCHOOL_STAFF and user.role != Roles.SCHOOL_STAFF:
+        # Firebase app user → web user: issue a Django session password.
+        temp_password = get_random_string(12, allowed_chars=_PASSWORD_CHARS)
+        user.set_password(temp_password)
+        note = 'School Staff sign in on the web portal with this password.'
+    elif user.role == Roles.SCHOOL_STAFF and new_role != Roles.SCHOOL_STAFF:
+        # Web user → Firebase app user: ensure a Firebase identity exists
+        # (marks the Django password unusable).
+        temp_password = link_or_create_firebase_user(user)
+        note = (
+            'They sign in to the app with this new password.'
+            if temp_password
+            else 'Their existing app (Firebase) password still works.'
+        )
+
+    user.role = new_role
+    user.save()
+    return temp_password, note
 
 
 def provision_web_user(

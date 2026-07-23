@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import ValidationError
@@ -9,10 +10,11 @@ from .models import GuardianLink, Roles, User
 from .permissions import IsAdmin
 from .serializers import (
     AdminCreateUserSerializer,
+    AdminUpdateUserSerializer,
     GuardianLinkSerializer,
     UserSerializer,
 )
-from .services import ProvisioningError, provision_user
+from .services import ProvisioningError, change_role, provision_user
 
 
 class MeView(APIView):
@@ -62,6 +64,47 @@ class AdminUserListCreateView(generics.ListCreateAPIView):
                 'note': note,
             },
             status=201,
+        )
+
+
+class AdminUserDetailView(APIView):
+    """PATCH /api/admin/users/<pk>/ — post-creation account lifecycle.
+
+    Accepts `role` (between Coach / School Staff / Guardian; the switch rules
+    and auth-mode handling live in services.change_role) and/or `is_active`
+    (deactivation locks the account out everywhere at once: the API rejects
+    inactive users at authentication, and Django's ModelBackend refuses their
+    portal login). Admin accounts are out of reach entirely.
+    """
+
+    permission_classes = [IsAdmin]
+
+    def patch(self, request, pk):
+        user = get_object_or_404(
+            User.objects.exclude(role=Roles.ADMIN).exclude(is_superuser=True),
+            pk=pk,
+        )
+        serializer = AdminUpdateUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        temp_password = None
+        note = None
+        if 'role' in data and data['role'] != user.role:
+            try:
+                temp_password, note = change_role(user, data['role'])
+            except ProvisioningError as exc:
+                raise ValidationError(str(exc))
+        if 'is_active' in data:
+            user.is_active = data['is_active']
+            user.save(update_fields=['is_active'])
+
+        return Response(
+            {
+                'user': UserSerializer(user).data,
+                'temporary_password': temp_password,
+                'note': note,
+            }
         )
 
 

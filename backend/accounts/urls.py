@@ -11,6 +11,11 @@ urlpatterns = [
         name='admin-users',
     ),
     path(
+        'admin/users/<int:pk>/',
+        views.AdminUserDetailView.as_view(),
+        name='admin-user-detail',
+    ),
+    path(
         'admin/guardian-links/',
         views.AdminGuardianLinkListCreateView.as_view(),
         name='admin-guardian-links',

@@ -106,6 +106,9 @@ async function loadUsers() {
     }
     tr.appendChild(photoCell);
 
+    tr.appendChild(buildUserActions(u));
+    if (!u.is_active) tr.style.opacity = '0.5';
+
     tbody.appendChild(tr);
 
     if (u.role === 'GUARDIAN') {
@@ -116,6 +119,71 @@ async function loadUsers() {
       playerSelect.add(new Option(u.email, u.id));
     }
   }
+}
+
+// Role switcher + activate/deactivate for one user row. Role changes are
+// limited to Coach / School Staff / Guardian — the server enforces the same
+// rule (players and coordinators are structurally tied to their role).
+const SWITCHABLE_ROLES = [
+  ['COACH', 'Coach'],
+  ['SCHOOL_STAFF', 'School Staff'],
+  ['GUARDIAN', 'Guardian'],
+];
+
+async function patchUser(id, payload) {
+  const result = await apiFetch(`/api/admin/users/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  if (result.temporary_password) {
+    alert(
+      `One-time password: ${result.temporary_password}\n` +
+      (result.note || '')
+    );
+  }
+  await loadUsers();
+}
+
+function buildUserActions(user) {
+  const cell = document.createElement('td');
+  const switchable = SWITCHABLE_ROLES.some(([value]) => value === user.role);
+
+  if (switchable) {
+    const select = document.createElement('select');
+    for (const [value, label] of SWITCHABLE_ROLES) {
+      select.add(new Option(label, value, false, value === user.role));
+    }
+    select.addEventListener('change', async () => {
+      if (select.value === user.role) return;
+      if (!confirm(`Change ${user.email} to ${select.value}?`)) {
+        select.value = user.role;
+        return;
+      }
+      try {
+        await patchUser(user.id, { role: select.value });
+      } catch (e) {
+        alert(e.message || e);
+        select.value = user.role;
+      }
+    });
+    cell.appendChild(select);
+  }
+
+  const toggle = document.createElement('button');
+  toggle.textContent = user.is_active ? 'Deactivate' : 'Activate';
+  if (user.is_active) toggle.className = 'secondary';
+  toggle.style.marginTop = '4px';
+  toggle.addEventListener('click', async () => {
+    const verb = user.is_active ? 'Deactivate' : 'Activate';
+    if (!confirm(`${verb} ${user.email}?`)) return;
+    try {
+      await patchUser(user.id, { is_active: !user.is_active });
+    } catch (e) {
+      alert(e.message || e);
+    }
+  });
+  cell.appendChild(toggle);
+  return cell;
 }
 
 // A file picker + Upload button that POSTs a photo to Supabase Storage (via the
