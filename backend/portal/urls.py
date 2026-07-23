@@ -31,5 +31,15 @@ urlpatterns = [
     path('players/', views.players, name='players'),
     path('coaches/', views.coaches, name='coaches'),
     path('guardians/', views.guardians, name='guardians'),
+    path(
+        'guardians/links/<int:pk>/remove/',
+        views.guardian_unlink,
+        name='guardian-unlink',
+    ),
+    path(
+        'players/<int:player_id>/photo/',
+        views.player_photo,
+        name='player-photo',
+    ),
     path('eligibility/', views.staff_eligibility, name='staff-eligibility'),
 ]

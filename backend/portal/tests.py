@@ -402,6 +402,101 @@ class StaffEligibilityTests(TestCase):
         self.assertEqual(other_profile.eligibility, Eligibility.PENDING)
 
 
+class GuardianLinkManagementTests(TestCase):
+    """Coordinators add/remove guardian↔player links after creation."""
+
+    def setUp(self):
+        self.coord, self.club = make_coordinator()
+        self.guardian = User.objects.create(
+            username='g@club.test', email='g@club.test',
+            role=Roles.GUARDIAN, club=self.club, firebase_uid='uid-g',
+        )
+        self.player, _ = make_player(self.club, 'linkme@club.test')
+        self.client.force_login(self.coord)
+
+    def test_coordinator_links_and_unlinks(self):
+        resp = self.client.post(reverse('portal:guardians'), {
+            'guardian': self.guardian.pk, 'player': self.player.pk,
+        })
+        self.assertRedirects(resp, reverse('portal:guardians'))
+        link = GuardianLink.objects.get(
+            guardian=self.guardian, player=self.player
+        )
+
+        resp = self.client.post(
+            reverse('portal:guardian-unlink', args=[link.pk])
+        )
+        self.assertRedirects(resp, reverse('portal:guardians'))
+        self.assertFalse(GuardianLink.objects.filter(pk=link.pk).exists())
+
+    def test_cross_club_accounts_are_not_offered(self):
+        other_club = Club.objects.create(name='X FC', slug='x-fc')
+        outsider, _ = make_player(other_club, 'outsider@club.test')
+        resp = self.client.post(reverse('portal:guardians'), {
+            'guardian': self.guardian.pk, 'player': outsider.pk,
+        })
+        # Not in the club-scoped choices -> form error, no link.
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(GuardianLink.objects.count(), 0)
+
+    def test_cannot_unlink_another_clubs_link(self):
+        other_club = Club.objects.create(name='Y FC', slug='y-fc')
+        other_guardian = User.objects.create(
+            username='og@club.test', email='og@club.test',
+            role=Roles.GUARDIAN, club=other_club, firebase_uid='uid-og',
+        )
+        other_player, _ = make_player(other_club, 'op@club.test')
+        link = GuardianLink.objects.create(
+            guardian=other_guardian, player=other_player
+        )
+        resp = self.client.post(
+            reverse('portal:guardian-unlink', args=[link.pk])
+        )
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(GuardianLink.objects.filter(pk=link.pk).exists())
+
+
+class PlayerPhotoUploadTests(TestCase):
+    def setUp(self):
+        self.coord, self.club = make_coordinator()
+        self.player, self.profile = make_player(self.club, 'photo@club.test')
+        self.client.force_login(self.coord)
+
+    def _photo(self, name='p.jpg', content_type='image/jpeg', size=100):
+        return SimpleUploadedFile(name, b'x' * size, content_type=content_type)
+
+    @patch('portal.views.upload_photo', return_value='player-photos/1.jpg')
+    def test_coordinator_uploads_a_photo(self, mock_upload):
+        resp = self.client.post(
+            reverse('portal:player-photo', args=[self.player.pk]),
+            {'photo': self._photo()},
+        )
+        self.assertRedirects(resp, reverse('portal:players'))
+        mock_upload.assert_called_once()
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.photo_path, 'player-photos/1.jpg')
+
+    @patch('portal.views.upload_photo')
+    def test_non_image_is_rejected(self, mock_upload):
+        resp = self.client.post(
+            reverse('portal:player-photo', args=[self.player.pk]),
+            {'photo': self._photo('x.pdf', content_type='application/pdf')},
+        )
+        self.assertRedirects(resp, reverse('portal:players'))
+        mock_upload.assert_not_called()
+
+    @patch('portal.views.upload_photo')
+    def test_other_clubs_player_is_404(self, mock_upload):
+        other_club = Club.objects.create(name='Z FC', slug='z-fc')
+        outsider, _ = make_player(other_club, 'zp@club.test')
+        resp = self.client.post(
+            reverse('portal:player-photo', args=[outsider.pk]),
+            {'photo': self._photo()},
+        )
+        self.assertEqual(resp.status_code, 404)
+        mock_upload.assert_not_called()
+
+
 class PasswordChangeTests(TestCase):
     """Portal users (session auth) can rotate their own password — School
     Staff otherwise keep their relayed one-time password forever."""

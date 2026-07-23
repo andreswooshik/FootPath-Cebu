@@ -141,6 +141,22 @@ def set_player_eligibility(*, staff, player_profile, new_status):
     return player_profile
 
 
+def link_guardian(*, coordinator, guardian, player):
+    """Link a guardian to a player after creation — both must be in the
+    coordinator's club (the forms scope their pickers; this is defence in
+    depth). Returns (link, created)."""
+    _assert_same_club(guardian, coordinator.club)
+    _assert_same_club(player, coordinator.club)
+    return GuardianLink.objects.get_or_create(guardian=guardian, player=player)
+
+
+def unlink_guardian(*, coordinator, link):
+    """Remove a guardian↔player link in the coordinator's club."""
+    if link.guardian.club_id != coordinator.club_id:
+        raise PermissionDenied('That link is not in your club.')
+    link.delete()
+
+
 def _assert_same_club(user, club):
     if user.club_id != club.id:
         raise PermissionDenied('That account is not in your club.')

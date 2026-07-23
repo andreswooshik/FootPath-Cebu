@@ -11,8 +11,11 @@ from django.contrib.messages.views import SuccessMessageMixin
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 
+from django.shortcuts import get_object_or_404
+
 from academy.models import AuditLog, EligibilityHistory, PlayerProfile
-from accounts.models import Roles, User
+from academy.storage import upload_photo
+from accounts.models import GuardianLink, Roles, User
 from accounts.services import ProvisioningError
 
 from .decorators import portal_role_required
@@ -23,11 +26,14 @@ from .forms import (
     CreatePlayerForm,
     CreateStaffForm,
     EligibilityUpdateForm,
+    GuardianLinkForm,
 )
 from .services import (
     create_club_account,
+    link_guardian,
     register_coordinator,
     set_player_eligibility,
+    unlink_guardian,
 )
 
 _ACCOUNT_FORMS = {
@@ -184,6 +190,26 @@ def coaches(request):
 @portal_role_required(Roles.COORDINATOR)
 def guardians(request):
     club = request.user.club
+    link_form = GuardianLinkForm(request.POST or None, club=club)
+    if request.method == 'POST' and link_form.is_valid():
+        link, created = link_guardian(
+            coordinator=request.user,
+            guardian=link_form.cleaned_data['guardian'],
+            player=link_form.cleaned_data['player'],
+        )
+        if created:
+            AuditLog.record(
+                request.user, 'guardian_link.created',
+                target=f'{link.guardian.email} → {link.player.email}',
+            )
+            messages.success(
+                request,
+                f'{link.guardian.email} linked to {link.player.email}.',
+            )
+        else:
+            messages.info(request, 'That link already exists.')
+        return redirect('portal:guardians')
+
     guardian_list = (
         User.objects.filter(club=club, role=Roles.GUARDIAN)
         .prefetch_related('guardian_links__player')
@@ -191,8 +217,61 @@ def guardians(request):
     )
     return render(
         request, 'portal/guardians.html',
-        {'guardian_list': guardian_list},
+        {'guardian_list': guardian_list, 'link_form': link_form},
     )
+
+
+@portal_role_required(Roles.COORDINATOR)
+def guardian_unlink(request, pk):
+    if request.method != 'POST':
+        return redirect('portal:guardians')
+    link = get_object_or_404(
+        GuardianLink.objects.select_related('guardian', 'player'), pk=pk
+    )
+    target = f'{link.guardian.email} → {link.player.email}'
+    unlink_guardian(coordinator=request.user, link=link)
+    AuditLog.record(request.user, 'guardian_link.removed', target=target)
+    messages.success(request, f'Link removed: {target}.')
+    return redirect('portal:guardians')
+
+
+# Portal photo guardrails — images only, far smaller than the license cap.
+_PHOTO_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+_PHOTO_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
+
+
+@portal_role_required(Roles.COORDINATOR)
+def player_photo(request, player_id):
+    """POST a roster photo for one of the club's players (stored via the same
+    Supabase path the admin console uses)."""
+    if request.method != 'POST':
+        return redirect('portal:players')
+    profile = get_object_or_404(
+        PlayerProfile.objects.select_related('user'),
+        user_id=player_id, user__club=request.user.club,
+    )
+    upload = request.FILES.get('photo')
+    if upload is None:
+        messages.error(request, 'Choose a photo file first.')
+    elif upload.size > _PHOTO_MAX_BYTES:
+        messages.error(request, 'The photo must be 10 MB or smaller.')
+    elif upload.content_type not in _PHOTO_TYPES:
+        messages.error(request, 'Only JPG, PNG or WebP photos are accepted.')
+    else:
+        try:
+            path = upload_photo(
+                player_id, upload.read(),
+                content_type=upload.content_type,
+            )
+        except RuntimeError as exc:
+            messages.error(request, str(exc))
+        else:
+            profile.photo_path = path
+            profile.save(update_fields=['photo_path'])
+            messages.success(
+                request, f'Photo updated for {profile.user.email}.'
+            )
+    return redirect('portal:players')
 
 
 @portal_role_required(Roles.SCHOOL_STAFF)

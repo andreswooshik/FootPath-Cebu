@@ -17,6 +17,7 @@
         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age Tier</th>
         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Eligibility</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
       </tr>
     </thead>
     <tbody>
@@ -45,6 +46,20 @@
             {{ elig }}
           </span>
           {% endwith %}
+        </td>
+        <td class="px-6 py-4 text-sm">
+          <form method="post" action="{% url 'portal:player-photo' profile.user_id %}"
+                enctype="multipart/form-data" class="flex items-center gap-2">
+            {% csrf_token %}
+            <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required
+                   title="Choose a photo (JPG, PNG or WebP, max 10 MB)"
+                   aria-label="Photo for {{ profile.user.email }}"
+                   class="text-xs text-gray-500 w-40">
+            <button type="submit"
+                    class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg px-3 py-1.5 font-medium transition-colors">
+              {% if profile.photo_path %}Replace{% else %}Upload{% endif %}
+            </button>
+          </form>
         </td>
       </tr>
       {% endfor %}

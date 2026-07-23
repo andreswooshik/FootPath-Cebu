@@ -172,6 +172,26 @@ class EligibilityUpdateForm(forms.Form):
         self.fields['player'].label_from_instance = lambda p: _user_label(p.user)
 
 
+class GuardianLinkForm(forms.Form):
+    """Link an existing guardian to an existing player, both pickers scoped
+    to the coordinator's club."""
+
+    guardian = forms.ModelChoiceField(queryset=User.objects.none())
+    player = forms.ModelChoiceField(queryset=User.objects.none())
+
+    def __init__(self, *args, club=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if club is not None:
+            self.fields['guardian'].queryset = User.objects.filter(
+                role=Roles.GUARDIAN, club=club
+            ).order_by('last_name', 'first_name')
+            self.fields['player'].queryset = User.objects.filter(
+                role=Roles.PLAYER, club=club
+            ).order_by('last_name', 'first_name')
+        self.fields['guardian'].label_from_instance = _user_label
+        self.fields['player'].label_from_instance = _user_label
+
+
 def _user_label(user):
     name = f'{user.first_name} {user.last_name}'.strip()
     return f'{name} ({user.email})' if name else user.email

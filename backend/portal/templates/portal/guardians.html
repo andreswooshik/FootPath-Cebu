@@ -8,6 +8,28 @@
   👨‍👩‍👦 {{ guardian_list|length }} guardian{{ guardian_list|length|pluralize }}
 </span>
 
+<div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+  <h2 class="text-base font-semibold text-gray-900 mb-4">Link a Guardian to a Player</h2>
+  <form method="post" novalidate class="flex gap-4 items-end flex-wrap">
+    {% csrf_token %}
+    {{ link_form.non_field_errors }}
+    <div class="flex-1 min-w-[200px]">
+      {{ link_form.guardian.label_tag }}
+      {{ link_form.guardian }}
+      {% for e in link_form.guardian.errors %}<p class="errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <div class="flex-1 min-w-[200px]">
+      {{ link_form.player.label_tag }}
+      {{ link_form.player }}
+      {% for e in link_form.player.errors %}<p class="errorlist">{{ e }}</p>{% endfor %}
+    </div>
+    <button type="submit"
+            class="bg-[#16C172] text-white rounded-lg px-5 py-2.5 font-medium hover:bg-[#059669] transition-colors">
+      Link
+    </button>
+  </form>
+</div>
+
 {% if guardian_list %}
 <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
   <table class="w-full">
@@ -35,8 +57,14 @@
           {% with links=guardian.guardian_links.all %}
             {% if links %}
               {% for link in links %}
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 mr-1 mb-1">
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 mr-1 mb-1">
                   {{ link.player.get_full_name|default:link.player.email }}
+                  <form method="post" action="{% url 'portal:guardian-unlink' link.pk %}" class="inline"
+                        onsubmit="return confirm('Remove this guardian link?');">
+                    {% csrf_token %}
+                    <button type="submit" class="text-gray-400 hover:text-red-600 font-bold leading-none"
+                            title="Remove link">&times;</button>
+                  </form>
                 </span>
               {% endfor %}
             {% else %}
