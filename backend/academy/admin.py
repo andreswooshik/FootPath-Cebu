@@ -2,12 +2,34 @@ from django.contrib import admin
 
 from .models import (
     AgeTierSetting,
+    AuditLog,
     Dispute,
     DisputeResponse,
     EligibilityHistory,
     InjuryRecord,
     PlayerEligibility,
 )
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    """Read-only trail of sensitive changes — append-only by design, so no
+    add/change/delete from the admin either (same stance as
+    EligibilityHistoryAdmin)."""
+
+    list_display = ('created_at', 'action', 'actor', 'target', 'detail')
+    list_filter = ('action',)
+    search_fields = ('target', 'detail', 'actor__email')
+    date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(AgeTierSetting)

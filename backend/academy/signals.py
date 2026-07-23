@@ -10,7 +10,7 @@ from django.db import transaction
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
-from .models import EligibilityHistory, PlayerProfile
+from .models import AuditLog, EligibilityHistory, PlayerProfile
 from .notifications import notify_eligibility_changed
 
 
@@ -41,6 +41,14 @@ def fire_eligibility_changed(sender, instance, created, **kwargs):
         changed_by=getattr(instance, '_changed_by', None),
         old_status=previous or '',
         new_status=instance.eligibility,
+    )
+    # Mirrored into the general audit log so one place holds every sensitive
+    # change; EligibilityHistory stays the family-facing, object-scoped trail.
+    AuditLog.record(
+        getattr(instance, '_changed_by', None),
+        'eligibility.changed',
+        target=instance.user.email,
+        detail=f'{previous} → {instance.eligibility}',
     )
     # Push only after the row is durably committed; a rolled-back change must
     # not notify anyone.

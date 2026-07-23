@@ -450,6 +450,50 @@ class DisputeResponse(models.Model):
         return f'Re: {self.dispute.summary} ({self.created_at:%Y-%m-%d})'
 
 
+class AuditLog(models.Model):
+    """Append-only record of sensitive changes across the system.
+
+    One row per change, written by the view/service performing it via
+    [AuditLog.record]. Complements the two purpose-built trails (the dispute
+    response thread and EligibilityHistory) with everything else: account
+    lifecycle, guardian links, session scheduling, assessments. Never updated
+    or deleted — the admin surface blocks all three verbs.
+    """
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='audit_entries',
+    )
+    # Dotted event name, e.g. 'session.cancelled', 'account.role_changed'.
+    action = models.CharField(max_length=40)
+    # Human-readable subject ("who/what it happened to"), usually an email or
+    # a session title — denormalised on purpose so the row still reads after
+    # the target is deleted.
+    target = models.CharField(max_length=200, blank=True)
+    detail = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.action} · {self.target} · {self.created_at:%Y-%m-%d %H:%M}'
+
+    @classmethod
+    def record(cls, actor, action, target='', detail=''):
+        """Write one entry. Truncates instead of raising — an audit write must
+        never fail the change it documents."""
+        return cls.objects.create(
+            actor=actor if getattr(actor, 'pk', None) else None,
+            action=action[:40],
+            target=str(target)[:200],
+            detail=str(detail)[:500],
+        )
+
+
 class DeviceToken(models.Model):
     """An FCM registration token for a user's device. Used to fan out push
     notifications (M3). A user may have several (multiple devices)."""

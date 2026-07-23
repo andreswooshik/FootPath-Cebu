@@ -6,6 +6,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from academy.models import AuditLog
+
 from .models import GuardianLink, Roles, User
 from .permissions import IsAdmin
 from .serializers import (
@@ -57,6 +59,9 @@ class AdminUserListCreateView(generics.ListCreateAPIView):
             user, temp_password, note = provision_user(**serializer.validated_data)
         except ProvisioningError as exc:
             raise ValidationError(str(exc))
+        AuditLog.record(
+            request.user, 'account.created', target=user.email, detail=user.role,
+        )
         return Response(
             {
                 'user': UserSerializer(user).data,
@@ -91,13 +96,24 @@ class AdminUserDetailView(APIView):
         temp_password = None
         note = None
         if 'role' in data and data['role'] != user.role:
+            previous_role = user.role
             try:
                 temp_password, note = change_role(user, data['role'])
             except ProvisioningError as exc:
                 raise ValidationError(str(exc))
-        if 'is_active' in data:
+            AuditLog.record(
+                request.user, 'account.role_changed', target=user.email,
+                detail=f'{previous_role} → {user.role}',
+            )
+        if 'is_active' in data and data['is_active'] != user.is_active:
             user.is_active = data['is_active']
             user.save(update_fields=['is_active'])
+            AuditLog.record(
+                request.user,
+                'account.reactivated' if user.is_active
+                else 'account.deactivated',
+                target=user.email,
+            )
 
         return Response(
             {
@@ -115,7 +131,21 @@ class AdminGuardianLinkListCreateView(generics.ListCreateAPIView):
     )
     serializer_class = GuardianLinkSerializer
 
+    def perform_create(self, serializer):
+        link = serializer.save()
+        AuditLog.record(
+            self.request.user, 'guardian_link.created',
+            target=f'{link.guardian.email} → {link.player.email}',
+        )
+
 
 class AdminGuardianLinkDestroyView(generics.DestroyAPIView):
     permission_classes = [IsAdmin]
     queryset = GuardianLink.objects.all()
+
+    def perform_destroy(self, instance):
+        AuditLog.record(
+            self.request.user, 'guardian_link.removed',
+            target=f'{instance.guardian.email} → {instance.player.email}',
+        )
+        instance.delete()

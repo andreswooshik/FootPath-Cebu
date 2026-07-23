@@ -17,6 +17,7 @@ from .models import (
     AgeTier,
     AgeTierSetting,
     Attendance,
+    AuditLog,
     AttendanceStatus,
     ConfirmationStatus,
     DeviceToken,
@@ -513,6 +514,49 @@ class AgeTierSettingsTests(APITestCase):
         self.assertEqual(AgeTierSetting.tier_for_age(8), AgeTier.FOUNDATION)
         self.assertEqual(AgeTierSetting.tier_for_age(14), AgeTier.DEVELOPMENT)
         self.assertEqual(AgeTierSetting.tier_for_age(19), AgeTier.PATHWAY)
+
+
+class AuditLogTests(APITestCase):
+    """The general audit trail (audit F10): sensitive changes each leave one
+    append-only row naming the actor."""
+
+    def setUp(self):
+        self.coach = make_user(Roles.COACH)
+        self.player = make_player('audited@footpathcebu.test')
+
+    def test_assessment_write_is_audited(self):
+        self.client.force_authenticate(self.coach)
+        self.client.put(
+            reverse('player-assessment', args=[self.player.id]),
+            {'ratings': {'pace': 70, 'shooting': 70, 'passing': 70,
+                         'dribbling': 70, 'defending': 70, 'physical': 70}},
+            format='json',
+        )
+        entry = AuditLog.objects.get(action='assessment.saved')
+        self.assertEqual(entry.actor, self.coach)
+        self.assertEqual(entry.target, self.player.email)
+
+    @patch('academy.views.notify_session_cancelled')
+    def test_session_cancellation_is_audited(self, _mock):
+        session = TrainingSession.objects.create(
+            title='Doomed', date=date.today(), age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+        )
+        self.client.force_authenticate(self.coach)
+        self.client.delete(
+            reverse('training-session-detail', args=[session.id])
+        )
+        entry = AuditLog.objects.get(action='session.cancelled')
+        self.assertEqual(entry.target, 'Doomed')
+
+    def test_eligibility_change_is_mirrored_into_the_audit_log(self):
+        profile = self.player.player_profile
+        profile.eligibility = Eligibility.ACADEMIC_WARNING
+        profile._changed_by = self.coach
+        profile.save(update_fields=['eligibility'])
+        entry = AuditLog.objects.get(action='eligibility.changed')
+        self.assertEqual(entry.actor, self.coach)
+        self.assertIn('ACADEMIC_WARNING', entry.detail)
 
 
 class TrainingSessionTests(APITestCase):

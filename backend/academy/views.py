@@ -23,6 +23,7 @@ from accounts.services import ProvisioningError, provision_user
 from .models import (
     AgeTierSetting,
     Attendance,
+    AuditLog,
     ConfirmationStatus,
     DeviceToken,
     Dispute,
@@ -182,6 +183,9 @@ class PlayerAssessmentView(APIView):
         serializer = AssessmentSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        AuditLog.record(
+            request.user, 'assessment.saved', target=profile.user.email
+        )
         # Notify the player + guardians only after the ratings are durably
         # committed (same pattern as session scheduling).
         transaction.on_commit(lambda: notify_assessment_saved(profile))
@@ -208,6 +212,10 @@ class PlayerPositionView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        AuditLog.record(
+            request.user, 'position.changed',
+            target=profile.user.email, detail=profile.position,
+        )
         return Response(PlayerSerializer(profile).data)
 
 
@@ -322,6 +330,10 @@ class TrainingSessionListCreateView(APIView):
         session = serializer.save(
             created_by=request.user, club=request.user.club
         )
+        AuditLog.record(
+            request.user, 'session.scheduled',
+            target=session.title, detail=str(session.date),
+        )
         # Fan out the push only after the row is durably committed.
         transaction.on_commit(lambda: notify_session_scheduled(session))
         return Response(
@@ -352,6 +364,10 @@ class TrainingSessionDetailView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         session = serializer.save()
+        AuditLog.record(
+            request.user, 'session.updated',
+            target=session.title, detail=str(session.date),
+        )
         transaction.on_commit(lambda: notify_session_updated(session))
         return Response(TrainingSessionSerializer(session).data)
 
@@ -360,6 +376,10 @@ class TrainingSessionDetailView(APIView):
         # Sent before the delete: the recipient query needs the row, and the
         # notify helpers never raise into the request path.
         notify_session_cancelled(session)
+        AuditLog.record(
+            request.user, 'session.cancelled',
+            target=session.title, detail=str(session.date),
+        )
         session.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -776,6 +796,9 @@ class AdminCreatePlayerView(APIView):
                     GuardianLink.objects.create(guardian=guardian, player=user)
         except ProvisioningError as exc:
             raise ValidationError(str(exc))
+        AuditLog.record(
+            request.user, 'account.created', target=user.email, detail='PLAYER',
+        )
 
         return Response(
             {

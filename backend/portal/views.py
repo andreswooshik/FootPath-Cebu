@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
-from academy.models import PlayerProfile
+from academy.models import AuditLog, PlayerProfile
 from accounts.models import Roles, User
 from accounts.services import ProvisioningError
 
@@ -109,6 +109,10 @@ def create_account(request):
             except ProvisioningError as exc:
                 messages.error(request, str(exc))
             else:
+                AuditLog.record(
+                    request.user, 'account.created',
+                    target=user.email, detail=user.role,
+                )
                 created = {
                     'email': user.email,
                     'role': user.get_role_display(),

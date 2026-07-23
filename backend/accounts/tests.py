@@ -169,6 +169,25 @@ class AdminUserLifecycleTests(APITestCase):
         )
         self.assertEqual(resp.status_code, 400)
 
+    def test_lifecycle_changes_are_audited(self):
+        from academy.models import AuditLog
+
+        self.client.patch(
+            self._url(self.coach), {'role': Roles.SCHOOL_STAFF}, format='json'
+        )
+        self.client.patch(
+            self._url(self.coach), {'is_active': False}, format='json'
+        )
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action='account.role_changed', actor=self.admin,
+                target=self.coach.email,
+            ).exists()
+        )
+        self.assertTrue(
+            AuditLog.objects.filter(action='account.deactivated').exists()
+        )
+
     def test_admin_accounts_are_out_of_reach(self):
         other_admin = User.objects.create(
             username='root@footpathcebu.test', email='root@footpathcebu.test',
