@@ -369,6 +369,25 @@ class StaffEligibilityTests(TestCase):
         self.assertEqual(history.old_status, Eligibility.PENDING)
         self.assertEqual(history.changed_by, self.staff)  # attributed to staff
 
+    def test_staff_sees_club_history_but_not_other_clubs(self):
+        """The page's Status History section is the staff-facing history view
+        (spec: view eligibility status history of linked players), scoped to
+        the staff member's club like everything else."""
+        self.profile.eligibility = Eligibility.ACADEMIC_WARNING
+        self.profile._changed_by = self.staff
+        self.profile.save(update_fields=['eligibility'])
+
+        other_club = Club.objects.create(name='Hist FC', slug='hist-fc')
+        _u, other_profile = make_player(other_club, 'hist@club.test')
+        other_profile.eligibility = Eligibility.NOT_ELIGIBLE
+        other_profile.save(update_fields=['eligibility'])
+
+        self.client.force_login(self.staff)
+        resp = self.client.get(reverse('portal:staff-eligibility'))
+        self.assertContains(resp, 'Status History')
+        self.assertContains(resp, 'Academic Warning')
+        self.assertNotContains(resp, 'hist@club.test')
+
     def test_staff_cannot_set_eligibility_for_other_club_player(self):
         other_club = Club.objects.create(name='Other FC', slug='other-fc')
         _other_user, other_profile = make_player(other_club, 'other@club.test')

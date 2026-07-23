@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
-from academy.models import AuditLog, PlayerProfile
+from academy.models import AuditLog, EligibilityHistory, PlayerProfile
 from accounts.models import Roles, User
 from accounts.services import ProvisioningError
 
@@ -198,8 +198,15 @@ def staff_eligibility(request):
         .filter(user__club=club)
         .order_by('user__last_name', 'user__first_name')
     )
+    # The club's recent eligibility transitions (spec: staff view the status
+    # history of linked players — the club is the link). Same club-scoping as
+    # the roster; capped so years of history never bloat the page.
+    history = (
+        EligibilityHistory.objects.select_related('player', 'changed_by')
+        .filter(player__club=club)[:50]
+    )
     return render(
         request,
         'portal/staff_eligibility.html',
-        {'form': form, 'roster': roster},
+        {'form': form, 'roster': roster, 'history': history},
     )
