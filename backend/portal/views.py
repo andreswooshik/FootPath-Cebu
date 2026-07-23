@@ -6,7 +6,10 @@ Business rules and tenancy live in `portal.services`; role/auth policy in
 """
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import PasswordChangeView
+from django.contrib.messages.views import SuccessMessageMixin
 from django.shortcuts import redirect, render
+from django.urls import reverse_lazy
 
 from academy.models import AuditLog, EligibilityHistory, PlayerProfile
 from accounts.models import Roles, User
@@ -75,6 +78,20 @@ def signup_done(request):
 @login_required
 def dashboard(request):
     return render(request, 'portal/dashboard.html')
+
+
+class PortalPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
+    """Change the signed-in portal user's password.
+
+    Coordinators arrive with the password they chose at signup, but School
+    Staff arrive with a relayed one-time password — without this page they'd
+    keep it forever (Django admin was the only escape hatch). Session auth
+    only; app roles change theirs through Firebase.
+    """
+
+    template_name = 'portal/password_change.html'
+    success_url = reverse_lazy('portal:dashboard')
+    success_message = 'Your password has been changed.'
 
 
 @portal_role_required(Roles.COORDINATOR)

@@ -22,6 +22,11 @@ urlpatterns = [
         auth_views.LogoutView.as_view(next_page='portal:login'),
         name='logout',
     ),
+    path(
+        'password/',
+        views.PortalPasswordChangeView.as_view(),
+        name='password-change',
+    ),
     path('accounts/new/', views.create_account, name='create-account'),
     path('players/', views.players, name='players'),
     path('coaches/', views.coaches, name='coaches'),

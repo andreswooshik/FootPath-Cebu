@@ -402,6 +402,32 @@ class StaffEligibilityTests(TestCase):
         self.assertEqual(other_profile.eligibility, Eligibility.PENDING)
 
 
+class PasswordChangeTests(TestCase):
+    """Portal users (session auth) can rotate their own password — School
+    Staff otherwise keep their relayed one-time password forever."""
+
+    def test_staff_changes_their_password(self):
+        _coord, club = make_coordinator()
+        staff, old_password = provision_web_user(
+            email='rotate@club.test', first_name='Ro', last_name='Tate',
+            role=Roles.SCHOOL_STAFF, club=club,
+        )
+        self.client.force_login(staff)
+        resp = self.client.post(reverse('portal:password-change'), {
+            'old_password': old_password,
+            'new_password1': 'N3w-Portal-Pass!',
+            'new_password2': 'N3w-Portal-Pass!',
+        })
+        self.assertRedirects(resp, reverse('portal:dashboard'))
+        staff.refresh_from_db()
+        self.assertTrue(staff.check_password('N3w-Portal-Pass!'))
+
+    def test_anonymous_is_redirected_to_login(self):
+        resp = self.client.get(reverse('portal:password-change'))
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn(reverse('portal:login'), resp['Location'])
+
+
 class ApprovalActionTests(TestCase):
     def test_action_activates_only_pending_coordinators(self):
         user, _club = register_coordinator(
