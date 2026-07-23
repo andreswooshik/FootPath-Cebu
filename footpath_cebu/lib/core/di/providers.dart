@@ -4,15 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/data/local/attendance_outbox.dart';
 import 'package:footpath_cebu/data/local/attendance_sync_service.dart';
+import 'package:footpath_cebu/data/repositories/api_age_tier_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_progress_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/firebase_auth_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_age_tier_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_device_repository.dart';
@@ -20,9 +23,11 @@ import 'package:footpath_cebu/data/repositories/mock_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_progress_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/offline_first_attendance_repository.dart';
+import 'package:footpath_cebu/domain/repositories/age_tier_repository.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/device_repository.dart';
@@ -30,9 +35,11 @@ import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 import 'package:footpath_cebu/domain/repositories/eligibility_history_repository.dart';
 import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/repositories/progress_repository.dart';
 import 'package:footpath_cebu/domain/repositories/session_confirmation_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/domain/usecases/confirm_session.dart';
+import 'package:footpath_cebu/domain/usecases/get_age_tier_bands.dart';
 import 'package:footpath_cebu/domain/usecases/delete_injury.dart';
 import 'package:footpath_cebu/domain/usecases/get_disputes.dart';
 import 'package:footpath_cebu/domain/usecases/get_eligibility_history.dart';
@@ -43,6 +50,7 @@ import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_session_confirmations.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
+import 'package:footpath_cebu/domain/usecases/get_squad_progress.dart';
 import 'package:footpath_cebu/domain/usecases/get_training_sessions.dart';
 import 'package:footpath_cebu/domain/usecases/log_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/raise_dispute.dart';
@@ -52,6 +60,7 @@ import 'package:footpath_cebu/domain/usecases/save_injury.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_position.dart';
 import 'package:footpath_cebu/domain/usecases/cancel_training_session.dart';
+import 'package:footpath_cebu/domain/usecases/change_password.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/update_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
@@ -131,6 +140,14 @@ final injuryRepositoryProvider = Provider<InjuryRepository>(
   (ref) => useMockData ? MockInjuryRepository() : ApiInjuryRepository(),
 );
 
+final progressRepositoryProvider = Provider<ProgressRepository>(
+  (ref) => useMockData ? MockProgressRepository() : ApiProgressRepository(),
+);
+
+final ageTierRepositoryProvider = Provider<AgeTierRepository>(
+  (ref) => useMockData ? MockAgeTierRepository() : ApiAgeTierRepository(),
+);
+
 final disputeRepositoryProvider = Provider<DisputeRepository>(
   (ref) => useMockData ? MockDisputeRepository() : ApiDisputeRepository(),
 );
@@ -177,6 +194,10 @@ final signOutProvider = Provider<SignOut>(
 
 final sendPasswordResetProvider = Provider<SendPasswordReset>(
   (ref) => SendPasswordReset(ref.watch(authRepositoryProvider)),
+);
+
+final changePasswordProvider = Provider<ChangePassword>(
+  (ref) => ChangePassword(ref.watch(authRepositoryProvider)),
 );
 
 final getSquadProvider = Provider<GetSquad>(
@@ -257,6 +278,14 @@ final getTrainingSessionsProvider = Provider<GetTrainingSessions>(
 
 final scheduleTrainingSessionProvider = Provider<ScheduleTrainingSession>(
   (ref) => ScheduleTrainingSession(ref.watch(trainingRepositoryProvider)),
+);
+
+final getSquadProgressProvider = Provider<GetSquadProgress>(
+  (ref) => GetSquadProgress(ref.watch(progressRepositoryProvider)),
+);
+
+final getAgeTierBandsProvider = Provider<GetAgeTierBands>(
+  (ref) => GetAgeTierBands(ref.watch(ageTierRepositoryProvider)),
 );
 
 final updateTrainingSessionProvider = Provider<UpdateTrainingSession>(

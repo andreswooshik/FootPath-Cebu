@@ -7,6 +7,7 @@ Authorization is enforced two ways, both server-side (never trust the client):
     a player they are linked to — audit finding F3).
 """
 from django.db import transaction
+from django.db.models import Avg, Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -23,6 +24,7 @@ from accounts.services import ProvisioningError, provision_user
 from .models import (
     AgeTierSetting,
     Attendance,
+    AttendanceStatus,
     AuditLog,
     ConfirmationStatus,
     DeviceToken,
@@ -339,6 +341,59 @@ class TrainingSessionListCreateView(APIView):
         return Response(
             TrainingSessionSerializer(session).data, status=status.HTTP_201_CREATED
         )
+
+
+class SquadProgressView(APIView):
+    """GET /api/progress/squad/ — per-player attendance and effort aggregates
+    for the requester's club: the data behind the coach's Progress tab.
+
+    Coach (own club) and Admin (legacy club-less rows match NULL==NULL, same
+    convention as everywhere else). One aggregate query, not one per player.
+    """
+
+    def get(self, request):
+        if request.user.role not in (Roles.COACH, Roles.ADMIN):
+            raise PermissionDenied('Only coaches can view squad progress.')
+
+        profiles = (
+            PlayerProfile.objects.select_related('user')
+            .filter(user__club_id=request.user.club_id)
+            .order_by('user__first_name', 'user__last_name')
+        )
+        stats = {
+            row['player_id']: row
+            for row in Attendance.objects.filter(
+                player__club_id=request.user.club_id
+            )
+            .values('player_id')
+            .annotate(
+                present=Count('id', filter=Q(status=AttendanceStatus.PRESENT)),
+                absent=Count('id', filter=Q(status=AttendanceStatus.ABSENT)),
+                excused=Count('id', filter=Q(status=AttendanceStatus.EXCUSED)),
+                avg_effort=Avg('effort'),
+            )
+        }
+
+        def row(profile):
+            s = stats.get(profile.user_id, {})
+            avg_effort = s.get('avg_effort')
+            return {
+                'id': str(profile.user_id),
+                'name': (
+                    f'{profile.user.first_name} {profile.user.last_name}'.strip()
+                    or profile.user.email.split('@')[0]
+                ),
+                'position': profile.position,
+                'ageTier': profile.age_tier,
+                'present': s.get('present', 0),
+                'absent': s.get('absent', 0),
+                'excused': s.get('excused', 0),
+                'avgEffort': (
+                    round(avg_effort) if avg_effort is not None else None
+                ),
+            }
+
+        return Response([row(p) for p in profiles])
 
 
 class TrainingSessionDetailView(APIView):

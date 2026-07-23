@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/coach_profile_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coach_progress_screen.dart';
 import 'package:footpath_cebu/presentation/screens/training_schedule_screen.dart';
 
 /// The coach portal's bottom navigation, shared by every coach screen so the
@@ -35,15 +36,17 @@ class CoachBottomNav extends StatelessWidget {
                 builder: (_) => TrainingScheduleScreen(profile: profile),
               ),
             );
+          case 2:
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CoachProgressScreen(profile: profile),
+              ),
+            );
           case 3:
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) => CoachProfileScreen(profile: profile),
               ),
-            );
-          default:
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Coming soon.')),
             );
         }
       },

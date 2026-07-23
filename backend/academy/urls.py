@@ -22,6 +22,11 @@ urlpatterns = [
         name='eligibility-history',
     ),
     path('age-tiers/', views.AgeTierSettingsView.as_view(), name='age-tiers'),
+    path(
+        'progress/squad/',
+        views.SquadProgressView.as_view(),
+        name='progress-squad',
+    ),
     path('attendance/', views.AttendanceListView.as_view(), name='attendance-list'),
     path(
         'attendance/session/<int:session_id>/',

@@ -516,6 +516,55 @@ class AgeTierSettingsTests(APITestCase):
         self.assertEqual(AgeTierSetting.tier_for_age(19), AgeTier.PATHWAY)
 
 
+class SquadProgressTests(APITestCase):
+    """GET /api/progress/squad/ — the aggregates behind the coach Progress
+    tab: attendance counts and average effort per player, one query."""
+
+    def setUp(self):
+        self.coach = make_user(Roles.COACH)
+        self.player = make_player('prog@footpathcebu.test')
+        s1 = TrainingSession.objects.create(
+            title='A', date=date.today(), age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+        )
+        s2 = TrainingSession.objects.create(
+            title='B', date=date.today() - timedelta(days=7),
+            age_tiers=['DEVELOPMENT'], focus=SessionFocus.TECHNICAL,
+        )
+        Attendance.objects.create(
+            player=self.player, session=s1,
+            status=AttendanceStatus.PRESENT, effort=80,
+        )
+        Attendance.objects.create(
+            player=self.player, session=s2,
+            status=AttendanceStatus.ABSENT,
+        )
+
+    def test_coach_reads_squad_aggregates(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.get(reverse('progress-squad'))
+        self.assertEqual(resp.status_code, 200)
+        row = next(r for r in resp.data if r['id'] == str(self.player.id))
+        self.assertEqual(row['present'], 1)
+        self.assertEqual(row['absent'], 1)
+        self.assertEqual(row['excused'], 0)
+        self.assertEqual(row['avgEffort'], 80)
+
+    def test_player_without_attendance_still_appears(self):
+        make_player('bench@footpathcebu.test')
+        self.client.force_authenticate(self.coach)
+        resp = self.client.get(reverse('progress-squad'))
+        row = next(r for r in resp.data if r['name'] == 'bench')
+        self.assertEqual((row['present'], row['avgEffort']), (0, None))
+
+    def test_players_and_guardians_cannot_read(self):
+        for role in (Roles.PLAYER, Roles.GUARDIAN):
+            self.client.force_authenticate(make_user(role, f'{role}@x.test'))
+            self.assertEqual(
+                self.client.get(reverse('progress-squad')).status_code, 403
+            )
+
+
 class AuditLogTests(APITestCase):
     """The general audit trail (audit F10): sensitive changes each leave one
     append-only row naming the actor."""
