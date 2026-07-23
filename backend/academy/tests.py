@@ -15,6 +15,7 @@ from accounts.models import Club, GuardianLink, Roles, User
 from .notifications import _recipients_for_session
 from .models import (
     AgeTier,
+    AgeTierSetting,
     Attendance,
     AttendanceStatus,
     ConfirmationStatus,
@@ -84,7 +85,8 @@ class SquadEndpointTests(APITestCase):
         )
         self.assertEqual(
             set(row['ratings'].keys()),
-            {'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'},
+            {'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical',
+             'diving', 'handling', 'kicking', 'reflexes', 'speed', 'positioning'},
         )
         # id is a string (client does json['id'].toString(), and attendance
         # keys off the same value as a hard String).
@@ -388,6 +390,49 @@ class AssessmentTests(APITestCase):
         profile.refresh_from_db()
         self.assertEqual(profile.coach_notes, '')
 
+    def test_gk_ratings_persist_and_round_trip(self):
+        """Regression guard (audit F1): the GK six used to be silently dropped
+        on write and zero-filled on read — a goalkeeper's assessment vanished
+        on the next fetch."""
+        self.client.force_authenticate(self.coach)
+        resp = self.client.put(
+            reverse('player-assessment', args=[self.player.id]),
+            {'ratings': {'pace': 60, 'shooting': 60, 'passing': 60,
+                         'dribbling': 60, 'defending': 60, 'physical': 60,
+                         'diving': 88, 'handling': 85, 'kicking': 70,
+                         'reflexes': 92, 'speed': 62, 'positioning': 84}},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['ratings']['diving'], 88)
+        self.assertEqual(resp.data['ratings']['positioning'], 84)
+        profile = self.player.player_profile
+        profile.refresh_from_db()
+        self.assertEqual(profile.reflexes, 92)
+
+        # And the read path (squad list → PlayerSerializer) carries them too.
+        listed = self.client.get(reverse('players-list'))
+        ratings = listed.data[0]['ratings']
+        self.assertEqual(ratings['handling'], 85)
+
+    def test_outfield_only_payload_leaves_gk_ratings_intact(self):
+        """An older client that posts just the outfield six must not zero a
+        goalkeeper's stored GK ratings (partial update semantics)."""
+        profile = self.player.player_profile
+        profile.diving = 90
+        profile.save(update_fields=['diving'])
+
+        self.client.force_authenticate(self.coach)
+        resp = self.client.put(
+            reverse('player-assessment', args=[self.player.id]),
+            {'ratings': {'pace': 70, 'shooting': 70, 'passing': 70,
+                         'dribbling': 70, 'defending': 70, 'physical': 70}},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        profile.refresh_from_db()
+        self.assertEqual(profile.diving, 90)
+
     def test_non_coach_cannot_assess(self):
         self.client.force_authenticate(make_user(Roles.GUARDIAN))
         url = reverse('player-assessment', args=[self.player.id])
@@ -402,6 +447,72 @@ class AssessmentTests(APITestCase):
             format='json',
         )
         self.assertEqual(resp.status_code, 400)
+
+
+class AgeTierSettingsTests(APITestCase):
+    """GET/PUT /api/age-tiers/ — the Admin-configurable tier bands (audit F5).
+    The three rows are seeded by migration 0010."""
+
+    def setUp(self):
+        self.admin = make_user(Roles.ADMIN)
+        self.coach = make_user(Roles.COACH)
+        self.url = reverse('age-tiers')
+
+    def test_any_signed_in_role_reads_the_seeded_bands(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            [(b['tier'], b['minAge'], b['maxAge']) for b in resp.data],
+            [('FOUNDATION', 10, 12), ('DEVELOPMENT', 13, 15),
+             ('PATHWAY', 16, 18)],
+        )
+
+    def test_only_admin_may_update(self):
+        self.client.force_authenticate(self.coach)
+        resp = self.client.put(self.url, [], format='json')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_admin_updates_boundaries(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.put(
+            self.url,
+            [{'tier': 'FOUNDATION', 'minAge': 9, 'maxAge': 12},
+             {'tier': 'DEVELOPMENT', 'minAge': 13, 'maxAge': 14},
+             {'tier': 'PATHWAY', 'minAge': 15, 'maxAge': 19}],
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        band = AgeTierSetting.objects.get(tier=AgeTier.PATHWAY)
+        self.assertEqual((band.min_age, band.max_age), (15, 19))
+
+    def test_overlapping_bands_are_rejected(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.put(
+            self.url,
+            [{'tier': 'FOUNDATION', 'minAge': 10, 'maxAge': 14},
+             {'tier': 'DEVELOPMENT', 'minAge': 13, 'maxAge': 15},
+             {'tier': 'PATHWAY', 'minAge': 16, 'maxAge': 18}],
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+        # Nothing changed.
+        band = AgeTierSetting.objects.get(tier=AgeTier.FOUNDATION)
+        self.assertEqual((band.min_age, band.max_age), (10, 12))
+
+    def test_inverted_band_is_rejected(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.put(
+            self.url,
+            [{'tier': 'FOUNDATION', 'minAge': 12, 'maxAge': 10}],
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_tier_for_age_clamps_out_of_band_ages(self):
+        self.assertEqual(AgeTierSetting.tier_for_age(8), AgeTier.FOUNDATION)
+        self.assertEqual(AgeTierSetting.tier_for_age(14), AgeTier.DEVELOPMENT)
+        self.assertEqual(AgeTierSetting.tier_for_age(19), AgeTier.PATHWAY)
 
 
 class TrainingSessionTests(APITestCase):
@@ -1091,6 +1202,39 @@ class AdminCreatePlayerViewTests(APITestCase):
             ).exists()
         )
         self.assertEqual(response.data['temporary_password'], 'TempPass123')
+
+    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    def test_age_and_tier_derived_from_dob(self, _mock):
+        """New players are placed by the configured bands — not left on the
+        model defaults (age 0 / DEVELOPMENT) as they were before audit F5.
+        The bands are retuned so an 11-year-old lands in PATHWAY, a result
+        neither the stock bands nor the model default could produce."""
+        AgeTierSetting.objects.filter(tier=AgeTier.FOUNDATION).update(
+            min_age=4, max_age=6,
+        )
+        AgeTierSetting.objects.filter(tier=AgeTier.DEVELOPMENT).update(
+            min_age=7, max_age=9,
+        )
+        AgeTierSetting.objects.filter(tier=AgeTier.PATHWAY).update(
+            min_age=10, max_age=18,
+        )
+        today = date.today()
+        try:
+            dob = today.replace(year=today.year - 11)
+        except ValueError:  # born Feb 29
+            dob = today.replace(year=today.year - 11, day=28)
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.url, self._payload(date_of_birth=str(dob)), format='json'
+        )
+
+        self.assertEqual(response.status_code, 201)
+        profile = PlayerProfile.objects.get(
+            user__email='newplayer@footpathcebu.test'
+        )
+        self.assertEqual(profile.age, 11)
+        self.assertEqual(profile.age_tier, AgeTier.PATHWAY)
 
     @patch('academy.views.provision_user', side_effect=_fake_provision)
     def test_guardian_is_optional(self, _mock):

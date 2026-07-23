@@ -21,6 +21,7 @@ from accounts.serializers import UserSerializer
 from accounts.services import ProvisioningError, provision_user
 
 from .models import (
+    AgeTierSetting,
     Attendance,
     ConfirmationStatus,
     DeviceToken,
@@ -35,6 +36,7 @@ from .models import (
 from .notifications import notify_assessment_saved, notify_session_scheduled
 from .serializers import (
     AdminCreatePlayerSerializer,
+    AgeTierSettingSerializer,
     AssessmentSerializer,
     AttendanceSerializer,
     DisputeCreateSerializer,
@@ -652,6 +654,47 @@ class PlayerPhotoUploadView(APIView):
         return Response(PlayerSerializer(profile).data)
 
 
+class AgeTierSettingsView(APIView):
+    """GET/PUT /api/age-tiers/ — the Admin-configurable age band per tier.
+
+    Reads are open to every signed-in role (the bands are academy-wide facts,
+    not sensitive). Writes are Admin-only and touch boundaries, never the set
+    of tiers: the three tier names are a wire contract with the client.
+    Changing a band only affects how FUTURE players are placed — existing
+    players keep their stored tier (see PlayerProfile).
+    """
+
+    def get(self, request):
+        return Response(
+            AgeTierSettingSerializer(
+                AgeTierSetting.objects.order_by('min_age'), many=True
+            ).data
+        )
+
+    def put(self, request):
+        if request.user.role != Roles.ADMIN:
+            raise PermissionDenied('Only an Admin can configure age tiers.')
+        serializer = AgeTierSettingSerializer(data=request.data, many=True)
+        serializer.is_valid(raise_exception=True)
+        bands = serializer.validated_data
+
+        # Overlapping bands would make tier_for_age order-dependent — reject
+        # them here rather than silently picking whichever band sorts first.
+        by_min = sorted(bands, key=lambda b: b['min_age'])
+        for prev, nxt in zip(by_min, by_min[1:]):
+            if nxt['min_age'] <= prev['max_age']:
+                raise ValidationError('Tier age ranges may not overlap.')
+
+        with transaction.atomic():
+            for band in bands:
+                updated = AgeTierSetting.objects.filter(
+                    tier=band['tier']
+                ).update(min_age=band['min_age'], max_age=band['max_age'])
+                if not updated:
+                    raise ValidationError(f'Unknown tier: {band["tier"]}')
+        return self.get(request)
+
+
 class AdminCreatePlayerView(APIView):
     """POST /api/admin/players/ — the console's dedicated Add Player flow.
 
@@ -670,6 +713,10 @@ class AdminCreatePlayerView(APIView):
         data = serializer.validated_data
         guardian = data.get('guardian_id')
 
+        # Place the new player by the configured tier bands (previously both
+        # fields silently kept their model defaults: age 0, tier DEVELOPMENT).
+        age, tier = AgeTierSetting.profile_defaults_for(data['date_of_birth'])
+
         try:
             with transaction.atomic():
                 user, temp_password, note = provision_user(
@@ -682,6 +729,8 @@ class AdminCreatePlayerView(APIView):
                     user=user,
                     middle_initial=data['middle_initial'],
                     date_of_birth=data['date_of_birth'],
+                    age=age,
+                    age_tier=tier,
                 )
                 if guardian is not None:
                     GuardianLink.objects.create(guardian=guardian, player=user)

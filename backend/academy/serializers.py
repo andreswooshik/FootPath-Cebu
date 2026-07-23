@@ -9,6 +9,7 @@ from accounts.models import Roles, User
 
 from .models import (
     AgeTier,
+    AgeTierSetting,
     Attendance,
     AttendanceStatus,
     Dispute,
@@ -68,6 +69,12 @@ class PlayerSerializer(serializers.ModelSerializer):
             'dribbling': obj.dribbling,
             'defending': obj.defending,
             'physical': obj.physical,
+            'diving': obj.diving,
+            'handling': obj.handling,
+            'kicking': obj.kicking,
+            'reflexes': obj.reflexes,
+            'speed': obj.speed,
+            'positioning': obj.positioning,
         }
 
     def get_photoUrl(self, obj):
@@ -75,9 +82,11 @@ class PlayerSerializer(serializers.ModelSerializer):
 
 
 class AssessmentSerializer(serializers.ModelSerializer):
-    """Write side for PUT /api/players/<id>/assessment/ — the six coach-editable
-    ratings plus the coach's qualitative note. Accepts the nested `ratings`
-    object the client sends."""
+    """Write side for PUT /api/players/<id>/assessment/ — the twelve
+    coach-editable ratings (outfield six + goalkeeper six) plus the coach's
+    qualitative note. Accepts the nested `ratings` object the client sends.
+    The view saves with partial=True, so a client that posts only the outfield
+    six leaves the stored GK values untouched rather than zeroing them."""
 
     pace = serializers.IntegerField(min_value=0, max_value=99)
     shooting = serializers.IntegerField(min_value=0, max_value=99)
@@ -85,6 +94,12 @@ class AssessmentSerializer(serializers.ModelSerializer):
     dribbling = serializers.IntegerField(min_value=0, max_value=99)
     defending = serializers.IntegerField(min_value=0, max_value=99)
     physical = serializers.IntegerField(min_value=0, max_value=99)
+    diving = serializers.IntegerField(min_value=0, max_value=99)
+    handling = serializers.IntegerField(min_value=0, max_value=99)
+    kicking = serializers.IntegerField(min_value=0, max_value=99)
+    reflexes = serializers.IntegerField(min_value=0, max_value=99)
+    speed = serializers.IntegerField(min_value=0, max_value=99)
+    positioning = serializers.IntegerField(min_value=0, max_value=99)
     # Optional so an older client that posts only ratings still succeeds; when
     # omitted the existing note is left untouched rather than blanked.
     coachNotes = serializers.CharField(
@@ -95,6 +110,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
         model = PlayerProfile
         fields = [
             'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical',
+            'diving', 'handling', 'kicking', 'reflexes', 'speed', 'positioning',
             'coachNotes',
         ]
 
@@ -430,3 +446,28 @@ class AdminCreatePlayerSerializer(serializers.Serializer):
         queryset=User.objects.filter(role=Roles.GUARDIAN),
         required=False, allow_null=True,
     )
+
+
+class AgeTierSettingSerializer(serializers.ModelSerializer):
+    """One tier's age band for GET/PUT /api/age-tiers/. The tier value is the
+    row's identity — the PUT view matches rows by it, so it is validated but
+    never used to create or rename tiers."""
+
+    tier = serializers.ChoiceField(choices=AgeTier.choices)
+    minAge = serializers.IntegerField(
+        source='min_age', min_value=1, max_value=99
+    )
+    maxAge = serializers.IntegerField(
+        source='max_age', min_value=1, max_value=99
+    )
+
+    class Meta:
+        model = AgeTierSetting
+        fields = ['tier', 'minAge', 'maxAge']
+
+    def validate(self, attrs):
+        if attrs['min_age'] > attrs['max_age']:
+            raise serializers.ValidationError(
+                'min age must not exceed max age.'
+            )
+        return attrs

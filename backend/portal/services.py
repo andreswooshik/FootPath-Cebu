@@ -9,7 +9,7 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.utils.text import slugify
 
-from academy.models import PlayerProfile
+from academy.models import AgeTierSetting, PlayerProfile
 from accounts.models import Club, GuardianLink, Roles
 from accounts.services import provision_user, provision_web_user
 
@@ -93,10 +93,15 @@ def create_club_account(*, account_type, club, data):
             role=Roles.PLAYER,
             club=club,
         )
+        # Place the player by the Admin-configured tier bands — same
+        # derivation as the console's Add Player flow.
+        age, tier = AgeTierSetting.profile_defaults_for(data['date_of_birth'])
         PlayerProfile.objects.create(
             user=user,
             middle_initial=data.get('middle_initial', ''),
             date_of_birth=data['date_of_birth'],
+            age=age,
+            age_tier=tier,
         )
         guardian = data.get('guardian')
         if guardian is not None:

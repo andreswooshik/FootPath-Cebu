@@ -6,6 +6,8 @@ FOUNDATION / PRESENT) mirror the Flutter entities in
 `footpath_cebu/lib/domain/entities/` so the JSON contract needs no translation
 layer on the client.
 """
+from datetime import date
+
 from django.conf import settings
 from django.db import models
 
@@ -16,6 +18,54 @@ class AgeTier(models.TextChoices):
     FOUNDATION = 'FOUNDATION', 'Foundation'      # ages 10–12
     DEVELOPMENT = 'DEVELOPMENT', 'Development'    # ages 13–15
     PATHWAY = 'PATHWAY', 'Pathway'               # ages 16–18
+
+
+class AgeTierSetting(models.Model):
+    """Admin-configurable age boundaries for one tier.
+
+    Exactly three rows, seeded by migration — Admin edits the boundaries,
+    never the set of tiers: the tier names are a wire contract with the
+    client. The boundaries decide a NEW player's initial tier from their date
+    of birth; existing players keep their stored tier (see PlayerProfile),
+    so retuning a boundary never reshuffles the current roster.
+    """
+
+    tier = models.CharField(
+        max_length=20, choices=AgeTier.choices, unique=True
+    )
+    min_age = models.PositiveSmallIntegerField()
+    max_age = models.PositiveSmallIntegerField()
+
+    class Meta:
+        ordering = ['min_age']
+        verbose_name = 'Age tier setting'
+        verbose_name_plural = 'Age tier settings'
+
+    def __str__(self):
+        return f'{self.get_tier_display()} ({self.min_age}–{self.max_age})'
+
+    @classmethod
+    def tier_for_age(cls, age):
+        """The wire tier value for an age. Ages outside every band clamp to
+        the nearest one (an 8-year-old is Foundation, a 19-year-old Pathway),
+        so provisioning never fails on an out-of-band birth date."""
+        bands = list(cls.objects.order_by('min_age'))
+        if not bands:
+            return AgeTier.DEVELOPMENT
+        for band in bands:
+            if age <= band.max_age:
+                return band.tier
+        return bands[-1].tier
+
+    @classmethod
+    def profile_defaults_for(cls, date_of_birth):
+        """(age, tier) for a new player born on `date_of_birth`."""
+        today = date.today()
+        age = today.year - date_of_birth.year - (
+            (today.month, today.day)
+            < (date_of_birth.month, date_of_birth.day)
+        )
+        return age, cls.tier_for_age(age)
 
 
 class Eligibility(models.TextChoices):
@@ -70,6 +120,17 @@ class PlayerProfile(models.Model):
     dribbling = models.PositiveSmallIntegerField(default=0)
     defending = models.PositiveSmallIntegerField(default=0)
     physical = models.PositiveSmallIntegerField(default=0)
+
+    # Goalkeeper six — same 0–99 scale, shown instead of the outfield six when
+    # the position is GK. Stored for every player, whatever their position, so
+    # a position change never loses what was on file (mirrors the client's
+    # assessment-draft behaviour).
+    diving = models.PositiveSmallIntegerField(default=0)
+    handling = models.PositiveSmallIntegerField(default=0)
+    kicking = models.PositiveSmallIntegerField(default=0)
+    reflexes = models.PositiveSmallIntegerField(default=0)
+    speed = models.PositiveSmallIntegerField(default=0)
+    positioning = models.PositiveSmallIntegerField(default=0)
 
     # The coach's standing qualitative evaluation, saved alongside the six
     # ratings. Overwritten on each assessment (it is the *current* view of the
@@ -280,8 +341,8 @@ class InjuryStatus(models.TextChoices):
 
 class InjuryRecord(models.Model):
     """A player's self-reported injury. Medical data: the player owns the
-    record (full CRUD), coach/admin read, guardians see nothing —
-    least-privilege, enforced in the views."""
+    record (full CRUD); coach/admin read, and a guardian may read a linked
+    child's records — least-privilege, enforced in the views."""
 
     player = models.ForeignKey(
         settings.AUTH_USER_MODEL,

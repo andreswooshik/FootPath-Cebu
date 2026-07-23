@@ -21,6 +21,7 @@ urlpatterns = [
         views.EligibilityHistoryView.as_view(),
         name='eligibility-history',
     ),
+    path('age-tiers/', views.AgeTierSettingsView.as_view(), name='age-tiers'),
     path('attendance/', views.AttendanceListView.as_view(), name='attendance-list'),
     path(
         'attendance/session/<int:session_id>/',

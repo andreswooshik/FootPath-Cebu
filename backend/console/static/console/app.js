@@ -247,10 +247,34 @@ function renderDisputeThread() {
   }
 }
 
+async function loadAgeTiers() {
+  const tiers = await apiFetch('/api/age-tiers/');
+  const tbody = el('age-tiers-table-body');
+  tbody.innerHTML = '';
+  for (const t of tiers) {
+    const tr = document.createElement('tr');
+    tr.appendChild(textCell(t.tier));
+    for (const key of ['minAge', 'maxAge']) {
+      const td = document.createElement('td');
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '1';
+      input.max = '99';
+      input.value = t[key];
+      input.dataset.tier = t.tier;
+      input.dataset.key = key;
+      td.appendChild(input);
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+}
+
 async function refreshDashboard() {
   await loadUsers();
   await loadLinks();
   await loadDisputes();
+  await loadAgeTiers();
 }
 
 async function showApp(profile) {
@@ -280,6 +304,25 @@ el('login-button').addEventListener('click', async () => {
 });
 
 el('signout-button').addEventListener('click', () => firebase.auth().signOut());
+
+el('age-tiers-save-button').addEventListener('click', async () => {
+  el('age-tiers-error').textContent = '';
+  try {
+    const rows = {};
+    for (const input of el('age-tiers-table-body').querySelectorAll('input')) {
+      const tier = input.dataset.tier;
+      rows[tier] = rows[tier] || { tier };
+      rows[tier][input.dataset.key] = Number(input.value);
+    }
+    await apiFetch('/api/age-tiers/', {
+      method: 'PUT',
+      body: JSON.stringify(Object.values(rows)),
+    });
+    await loadAgeTiers();
+  } catch (e) {
+    el('age-tiers-error').textContent = e.message || String(e);
+  }
+});
 
 el('create-user-button').addEventListener('click', async () => {
   el('create-user-error').textContent = '';

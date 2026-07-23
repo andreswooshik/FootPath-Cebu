@@ -1,12 +1,29 @@
 from django.contrib import admin
 
 from .models import (
+    AgeTierSetting,
     Dispute,
     DisputeResponse,
     EligibilityHistory,
     InjuryRecord,
     PlayerEligibility,
 )
+
+
+@admin.register(AgeTierSetting)
+class AgeTierSettingAdmin(admin.ModelAdmin):
+    """Editable age boundaries per tier. The three rows are fixed (seeded by
+    migration) — the tier set is a wire contract with the client, so add and
+    delete are disabled; only the boundaries change."""
+
+    list_display = ('tier', 'min_age', 'max_age')
+    list_editable = ('min_age', 'max_age')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(PlayerEligibility)
