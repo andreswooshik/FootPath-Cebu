@@ -85,7 +85,7 @@
 
     <h2>Add Player</h2>
     <div class="card">
-      <label for="player-email">Email</label>
+      <label for="player-email">Email (optional)</label>
       <input id="player-email" type="email">
       <label for="player-family-name">Family Name</label>
       <input id="player-family-name" type="text">
@@ -95,9 +95,9 @@
       <input id="player-mi" type="text" maxlength="5">
       <label for="player-dob">Date of Birth</label>
       <input id="player-dob" type="date">
-      <label for="player-guardian">Guardian (optional)</label>
+      <label for="player-guardian">Guardian (required)</label>
       <select id="player-guardian">
-        <option value="">— none —</option>
+        <option value="">— select guardian —</option>
       </select>
       <button id="add-player-button">Add Player</button>
       <p id="add-player-error" class="error"></p>

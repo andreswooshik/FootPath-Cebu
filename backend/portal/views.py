@@ -150,17 +150,25 @@ def create_account(request):
             else:
                 AuditLog.record(
                     request.user, 'account.created',
-                    target=user.email, detail=user.role,
+                    target=user.email or user.get_full_name() or user.username,
+                    detail=user.role,
                 )
                 created = {
                     'email': user.email,
+                    'display_name': user.get_full_name() or user.username,
                     'role': user.get_role_display(),
                     'credential': credential,
                     'is_web': account_type == 'staff',
+                    'managed': account_type == 'player' and not user.email,
                 }
                 messages.success(
                     request,
-                    f'{user.get_role_display()} account created for {user.email}.',
+                    (
+                        f'{user.get_role_display()} profile created for '
+                        f'{user.get_full_name() or user.username}.'
+                        if not user.email else
+                        f'{user.get_role_display()} account created for {user.email}.'
+                    ),
                 )
                 # Reset the submitted tab's form so the fields clear.
                 forms[account_type] = form_cls(club=club)

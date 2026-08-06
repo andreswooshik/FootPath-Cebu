@@ -19,7 +19,11 @@ from rest_framework.views import APIView
 from accounts.models import GuardianLink, Roles, User
 from accounts.permissions import IsAdmin
 from accounts.serializers import UserSerializer
-from accounts.services import ProvisioningError, provision_user
+from accounts.services import (
+    ProvisioningError,
+    provision_managed_player,
+    provision_user,
+)
 
 from .models import (
     AgeTierSetting,
@@ -52,6 +56,7 @@ from .pin_service import (
     set_pin,
     verify_pin,
     pin_status,
+    has_pin,
 )
 from .serializers import (
     AdminCreatePlayerSerializer,
@@ -210,12 +215,27 @@ class PlayerPrivacyPinView(APIView):
         return Response(pin_status(_pin_profile(player_id).user))
 
     def put(self, request, player_id):
-        if request.user.role != Roles.PLAYER or str(request.user.id) != str(player_id):
-            raise PermissionDenied('Only the player can set their own PIN.')
+        is_player = (
+            request.user.role == Roles.PLAYER
+            and str(request.user.id) == str(player_id)
+        )
+        is_guardian_initial_setup = (
+            request.user.role == Roles.GUARDIAN
+            and GuardianLink.objects.filter(
+                guardian=request.user, player_id=player_id
+            ).exists()
+            and not has_pin(_pin_profile(player_id).user)
+        )
+        if not is_player and not is_guardian_initial_setup:
+            raise PermissionDenied(
+                'Only the player can change an existing PIN. A linked guardian '
+                'may set the first PIN for a managed player.'
+            )
+        player = _pin_profile(player_id).user
         pin = request.data.get('pin')
         try:
             set_pin(
-                _pin_profile(player_id).user,
+                player,
                 pin,
                 current_pin=request.data.get('currentPin'),
             )
@@ -224,7 +244,7 @@ class PlayerPrivacyPinView(APIView):
         except ValueError as exc:
             raise ValidationError(str(exc))
         AuditLog.record(request.user, 'player_pin.changed', target=request.user.email)
-        return Response(pin_status(request.user))
+        return Response(pin_status(player))
 
 
 class PlayerPrivacyPinVerifyView(APIView):
@@ -476,6 +496,7 @@ class SquadProgressView(APIView):
                 'name': (
                     f'{profile.user.first_name} {profile.user.last_name}'.strip()
                     or profile.user.email.split('@')[0]
+                    or f'Player {profile.user_id}'
                 ),
                 'position': profile.position,
                 'ageTier': profile.age_tier,
@@ -924,7 +945,9 @@ class AdminCreatePlayerView(APIView):
         serializer = AdminCreatePlayerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        guardian = data.get('guardian_id')
+        guardian = data['guardian_id']
+        if not guardian.is_active:
+            raise ValidationError('The selected guardian must be active.')
 
         # Place the new player by the configured tier bands (previously both
         # fields silently kept their model defaults: age 0, tier DEVELOPMENT).
@@ -932,12 +955,24 @@ class AdminCreatePlayerView(APIView):
 
         try:
             with transaction.atomic():
-                user, temp_password, note = provision_user(
-                    email=data['email'],
-                    first_name=data['first_name'],
-                    last_name=data['last_name'],
-                    role=Roles.PLAYER,
-                )
+                email = data.get('email', '').strip()
+                if email:
+                    user, temp_password, note = provision_user(
+                        email=email,
+                        first_name=data['first_name'],
+                        last_name=data['last_name'],
+                        role=Roles.PLAYER,
+                    )
+                else:
+                    user = provision_managed_player(
+                        first_name=data['first_name'],
+                        last_name=data['last_name'],
+                        role=Roles.PLAYER,
+                    )
+                    temp_password = None
+                    note = (
+                        'Guardian-managed profile created; no player login exists yet.'
+                    )
                 profile = PlayerProfile.objects.create(
                     user=user,
                     middle_initial=data['middle_initial'],
@@ -945,12 +980,13 @@ class AdminCreatePlayerView(APIView):
                     age=age,
                     age_tier=tier,
                 )
-                if guardian is not None:
-                    GuardianLink.objects.create(guardian=guardian, player=user)
+                GuardianLink.objects.create(guardian=guardian, player=user)
         except ProvisioningError as exc:
             raise ValidationError(str(exc))
         AuditLog.record(
-            request.user, 'account.created', target=user.email, detail='PLAYER',
+            request.user, 'account.created',
+            target=user.email or user.get_full_name() or user.username,
+            detail='PLAYER',
         )
 
         return Response(

@@ -33,7 +33,7 @@ def _display_name(user):
     if user is None:
         return None
     full = f'{user.first_name} {user.last_name}'.strip()
-    return full or user.email.split('@')[0]
+    return full or user.email.split('@')[0] or f'Player {user.id}'
 
 
 class PlayerSerializer(serializers.ModelSerializer):
@@ -59,7 +59,7 @@ class PlayerSerializer(serializers.ModelSerializer):
 
     def get_name(self, obj):
         full = f'{obj.user.first_name} {obj.user.last_name}'.strip()
-        return full or obj.user.email.split('@')[0]
+        return full or obj.user.email.split('@')[0] or f'Player {obj.user_id}'
 
     def get_ratings(self, obj):
         return {
@@ -435,16 +435,17 @@ class AdminCreatePlayerSerializer(serializers.Serializer):
     """Write side of POST /api/admin/players/ — the console's dedicated Add
     Player flow. Unlike accounts.AdminCreateUserSerializer, name fields here
     are genuinely required (no allow_blank): this is the only path that
-    creates both the User and its PlayerProfile together."""
+    creates both the User and its PlayerProfile together. A guardian is required;
+    email is optional for guardian-managed players."""
 
-    email = serializers.EmailField()
+    email = serializers.EmailField(required=False, allow_blank=True)
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
     middle_initial = serializers.CharField(max_length=5)
     date_of_birth = serializers.DateField()
     guardian_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(role=Roles.GUARDIAN),
-        required=False, allow_null=True,
+        required=True,
     )
 
 

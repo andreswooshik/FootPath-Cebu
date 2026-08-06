@@ -11,7 +11,12 @@ from django.utils.text import slugify
 
 from academy.models import AgeTierSetting, PlayerProfile
 from accounts.models import Club, GuardianLink, Roles
-from accounts.services import provision_user, provision_web_user
+from accounts.services import (
+    ProvisioningError,
+    provision_managed_player,
+    provision_user,
+    provision_web_user,
+)
 
 
 def _unique_club_slug(name):
@@ -96,13 +101,23 @@ def create_club_account(*, account_type, club, data):
                 'The selected guardian must be active and have the Guardian role.'
             )
         _assert_same_club(guardian, club)
-        user, temp_password, _ = provision_user(
-            email=data['email'],
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            role=Roles.PLAYER,
-            club=club,
-        )
+        email = (data.get('email') or '').strip()
+        if email:
+            user, temp_password, _ = provision_user(
+                email=email,
+                first_name=data['first_name'],
+                last_name=data['last_name'],
+                role=Roles.PLAYER,
+                club=club,
+            )
+        else:
+            user = provision_managed_player(
+                first_name=data['first_name'],
+                last_name=data['last_name'],
+                role=Roles.PLAYER,
+                club=club,
+            )
+            temp_password = None
         # Place the player by the Admin-configured tier bands — same
         # derivation as the console's Add Player flow.
         age, tier = AgeTierSetting.profile_defaults_for(data['date_of_birth'])

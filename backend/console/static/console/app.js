@@ -17,6 +17,11 @@ const el = (id) => document.getElementById(id);
 const loginSection = el('login-section');
 const appSection = el('app-section');
 
+function userLabel(user) {
+  const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
+  return name || user.email || `Player ${user.id}`;
+}
+
 async function apiFetch(path, options = {}) {
   const user = firebase.auth().currentUser;
   if (!user) throw new Error('Not signed in.');
@@ -112,11 +117,11 @@ async function loadUsers() {
     tbody.appendChild(tr);
 
     if (u.role === 'GUARDIAN') {
-      guardianSelect.add(new Option(u.email, u.id));
-      playerGuardianSelect.add(new Option(u.email, u.id));
+      guardianSelect.add(new Option(userLabel(u), u.id));
+      playerGuardianSelect.add(new Option(userLabel(u), u.id));
     }
     if (u.role === 'PLAYER') {
-      playerSelect.add(new Option(u.email, u.id));
+      playerSelect.add(new Option(userLabel(u), u.id));
     }
   }
 }
@@ -234,8 +239,8 @@ async function loadLinks() {
   tbody.innerHTML = '';
   for (const link of links) {
     const tr = document.createElement('tr');
-    tr.appendChild(textCell(link.guardian.email));
-    tr.appendChild(textCell(link.player.email));
+    tr.appendChild(textCell(userLabel(link.guardian)));
+    tr.appendChild(textCell(userLabel(link.player)));
 
     const actionCell = document.createElement('td');
     const btn = document.createElement('button');
@@ -435,6 +440,11 @@ el('add-player-button').addEventListener('click', async () => {
   el('add-player-result').style.display = 'none';
   try {
     const guardianId = el('player-guardian').value;
+    if (!guardianId) {
+      el('add-player-error').textContent =
+        'Select the guardian before adding a player.';
+      return;
+    }
     const payload = {
       email: el('player-email').value.trim(),
       first_name: el('player-first-name').value.trim(),
@@ -442,7 +452,7 @@ el('add-player-button').addEventListener('click', async () => {
       middle_initial: el('player-mi').value.trim(),
       date_of_birth: el('player-dob').value,
     };
-    if (guardianId) payload.guardian_id = guardianId;
+    payload.guardian_id = guardianId;
 
     const result = await apiFetch('/api/admin/players/', {
       method: 'POST',
@@ -453,7 +463,8 @@ el('add-player-button').addEventListener('click', async () => {
     box.textContent = '';
     box.append('Player created for ');
     const emailStrong = document.createElement('strong');
-    emailStrong.textContent = result.user.email;
+    emailStrong.textContent =
+      result.player.name || result.user.email || 'managed player profile';
     box.append(emailStrong, '. ');
     if (result.temporary_password) {
       box.append('Temporary password (shown once): ');

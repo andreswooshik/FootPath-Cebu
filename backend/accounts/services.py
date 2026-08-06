@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.utils.crypto import get_random_string
+from uuid import uuid4
 from firebase_admin import auth as firebase_auth
 
 from .firebase import ensure_initialized
@@ -93,6 +94,22 @@ def provision_user(*, email, first_name, last_name, role, club=None):
         else 'Existing Firebase account linked; its current password was left unchanged.'
     )
     return user, temp_password, note
+
+
+def provision_managed_player(*, first_name, last_name, role, club=None):
+    """Create a player profile with no independent login identity."""
+    user = User(
+        username=f'managed-player-{uuid4().hex}',
+        email='',
+        first_name=first_name,
+        last_name=last_name,
+        role=role,
+        club=club,
+        is_active=True,
+    )
+    user.set_unusable_password()
+    user.save()
+    return user
 
 
 # Roles an account may be switched between after creation. PLAYER is excluded

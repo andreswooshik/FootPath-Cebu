@@ -130,6 +130,8 @@ class _BaseCreateAccountForm(forms.Form):
 
     def clean_email(self):
         email = self.cleaned_data['email'].strip().lower()
+        if not email:
+            return ''
         if User.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError('An account with this email already exists.')
         return email
@@ -144,6 +146,14 @@ class CreateStaffForm(_BaseCreateAccountForm):
 
 
 class CreatePlayerForm(_BaseCreateAccountForm):
+    email = forms.EmailField(
+        required=False,
+        label='Player email (optional)',
+        help_text=(
+            'Leave blank for a guardian-managed player profile. Do not reuse '
+            'the guardian email as a second login.'
+        ),
+    )
     middle_initial = forms.CharField(max_length=5, required=False)
     date_of_birth = forms.DateField(
         widget=forms.DateInput(attrs={'type': 'date'})
@@ -218,4 +228,6 @@ class GuardianLinkForm(forms.Form):
 
 def _user_label(user):
     name = f'{user.first_name} {user.last_name}'.strip()
-    return f'{name} ({user.email})' if name else user.email
+    if name and user.email:
+        return f'{name} ({user.email})'
+    return name or user.email or f'Player {user.id}'

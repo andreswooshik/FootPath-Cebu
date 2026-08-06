@@ -5,7 +5,8 @@
 
 {% block content %}
 <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 text-sm text-blue-800 max-w-3xl">
-  Players, coaches and guardians receive a one-time password for the mobile app.
+  Coaches and guardians receive a one-time password for the mobile app.
+  Player email is optional: leave it blank to create a guardian-managed profile.
   School staff receive a password for this web portal.
 </div>
 
@@ -13,7 +14,12 @@
   {% if created %}
   <section class="card success-banner">
     <h2>{{ created.role }} account created</h2>
-    <p>Email: <strong>{{ created.email }}</strong></p>
+    {% if created.managed %}
+      <p>Managed player profile: <strong>{{ created.display_name }}</strong></p>
+      <p class="muted">This is a guardian-managed player profile. It is accessed through the linked guardian account and has no separate login yet.</p>
+    {% else %}
+      <p>Email: <strong>{{ created.email }}</strong></p>
+    {% endif %}
     {% if created.credential %}
       <p>Temporary password — shown once, copy it now and share it securely:</p>
       <p class="cred">{{ created.credential }}</p>

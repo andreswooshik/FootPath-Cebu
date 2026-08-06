@@ -144,9 +144,8 @@ class PlayerProfile(models.Model):
     # URL, never this raw path. Null until an Admin uploads a photo.
     photo_path = models.CharField(max_length=255, null=True, blank=True)
 
-    # Required for every NEW player (enforced by AdminCreatePlayerSerializer),
-    # but nullable/blank at the DB level so existing rows created before this
-    # field existed don't break the migration.
+    # Optional for guardian-managed players; required only when the player is
+    # provisioned with an independent Firebase login.
     middle_initial = models.CharField(max_length=5, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
 

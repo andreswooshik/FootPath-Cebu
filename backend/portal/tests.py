@@ -333,6 +333,41 @@ class CreateAccountTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(User.objects.filter(email='no-parent@club.test').exists())
 
+    def test_create_player_without_email_creates_guardian_managed_profile(self):
+        guardian = User.objects.create(
+            username='managed-parent@club.test', email='managed-parent@club.test',
+            role=Roles.GUARDIAN, club=self.club, firebase_uid='managed-parent-uid',
+        )
+        response = self.client.post(reverse('portal:create-account'), {
+            'account_type': 'player', 'first_name': 'Managed', 'last_name': 'Child',
+            'email': '', 'date_of_birth': '2010-05-01',
+            'middle_initial': '', 'guardian': guardian.id,
+        })
+        self.assertEqual(response.status_code, 200)
+        player = User.objects.get(first_name='Managed', last_name='Child')
+        self.assertEqual(player.email, '')
+        self.assertIsNone(player.firebase_uid)
+        self.assertTrue(player.username.startswith('managed-player-'))
+        self.assertTrue(
+            GuardianLink.objects.filter(guardian=guardian, player=player).exists()
+        )
+        self.assertContains(response, 'guardian-managed profile')
+
+    def test_player_email_cannot_reuse_guardian_login_email(self):
+        guardian = User.objects.create(
+            username='same-email-parent@club.test',
+            email='same-email-parent@club.test',
+            role=Roles.GUARDIAN, club=self.club, firebase_uid='same-email-parent-uid',
+        )
+        response = self.client.post(reverse('portal:create-account'), {
+            'account_type': 'player', 'first_name': 'Same', 'last_name': 'Email',
+            'email': guardian.email, 'date_of_birth': '2010-05-01',
+            'middle_initial': '', 'guardian': guardian.id,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'An account with this email already exists.')
+        self.assertFalse(User.objects.filter(first_name='Same').exists())
+
     def test_coordinator_can_reset_player_privacy_pin(self):
         player, _ = make_player(self.club, 'pin-player@club.test')
         PlayerPrivacyPin.objects.create(

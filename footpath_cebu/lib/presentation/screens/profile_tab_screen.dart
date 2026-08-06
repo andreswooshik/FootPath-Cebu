@@ -212,19 +212,15 @@ class _PrivacyPinCard extends ConsumerWidget {
     return Card(
       child: ListTile(
         leading: const Icon(Icons.lock_outline),
-        title: Text(isGuardian ? 'Reset player privacy PIN' : 'Privacy PIN'),
-        subtitle: status.when(
-          loading: () => const Text('Checking PIN status…'),
-          error: (_, _) => const Text('PIN status unavailable'),
-          data: (value) => isGuardian
-              ? const Text('Clear the PIN if the player forgets it')
-              : Text(
-                  value.hasPin ? 'Change your PIN' : 'Create a 4–6 digit PIN',
-                ),
-        ),
+        title: Text(isGuardian ? 'Player privacy PIN' : 'Privacy PIN'),
+        subtitle: const Text('Manage privacy access for this player'),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
-          if (isGuardian) {
+          final hasPin = status.maybeWhen(
+            data: (value) => value.hasPin,
+            orElse: () => false,
+          );
+          if (isGuardian && hasPin) {
             _reset(context, ref);
           } else {
             Navigator.of(context).push(

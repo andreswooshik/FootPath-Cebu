@@ -688,6 +688,22 @@ class PlayerPrivacyPinTests(APITestCase):
             403,
         )
 
+    def test_linked_guardian_can_set_first_pin_for_managed_player(self):
+        self.player.firebase_uid = None
+        self.player.email = ''
+        self.player.save(update_fields=['firebase_uid', 'email'])
+        self.client.force_authenticate(self.guardian)
+        response = self.client.put(
+            reverse('player-pin', args=[self.player.id]),
+            {'pin': '2468'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            PlayerPrivacyPin.objects.get(player=self.player).pin_hash,
+            response.data,
+        )
+        self.assertTrue(response.data['hasPin'])
+
     def test_player_cannot_read_or_reset_another_players_pin(self):
         other = make_player('other-pin-player@footpathcebu.test')
         self.client.force_authenticate(self.player)
@@ -1417,8 +1433,7 @@ def _fake_provision(*, email, first_name, last_name, role):
 
 class AdminCreatePlayerViewTests(APITestCase):
     """POST /api/admin/players/ — the console's Add Player flow: creates the
-    User + PlayerProfile (with the now-required identity fields) together,
-    and optionally a GuardianLink, all in one atomic call."""
+    User + PlayerProfile together, and always creates the GuardianLink."""
 
     def setUp(self):
         self.admin = make_user(Roles.ADMIN)
@@ -1433,6 +1448,7 @@ class AdminCreatePlayerViewTests(APITestCase):
             'last_name': 'Dela Cruz',
             'middle_initial': 'S',
             'date_of_birth': '2012-05-04',
+            'guardian_id': self.guardian.id,
         }
         payload.update(overrides)
         return payload
@@ -1493,12 +1509,31 @@ class AdminCreatePlayerViewTests(APITestCase):
         self.assertEqual(profile.age_tier, AgeTier.PATHWAY)
 
     @patch('academy.views.provision_user', side_effect=_fake_provision)
-    def test_guardian_is_optional(self, _mock):
+    def test_guardian_is_required(self, _mock):
         self.client.force_authenticate(self.admin)
-        response = self.client.post(self.url, self._payload(), format='json')
-
-        self.assertEqual(response.status_code, 201)
+        response = self.client.post(
+            self.url,
+            {key: value for key, value in self._payload().items() if key != 'guardian_id'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
         self.assertEqual(GuardianLink.objects.count(), 0)
+
+    def test_blank_email_creates_guardian_managed_player(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.url, self._payload(email=''), format='json'
+        )
+        self.assertEqual(response.status_code, 201)
+        user = User.objects.get(first_name='Juan')
+        self.assertEqual(user.email, '')
+        self.assertIsNone(user.firebase_uid)
+        self.assertTrue(
+            GuardianLink.objects.filter(
+                guardian=self.guardian, player=user
+            ).exists()
+        )
+        self.assertIsNone(response.data['temporary_password'])
 
     @patch('academy.views.provision_user', side_effect=_fake_provision)
     def test_missing_required_field_creates_nothing(self, _mock):
