@@ -564,7 +564,8 @@ class PlayerPhotoUploadTests(TestCase):
         self.client.force_login(self.coord)
 
     def _photo(self, name='p.jpg', content_type='image/jpeg', size=100):
-        return SimpleUploadedFile(name, b'x' * size, content_type=content_type)
+        content = b'\xff\xd8\xff' + b'x' * max(0, size - 3)
+        return SimpleUploadedFile(name, content, content_type=content_type)
 
     @patch('portal.views.upload_photo', return_value='player-photos/1.jpg')
     def test_coordinator_uploads_a_photo(self, mock_upload):

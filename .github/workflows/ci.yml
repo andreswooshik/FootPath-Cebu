@@ -23,14 +23,17 @@ jobs:
         # The suite forces SQLite (see config.settings.TESTING) and mocks
         # Firebase, so no credentials or network are needed.
         env:
-          DJANGO_SECRET_KEY: ci-test-key-not-secret
+          DJANGO_SECRET_KEY: ci-only-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz
           DJANGO_DEBUG: '1'
         run: python manage.py test
       - name: Deployment checks
         # Run Django's production checklist with DEBUG off — surfaces missing
         # HTTPS/HSTS/cookie hardening as warnings.
         env:
-          DJANGO_SECRET_KEY: ci-test-key-not-secret
+          DJANGO_SECRET_KEY: ci-only-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+          DJANGO_ALLOWED_HOSTS: ci.example.test
+          CORS_ORIGINS: https://app.example.test
+          REDIS_URL: redis://127.0.0.1:6379/0
         run: python manage.py check --deploy
 
   flutter:

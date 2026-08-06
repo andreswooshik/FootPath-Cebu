@@ -16,6 +16,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -42,6 +43,14 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2']
 _extra_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
 if _extra_hosts:
     ALLOWED_HOSTS += [h.strip() for h in _extra_hosts.split(',') if h.strip()]
+if not DEBUG and not _extra_hosts:
+    raise ImproperlyConfigured(
+        'DJANGO_ALLOWED_HOSTS must be set when DJANGO_DEBUG=0.'
+    )
+if not DEBUG and (len(SECRET_KEY) < 50 or len(set(SECRET_KEY)) < 10):
+    raise ImproperlyConfigured(
+        'DJANGO_SECRET_KEY must be a long, high-entropy production secret.'
+    )
 
 
 # Application definition
@@ -238,12 +247,24 @@ REST_FRAMEWORK = {
 # should point this at a shared backend (Redis/Memcached) — otherwise the
 # axes lockout counters, the signup rate limiter, and the read-revocation
 # window below are only consistent within a single worker.
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'footpath-local',
+REDIS_URL = os.environ.get('REDIS_URL', '')
+if not DEBUG and not TESTING and not REDIS_URL:
+    raise ImproperlyConfigured('REDIS_URL must be set in production.')
+CACHES = (
+    {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': REDIS_URL,
+        }
     }
-}
+    if not DEBUG and not TESTING
+    else {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'footpath-local',
+        }
+    }
+)
 
 # django-axes (audit finding S1) — lock out brute-force / credential-stuffing
 # against the Django session logins.
@@ -281,6 +302,7 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
 
 # Path to the Firebase Admin SDK service-account JSON (kept out of git).
 FIREBASE_CREDENTIALS = BASE_DIR / os.environ.get(

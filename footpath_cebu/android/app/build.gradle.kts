@@ -28,11 +28,32 @@ android {
         versionName = flutter.versionName
     }
 
+    val releaseStoreFile = System.getenv("ANDROID_RELEASE_STORE_FILE")
+    val releaseStorePassword = System.getenv("ANDROID_RELEASE_STORE_PASSWORD")
+    val releaseKeyAlias = System.getenv("ANDROID_RELEASE_KEY_ALIAS")
+    val releaseKeyPassword = System.getenv("ANDROID_RELEASE_KEY_PASSWORD")
+
+    signingConfigs {
+        create("release") {
+            if (releaseStoreFile.isNullOrBlank() ||
+                releaseStorePassword.isNullOrBlank() ||
+                releaseKeyAlias.isNullOrBlank() ||
+                releaseKeyPassword.isNullOrBlank()
+            ) {
+                throw GradleException(
+                    "Release signing variables are required; never ship a debug-signed APK."
+                )
+            }
+            storeFile = file(releaseStoreFile)
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

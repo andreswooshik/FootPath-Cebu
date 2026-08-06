@@ -26,14 +26,19 @@ class FirebaseAuthRepository implements AuthRepository {
       await FirebaseAuth.instance.signOut();
       return null;
     }
-    final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/auth/me/'),
-      headers: {'Authorization': 'Bearer $idToken'},
-    );
+    final response = await http
+        .get(
+          Uri.parse('${ApiConfig.baseUrl}/api/auth/me/'),
+          headers: {'Authorization': 'Bearer $idToken'},
+        )
+        .timeout(const Duration(seconds: 15));
     if (response.statusCode != 200) {
-      // A Firebase session without a valid Django profile is not usable by
-      // the app. Clear it so startup cannot loop on a rejected account.
-      await FirebaseAuth.instance.signOut();
+      // Only an explicit authentication/authorization rejection invalidates
+      // the local Firebase session. Preserve it during outages so closing and
+      // reopening the app does not force an unnecessary sign-in.
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        await FirebaseAuth.instance.signOut();
+      }
       var message = 'Saved login rejected by server (${response.statusCode}).';
       try {
         final body = jsonDecode(response.body);
@@ -64,10 +69,12 @@ class FirebaseAuthRepository implements AuthRepository {
     }
 
     final idToken = await credential.user!.getIdToken();
-    final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/auth/me/'),
-      headers: {'Authorization': 'Bearer $idToken'},
-    );
+    final response = await http
+        .get(
+          Uri.parse('${ApiConfig.baseUrl}/api/auth/me/'),
+          headers: {'Authorization': 'Bearer $idToken'},
+        )
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
       // Don't keep a Firebase session the backend refuses to recognize.

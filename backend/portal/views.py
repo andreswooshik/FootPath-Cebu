@@ -15,7 +15,7 @@ from django.shortcuts import get_object_or_404
 
 from academy.models import AuditLog, EligibilityHistory, PlayerProfile
 from academy.pin_service import reset_pin
-from academy.storage import upload_photo
+from academy.storage import upload_photo, validate_photo_upload
 from accounts.models import GuardianLink, Roles, User
 from accounts.services import ProvisioningError
 
@@ -277,8 +277,6 @@ def guardian_unlink(request, pk):
 
 
 # Portal photo guardrails — images only, far smaller than the license cap.
-_PHOTO_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
-_PHOTO_TYPES = {'image/jpeg', 'image/png', 'image/webp'}
 
 
 @portal_role_required(Roles.COORDINATOR)
@@ -294,17 +292,14 @@ def player_photo(request, player_id):
     upload = request.FILES.get('photo')
     if upload is None:
         messages.error(request, 'Choose a photo file first.')
-    elif upload.size > _PHOTO_MAX_BYTES:
-        messages.error(request, 'The photo must be 10 MB or smaller.')
-    elif upload.content_type not in _PHOTO_TYPES:
-        messages.error(request, 'Only JPG, PNG or WebP photos are accepted.')
     else:
         try:
+            content_type = validate_photo_upload(upload)
             path = upload_photo(
                 player_id, upload.read(),
-                content_type=upload.content_type,
+                content_type=content_type,
             )
-        except RuntimeError as exc:
+        except (RuntimeError, ValueError) as exc:
             messages.error(request, str(exc))
         else:
             profile.photo_path = path

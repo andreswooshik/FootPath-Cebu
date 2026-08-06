@@ -11,9 +11,12 @@ so `photoUrl` is simply null and the client shows its avatar fallback.
 """
 import os
 
+from django.core.cache import cache
 import httpx
 
 _TIMEOUT = 10.0
+MAX_PHOTO_BYTES = 5 * 1024 * 1024
+ALLOWED_PHOTO_TYPES = frozenset({'image/jpeg', 'image/png', 'image/webp'})
 
 
 def _config():
@@ -26,6 +29,26 @@ def _config():
 def is_configured():
     url, key, _ = _config()
     return bool(url and key)
+
+
+def validate_photo_upload(upload):
+    """Validate size, declared type, and file signature before storage upload."""
+    content_type = (getattr(upload, 'content_type', '') or '').lower()
+    if content_type not in ALLOWED_PHOTO_TYPES:
+        raise ValueError('Only JPEG, PNG, and WebP photos are allowed.')
+    size = getattr(upload, 'size', None)
+    if size is not None and size > MAX_PHOTO_BYTES:
+        raise ValueError('Photo must be 5 MB or smaller.')
+    header = upload.read(16)
+    upload.seek(0)
+    signatures = {
+        'image/jpeg': header.startswith(b'\xff\xd8\xff'),
+        'image/png': header.startswith(b'\x89PNG\r\n\x1a\n'),
+        'image/webp': header.startswith(b'RIFF') and header[8:12] == b'WEBP',
+    }
+    if not signatures[content_type]:
+        raise ValueError('The uploaded file does not match its image type.')
+    return content_type
 
 
 def upload_photo(user_id, content, content_type='image/jpeg'):
@@ -63,6 +86,10 @@ def signed_photo_url(photo_path, expires=3600):
     avatar initial)."""
     if not photo_path:
         return None
+    cache_key = f'photo-signed-url:{expires}:{photo_path}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
     url, key, _ = _config()
     if not (url and key):
         return None
@@ -77,6 +104,9 @@ def signed_photo_url(photo_path, expires=3600):
         )
         resp.raise_for_status()
         signed = resp.json().get('signedURL') or resp.json().get('signedUrl')
-        return f'{url}/storage/v1{signed}' if signed else None
+        result = f'{url}/storage/v1{signed}' if signed else None
+        if result:
+            cache.set(cache_key, result, timeout=max(1, expires - 60))
+        return result
     except Exception:
         return None
