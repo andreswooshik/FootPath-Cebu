@@ -106,7 +106,10 @@ class PlayerDashboardScreen extends ConsumerWidget {
       bottomNavigationBar: ref
           .watch(myProfileProvider)
           .maybeWhen(
-            data: (player) => PortalBottomNav(player: player, selectedIndex: 0),
+            data: (player) =>
+                isPlayerPrivacyGateActive(ref, player.id, requirePinSetup: true)
+                ? null
+                : PortalBottomNav(player: player, selectedIndex: 0),
             orElse: () => null,
           ),
     );

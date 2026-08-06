@@ -214,11 +214,14 @@ class ProfileTabScreen extends ConsumerWidget {
                 ],
               ),
             ),
-      bottomNavigationBar: PortalBottomNav(
-        player: player,
-        selectedIndex: 3,
-        isGuardian: isGuardian,
-      ),
+      bottomNavigationBar:
+          isGuardian || !isPlayerPrivacyGateActive(ref, player.id)
+          ? PortalBottomNav(
+              player: player,
+              selectedIndex: 3,
+              isGuardian: isGuardian,
+            )
+          : null,
     );
   }
 

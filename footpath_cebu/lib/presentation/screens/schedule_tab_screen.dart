@@ -107,11 +107,13 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: PortalBottomNav(
-        player: widget.player,
-        selectedIndex: 1,
-        isGuardian: widget.isGuardian,
-      ),
+      bottomNavigationBar: isPlayerPrivacyGateActive(ref, widget.player.id)
+          ? null
+          : PortalBottomNav(
+              player: widget.player,
+              selectedIndex: 1,
+              isGuardian: widget.isGuardian,
+            ),
     );
   }
 }

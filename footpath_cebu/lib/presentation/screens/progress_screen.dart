@@ -68,11 +68,13 @@ class ProgressScreen extends ConsumerWidget {
           },
         ),
       ),
-      bottomNavigationBar: PortalBottomNav(
-        player: player,
-        selectedIndex: 2,
-        isGuardian: isGuardian,
-      ),
+      bottomNavigationBar: isPlayerPrivacyGateActive(ref, player.id)
+          ? null
+          : PortalBottomNav(
+              player: player,
+              selectedIndex: 2,
+              isGuardian: isGuardian,
+            ),
     );
   }
 }

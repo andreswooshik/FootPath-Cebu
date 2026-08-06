@@ -154,6 +154,8 @@ class GuardianDashboardScreen extends ConsumerWidget {
           ),
       bottomNavigationBar: ref.watch(selectedChildProvider) == null
           ? null
+          : isPlayerPrivacyGateActive(ref, ref.watch(selectedChildProvider)!.id)
+          ? null
           : PortalBottomNav(
               player: ref.watch(selectedChildProvider)!,
               selectedIndex: 0,

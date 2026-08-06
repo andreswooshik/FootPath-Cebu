@@ -7,6 +7,26 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 
+/// Whether child-scoped navigation should be available right now.
+///
+/// Loading and error states stay hidden so a user cannot navigate around a
+/// privacy prompt while the PIN status is being checked.
+bool isPlayerPrivacyGateActive(
+  WidgetRef ref,
+  String playerId, {
+  bool requirePinSetup = false,
+}) {
+  if (ref.watch(privacyUnlockedPlayersProvider).contains(playerId)) {
+    return false;
+  }
+  final status = ref.watch(playerPrivacyPinStatusProvider(playerId));
+  return status.when(
+    loading: () => true,
+    error: (error, stackTrace) => true,
+    data: (pinStatus) => pinStatus.hasPin || requirePinSetup,
+  );
+}
+
 /// Protects child-scoped content after a player has enabled a household PIN.
 /// The unlocked state is session-only and contains no secret material.
 class PlayerPrivacyGate extends ConsumerStatefulWidget {
