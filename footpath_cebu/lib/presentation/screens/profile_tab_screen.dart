@@ -6,6 +6,7 @@ import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/presentation/screens/change_password_screen.dart';
+import 'package:footpath_cebu/presentation/screens/guardian_privacy_pin_selection_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_privacy_pin_screen.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
@@ -170,65 +171,26 @@ class _PrivacyPinCard extends ConsumerWidget {
   final Player player;
   final bool isGuardian;
 
-  Future<void> _reset(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reset player PIN?'),
-        content: Text('This clears ${player.name}’s privacy PIN.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Reset'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    try {
-      await ref.read(resetPlayerPrivacyPinProvider)(player.id);
-      ref.invalidate(playerPrivacyPinStatusProvider(player.id));
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Player PIN reset.')));
-      }
-    } catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final status = ref.watch(playerPrivacyPinStatusProvider(player.id));
     return Card(
       child: ListTile(
         leading: const Icon(Icons.lock_outline),
         title: Text(isGuardian ? 'Player privacy PIN' : 'Privacy PIN'),
-        subtitle: const Text('Manage privacy access for this player'),
+        subtitle: Text(
+          isGuardian
+              ? 'Select a player to create or reset their PIN'
+              : 'Create or change your 4–6 digit PIN',
+        ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
-          final hasPin = status.maybeWhen(
-            data: (value) => value.hasPin,
-            orElse: () => false,
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => isGuardian
+                  ? const GuardianPrivacyPinSelectionScreen()
+                  : PlayerPrivacyPinScreen(player: player),
+            ),
           );
-          if (isGuardian && hasPin) {
-            _reset(context, ref);
-          } else {
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PlayerPrivacyPinScreen(player: player),
-              ),
-            );
-          }
         },
       ),
     );

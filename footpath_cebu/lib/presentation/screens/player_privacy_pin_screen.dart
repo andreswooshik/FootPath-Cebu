@@ -8,9 +8,14 @@ import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 
 class PlayerPrivacyPinScreen extends ConsumerStatefulWidget {
-  const PlayerPrivacyPinScreen({super.key, required this.player});
+  const PlayerPrivacyPinScreen({
+    super.key,
+    required this.player,
+    this.isGuardian = false,
+  });
 
   final Player player;
+  final bool isGuardian;
 
   @override
   ConsumerState<PlayerPrivacyPinScreen> createState() =>
@@ -79,7 +84,9 @@ class _PlayerPrivacyPinScreenState
             const Icon(Icons.lock_outline, size: 56),
             const SizedBox(height: 16),
             Text(
-              pinStatus.hasPin
+              pinStatus.hasPin && widget.isGuardian
+                  ? 'Manage ${widget.player.name}’s PIN'
+                  : pinStatus.hasPin
                   ? 'Change your player PIN'
                   : 'Create your player PIN',
               style: Theme.of(context).textTheme.headlineSmall,
@@ -90,33 +97,61 @@ class _PlayerPrivacyPinScreenState
               'Use 4 to 6 digits. This protects your player profile on shared household devices.',
               textAlign: TextAlign.center,
             ),
-            if (pinStatus.hasPin) ...[
+            if (pinStatus.hasPin && widget.isGuardian) ...[
               const SizedBox(height: 24),
-              _pinField(_currentController, 'Current PIN'),
-            ],
-            const SizedBox(height: 12),
-            _pinField(_pinController, 'New PIN'),
-            const SizedBox(height: 12),
-            _pinField(_confirmController, 'Confirm PIN'),
-            if (_error != null) ...[
+              const Text(
+                'The player already has a PIN. Reset it before creating a new one.',
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 12),
-              Text(_error!, style: TextStyle(color: Colors.red.shade700)),
+              FilledButton.tonal(
+                onPressed: _saving ? null : _resetAsGuardian,
+                child: const Text('Reset player PIN'),
+              ),
+            ] else ...[
+              if (pinStatus.hasPin) ...[
+                const SizedBox(height: 24),
+                _pinField(_currentController, 'Current PIN'),
+              ],
+              const SizedBox(height: 12),
+              _pinField(_pinController, 'New PIN'),
+              const SizedBox(height: 12),
+              _pinField(_confirmController, 'Confirm PIN'),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(_error!, style: TextStyle(color: Colors.red.shade700)),
+              ],
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _saving ? null : () => _save(pinStatus.hasPin),
+                child: _saving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(pinStatus.hasPin ? 'Change PIN' : 'Create PIN'),
+              ),
             ],
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _saving ? null : () => _save(pinStatus.hasPin),
-              child: _saving
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(pinStatus.hasPin ? 'Change PIN' : 'Create PIN'),
-            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _resetAsGuardian() async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await ref.read(resetPlayerPrivacyPinProvider)(widget.player.id);
+      ref.invalidate(playerPrivacyPinStatusProvider(widget.player.id));
+    } on PlayerPrivacyPinException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Widget _pinField(TextEditingController controller, String label) {
