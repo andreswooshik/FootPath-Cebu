@@ -104,51 +104,59 @@ class GuardianDashboardScreen extends ConsumerWidget {
                   ],
                 );
               }
-              return PlayerPrivacyGate(
-                player: child,
-                isGuardian: true,
-                child: RefreshIndicator(
-                  onRefresh: () {
-                    ref.invalidate(childAttendanceProvider);
-                    return ref.refresh(linkedPlayersProvider.future);
-                  },
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      _PlayerSelector(
-                        children: children,
-                        selectedId: child.id,
-                        onChanged: (id) => ref
-                            .read(selectedChildIdProvider.notifier)
-                            .select(id),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        child.name,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      Text(
-                        '${child.ageTier.label} · ${child.position?.code ?? 'No position'}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 300),
-                          child: PlayerCard(player: child),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _StatRow(child: child),
-                      const SizedBox(height: 16),
-                      _RecentAttendanceCard(child: child),
-                      const SizedBox(height: 16),
-                      _InjuryHistoryCard(child: child),
-                    ],
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: _PlayerSelector(
+                      children: children,
+                      selectedId: child.id,
+                      onChanged: (id) =>
+                          ref.read(selectedChildIdProvider.notifier).select(id),
+                    ),
                   ),
-                ),
+                  Expanded(
+                    child: PlayerPrivacyGate(
+                      player: child,
+                      isGuardian: true,
+                      child: RefreshIndicator(
+                        onRefresh: () {
+                          ref.invalidate(childAttendanceProvider);
+                          return ref.refresh(linkedPlayersProvider.future);
+                        },
+                        child: ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
+                            Text(
+                              child.name,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            Text(
+                              '${child.ageTier.label} · ${child.position?.code ?? 'No position'}',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: Colors.grey.shade600),
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 300,
+                                ),
+                                child: PlayerCard(player: child),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _StatRow(child: child),
+                            const SizedBox(height: 16),
+                            _RecentAttendanceCard(child: child),
+                            const SizedBox(height: 16),
+                            _InjuryHistoryCard(child: child),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),
