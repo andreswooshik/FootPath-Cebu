@@ -251,10 +251,23 @@ class PlayerPrivacyPinVerifyView(APIView):
     """POST verifies the player's PIN without returning any secret material."""
 
     def post(self, request, player_id):
-        if request.user.role != Roles.PLAYER or str(request.user.id) != str(player_id):
-            raise PermissionDenied('Only the player can verify their own PIN.')
+        is_player = (
+            request.user.role == Roles.PLAYER
+            and str(request.user.id) == str(player_id)
+        )
+        is_linked_guardian = (
+            request.user.role == Roles.GUARDIAN
+            and GuardianLink.objects.filter(
+                guardian=request.user, player_id=player_id
+            ).exists()
+        )
+        if not is_player and not is_linked_guardian:
+            raise PermissionDenied(
+                'Only the player or a linked guardian can verify this PIN.'
+            )
+        player = _pin_profile(player_id).user
         try:
-            verify_pin(_pin_profile(player_id).user, request.data.get('pin'))
+            verify_pin(player, request.data.get('pin'))
         except PinLocked as exc:
             return Response(
                 {'detail': str(exc), 'lockedUntil': exc.locked_until.isoformat()},

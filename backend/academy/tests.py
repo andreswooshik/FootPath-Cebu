@@ -703,6 +703,12 @@ class PlayerPrivacyPinTests(APITestCase):
             response.data,
         )
         self.assertTrue(response.data['hasPin'])
+        response = self.client.post(
+            reverse('player-pin-verify', args=[self.player.id]),
+            {'pin': '2468'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {'verified': True})
 
     def test_player_cannot_read_or_reset_another_players_pin(self):
         other = make_player('other-pin-player@footpathcebu.test')
