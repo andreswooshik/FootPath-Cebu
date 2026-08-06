@@ -13,10 +13,12 @@ class OfflineFirstAttendanceRepository implements AttendanceRepository {
   OfflineFirstAttendanceRepository({
     required this._inner,
     required this._outbox,
+    required this._ownerUid,
   });
 
   final AttendanceRepository _inner;
   final AttendanceOutbox _outbox;
+  final String? Function() _ownerUid;
 
   @override
   Future<List<Attendance>> saveSessionAttendance(
@@ -28,7 +30,11 @@ class OfflineFirstAttendanceRepository implements AttendanceRepository {
     } on AttendanceNetworkException {
       // Offline: queue the whole batch and report the coach's marks back as
       // saved — the sync service replays them when the connection returns.
-      await _outbox.enqueue(sessionId, records);
+      final ownerUid = _ownerUid();
+      if (ownerUid == null || ownerUid.isEmpty) {
+        throw AttendanceRepositoryException('Not signed in.');
+      }
+      await _outbox.enqueue(ownerUid, sessionId, records);
       return records;
     }
   }
@@ -40,15 +46,20 @@ class OfflineFirstAttendanceRepository implements AttendanceRepository {
     } on AttendanceRepositoryException {
       // Offline (or the server errored): show the coach what they last
       // queued for this session rather than an empty roll call.
-      final queued = await _outbox.latestBatchForSession(sessionId);
+      final ownerUid = _ownerUid();
+      if (ownerUid == null || ownerUid.isEmpty) rethrow;
+      final queued = await _outbox.latestBatchForSession(ownerUid, sessionId);
       if (queued != null) return queued.records;
       rethrow;
     }
   }
 
   @override
-  Future<List<Attendance>> fetchAttendanceForPlayer(String playerId) {
+  Future<List<Attendance>> fetchAttendanceForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) {
     // The offline requirement covers capture only; history reads stay live.
-    return _inner.fetchAttendanceForPlayer(playerId);
+    return _inner.fetchAttendanceForPlayer(playerId, unlockToken: unlockToken);
   }
 }

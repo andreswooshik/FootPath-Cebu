@@ -20,6 +20,7 @@ class AttendanceSyncService {
   AttendanceSyncService({
     required this._outbox,
     required this._inner,
+    required this._ownerUid,
     this._connectivityStream,
   });
 
@@ -28,6 +29,7 @@ class AttendanceSyncService {
 
   final AttendanceOutbox _outbox;
   final SessionAttendanceWriter _inner;
+  final String? Function() _ownerUid;
   final Stream<List<ConnectivityResult>>? _connectivityStream;
 
   StreamSubscription<List<ConnectivityResult>>? _subscription;
@@ -40,8 +42,7 @@ class AttendanceSyncService {
   /// a connectivity change. Safe to call once post-login.
   void start() {
     if (_subscription != null) return;
-    final stream =
-        _connectivityStream ?? Connectivity().onConnectivityChanged;
+    final stream = _connectivityStream ?? Connectivity().onConnectivityChanged;
     _subscription = stream.listen((results) {
       final online = results.any((r) => r != ConnectivityResult.none);
       if (online) {
@@ -58,7 +59,9 @@ class AttendanceSyncService {
     if (_draining) return;
     _draining = true;
     try {
-      final batches = await _outbox.pendingBatches();
+      final ownerUid = _ownerUid();
+      if (ownerUid == null || ownerUid.isEmpty) return;
+      final batches = await _outbox.pendingBatches(ownerUid);
       for (final batch in batches) {
         try {
           await _inner.saveSessionAttendance(batch.sessionId, batch.records);

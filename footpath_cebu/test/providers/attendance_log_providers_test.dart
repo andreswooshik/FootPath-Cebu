@@ -31,16 +31,18 @@ class _FakeAttendanceRepo implements AttendanceRepository {
   }
 
   @override
-  Future<List<Attendance>> fetchAttendanceForPlayer(String playerId) async =>
-      const [];
+  Future<List<Attendance>> fetchAttendanceForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async => const [];
 }
 
 Attendance _present(String playerId) => Attendance(
-      playerId: playerId,
-      status: AttendanceStatus.present,
-      updatedAt: DateTime(2026, 6, 28),
-      sessionId: 't1',
-    );
+  playerId: playerId,
+  status: AttendanceStatus.present,
+  updatedAt: DateTime(2026, 6, 28),
+  sessionId: 't1',
+);
 
 void main() {
   ProviderContainer containerWith(_FakeAttendanceRepo repo) {
@@ -56,8 +58,9 @@ void main() {
       final repo = _FakeAttendanceRepo(existing: [_present('p1')]);
       final container = containerWith(repo);
 
-      final records =
-          await container.read(sessionAttendanceProvider('t1').future);
+      final records = await container.read(
+        sessionAttendanceProvider('t1').future,
+      );
       expect(records.single.playerId, 'p1');
     });
   });
@@ -74,10 +77,7 @@ void main() {
       expect(ok, isTrue);
       expect(repo.savedSessionId, 't1');
       expect(repo.savedRecords!.map((r) => r.playerId), ['p1', 'p2']);
-      expect(
-        container.read(attendanceLogControllerProvider).hasError,
-        isFalse,
-      );
+      expect(container.read(attendanceLogControllerProvider).hasError, isFalse);
     });
 
     test('returns false and records the error on failure', () async {

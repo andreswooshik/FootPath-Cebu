@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart';
 class OutboxBatch {
   const OutboxBatch({
     required this.id,
+    required this.ownerUid,
     required this.sessionId,
     required this.records,
     required this.retryCount,
@@ -16,6 +17,7 @@ class OutboxBatch {
   });
 
   final int id;
+  final String ownerUid;
   final String sessionId;
   final List<Attendance> records;
   final int retryCount;
@@ -42,15 +44,17 @@ class AttendanceOutbox {
     final existing = _db;
     if (existing != null && existing.isOpen) return existing;
     final factory = _factory ?? databaseFactory;
-    final path = _dbPath ??
+    final path =
+        _dbPath ??
         '${await factory.getDatabasesPath()}/footpath_attendance_outbox.db';
     final db = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onCreate: (db, version) => db.execute('''
           CREATE TABLE $_table (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_uid TEXT NOT NULL,
             session_id TEXT NOT NULL,
             records_json TEXT NOT NULL,
             created_at TEXT NOT NULL,
@@ -58,6 +62,14 @@ class AttendanceOutbox {
             last_error TEXT
           )
         '''),
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute(
+              "ALTER TABLE $_table ADD COLUMN owner_uid TEXT NOT NULL DEFAULT ''",
+            );
+            await db.delete(_table);
+          }
+        },
       ),
     );
     _db = db;
@@ -65,9 +77,14 @@ class AttendanceOutbox {
   }
 
   /// Queues a batch for later sync. Returns the new row id.
-  Future<int> enqueue(String sessionId, List<Attendance> records) async {
+  Future<int> enqueue(
+    String ownerUid,
+    String sessionId,
+    List<Attendance> records,
+  ) async {
     final db = await _database();
     return db.insert(_table, {
+      'owner_uid': ownerUid,
       'session_id': sessionId,
       'records_json': jsonEncode(records.map((r) => r.toJson()).toList()),
       'created_at': DateTime.now().toIso8601String(),
@@ -78,20 +95,28 @@ class AttendanceOutbox {
   /// All queued batches, oldest first — the drain order. Sequential
   /// oldest-first drain means the newest save for a session wins on the
   /// server (last write wins, matching the endpoint's replace semantics).
-  Future<List<OutboxBatch>> pendingBatches() async {
+  Future<List<OutboxBatch>> pendingBatches(String ownerUid) async {
     final db = await _database();
-    final rows = await db.query(_table, orderBy: 'id ASC');
+    final rows = await db.query(
+      _table,
+      where: 'owner_uid = ?',
+      whereArgs: [ownerUid],
+      orderBy: 'id ASC',
+    );
     return rows.map(_toBatch).toList();
   }
 
   /// The most recently queued batch for one session, or null — the offline
   /// read fallback for the roll-call screen.
-  Future<OutboxBatch?> latestBatchForSession(String sessionId) async {
+  Future<OutboxBatch?> latestBatchForSession(
+    String ownerUid,
+    String sessionId,
+  ) async {
     final db = await _database();
     final rows = await db.query(
       _table,
-      where: 'session_id = ?',
-      whereArgs: [sessionId],
+      where: 'owner_uid = ? AND session_id = ?',
+      whereArgs: [ownerUid, sessionId],
       orderBy: 'id DESC',
       limit: 1,
     );
@@ -123,6 +148,7 @@ class AttendanceOutbox {
     final decoded = jsonDecode(row['records_json'] as String) as List;
     return OutboxBatch(
       id: row['id'] as int,
+      ownerUid: row['owner_uid'] as String,
       sessionId: row['session_id'] as String,
       records: decoded
           .cast<Map<String, dynamic>>()

@@ -38,7 +38,8 @@ class MockAttendanceRepository implements AttendanceRepository {
       updatedAt: DateTime(2026, 7, 8),
       sessionName: 'Evening Training',
       effort: 55,
-      note: 'Good awareness of teammates. Work on the timing of the '
+      note:
+          'Good awareness of teammates. Work on the timing of the '
           'defensive transition.',
     ),
     Attendance(
@@ -78,7 +79,8 @@ class MockAttendanceRepository implements AttendanceRepository {
       updatedAt: DateTime(2026, 7, 3),
       sessionName: 'Finishing Practice',
       effort: 88,
-      note: 'Excellent footwork today. Focus on recovery breathing during '
+      note:
+          'Excellent footwork today. Focus on recovery breathing during '
           'high-intensity intervals.',
     ),
   ];
@@ -103,12 +105,14 @@ class MockAttendanceRepository implements AttendanceRepository {
   }
 
   @override
-  Future<List<Attendance>> fetchAttendanceForPlayer(String playerId) async {
+  Future<List<Attendance>> fetchAttendanceForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async {
     // Simulate network latency so loading states are exercised in the UI.
     await Future.delayed(const Duration(milliseconds: 300));
-    final records =
-        _records.where((a) => a.playerId == playerId).toList()
-          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    final records = _records.where((a) => a.playerId == playerId).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return List.unmodifiable(records);
   }
 }

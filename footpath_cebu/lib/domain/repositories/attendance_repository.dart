@@ -4,7 +4,10 @@ import 'package:footpath_cebu/domain/entities/attendance.dart';
 /// (a guardian views, but never edits, a child's attendance).
 abstract class PlayerAttendanceReader {
   /// Returns the player's attendance records, most recent first.
-  Future<List<Attendance>> fetchAttendanceForPlayer(String playerId);
+  Future<List<Attendance>> fetchAttendanceForPlayer(
+    String playerId, {
+    String? unlockToken,
+  });
 }
 
 /// Reads every record already logged against one training session, so a coach

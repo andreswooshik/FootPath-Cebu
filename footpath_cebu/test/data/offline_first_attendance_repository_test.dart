@@ -35,18 +35,21 @@ class _FakeApiRepository implements AttendanceRepository {
   }
 
   @override
-  Future<List<Attendance>> fetchAttendanceForPlayer(String playerId) async {
+  Future<List<Attendance>> fetchAttendanceForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async {
     return sessionRecords;
   }
 }
 
 Attendance _record(String playerId) => Attendance(
-      playerId: playerId,
-      status: AttendanceStatus.present,
-      updatedAt: DateTime(2026, 7, 17, 16, 30),
-      sessionId: 's1',
-      effort: 70,
-    );
+  playerId: playerId,
+  status: AttendanceStatus.present,
+  updatedAt: DateTime(2026, 7, 17, 16, 30),
+  sessionId: 's1',
+  effort: 70,
+);
 
 void main() {
   setUpAll(sqfliteFfiInit);
@@ -54,6 +57,7 @@ void main() {
   late _FakeApiRepository inner;
   late AttendanceOutbox outbox;
   late OfflineFirstAttendanceRepository repo;
+  const ownerUid = 'coach-a';
 
   setUp(() {
     inner = _FakeApiRepository();
@@ -62,7 +66,11 @@ void main() {
       dbPath: inMemoryDatabasePath,
     );
     addTearDown(outbox.close);
-    repo = OfflineFirstAttendanceRepository(inner: inner, outbox: outbox);
+    repo = OfflineFirstAttendanceRepository(
+      inner: inner,
+      outbox: outbox,
+      ownerUid: () => ownerUid,
+    );
   });
 
   group('saveSessionAttendance', () {
@@ -71,22 +79,24 @@ void main() {
       final saved = await repo.saveSessionAttendance('s1', records);
       expect(saved, records);
       expect(inner.savedBatches, hasLength(1));
-      expect(await outbox.pendingBatches(), isEmpty);
+      expect(await outbox.pendingBatches(ownerUid), isEmpty);
     });
 
-    test('network failure: queues the batch and returns optimistically',
-        () async {
-      inner.saveError = AttendanceNetworkException('offline');
-      final records = [_record('p1'), _record('p2')];
+    test(
+      'network failure: queues the batch and returns optimistically',
+      () async {
+        inner.saveError = AttendanceNetworkException('offline');
+        final records = [_record('p1'), _record('p2')];
 
-      final saved = await repo.saveSessionAttendance('s1', records);
+        final saved = await repo.saveSessionAttendance('s1', records);
 
-      expect(saved, records); // the screen still reports success
-      final pending = await outbox.pendingBatches();
-      expect(pending, hasLength(1));
-      expect(pending.single.sessionId, 's1');
-      expect(pending.single.records, hasLength(2));
-    });
+        expect(saved, records); // the screen still reports success
+        final pending = await outbox.pendingBatches(ownerUid);
+        expect(pending, hasLength(1));
+        expect(pending.single.sessionId, 's1');
+        expect(pending.single.records, hasLength(2));
+      },
+    );
 
     test('validation failure: propagates and does NOT queue', () async {
       inner.saveError = AttendanceRepositoryException('Request failed (400).');
@@ -95,7 +105,7 @@ void main() {
         repo.saveSessionAttendance('s1', [_record('p1')]),
         throwsA(isA<AttendanceRepositoryException>()),
       );
-      expect(await outbox.pendingBatches(), isEmpty);
+      expect(await outbox.pendingBatches(ownerUid), isEmpty);
     });
   });
 
@@ -120,41 +130,57 @@ void main() {
 
   group('AttendanceSyncService.drain', () {
     test('replays queued batches in order and clears the outbox', () async {
-      await outbox.enqueue('s1', [_record('p1')]);
-      await outbox.enqueue('s2', [_record('p2')]);
+      await outbox.enqueue(ownerUid, 's1', [_record('p1')]);
+      await outbox.enqueue(ownerUid, 's2', [_record('p2')]);
 
-      final service = AttendanceSyncService(outbox: outbox, inner: inner);
+      final service = AttendanceSyncService(
+        outbox: outbox,
+        inner: inner,
+        ownerUid: () => ownerUid,
+      );
       addTearDown(service.dispose);
       await service.drain();
 
       expect(inner.savedBatches.map((b) => b.$1), ['s1', 's2']);
-      expect(await outbox.pendingBatches(), isEmpty);
+      expect(await outbox.pendingBatches(ownerUid), isEmpty);
     });
 
     test('a network failure stops the drain and keeps the batch', () async {
-      await outbox.enqueue('s1', [_record('p1')]);
+      await outbox.enqueue(ownerUid, 's1', [_record('p1')]);
       inner.saveError = AttendanceNetworkException('still offline');
 
-      final service = AttendanceSyncService(outbox: outbox, inner: inner);
+      final service = AttendanceSyncService(
+        outbox: outbox,
+        inner: inner,
+        ownerUid: () => ownerUid,
+      );
       addTearDown(service.dispose);
       await service.drain();
 
-      final pending = await outbox.pendingBatches();
+      final pending = await outbox.pendingBatches(ownerUid);
       expect(pending, hasLength(1));
       expect(pending.single.retryCount, 1);
       expect(pending.single.lastError, 'still offline');
     });
 
-    test('a validation rejection drops the batch instead of retrying forever',
-        () async {
-      await outbox.enqueue('s1', [_record('p1')]);
-      inner.saveError = AttendanceRepositoryException('Request failed (400).');
+    test(
+      'a validation rejection drops the batch instead of retrying forever',
+      () async {
+        await outbox.enqueue(ownerUid, 's1', [_record('p1')]);
+        inner.saveError = AttendanceRepositoryException(
+          'Request failed (400).',
+        );
 
-      final service = AttendanceSyncService(outbox: outbox, inner: inner);
-      addTearDown(service.dispose);
-      await service.drain();
+        final service = AttendanceSyncService(
+          outbox: outbox,
+          inner: inner,
+          ownerUid: () => ownerUid,
+        );
+        addTearDown(service.dispose);
+        await service.drain();
 
-      expect(await outbox.pendingBatches(), isEmpty);
-    });
+        expect(await outbox.pendingBatches(ownerUid), isEmpty);
+      },
+    );
   });
 }

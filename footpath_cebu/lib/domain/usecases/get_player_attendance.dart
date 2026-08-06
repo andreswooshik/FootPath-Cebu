@@ -7,6 +7,6 @@ class GetPlayerAttendance {
 
   final PlayerAttendanceReader _repository;
 
-  Future<List<Attendance>> call(String playerId) =>
-      _repository.fetchAttendanceForPlayer(playerId);
+  Future<List<Attendance>> call(String playerId, {String? unlockToken}) =>
+      _repository.fetchAttendanceForPlayer(playerId, unlockToken: unlockToken);
 }

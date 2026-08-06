@@ -9,17 +9,29 @@ import 'package:http/http.dart' as http;
 /// Live implementation backed by the Django REST API, authenticated with the
 /// signed-in user's Firebase ID token (same pattern as [ApiTrainingRepository]).
 class ApiAttendanceRepository implements AttendanceRepository {
+  ApiAttendanceRepository({this.unlockTokenFor});
+
+  final String? Function(String playerId)? unlockTokenFor;
+
   static const _path = '/api/attendance/';
 
   @override
-  Future<List<Attendance>> fetchAttendanceForPlayer(String playerId) async {
+  Future<List<Attendance>> fetchAttendanceForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async {
     final idToken = await _requireIdToken();
+    final playerUnlock = unlockToken ?? unlockTokenFor?.call(playerId);
 
     final http.Response response;
     try {
       response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}$_path?player=$playerId'),
-        headers: {'Authorization': 'Bearer $idToken'},
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          if (playerUnlock != null && playerUnlock.isNotEmpty)
+            'X-Player-Unlock': playerUnlock,
+        },
       );
     } catch (_) {
       throw AttendanceNetworkException(
@@ -77,9 +89,7 @@ class ApiAttendanceRepository implements AttendanceRepository {
           'Authorization': 'Bearer $idToken',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'records': records.map((r) => r.toJson()).toList(),
-        }),
+        body: jsonEncode({'records': records.map((r) => r.toJson()).toList()}),
       );
     } catch (_) {
       throw AttendanceNetworkException(
