@@ -86,6 +86,16 @@ def create_club_account(*, account_type, club, data):
         )
 
     if account_type == 'player':
+        guardian = data.get('guardian')
+        if guardian is None:
+            raise ProvisioningError(
+                'Create an active guardian before creating a player.'
+            )
+        if guardian.role != Roles.GUARDIAN or not guardian.is_active:
+            raise ProvisioningError(
+                'The selected guardian must be active and have the Guardian role.'
+            )
+        _assert_same_club(guardian, club)
         user, temp_password, _ = provision_user(
             email=data['email'],
             first_name=data['first_name'],
@@ -103,10 +113,7 @@ def create_club_account(*, account_type, club, data):
             age=age,
             age_tier=tier,
         )
-        guardian = data.get('guardian')
-        if guardian is not None:
-            _assert_same_club(guardian, club)
-            GuardianLink.objects.create(guardian=guardian, player=user)
+        GuardianLink.objects.create(guardian=guardian, player=user)
         return user, temp_password
 
     if account_type == 'guardian':

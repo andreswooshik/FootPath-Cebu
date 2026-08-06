@@ -150,8 +150,8 @@ class CreatePlayerForm(_BaseCreateAccountForm):
     )
     guardian = forms.ModelChoiceField(
         queryset=User.objects.none(),
-        required=False,
-        help_text='Optionally link an existing guardian in your club.',
+        required=True,
+        help_text='Required: create the guardian account first.',
     )
 
     def __init__(self, *args, **kwargs):

@@ -304,17 +304,32 @@ class CreateAccountTests(TestCase):
     def test_create_player(self, mock_get, mock_create, _init):
         mock_get.side_effect = firebase_auth.UserNotFoundError('nf')
         mock_create.return_value = Mock(uid='player-uid')
+        guardian = User.objects.create(
+            username='parent@club.test', email='parent@club.test',
+            role=Roles.GUARDIAN, club=self.club, firebase_uid='guardian-uid',
+        )
         resp = self.client.post(reverse('portal:create-account'), {
             'account_type': 'player', 'first_name': 'Pat', 'last_name': 'Kick',
             'email': 'pat@club.test', 'date_of_birth': '2010-05-01',
-            'middle_initial': 'X',
+            'middle_initial': 'X', 'guardian': guardian.id,
         })
         self.assertEqual(resp.status_code, 200)
         user = User.objects.get(email='pat@club.test')
         self.assertEqual(user.role, Roles.PLAYER)
         self.assertEqual(user.club, self.club)
+        self.assertTrue(
+            GuardianLink.objects.filter(guardian=guardian, player=user).exists()
+        )
         self.assertTrue(PlayerProfile.objects.filter(user=user).exists())
         self.assertContains(resp, 'Temporary password')
+
+    def test_create_player_requires_an_active_guardian(self):
+        response = self.client.post(reverse('portal:create-account'), {
+            'account_type': 'player', 'first_name': 'No', 'last_name': 'Parent',
+            'email': 'no-parent@club.test', 'date_of_birth': '2010-05-01',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(User.objects.filter(email='no-parent@club.test').exists())
 
     @_fb_patches
     def test_create_coach(self, mock_get, mock_create, _init):
