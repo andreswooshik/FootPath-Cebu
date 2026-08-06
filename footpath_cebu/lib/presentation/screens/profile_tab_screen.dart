@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
@@ -11,7 +12,6 @@ import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_privacy_pin_screen.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
-import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 
 /// Profile tab — one player's avatar, attributes, and a log-out action.
@@ -214,15 +214,7 @@ class ProfileTabScreen extends ConsumerWidget {
                 ],
               ),
             ),
-      bottomNavigationBar:
-          isGuardian || !isPlayerPrivacyGateActive(ref, player.id)
-          ? PortalBottomNav(
-              player: player,
-              selectedIndex: 3,
-              isGuardian: isGuardian,
-            )
-          : null,
-    );
+    ).animateScreenEntrance();
   }
 
   Widget _attributeRow(String label, int value) {
@@ -253,25 +245,27 @@ class _PrivacyPinCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.lock_outline),
-        title: Text(isGuardian ? 'Player privacy PIN' : 'Privacy PIN'),
-        subtitle: Text(
-          isGuardian
-              ? 'Select a player to create or reset their PIN'
-              : 'Create or change your 4–6 digit PIN',
+    return MotionPress(
+      child: Card(
+        child: ListTile(
+          leading: const Icon(Icons.lock_outline),
+          title: Text(isGuardian ? 'Player privacy PIN' : 'Privacy PIN'),
+          subtitle: Text(
+            isGuardian
+                ? 'Select a player to create or reset their PIN'
+                : 'Create or change your 4–6 digit PIN',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => isGuardian
+                    ? const GuardianPrivacyPinSelectionScreen()
+                    : PlayerPrivacyPinScreen(player: player),
+              ),
+            );
+          },
         ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => isGuardian
-                  ? const GuardianPrivacyPinSelectionScreen()
-                  : PlayerPrivacyPinScreen(player: player),
-            ),
-          );
-        },
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 /// Coach-only position picker: a modal bottom sheet listing every position,
@@ -22,10 +23,8 @@ Future<PlayerPosition?> showPositionPickerSheet({
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (context) => _PositionPickerSheet(
-      playerName: playerName,
-      current: current,
-    ),
+    builder: (context) =>
+        _PositionPickerSheet(playerName: playerName, current: current),
   );
 }
 
@@ -126,37 +125,39 @@ class _PositionTile extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    return ListTile(
-      onTap: onTap,
-      selected: selected,
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      leading: Container(
-        width: 44,
-        height: 32,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? cs.primary : cs.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          position.code,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: selected ? cs.onPrimary : cs.onSurfaceVariant,
+    return MotionPress(
+      child: ListTile(
+        onTap: onTap,
+        selected: selected,
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        leading: Container(
+          width: 44,
+          height: 32,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? cs.primary : cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            position.code,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: selected ? cs.onPrimary : cs.onSurfaceVariant,
+            ),
           ),
         ),
-      ),
-      title: Text(
-        position.label,
-        style: TextStyle(
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+        title: Text(
+          position.label,
+          style: TextStyle(
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+          ),
         ),
+        trailing: selected
+            ? Icon(Icons.check_circle, color: cs.primary, size: 20)
+            : null,
       ),
-      trailing: selected
-          ? Icon(Icons.check_circle, color: cs.primary, size: 20)
-          : null,
     );
   }
 }

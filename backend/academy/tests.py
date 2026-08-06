@@ -126,6 +126,37 @@ class LinkedPlayersTests(APITestCase):
         self.assertEqual(ids, {str(mine.id)})
 
 
+class PlayerDetailPrivacyTests(APITestCase):
+    def setUp(self):
+        self.guardian = make_user(Roles.GUARDIAN)
+        self.child = make_player('detail-child@footpathcebu.test')
+        GuardianLink.objects.create(guardian=self.guardian, player=self.child)
+
+    def test_linked_guardian_can_read_child_before_a_pin_is_created(self):
+        self.client.force_authenticate(self.guardian)
+        response = self.client.get(
+            reverse('player-detail', args=[self.child.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['id'], str(self.child.id))
+
+    def test_linked_guardian_still_needs_unlock_after_pin_is_created(self):
+        PlayerPrivacyPin.objects.create(
+            player=self.child,
+            pin_hash='configured-pin',
+        )
+        self.client.force_authenticate(self.guardian)
+        url = reverse('player-detail', args=[self.child.id])
+        self.assertEqual(self.client.get(url).status_code, 403)
+        response = self.client.get(
+            url,
+            HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
+                self.guardian.id, self.child.id
+            ),
+        )
+        self.assertEqual(response.status_code, 200)
+
+
 class AttendanceAuthorizationTests(APITestCase):
     """F3 — object-level authz: a guardian may only read a linked player."""
 

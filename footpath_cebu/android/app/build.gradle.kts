@@ -32,28 +32,42 @@ android {
     val releaseStorePassword = System.getenv("ANDROID_RELEASE_STORE_PASSWORD")
     val releaseKeyAlias = System.getenv("ANDROID_RELEASE_KEY_ALIAS")
     val releaseKeyPassword = System.getenv("ANDROID_RELEASE_KEY_PASSWORD")
+    val releaseSigningConfigured = listOf(
+        releaseStoreFile,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword,
+    ).all { !it.isNullOrBlank() }
 
     signingConfigs {
-        create("release") {
-            if (releaseStoreFile.isNullOrBlank() ||
-                releaseStorePassword.isNullOrBlank() ||
-                releaseKeyAlias.isNullOrBlank() ||
-                releaseKeyPassword.isNullOrBlank()
-            ) {
-                throw GradleException(
-                    "Release signing variables are required; never ship a debug-signed APK."
-                )
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
             }
-            storeFile = file(releaseStoreFile)
-            storePassword = releaseStorePassword
-            keyAlias = releaseKeyAlias
-            keyPassword = releaseKeyPassword
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
+
+    // Debug builds must remain runnable without production keystore secrets,
+    // especially for local Flutter/device development. A release task still
+    // fails explicitly when the protected signing variables are absent.
+    if (!releaseSigningConfigured) {
+        gradle.taskGraph.whenReady {
+            if (allTasks.any { it.name.contains("Release", ignoreCase = true) }) {
+                throw GradleException(
+                    "Release signing variables are required; never ship an unsigned or debug-signed APK."
+                )
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/eligibility_change.dart';
 import 'package:footpath_cebu/presentation/providers/eligibility_history_providers.dart';
@@ -32,14 +33,13 @@ class EligibilityHistoryScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text('Eligibility · $playerName')),
       body: historyAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const DashboardLoadingState(),
         error: (e, _) => DashboardErrorState(
           message: friendlyErrorMessage(
             e,
             'Something went wrong loading the eligibility history.',
           ),
-          onRetry: () =>
-              ref.invalidate(eligibilityHistoryProvider(playerId)),
+          onRetry: () => ref.invalidate(eligibilityHistoryProvider(playerId)),
         ),
         data: (changes) {
           if (changes.isEmpty) {
@@ -62,12 +62,15 @@ class EligibilityHistoryScreen extends ConsumerWidget {
               itemCount: changes.length,
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) =>
-                  _ChangeCard(change: changes[index]),
+                  _ChangeCard(change: changes[index]).animateListItem(
+                    key: ValueKey('$playerId-$index'),
+                    index: index,
+                  ),
             ),
           );
         },
       ),
-    );
+    ).animateScreenEntrance();
   }
 }
 
@@ -95,7 +98,11 @@ class _ChangeCard extends StatelessWidget {
               children: [
                 if (change.oldStatus != null) ...[
                   EligibilityBadge(status: change.oldStatus!),
-                  Icon(Icons.arrow_forward, size: 16, color: cs.onSurfaceVariant),
+                  Icon(
+                    Icons.arrow_forward,
+                    size: 16,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ],
                 EligibilityBadge(status: change.newStatus),
               ],

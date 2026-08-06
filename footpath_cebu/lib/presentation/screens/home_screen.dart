@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
-import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
-import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
-import 'package:footpath_cebu/presentation/screens/player_dashboard_screen.dart';
+import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key, required this.profile});
@@ -17,9 +16,9 @@ class HomeScreen extends ConsumerWidget {
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     await ref.read(signOutProvider)();
     if (!context.mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
   @override
@@ -28,11 +27,11 @@ class HomeScreen extends ConsumerWidget {
     // generic placeholder below.
     switch (profile.role) {
       case 'COACH':
-        return CoachDashboardScreen(profile: profile);
+        return CoachPortalScreen(profile: profile);
       case 'PLAYER':
-        return const PlayerDashboardScreen();
+        return const PlayerPortalScreen();
       case 'GUARDIAN':
-        return const GuardianDashboardScreen();
+        return const GuardianPortalScreen();
     }
 
     return Scaffold(
@@ -61,6 +60,6 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }

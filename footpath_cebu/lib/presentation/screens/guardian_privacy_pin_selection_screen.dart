@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
+import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/screens/player_privacy_pin_screen.dart';
 
 /// Netflix-style player picker for guardian PIN management.
@@ -16,7 +18,7 @@ class GuardianPrivacyPinSelectionScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Player privacy PINs')),
       body: players.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const DashboardLoadingState(compact: true),
         error: (error, _) => Center(
           child: FilledButton.tonal(
             onPressed: () => ref.invalidate(linkedPlayersProvider),
@@ -73,6 +75,6 @@ class GuardianPrivacyPinSelectionScreen extends ConsumerWidget {
                 },
               ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }

@@ -8,28 +8,28 @@ import 'package:footpath_cebu/domain/entities/training_session.dart';
 /// invalidates this automatically (see [ScheduleSessionController.submit]).
 final trainingSessionsProvider =
     FutureProvider.autoDispose<List<TrainingSession>>(
-  (ref) => ref.watch(getTrainingSessionsProvider)(),
-);
+      (ref) => ref.watch(getTrainingSessionsProvider)(),
+    );
 
 /// Sessions from today onward, soonest first.
 final upcomingSessionsProvider =
     Provider.autoDispose<AsyncValue<List<TrainingSession>>>((ref) {
-  return ref.watch(trainingSessionsProvider).whenData((sessions) {
-    final list = sessions.where((s) => !_isPast(s.date)).toList()
-      ..sort((a, b) => a.date.compareTo(b.date));
-    return List.unmodifiable(list);
-  });
-});
+      return ref.watch(trainingSessionsProvider).whenData((sessions) {
+        final list = sessions.where((s) => !_isPast(s.date)).toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
+        return List.unmodifiable(list);
+      });
+    });
 
 /// Sessions before today, most recent first.
 final pastSessionsProvider =
     Provider.autoDispose<AsyncValue<List<TrainingSession>>>((ref) {
-  return ref.watch(trainingSessionsProvider).whenData((sessions) {
-    final list = sessions.where((s) => _isPast(s.date)).toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
-    return List.unmodifiable(list);
-  });
-});
+      return ref.watch(trainingSessionsProvider).whenData((sessions) {
+        final list = sessions.where((s) => _isPast(s.date)).toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
+        return List.unmodifiable(list);
+      });
+    });
 
 bool _isPast(DateTime date) {
   final now = DateTime.now();
@@ -76,5 +76,5 @@ class ScheduleSessionController extends AsyncNotifier<void> {
 
 final scheduleSessionControllerProvider =
     AsyncNotifierProvider.autoDispose<ScheduleSessionController, void>(
-  ScheduleSessionController.new,
-);
+      ScheduleSessionController.new,
+    );

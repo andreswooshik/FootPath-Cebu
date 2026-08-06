@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
@@ -26,7 +27,7 @@ class AttendanceHistoryScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text('Attendance · $playerName')),
       body: attendanceAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const DashboardLoadingState(),
         error: (e, _) => DashboardErrorState(
           message: friendlyErrorMessage(
             e,
@@ -53,12 +54,15 @@ class AttendanceHistoryScreen extends ConsumerWidget {
                     subtitle: Text(formatFullDate(record.updatedAt)),
                     trailing: AttendanceStatusChip(status: record.status),
                   ),
+                ).animateListItem(
+                  key: ValueKey(record.updatedAt),
+                  index: index,
                 );
               },
             ),
           );
         },
       ),
-    );
+    ).animateScreenEntrance();
   }
 }

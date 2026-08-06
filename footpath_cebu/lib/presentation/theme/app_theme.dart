@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
+
 /// The app's youth-facing design system.
 ///
 /// Brand colours live here so every screen stays on-theme: teal as the
@@ -49,14 +51,25 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.tealLight,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: AppPageTransitionsBuilder(),
+          TargetPlatform.fuchsia: AppPageTransitionsBuilder(),
+          TargetPlatform.iOS: AppPageTransitionsBuilder(),
+          TargetPlatform.linux: AppPageTransitionsBuilder(),
+          TargetPlatform.macOS: AppPageTransitionsBuilder(),
+          TargetPlatform.windows: AppPageTransitionsBuilder(),
+        },
+      ),
     );
 
     // Fredoka for display/titles, Nunito for body — applied over the M3
     // baseline so sizes/weights stay sensible.
     final textTheme = GoogleFonts.nunitoTextTheme(base.textTheme).copyWith(
       displayLarge: GoogleFonts.fredoka(textStyle: base.textTheme.displayLarge),
-      displayMedium:
-          GoogleFonts.fredoka(textStyle: base.textTheme.displayMedium),
+      displayMedium: GoogleFonts.fredoka(
+        textStyle: base.textTheme.displayMedium,
+      ),
       displaySmall: GoogleFonts.fredoka(textStyle: base.textTheme.displaySmall),
       headlineLarge: GoogleFonts.fredoka(
         textStyle: base.textTheme.headlineLarge,
@@ -100,9 +113,7 @@ class AppTheme {
       cardTheme: CardThemeData(
         elevation: 2,
         shadowColor: AppColors.teal.withValues(alpha: 0.18),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         clipBehavior: Clip.antiAlias,
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -134,14 +145,10 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       chipTheme: base.chipTheme.copyWith(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(30),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       ),
     );
   }

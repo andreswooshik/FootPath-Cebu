@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/injury_record.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
@@ -44,7 +45,7 @@ class InjuryHistoryScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text('Injuries · $playerName')),
       body: injuriesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const DashboardLoadingState(),
         error: (e, _) => DashboardErrorState(
           message: friendlyErrorMessage(
             e,
@@ -79,6 +80,9 @@ class InjuryHistoryScreen extends ConsumerWidget {
                         ? null
                         : () => _openForm(context, existing: record),
                   ),
+                ).animateListItem(
+                  key: ValueKey(record.id ?? '${record.occurredOn}-$index'),
+                  index: index,
                 );
               },
             ),
@@ -92,7 +96,7 @@ class InjuryHistoryScreen extends ConsumerWidget {
               icon: const Icon(Icons.add),
               label: const Text('Log Injury'),
             ),
-    );
+    ).animateScreenEntrance();
   }
 
   String _subtitle(InjuryRecord record) {
@@ -120,12 +124,15 @@ class _InjuryFormSheet extends ConsumerStatefulWidget {
 
 class _InjuryFormSheetState extends ConsumerState<_InjuryFormSheet> {
   final _formKey = GlobalKey<FormState>();
-  late final _descriptionController =
-      TextEditingController(text: widget.existing?.description);
-  late final _bodyPartController =
-      TextEditingController(text: widget.existing?.bodyPart);
-  late final _notesController =
-      TextEditingController(text: widget.existing?.notes);
+  late final _descriptionController = TextEditingController(
+    text: widget.existing?.description,
+  );
+  late final _bodyPartController = TextEditingController(
+    text: widget.existing?.bodyPart,
+  );
+  late final _notesController = TextEditingController(
+    text: widget.existing?.notes,
+  );
   late InjuryStatus _status = widget.existing?.status ?? InjuryStatus.active;
   late DateTime _occurredOn = widget.existing?.occurredOn ?? DateTime.now();
   late DateTime? _resolvedOn = widget.existing?.resolvedOn;
@@ -173,8 +180,9 @@ class _InjuryFormSheetState extends ConsumerState<_InjuryFormSheet> {
       resolvedOn: _resolvedOn,
       notes: _nullIfBlank(_notesController.text),
     );
-    final saved =
-        await ref.read(injuryFormControllerProvider.notifier).submit(record);
+    final saved = await ref
+        .read(injuryFormControllerProvider.notifier)
+        .submit(record);
     if (!mounted) return;
     if (saved == null) {
       final error = ref.read(injuryFormControllerProvider).error;
@@ -188,9 +196,9 @@ class _InjuryFormSheetState extends ConsumerState<_InjuryFormSheet> {
       return;
     }
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Injury saved.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Injury saved.')));
   }
 
   Future<void> _delete() async {
@@ -215,8 +223,9 @@ class _InjuryFormSheetState extends ConsumerState<_InjuryFormSheet> {
     );
     if (confirmed != true || !mounted) return;
 
-    final ok =
-        await ref.read(injuryFormControllerProvider.notifier).remove(record);
+    final ok = await ref
+        .read(injuryFormControllerProvider.notifier)
+        .remove(record);
     if (!mounted) return;
     if (!ok) {
       final error = ref.read(injuryFormControllerProvider).error;
@@ -230,9 +239,9 @@ class _InjuryFormSheetState extends ConsumerState<_InjuryFormSheet> {
       return;
     }
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Injury deleted.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Injury deleted.')));
   }
 
   @override
@@ -282,10 +291,7 @@ class _InjuryFormSheetState extends ConsumerState<_InjuryFormSheet> {
                 ),
                 items: [
                   for (final status in InjuryStatus.values)
-                    DropdownMenuItem(
-                      value: status,
-                      child: Text(status.label),
-                    ),
+                    DropdownMenuItem(value: status, child: Text(status.label)),
                 ],
                 onChanged: (value) =>
                     setState(() => _status = value ?? _status),

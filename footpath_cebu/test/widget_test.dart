@@ -11,11 +11,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 
 void main() {
-  testWidgets('Login screen renders email/password fields and button',
-      (WidgetTester tester) async {
+  testWidgets('Login screen renders email/password fields and button', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       const ProviderScope(child: MaterialApp(home: LoginScreen())),
     );
+    await tester.pumpAndSettle();
 
     expect(find.text('FootPath Cebu'), findsOneWidget);
     expect(find.byType(TextField), findsNWidgets(2));

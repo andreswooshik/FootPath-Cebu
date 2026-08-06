@@ -199,8 +199,7 @@ class PlayerDetailView(APIView):
     def get(self, request, player_id):
         if not _guardian_may_read(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
-        if request.user.role == Roles.GUARDIAN:
-            require_player_unlock(request, player_id)
+        _require_unlock_when_pin_exists(request, player_id)
         profile = get_object_or_404(
             PlayerProfile.objects.select_related('user'), user_id=player_id
         )
@@ -211,6 +210,19 @@ def _pin_profile(player_id):
     return get_object_or_404(
         PlayerProfile.objects.select_related('user'), user_id=player_id
     )
+
+
+def _require_unlock_when_pin_exists(request, player_id):
+    """Apply the privacy gate only after a player has configured a PIN.
+
+    Linked guardians may view a managed player's profile before the household
+    PIN is created. Once a PIN exists, the short-lived unlock grant remains
+    mandatory for the same profile and its child-scoped records.
+    """
+    if request.user.role != Roles.GUARDIAN:
+        return
+    if has_pin(_pin_profile(player_id).user):
+        require_player_unlock(request, player_id)
 
 
 def _may_manage_pin(user, player_id):
@@ -413,8 +425,7 @@ class AttendanceListView(APIView):
             raise ValidationError('A player query parameter is required.')
         if not _guardian_may_read(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
-        if request.user.role == Roles.GUARDIAN:
-            require_player_unlock(request, player_id)
+        _require_unlock_when_pin_exists(request, player_id)
         records = Attendance.objects.select_related(
             'session', 'recorded_by', 'player'
         ).filter(player_id=player_id)
@@ -801,8 +812,7 @@ class EligibilityHistoryView(APIView):
                 'You may not view this player\'s eligibility history.'
             )
         get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
-        if request.user.role == Roles.GUARDIAN:
-            require_player_unlock(request, player_id)
+        _require_unlock_when_pin_exists(request, player_id)
         history = EligibilityHistory.objects.filter(
             player_id=player_id
         ).select_related('changed_by')
@@ -843,8 +853,7 @@ class InjuryRecordListCreateView(APIView):
                 guardian=request.user, player_id=player_id
             ).exists():
                 raise PermissionDenied('You may not view this player.')
-            if request.user.role == Roles.GUARDIAN:
-                require_player_unlock(request, player_id)
+            _require_unlock_when_pin_exists(request, player_id)
             records = InjuryRecord.objects.select_related('player').filter(
                 player_id=player_id
             )
@@ -897,8 +906,8 @@ class InjuryRecordDetailView(APIView):
             )
         if not allowed:
             raise PermissionDenied('You may not access this injury record.')
-        if not write and request.user.role == Roles.GUARDIAN:
-            require_player_unlock(request, record.player_id)
+        if not write:
+            _require_unlock_when_pin_exists(request, record.player_id)
         return record
 
     def get(self, request, pk):

@@ -15,15 +15,12 @@ class TierBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = Color(tier.argb);
-    final onColor = ThemeData.estimateBrightnessForColor(color) ==
-            Brightness.dark
+    final onColor =
+        ThemeData.estimateBrightnessForColor(color) == Brightness.dark
         ? Colors.white
         : const Color(0xFF3A2A0A);
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 8 : 12,
-        vertical: 6,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 12, vertical: 6),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [color.withValues(alpha: 0.95), color.withValues(alpha: 0.7)],

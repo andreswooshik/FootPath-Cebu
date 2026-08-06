@@ -60,9 +60,8 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
 
   // -- derived counts, computed against the eligible roster ------------------
 
-  int _presentCount() => _marks.values
-      .where((a) => a.status == AttendanceStatus.present)
-      .length;
+  int _presentCount() =>
+      _marks.values.where((a) => a.status == AttendanceStatus.present).length;
 
   // -- mark mutations --------------------------------------------------------
 
@@ -81,7 +80,9 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
               updatedAt: DateTime.now(),
               sessionId: widget.session.id,
               sessionName: widget.session.title,
-              effort: status == AttendanceStatus.present ? kDefaultEffort : null,
+              effort: status == AttendanceStatus.present
+                  ? kDefaultEffort
+                  : null,
             )
           : existing.copyWith(status: status, updatedAt: DateTime.now());
     });
@@ -196,15 +197,17 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     // than copyWith'd — copyWith reads `effort ?? this.effort`, so it can't
     // clear a field.
     final records = _marks.values
-        .map((a) => a.status == AttendanceStatus.present
-            ? a
-            : Attendance(
-                playerId: a.playerId,
-                status: a.status,
-                updatedAt: a.updatedAt,
-                sessionId: a.sessionId,
-                sessionName: a.sessionName,
-              ))
+        .map(
+          (a) => a.status == AttendanceStatus.present
+              ? a
+              : Attendance(
+                  playerId: a.playerId,
+                  status: a.status,
+                  updatedAt: a.updatedAt,
+                  sessionId: a.sessionId,
+                  sessionName: a.sessionName,
+                ),
+        )
         .toList(growable: false);
 
     final presentCount = _presentCount();
@@ -233,10 +236,8 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   void _openAssessment(Player player) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => EditPerformanceDataScreen(
-          player: player,
-          profile: widget.profile,
-        ),
+        builder: (_) =>
+            EditPerformanceDataScreen(player: player, profile: widget.profile),
       ),
     );
   }
@@ -255,8 +256,9 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   @override
   Widget build(BuildContext context) {
     final squadAsync = ref.watch(squadProvider);
-    final existingAsync =
-        ref.watch(sessionAttendanceProvider(widget.session.id));
+    final existingAsync = ref.watch(
+      sessionAttendanceProvider(widget.session.id),
+    );
     final isSaving = ref.watch(attendanceLogControllerProvider).isLoading;
 
     // Both sources feed the roster; combine them so we show one loading state.
@@ -282,7 +284,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
           ),
         ),
         body: rosterAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const DashboardLoadingState(),
           error: (e, _) => DashboardErrorState(
             message: friendlyErrorMessage(
               e,
@@ -293,16 +295,10 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
           data: (roster) => existingAsync.when(
             // The saved marks only preload the form; while they load we can
             // already show the roster, so don't block on them.
-            loading: () => _Body(
-              session: widget.session,
-              roster: roster,
-              state: this,
-            ),
-            error: (_, _) => _Body(
-              session: widget.session,
-              roster: roster,
-              state: this,
-            ),
+            loading: () =>
+                _Body(session: widget.session, roster: roster, state: this),
+            error: (_, _) =>
+                _Body(session: widget.session, roster: roster, state: this),
             data: (existing) {
               _seedOnce(roster, existing);
               return _Body(
@@ -589,8 +585,10 @@ class _PlayerAttendanceCard extends StatelessWidget {
                 ),
                 if (status == null)
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: cs.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(20),
@@ -886,7 +884,11 @@ class _FinalizeBar extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    Icon(Icons.lock_clock, size: 16, color: cs.onSurfaceVariant),
+                    Icon(
+                      Icons.lock_clock,
+                      size: 16,
+                      color: cs.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -924,9 +926,9 @@ class _FinalizeBar extends StatelessWidget {
                 isSaving
                     ? 'Saving…'
                     : !canLog
-                        ? 'Available on the session day'
-                        : 'Complete Training Session'
-                            '${markedCount > 0 ? ' ($presentCount present)' : ''}',
+                    ? 'Available on the session day'
+                    : 'Complete Training Session'
+                          '${markedCount > 0 ? ' ($presentCount present)' : ''}',
               ),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(50),

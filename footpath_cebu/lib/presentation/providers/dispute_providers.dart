@@ -67,5 +67,5 @@ class DisputeFormController extends AsyncNotifier<void> {
 
 final disputeFormControllerProvider =
     AsyncNotifierProvider.autoDispose<DisputeFormController, void>(
-  DisputeFormController.new,
-);
+      DisputeFormController.new,
+    );

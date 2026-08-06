@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 
@@ -27,86 +28,92 @@ class PlayerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = player.ratings;
-    return GestureDetector(
-      onTap: onTap,
-      child: AspectRatio(
-        aspectRatio: _canvasW / _canvasH,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // Pixels per design unit — everything scales from this.
-            final s = constraints.maxWidth / _canvasW;
-            return Stack(
-              children: [
-                Positioned.fill(
-                  child: SvgPicture.asset(
-                    'assets/cards/card_frame.svg',
-                    fit: BoxFit.fill,
+    return MotionPress(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AspectRatio(
+          aspectRatio: _canvasW / _canvasH,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Pixels per design unit — everything scales from this.
+              final s = constraints.maxWidth / _canvasW;
+              return Stack(
+                children: [
+                  Positioned.fill(
+                    child: SvgPicture.asset(
+                      'assets/cards/card_frame.svg',
+                      fit: BoxFit.fill,
+                    ),
                   ),
-                ),
 
-                // Player photo (behind the rating corner).
-                _place(s,
+                  // Player photo (behind the rating corner).
+                  _place(
+                    s,
                     x: 170,
                     y: 140,
                     w: 260,
                     h: 260,
-                    child: _Photo(photoUrl: player.photoUrl)),
-
-                // Overall rating + position, top-left.
-                _place(s,
-                  x: 46,
-                  y: 148,
-                  w: 148,
-                  h: 104,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${player.overall}',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 58 * s,
-                          height: 1,
-                        ),
-                      ),
-                      Text(
-                        player.position?.code ?? '--',
-                        style: TextStyle(
-                          color: _gold,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 22 * s,
-                        ),
-                      ),
-                    ],
+                    child: _Photo(photoUrl: player.photoUrl),
                   ),
-                ),
 
-                // Name banner text.
-                _place(s,
-                  x: 128,
-                  y: 430,
-                  w: 344,
-                  h: 58,
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        player.name,
-                        maxLines: 1,
-                        style: TextStyle(
-                          color: _bannerInk,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 26 * s,
-                          letterSpacing: 1,
+                  // Overall rating + position, top-left.
+                  _place(
+                    s,
+                    x: 46,
+                    y: 148,
+                    w: 148,
+                    h: 104,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${player.overall}',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 58 * s,
+                            height: 1,
+                          ),
+                        ),
+                        Text(
+                          player.position?.code ?? '--',
+                          style: TextStyle(
+                            color: _gold,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 22 * s,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Name banner text.
+                  _place(
+                    s,
+                    x: 128,
+                    y: 430,
+                    w: 344,
+                    h: 58,
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          player.name,
+                          maxLines: 1,
+                          style: TextStyle(
+                            color: _bannerInk,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 26 * s,
+                            letterSpacing: 1,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
 
-                // Six stats, two columns astride the frame's divider.
-                _place(s,
+                  // Six stats, two columns astride the frame's divider.
+                  _place(
+                    s,
                     x: 84,
                     y: 516,
                     w: 432,
@@ -116,37 +123,44 @@ class PlayerCard extends StatelessWidget {
                       scale: s,
                       isGoalkeeper:
                           player.position?.group == PositionGroup.goalkeeper,
-                    )),
-
-                // Academic-standing badge.
-                _place(s,
-                  x: 120,
-                  y: 712,
-                  w: 360,
-                  h: 44,
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: _EligibilityBadge(
-                          status: player.eligibility, scale: s),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+
+                  // Academic-standing badge.
+                  _place(
+                    s,
+                    x: 120,
+                    y: 712,
+                    w: 360,
+                    h: 44,
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: _EligibilityBadge(
+                          status: player.eligibility,
+                          scale: s,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
   /// Places [child] in the frame's coordinate space, scaled to real pixels.
-  Widget _place(double s,
-      {required double x,
-      required double y,
-      required double w,
-      required double h,
-      required Widget child}) {
+  Widget _place(
+    double s, {
+    required double x,
+    required double y,
+    required double w,
+    required double h,
+    required Widget child,
+  }) {
     return Positioned(
       left: x * s,
       top: y * s,
@@ -189,11 +203,8 @@ class _PhotoFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, c) => Icon(
-        Icons.person,
-        color: Colors.white38,
-        size: c.maxWidth * 0.62,
-      ),
+      builder: (context, c) =>
+          Icon(Icons.person, color: Colors.white38, size: c.maxWidth * 0.62),
     );
   }
 }
@@ -239,13 +250,17 @@ class _StatsPanel extends StatelessWidget {
           ];
     return Row(
       children: [
-        Expanded(child: _StatColumn(scale: scale, stats: left)),
+        Expanded(
+          child: _StatColumn(scale: scale, stats: left),
+        ),
         Container(
           width: 2 * scale,
           margin: EdgeInsets.symmetric(vertical: 8 * scale),
           color: PlayerCard._gold.withValues(alpha: 0.4),
         ),
-        Expanded(child: _StatColumn(scale: scale, stats: right)),
+        Expanded(
+          child: _StatColumn(scale: scale, stats: right),
+        ),
       ],
     );
   }
@@ -323,13 +338,17 @@ class _EligibilityBadge extends StatelessWidget {
         break;
     }
     return Container(
-      padding:
-          EdgeInsets.symmetric(horizontal: 14 * scale, vertical: 6 * scale),
+      padding: EdgeInsets.symmetric(
+        horizontal: 14 * scale,
+        vertical: 6 * scale,
+      ),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(24 * scale),
-        border:
-            Border.all(color: color.withValues(alpha: 0.7), width: 1.5 * scale),
+        border: Border.all(
+          color: color.withValues(alpha: 0.7),
+          width: 1.5 * scale,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

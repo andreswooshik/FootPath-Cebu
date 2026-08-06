@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/presentation/widgets/tear_away_date.dart';
@@ -40,155 +41,156 @@ class TrainingSessionCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final tier = _tierColors(session, cs);
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Coloured tier header with a tear-away calendar date.
-            Container(
-              color: tier.bg,
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TearAwayDate(date: session.date, headerColor: cs.tertiary),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: _TierPill(
-                                  label: _tierLabel(session),
-                                  fg: tier.fg,
+    return MotionPress(
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Coloured tier header with a tear-away calendar date.
+              Container(
+                color: tier.bg,
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TearAwayDate(date: session.date, headerColor: cs.tertiary),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: _TierPill(
+                                    label: _tierLabel(session),
+                                    fg: tier.fg,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              _focusIcon(session.focus),
-                              size: 30,
-                              color: tier.fg.withValues(alpha: 0.8),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          _weekdayLong(session.date),
-                          style: TextStyle(
-                            color: tier.fg,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.3,
+                              const SizedBox(width: 8),
+                              Icon(
+                                _focusIcon(session.focus),
+                                size: 30,
+                                color: tier.fg.withValues(alpha: 0.8),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Details.
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          session.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
+                          const SizedBox(height: 10),
+                          Text(
+                            _weekdayLong(session.date),
+                            style: TextStyle(
+                              color: tier.fg,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
                       ),
-                      if (onEdit != null || onCancelSession != null)
-                        PopupMenuButton<String>(
-                          tooltip: 'Manage session',
-                          padding: EdgeInsets.zero,
-                          onSelected: (choice) => choice == 'edit'
-                              ? onEdit?.call()
-                              : onCancelSession?.call(),
-                          itemBuilder: (_) => [
-                            if (onEdit != null)
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Text('Edit session'),
-                              ),
-                            if (onCancelSession != null)
-                              const PopupMenuItem(
-                                value: 'cancel',
-                                child: Text('Cancel session'),
-                              ),
-                          ],
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  _DetailRow(
-                    icon: Icons.access_time,
-                    text: '${session.startTime} - ${session.endTime}',
-                  ),
-                  const SizedBox(height: 6),
-                  _DetailRow(
-                    icon: Icons.location_on_outlined,
-                    text: session.location,
-                  ),
-                  const SizedBox(height: 14),
-                  if (trailing != null)
-                    Align(alignment: Alignment.centerRight, child: trailing)
-                  else if (onLogAttendance != null)
+                    ),
+                  ],
+                ),
+              ),
+
+              // Details.
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _Attendees(
-                          count: session.attendeeCount,
-                          color: cs.primary,
-                        ),
-                        const Spacer(),
-                        // Attendance is logged from the session day through two
-                        // days after — the action stays visible but disabled
-                        // outside that window, so the coach sees it exists and
-                        // why it's not available (a future session) or closed.
-                        TextButton.icon(
-                          onPressed:
-                              session.isAttendanceOpen ? onLogAttendance : null,
-                          style: TextButton.styleFrom(
-                            foregroundColor: cs.primary,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                            ),
-                          ),
-                          icon: Text(
-                            session.isAttendanceOpen
-                                ? 'Log Attendance'
-                                : 'Log on the day',
-                          ),
-                          label: Icon(
-                            session.isAttendanceOpen
-                                ? Icons.chevron_right
-                                : Icons.lock_clock,
-                            size: 18,
+                        Expanded(
+                          child: Text(
+                            session.title,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ),
+                        if (onEdit != null || onCancelSession != null)
+                          PopupMenuButton<String>(
+                            tooltip: 'Manage session',
+                            padding: EdgeInsets.zero,
+                            onSelected: (choice) => choice == 'edit'
+                                ? onEdit?.call()
+                                : onCancelSession?.call(),
+                            itemBuilder: (_) => [
+                              if (onEdit != null)
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Edit session'),
+                                ),
+                              if (onCancelSession != null)
+                                const PopupMenuItem(
+                                  value: 'cancel',
+                                  child: Text('Cancel session'),
+                                ),
+                            ],
+                          ),
                       ],
                     ),
-                ],
+                    const SizedBox(height: 10),
+                    _DetailRow(
+                      icon: Icons.access_time,
+                      text: '${session.startTime} - ${session.endTime}',
+                    ),
+                    const SizedBox(height: 6),
+                    _DetailRow(
+                      icon: Icons.location_on_outlined,
+                      text: session.location,
+                    ),
+                    const SizedBox(height: 14),
+                    if (trailing != null)
+                      Align(alignment: Alignment.centerRight, child: trailing)
+                    else if (onLogAttendance != null)
+                      Row(
+                        children: [
+                          _Attendees(
+                            count: session.attendeeCount,
+                            color: cs.primary,
+                          ),
+                          const Spacer(),
+                          // Attendance is logged from the session day through two
+                          // days after — the action stays visible but disabled
+                          // outside that window, so the coach sees it exists and
+                          // why it's not available (a future session) or closed.
+                          TextButton.icon(
+                            onPressed: session.isAttendanceOpen
+                                ? onLogAttendance
+                                : null,
+                            style: TextButton.styleFrom(
+                              foregroundColor: cs.primary,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                            ),
+                            icon: Text(
+                              session.isAttendanceOpen
+                                  ? 'Log Attendance'
+                                  : 'Log on the day',
+                            ),
+                            label: Icon(
+                              session.isAttendanceOpen
+                                  ? Icons.chevron_right
+                                  : Icons.lock_clock,
+                              size: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -26,8 +26,9 @@ class TeamOverviewCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Team Overview',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w800),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
             ),
@@ -128,8 +129,18 @@ class _NextSession extends StatelessWidget {
   final TeamOverview overview;
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   @override
@@ -141,8 +152,9 @@ class _NextSession extends StatelessWidget {
       children: [
         Text(
           '${overview.readyCount} of ${overview.squadSize} cleared to play',
-          style: theme.textTheme.bodyMedium
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
         const SizedBox(height: 10),
         Row(

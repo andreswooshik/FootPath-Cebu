@@ -13,10 +13,10 @@ const kDefaultEffort = 70;
 ///
 /// autoDispose + family: one cache entry per session, dropped when the screen
 /// leaves. Refresh with `ref.refresh(sessionAttendanceProvider(id).future)`.
-final sessionAttendanceProvider =
-    FutureProvider.autoDispose.family<List<Attendance>, String>(
-  (ref, sessionId) => ref.watch(getSessionAttendanceProvider)(sessionId),
-);
+final sessionAttendanceProvider = FutureProvider.autoDispose
+    .family<List<Attendance>, String>(
+      (ref, sessionId) => ref.watch(getSessionAttendanceProvider)(sessionId),
+    );
 
 /// Drives the "Complete Training Session" action.
 ///
@@ -46,5 +46,5 @@ class AttendanceLogController extends AsyncNotifier<void> {
 
 final attendanceLogControllerProvider =
     AsyncNotifierProvider.autoDispose<AttendanceLogController, void>(
-  AttendanceLogController.new,
-);
+      AttendanceLogController.new,
+    );

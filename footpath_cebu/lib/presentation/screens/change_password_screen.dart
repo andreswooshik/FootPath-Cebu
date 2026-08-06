@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/presentation/providers/auth_controllers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 
@@ -33,7 +34,9 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   }
 
   Future<void> _handleSubmit() async {
-    final ok = await ref.read(changePasswordControllerProvider.notifier).submit(
+    final ok = await ref
+        .read(changePasswordControllerProvider.notifier)
+        .submit(
           currentPassword: _currentController.text,
           newPassword: _newController.text,
           confirmPassword: _confirmController.text,
@@ -49,8 +52,9 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
 
   Future<void> _handleForgotPassword() async {
     final email = widget.email!;
-    final sent =
-        await ref.read(passwordResetControllerProvider.notifier).send(email);
+    final sent = await ref
+        .read(passwordResetControllerProvider.notifier)
+        .send(email);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -69,8 +73,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(changePasswordControllerProvider);
-    final isSendingReset =
-        ref.watch(passwordResetControllerProvider).isLoading;
+    final isSendingReset = ref.watch(passwordResetControllerProvider).isLoading;
     return Scaffold(
       appBar: AppBar(title: const Text('Change Password')),
       body: Center(
@@ -145,7 +148,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
           ),
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 
   /// One shared visibility toggle: revealing while retyping is when users
@@ -163,8 +166,9 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
       autocorrect: false,
       enableSuggestions: false,
       textInputAction: isLast ? TextInputAction.done : TextInputAction.next,
-      onSubmitted:
-          isLast ? (_) => state.isSaving ? null : _handleSubmit() : null,
+      onSubmitted: isLast
+          ? (_) => state.isSaving ? null : _handleSubmit()
+          : null,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),

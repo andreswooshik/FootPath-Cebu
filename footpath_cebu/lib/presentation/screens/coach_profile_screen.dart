@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
@@ -10,7 +11,6 @@ import 'package:footpath_cebu/presentation/screens/change_password_screen.dart';
 import 'package:footpath_cebu/presentation/screens/dispute_list_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
-import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 
@@ -120,11 +120,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: CoachBottomNav(
-        profile: widget.profile,
-        selectedIndex: 3,
-      ),
-    );
+    ).animateScreenEntrance();
   }
 
   Widget _squadSnapshot() {
@@ -133,7 +129,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
         .when(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: CircularProgressIndicator()),
+            child: DashboardLoadingState(compact: true, shrinkWrap: true),
           ),
           error: (e, _) => DashboardErrorState(
             message: friendlyErrorMessage(

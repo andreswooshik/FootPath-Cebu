@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/edit_performance_controller.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
-import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 
 /// Coach Portal — the player assessment form.
 ///
@@ -54,8 +54,9 @@ class _EditPerformanceDataScreenState
   /// Seeded with the note already on file so the form opens showing the
   /// current evaluation. Starting it empty would let a coach who only came to
   /// nudge a slider silently overwrite an existing note with a blank one.
-  late final _notesController =
-      TextEditingController(text: widget.player.coachNotes);
+  late final _notesController = TextEditingController(
+    text: widget.player.coachNotes,
+  );
 
   @override
   void dispose() {
@@ -70,24 +71,23 @@ class _EditPerformanceDataScreenState
   /// on screen for this position — editing a GK's reflexes must not silently
   /// zero their (unedited, unseen) outfield six, and vice versa.
   PlayerRatings get _draft => PlayerRatings(
-        pace: _pace,
-        shooting: _shooting,
-        passing: _passing,
-        dribbling: _dribbling,
-        defending: _defending,
-        physical: _physical,
-        diving: _diving,
-        handling: _handling,
-        kicking: _kicking,
-        reflexes: _reflexes,
-        speed: _speed,
-        positioning: _positioning,
-      );
+    pace: _pace,
+    shooting: _shooting,
+    passing: _passing,
+    dribbling: _dribbling,
+    defending: _defending,
+    physical: _physical,
+    diving: _diving,
+    handling: _handling,
+    kicking: _kicking,
+    reflexes: _reflexes,
+    speed: _speed,
+    positioning: _positioning,
+  );
 
   /// The header badge's live number as sliders move — position-aware via
   /// [Player.overall], so this screen doesn't re-implement that branch.
-  int get _draftOverall =>
-      widget.player.copyWith(ratings: _draft).overall;
+  int get _draftOverall => widget.player.copyWith(ratings: _draft).overall;
 
   Future<void> _save() async {
     final saved = await ref
@@ -235,7 +235,8 @@ class _EditPerformanceDataScreenState
             controller: _notesController,
             maxLines: 4,
             decoration: const InputDecoration(
-              hintText: 'Provide qualitative notes on technical growth, '
+              hintText:
+                  'Provide qualitative notes on technical growth, '
                   'tactical awareness, and mentality...',
               border: OutlineInputBorder(),
             ),
@@ -257,8 +258,7 @@ class _EditPerformanceDataScreenState
           ),
         ],
       ),
-      bottomNavigationBar: CoachBottomNav(profile: widget.profile),
-    );
+    ).animateScreenEntrance();
   }
 }
 
@@ -388,8 +388,10 @@ class _AttributeSlider extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.primary,
                     borderRadius: BorderRadius.circular(8),

@@ -1,65 +1,23 @@
 import 'package:flutter/material.dart';
 
-import 'package:footpath_cebu/domain/entities/player.dart';
-import 'package:footpath_cebu/presentation/screens/profile_tab_screen.dart';
-import 'package:footpath_cebu/presentation/screens/progress_screen.dart';
-import 'package:footpath_cebu/presentation/screens/schedule_tab_screen.dart';
-
-/// The Player/Guardian portal's bottom navigation, shared by every
-/// Dashboard/Schedule/Progress/Profile screen so the bar looks and behaves
-/// the same everywhere (mirrors [CoachBottomNav]).
-///
-/// [selectedIndex] marks the screen currently showing; tapping it is a no-op.
+/// The Player/Guardian portal's bottom navigation. The portal shell owns tab
+/// state and supplies the destination callback so switching tabs does not
+/// push routes.
 class PortalBottomNav extends StatelessWidget {
   const PortalBottomNav({
     super.key,
-    required this.player,
-    this.selectedIndex = 0,
-    this.isGuardian = false,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
   });
 
-  /// The player this portal shows — the signed-in player themselves, or the
-  /// guardian's linked child.
-  final Player player;
   final int selectedIndex;
-  final bool isGuardian;
+  final ValueChanged<int> onDestinationSelected;
 
   @override
   Widget build(BuildContext context) {
     return NavigationBar(
       selectedIndex: selectedIndex,
-      onDestinationSelected: (i) {
-        if (i == selectedIndex) return;
-        switch (i) {
-          case 0:
-            // Dashboard — back to the screen this bar was opened from.
-            Navigator.of(context).popUntil((route) => route.isFirst);
-          case 1:
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (_) =>
-                    ScheduleTabScreen(player: player, isGuardian: isGuardian),
-              ),
-              (route) => route.isFirst,
-            );
-          case 2:
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (_) =>
-                    ProgressScreen(player: player, isGuardian: isGuardian),
-              ),
-              (route) => route.isFirst,
-            );
-          case 3:
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(
-                builder: (_) =>
-                    ProfileTabScreen(player: player, isGuardian: isGuardian),
-              ),
-              (route) => route.isFirst,
-            );
-        }
-      },
+      onDestinationSelected: onDestinationSelected,
       destinations: const [
         NavigationDestination(
           icon: Icon(Icons.dashboard_outlined),

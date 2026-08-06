@@ -64,7 +64,9 @@ class LoginController extends Notifier<LoginState> {
     } on AuthException catch (e) {
       state = _next(error: e.message);
     } catch (_) {
-      state = _next(error: 'Could not send reset email. Is the server running?');
+      state = _next(
+        error: 'Could not send reset email. Is the server running?',
+      );
     }
     return false;
   }
@@ -76,19 +78,18 @@ class LoginController extends Notifier<LoginState> {
     bool isSendingReset = false,
     bool? showPassword,
     String? error,
-  }) =>
-      LoginState(
-        isLoading: isLoading,
-        isSendingReset: isSendingReset,
-        showPassword: showPassword ?? state.showPassword,
-        error: error,
-      );
+  }) => LoginState(
+    isLoading: isLoading,
+    isSendingReset: isSendingReset,
+    showPassword: showPassword ?? state.showPassword,
+    error: error,
+  );
 }
 
 final loginControllerProvider =
     NotifierProvider.autoDispose<LoginController, LoginState>(
-  LoginController.new,
-);
+      LoginController.new,
+    );
 
 /// Drives the Coach profile's "Change password" action: sends a reset link
 /// and exposes the in-flight/error state as an [AsyncValue].
@@ -113,8 +114,8 @@ class PasswordResetController extends AsyncNotifier<void> {
 
 final passwordResetControllerProvider =
     AsyncNotifierProvider.autoDispose<PasswordResetController, void>(
-  PasswordResetController.new,
-);
+      PasswordResetController.new,
+    );
 
 /// What the change-password form is doing right now. Immutable, same
 /// transition discipline as [LoginState].
@@ -150,8 +151,11 @@ class ChangePasswordController extends Notifier<ChangePasswordState> {
     required String newPassword,
     required String confirmPassword,
   }) async {
-    final validationError =
-        _validate(currentPassword, newPassword, confirmPassword);
+    final validationError = _validate(
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    );
     if (validationError != null) {
       state = _next(error: validationError);
       return false;
@@ -190,15 +194,14 @@ class ChangePasswordController extends Notifier<ChangePasswordState> {
     bool isSaving = false,
     bool? showPasswords,
     String? error,
-  }) =>
-      ChangePasswordState(
-        isSaving: isSaving,
-        showPasswords: showPasswords ?? state.showPasswords,
-        error: error,
-      );
+  }) => ChangePasswordState(
+    isSaving: isSaving,
+    showPasswords: showPasswords ?? state.showPasswords,
+    error: error,
+  );
 }
 
-final changePasswordControllerProvider = NotifierProvider.autoDispose<
-    ChangePasswordController, ChangePasswordState>(
-  ChangePasswordController.new,
-);
+final changePasswordControllerProvider =
+    NotifierProvider.autoDispose<ChangePasswordController, ChangePasswordState>(
+      ChangePasswordController.new,
+    );

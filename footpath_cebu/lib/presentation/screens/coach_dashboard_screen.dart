@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
@@ -13,7 +14,6 @@ import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/log_attendance_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_profile_screen.dart';
-import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/mini_player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
@@ -43,10 +43,8 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
   void _openProfile(Player player) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PlayerProfileScreen(
-          player: player,
-          profile: widget.profile,
-        ),
+        builder: (_) =>
+            PlayerProfileScreen(player: player, profile: widget.profile),
       ),
     );
   }
@@ -69,10 +67,8 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
     }
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => LogAttendanceScreen(
-          session: open.first,
-          profile: widget.profile,
-        ),
+        builder: (_) =>
+            LogAttendanceScreen(session: open.first, profile: widget.profile),
       ),
     );
   }
@@ -143,8 +139,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: CoachBottomNav(profile: widget.profile),
-    );
+    ).animateScreenEntrance();
   }
 }
 
@@ -154,7 +149,9 @@ class _TeamOverviewSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(teamOverviewProvider).maybeWhen(
+    return ref
+        .watch(teamOverviewProvider)
+        .maybeWhen(
           data: (overview) => TeamOverviewCard(overview: overview),
           // While the squad loads, the roster below already shows a spinner —
           // keep the overview slot empty rather than doubling up.
@@ -179,12 +176,11 @@ class _RosterSliver extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(filteredSquadProvider).when(
+    return ref
+        .watch(filteredSquadProvider)
+        .when(
           loading: () => const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(48),
-              child: Center(child: CircularProgressIndicator()),
-            ),
+            child: DashboardLoadingState(compact: true, shrinkWrap: true),
           ),
           error: (e, _) => SliverToBoxAdapter(
             child: DashboardErrorState(
@@ -216,11 +212,15 @@ class _RosterSliver extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverList.builder(
                   itemCount: players.length,
-                  itemBuilder: (context, i) => MiniPlayerCard(
-                    player: players[i],
-                    onTap: () => onOpenProfile(players[i]),
-                    onMarkAttendance: () => onMarkAttendance(players[i]),
-                  ),
+                  itemBuilder: (context, i) =>
+                      MiniPlayerCard(
+                        player: players[i],
+                        onTap: () => onOpenProfile(players[i]),
+                        onMarkAttendance: () => onMarkAttendance(players[i]),
+                      ).animateListItem(
+                        key: ValueKey('mini-${players[i].id}'),
+                        index: i,
+                      ),
                 ),
               );
             }
@@ -234,10 +234,14 @@ class _RosterSliver extends ConsumerWidget {
                   childAspectRatio: 600 / 850,
                 ),
                 itemCount: players.length,
-                itemBuilder: (context, i) => PlayerCard(
-                  player: players[i],
-                  onTap: () => onOpenProfile(players[i]),
-                ),
+                itemBuilder: (context, i) =>
+                    PlayerCard(
+                      player: players[i],
+                      onTap: () => onOpenProfile(players[i]),
+                    ).animateListItem(
+                      key: ValueKey('card-${players[i].id}'),
+                      index: i,
+                    ),
               ),
             );
           },
@@ -276,8 +280,7 @@ class _TierFilterBar extends ConsumerWidget {
     final squad = ref.watch(squadProvider).value ?? const [];
     final filter = ref.watch(rosterFilterProvider);
     final notifier = ref.read(rosterFilterProvider.notifier);
-    int countFor(AgeTier tier) =>
-        squad.where((p) => p.ageTier == tier).length;
+    int countFor(AgeTier tier) => squad.where((p) => p.ageTier == tier).length;
 
     return SizedBox(
       height: 40,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/dispute.dart';
 import 'package:footpath_cebu/presentation/providers/dispute_providers.dart';
@@ -18,7 +19,7 @@ class DisputeListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Disputes')),
       body: disputesAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const DashboardLoadingState(),
         error: (e, _) => DashboardErrorState(
           message: friendlyErrorMessage(
             e,
@@ -29,9 +30,7 @@ class DisputeListScreen extends ConsumerWidget {
         data: (disputes) {
           if (disputes.isEmpty) {
             return const Center(
-              child: Text(
-                'No disputes. Flag one from a player profile.',
-              ),
+              child: Text('No disputes. Flag one from a player profile.'),
             );
           }
           return RefreshIndicator(
@@ -49,13 +48,13 @@ class DisputeListScreen extends ConsumerWidget {
                     trailing: DisputeStatusChip(status: dispute.status),
                     onTap: () => _openThread(context, dispute),
                   ),
-                );
+                ).animateListItem(key: ValueKey(dispute.id), index: index);
               },
             ),
           );
         },
       ),
-    );
+    ).animateScreenEntrance();
   }
 
   String _subtitle(Dispute dispute) {
@@ -132,17 +131,14 @@ class _DisputeThreadSheetState extends ConsumerState<_DisputeThreadSheet> {
   Future<void> _respond() async {
     final body = _bodyController.text.trim();
     if (body.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Write a response first.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Write a response first.')));
       return;
     }
-    final updated =
-        await ref.read(disputeFormControllerProvider.notifier).respond(
-              widget.dispute.id,
-              body,
-              statusChangeTo: _statusChangeTo,
-            );
+    final updated = await ref
+        .read(disputeFormControllerProvider.notifier)
+        .respond(widget.dispute.id, body, statusChangeTo: _statusChangeTo);
     if (!mounted) return;
     if (updated == null) {
       final error = ref.read(disputeFormControllerProvider).error;
@@ -156,9 +152,9 @@ class _DisputeThreadSheetState extends ConsumerState<_DisputeThreadSheet> {
       return;
     }
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Response posted.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Response posted.')));
   }
 
   @override
