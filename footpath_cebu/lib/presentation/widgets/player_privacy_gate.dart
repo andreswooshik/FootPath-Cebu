@@ -35,6 +35,21 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
   bool _busy = false;
 
   @override
+  void didUpdateWidget(covariant PlayerPrivacyGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.player.id == widget.player.id) return;
+
+    // The gate state is reused when the guardian changes the selected player.
+    // Never carry a PIN, setup PIN, confirmation, or error into another
+    // profile.
+    _pinController.clear();
+    _setupPinController.clear();
+    _setupConfirmController.clear();
+    _error = null;
+    _busy = false;
+  }
+
+  @override
   void dispose() {
     _pinController.dispose();
     _setupPinController.dispose();
