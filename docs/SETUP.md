@@ -71,10 +71,11 @@ app.
 
 1. Sign up at `http://localhost:8000/portal/signup/` (name, email, club name,
    password). This creates a **Club** and a coordinator account held **pending**.
-2. A developer approves it in the Django admin: `/admin/` → **Users** → filter
-   **Role = Club Coordinator** + **Active = No**, tick the row, then run the
-   **"Approve selected coordinators (activate login)"** action. (Until then the
-   coordinator cannot log in.)
+2. A developer reviews it in the Django admin: `/admin/` → **Clubs**, select
+   the registration, then run **Approve selected club registrations** or
+   **Disapprove selected club registrations**. Approving activates both the
+   club and coordinator login; disapproving deactivates both. (Until approved,
+   the coordinator cannot log in.)
 3. The coordinator logs in at `/portal/login/` and, from **Create accounts**,
    provisions **players, coaches, school staff and guardians** — all scoped to
    their club. Players / coaches / guardians get a one-time password for the

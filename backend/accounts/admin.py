@@ -1,6 +1,7 @@
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import Group
+from django.db import transaction
 from django.utils.html import format_html
 
 from .models import Club, GuardianLink, Roles, User
@@ -198,18 +199,81 @@ class GuardianLinkAdmin(BulkActionLabelMixin, admin.ModelAdmin):
 @admin.register(Club)
 class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     list_display = (
-        'name', 'coordinator_email', 'member_count', 'school_chip',
+        'name', 'coordinator_email', 'registration_status', 'member_count', 'school_chip',
         'active_chip', 'created_at',
     )
     list_filter = ('is_active', 'is_school_affiliated')
     search_fields = ('name', 'slug', 'head_coach_name', 'cvfa_membership')
     prepopulated_fields = {'slug': ('name',)}
     readonly_fields = ('created_at',)
+    actions = ('approve_registrations', 'disapprove_registrations')
+
+    @admin.action(description='Approve selected club registrations')
+    def approve_registrations(self, request, queryset):
+        """Approve clubs and activate their pending coordinator logins."""
+        approved = 0
+        with transaction.atomic():
+            for club in queryset:
+                coordinator = club.coordinator
+                if coordinator is None:
+                    continue
+                changed = False
+                if not club.is_active:
+                    club.is_active = True
+                    club.save(update_fields=['is_active'])
+                    changed = True
+                if not coordinator.is_active:
+                    coordinator.is_active = True
+                    coordinator.save(update_fields=['is_active'])
+                    changed = True
+                if changed:
+                    approved += 1
+        self.message_user(
+            request,
+            f'Approved {approved} club registration(s).',
+            level=messages.SUCCESS if approved else messages.WARNING,
+        )
+
+    @admin.action(description='Disapprove selected club registrations')
+    def disapprove_registrations(self, request, queryset):
+        """Deactivate clubs and prevent their coordinators from logging in."""
+        disapproved = 0
+        with transaction.atomic():
+            for club in queryset:
+                coordinator = club.coordinator
+                if coordinator is None:
+                    continue
+                changed = club.is_active or coordinator.is_active
+                club.is_active = False
+                club.save(update_fields=['is_active'])
+                coordinator.is_active = False
+                coordinator.save(update_fields=['is_active'])
+                if changed:
+                    disapproved += 1
+        self.message_user(
+            request,
+            f'Disapproved {disapproved} club registration(s).',
+            level=messages.SUCCESS if disapproved else messages.WARNING,
+        )
 
     @admin.display(description='Coordinator')
     def coordinator_email(self, obj):
         coordinator = obj.coordinator
         return coordinator.email if coordinator else '—'
+
+    @admin.display(description='Registration')
+    def registration_status(self, obj):
+        coordinator = obj.coordinator
+        if coordinator is None:
+            label, color = 'Incomplete', '#64748B'
+        elif not obj.is_active:
+            label, color = 'Disapproved', '#DC2626'
+        elif not coordinator.is_active:
+            label, color = 'Pending', '#D97706'
+        else:
+            label, color = 'Approved', '#059669'
+        style = _PILL.format(extra=f'color:{color};background:{color}1A;')
+        return format_html('<span style="{}">{}</span>', style, label)
 
     @admin.display(description='School', ordering='is_school_affiliated')
     def school_chip(self, obj):

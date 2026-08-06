@@ -16,7 +16,7 @@ from django.urls import reverse
 from firebase_admin import auth as firebase_auth
 
 from academy.models import Eligibility, EligibilityHistory, PlayerProfile
-from accounts.admin import CustomUserAdmin
+from accounts.admin import ClubAdmin, CustomUserAdmin
 from accounts.models import Club, GuardianLink, Roles, User
 from accounts.services import provision_web_user
 
@@ -570,3 +570,28 @@ class ApprovalActionTests(TestCase):
 
         user.refresh_from_db()
         self.assertTrue(user.is_active)
+
+    def test_club_registration_actions_approve_and_disapprove(self):
+        user, club = register_coordinator(
+            first_name='C', last_name='A', email='club-action@club.test',
+            club_name='Club Action FC', password=_PASSWORD,
+        )
+        admin = ClubAdmin(Club, site)
+
+        club.is_active = False
+        club.save(update_fields=['is_active'])
+        with patch.object(ClubAdmin, 'message_user'):
+            admin.approve_registrations(Mock(), Club.objects.filter(pk=club.pk))
+
+        user.refresh_from_db()
+        club.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertTrue(club.is_active)
+
+        with patch.object(ClubAdmin, 'message_user'):
+            admin.disapprove_registrations(Mock(), Club.objects.filter(pk=club.pk))
+
+        user.refresh_from_db()
+        club.refresh_from_db()
+        self.assertFalse(user.is_active)
+        self.assertFalse(club.is_active)
