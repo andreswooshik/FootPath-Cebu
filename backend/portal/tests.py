@@ -15,7 +15,9 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from firebase_admin import auth as firebase_auth
 
-from academy.models import Eligibility, EligibilityHistory, PlayerProfile
+from academy.models import (
+    AuditLog, Eligibility, EligibilityHistory, PlayerPrivacyPin, PlayerProfile,
+)
 from accounts.admin import ClubAdmin, CustomUserAdmin
 from accounts.models import Club, GuardianLink, Roles, User
 from accounts.services import provision_web_user
@@ -330,6 +332,22 @@ class CreateAccountTests(TestCase):
         })
         self.assertEqual(response.status_code, 200)
         self.assertFalse(User.objects.filter(email='no-parent@club.test').exists())
+
+    def test_coordinator_can_reset_player_privacy_pin(self):
+        player, _ = make_player(self.club, 'pin-player@club.test')
+        PlayerPrivacyPin.objects.create(
+            player=player, pin_hash='argon2$placeholder', failed_attempts=3,
+        )
+        response = self.client.post(
+            reverse('portal:player-pin-reset', args=[player.id])
+        )
+        self.assertRedirects(response, reverse('portal:players'))
+        state = PlayerPrivacyPin.objects.get(player=player)
+        self.assertEqual(state.pin_hash, '')
+        self.assertEqual(state.failed_attempts, 0)
+        self.assertTrue(AuditLog.objects.filter(
+            action='player_pin.reset', actor=self.coord, target=player.email,
+        ).exists())
 
     @_fb_patches
     def test_create_coach(self, mock_get, mock_create, _init):

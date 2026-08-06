@@ -31,6 +31,7 @@ from .models import (
     InjuryStatus,
     PlayerEligibility,
     PlayerProfile,
+    PlayerPrivacyPin,
     SessionConfirmation,
     SessionFocus,
     TrainingSession,
@@ -606,6 +607,100 @@ class AuditLogTests(APITestCase):
         entry = AuditLog.objects.get(action='eligibility.changed')
         self.assertEqual(entry.actor, self.coach)
         self.assertIn('ACADEMIC_WARNING', entry.detail)
+
+
+class PlayerPrivacyPinTests(APITestCase):
+    def setUp(self):
+        self.player = make_player('pin-player@footpathcebu.test')
+        self.guardian = make_user(Roles.GUARDIAN, 'pin-guardian@footpathcebu.test')
+        GuardianLink.objects.create(guardian=self.guardian, player=self.player)
+
+    def test_player_sets_changes_and_verifies_a_hashed_pin(self):
+        self.client.force_authenticate(self.player)
+        response = self.client.put(
+            reverse('player-pin', args=[self.player.id]),
+            {'pin': '2468'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {'hasPin': True, 'locked': False, 'lockedUntil': None})
+        stored = PlayerPrivacyPin.objects.get(player=self.player)
+        self.assertNotEqual(stored.pin_hash, '2468')
+
+        response = self.client.post(
+            reverse('player-pin-verify', args=[self.player.id]),
+            {'pin': '2468'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {'verified': True})
+
+        response = self.client.put(
+            reverse('player-pin', args=[self.player.id]),
+            {'pin': '1357'}, format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        response = self.client.put(
+            reverse('player-pin', args=[self.player.id]),
+            {'currentPin': '2468', 'pin': '1357'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_failed_verification_temporarily_locks_the_pin(self):
+        self.client.force_authenticate(self.player)
+        self.client.put(
+            reverse('player-pin', args=[self.player.id]),
+            {'pin': '2468'}, format='json',
+        )
+        for _ in range(4):
+            self.assertEqual(
+                self.client.post(
+                    reverse('player-pin-verify', args=[self.player.id]),
+                    {'pin': '0000'}, format='json',
+                ).status_code,
+                400,
+            )
+        self.assertEqual(
+            self.client.post(
+                reverse('player-pin-verify', args=[self.player.id]),
+                {'pin': '0000'}, format='json',
+            ).status_code,
+            423,
+        )
+
+    def test_guardian_can_reset_only_a_linked_players_pin(self):
+        self.client.force_authenticate(self.player)
+        self.client.put(
+            reverse('player-pin', args=[self.player.id]),
+            {'pin': '2468'}, format='json',
+        )
+        self.client.force_authenticate(self.guardian)
+        response = self.client.post(
+            reverse('player-pin-reset', args=[self.player.id]), format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['hasPin'])
+        self.assertEqual(PlayerPrivacyPin.objects.get(player=self.player).pin_hash, '')
+        other_guardian = make_user(Roles.GUARDIAN, 'other-guardian@footpathcebu.test')
+        self.client.force_authenticate(other_guardian)
+        self.assertEqual(
+            self.client.post(
+                reverse('player-pin-reset', args=[self.player.id]), format='json',
+            ).status_code,
+            403,
+        )
+
+    def test_player_cannot_read_or_reset_another_players_pin(self):
+        other = make_player('other-pin-player@footpathcebu.test')
+        self.client.force_authenticate(self.player)
+        self.assertEqual(
+            self.client.get(reverse('player-pin', args=[other.id])).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post(
+                reverse('player-pin-reset', args=[other.id]), format='json',
+            ).status_code,
+            403,
+        )
 
 
 class TrainingSessionTests(APITestCase):

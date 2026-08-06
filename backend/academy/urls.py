@@ -7,6 +7,21 @@ urlpatterns = [
     path('players/me/', views.MyProfileView.as_view(), name='players-me'),
     path('players/linked/', views.LinkedPlayersView.as_view(), name='players-linked'),
     path(
+        'players/<int:player_id>/pin/',
+        views.PlayerPrivacyPinView.as_view(),
+        name='player-pin',
+    ),
+    path(
+        'players/<int:player_id>/pin/verify/',
+        views.PlayerPrivacyPinVerifyView.as_view(),
+        name='player-pin-verify',
+    ),
+    path(
+        'players/<int:player_id>/pin/reset/',
+        views.PlayerPrivacyPinResetView.as_view(),
+        name='player-pin-reset',
+    ),
+    path(
         'players/<int:player_id>/assessment/',
         views.PlayerAssessmentView.as_view(),
         name='player-assessment',

@@ -14,6 +14,7 @@ from django.urls import reverse_lazy
 from django.shortcuts import get_object_or_404
 
 from academy.models import AuditLog, EligibilityHistory, PlayerProfile
+from academy.pin_service import reset_pin
 from academy.storage import upload_photo
 from accounts.models import GuardianLink, Roles, User
 from accounts.services import ProvisioningError
@@ -179,6 +180,23 @@ def players(request):
         .order_by('user__last_name', 'user__first_name')
     )
     return render(request, 'portal/players.html', {'roster': roster})
+
+
+@portal_role_required(Roles.COORDINATOR)
+def player_pin_reset(request, player_id):
+    if request.method != 'POST':
+        return redirect('portal:players')
+    profile = get_object_or_404(
+        PlayerProfile.objects.select_related('user'),
+        user_id=player_id, user__club=request.user.club,
+    )
+    reset_pin(profile.user)
+    AuditLog.record(
+        request.user, 'player_pin.reset', target=profile.user.email,
+        detail='Coordinator portal',
+    )
+    messages.success(request, f'Privacy PIN reset for {profile.user.email}.')
+    return redirect('portal:players')
 
 
 @portal_role_required(Roles.COORDINATOR)

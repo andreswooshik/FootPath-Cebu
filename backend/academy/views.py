@@ -33,6 +33,7 @@ from .models import (
     EligibilityHistory,
     InjuryRecord,
     PlayerProfile,
+    PlayerPrivacyPin,
     SessionConfirmation,
     TrainingSession,
 )
@@ -41,6 +42,16 @@ from .notifications import (
     notify_session_cancelled,
     notify_session_scheduled,
     notify_session_updated,
+)
+from .pin_service import (
+    InvalidCurrentPin,
+    InvalidPin,
+    PinLocked,
+    PinNotSet,
+    reset_pin,
+    set_pin,
+    verify_pin,
+    pin_status,
 )
 from .serializers import (
     AdminCreatePlayerSerializer,
@@ -168,6 +179,89 @@ class LinkedPlayersView(APIView):
             user_id__in=player_ids
         )
         return Response(PlayerSerializer(profiles, many=True).data)
+
+
+def _pin_profile(player_id):
+    return get_object_or_404(
+        PlayerProfile.objects.select_related('user'), user_id=player_id
+    )
+
+
+def _may_manage_pin(user, player_id):
+    if user.role == Roles.ADMIN:
+        return True
+    if user.role == Roles.PLAYER:
+        return str(user.id) == str(player_id)
+    if user.role == Roles.COORDINATOR:
+        return _in_same_club(user, player_id)
+    if user.role == Roles.GUARDIAN:
+        return GuardianLink.objects.filter(
+            guardian=user, player_id=player_id
+        ).exists()
+    return False
+
+
+class PlayerPrivacyPinView(APIView):
+    """GET status; PUT lets the player create or change their own PIN."""
+
+    def get(self, request, player_id):
+        if not _may_manage_pin(request.user, player_id):
+            raise PermissionDenied('You cannot access that player PIN.')
+        return Response(pin_status(_pin_profile(player_id).user))
+
+    def put(self, request, player_id):
+        if request.user.role != Roles.PLAYER or str(request.user.id) != str(player_id):
+            raise PermissionDenied('Only the player can set their own PIN.')
+        pin = request.data.get('pin')
+        try:
+            set_pin(
+                _pin_profile(player_id).user,
+                pin,
+                current_pin=request.data.get('currentPin'),
+            )
+        except InvalidCurrentPin as exc:
+            raise ValidationError(str(exc))
+        except ValueError as exc:
+            raise ValidationError(str(exc))
+        AuditLog.record(request.user, 'player_pin.changed', target=request.user.email)
+        return Response(pin_status(request.user))
+
+
+class PlayerPrivacyPinVerifyView(APIView):
+    """POST verifies the player's PIN without returning any secret material."""
+
+    def post(self, request, player_id):
+        if request.user.role != Roles.PLAYER or str(request.user.id) != str(player_id):
+            raise PermissionDenied('Only the player can verify their own PIN.')
+        try:
+            verify_pin(_pin_profile(player_id).user, request.data.get('pin'))
+        except PinLocked as exc:
+            return Response(
+                {'detail': str(exc), 'lockedUntil': exc.locked_until.isoformat()},
+                status=status.HTTP_423_LOCKED,
+            )
+        except PinNotSet as exc:
+            raise ValidationError(str(exc))
+        except InvalidPin as exc:
+            raise ValidationError(str(exc))
+        return Response({'verified': True})
+
+
+class PlayerPrivacyPinResetView(APIView):
+    """POST clears a PIN for a linked guardian or same-club coordinator."""
+
+    def post(self, request, player_id):
+        if not _may_manage_pin(request.user, player_id):
+            raise PermissionDenied('You cannot reset that player PIN.')
+        if request.user.role not in (Roles.ADMIN, Roles.COORDINATOR, Roles.GUARDIAN):
+            raise PermissionDenied('Only a guardian or coordinator can reset a PIN.')
+        player = _pin_profile(player_id).user
+        reset_pin(player)
+        AuditLog.record(
+            request.user, 'player_pin.reset', target=player.email,
+            detail=request.user.get_role_display(),
+        )
+        return Response(pin_status(player))
 
 
 class PlayerAssessmentView(APIView):

@@ -18,6 +18,7 @@
         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Age Tier</th>
         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Eligibility</th>
         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Photo</th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Privacy PIN</th>
       </tr>
     </thead>
     <tbody>
@@ -58,6 +59,15 @@
             <button type="submit"
                     class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg px-3 py-1.5 font-medium transition-colors">
               {% if profile.photo_path %}Replace{% else %}Upload{% endif %}
+            </button>
+          </form>
+        </td>
+        <td class="px-6 py-4 text-sm">
+          <form method="post" action="{% url 'portal:player-pin-reset' profile.user_id %}">
+            {% csrf_token %}
+            <button type="submit"
+                    class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-lg px-3 py-1.5 font-medium transition-colors">
+              Reset PIN
             </button>
           </form>
         </td>

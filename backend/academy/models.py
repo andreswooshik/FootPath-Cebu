@@ -154,6 +154,33 @@ class PlayerProfile(models.Model):
         return f'{self.user.email} · {self.get_age_tier_display()}'
 
 
+class PlayerPrivacyPin(models.Model):
+    """Salted privacy PIN state for a player account.
+
+    This PIN is a household privacy gate, not an authentication credential.
+    The hash is generated with Django's Argon2-first password hasher; plaintext
+    PINs are never persisted, logged, or returned by the API.
+    """
+
+    player = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='privacy_pin',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    pin_hash = models.CharField(max_length=128, blank=True, default='')
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Player privacy PIN'
+        verbose_name_plural = 'Player privacy PINs'
+
+    def __str__(self):
+        return f'{self.player.email} privacy PIN'
+
+
 class PlayerEligibility(PlayerProfile):
     """Admin-only proxy: a narrow eligibility-review screen, distinct from
     the full PlayerProfile (ratings/position/etc. stay hidden here)."""

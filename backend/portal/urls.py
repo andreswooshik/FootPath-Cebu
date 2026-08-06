@@ -29,6 +29,11 @@ urlpatterns = [
     ),
     path('accounts/new/', views.create_account, name='create-account'),
     path('players/', views.players, name='players'),
+    path(
+        'players/<int:player_id>/pin/reset/',
+        views.player_pin_reset,
+        name='player-pin-reset',
+    ),
     path('coaches/', views.coaches, name='coaches'),
     path('guardians/', views.guardians, name='guardians'),
     path(
