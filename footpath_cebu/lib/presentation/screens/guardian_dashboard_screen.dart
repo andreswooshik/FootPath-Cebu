@@ -8,23 +8,19 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
+import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 import 'package:footpath_cebu/presentation/screens/attendance_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
+import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
-import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
-import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 
-/// Guardian Portal — a read-only dashboard mirroring the Player portal, but
-/// for the guardian's (first) linked child rather than the signed-in player.
-///
-/// A thin View over the guardian providers. Guardians view but never edit.
 class GuardianDashboardScreen extends ConsumerWidget {
   const GuardianDashboardScreen({super.key});
 
@@ -39,6 +35,7 @@ class GuardianDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(selectedChildProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Players'),
@@ -54,19 +51,18 @@ class GuardianDashboardScreen extends ConsumerWidget {
           .watch(linkedPlayersProvider)
           .when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => DashboardErrorState(
+            error: (error, _) => DashboardErrorState(
               message: friendlyErrorMessage(
-                e,
+                error,
                 'Something went wrong loading your children.',
               ),
               onRetry: () => ref.invalidate(linkedPlayersProvider),
             ),
             data: (children) {
-              final child = ref.watch(selectedChildProvider);
-              if (child == null) {
-                if (children.isEmpty) {
-                  return const Center(child: Text('No linked players yet.'));
-                }
+              if (children.isEmpty) {
+                return const Center(child: Text('No linked players yet.'));
+              }
+              if (selected == null) {
                 return ListView(
                   padding: const EdgeInsets.all(16),
                   children: [
@@ -80,24 +76,9 @@ class GuardianDashboardScreen extends ConsumerWidget {
                     const Card(
                       child: Padding(
                         padding: EdgeInsets.all(24),
-                        child: Column(
-                          children: [
-                            Icon(Icons.touch_app_outlined, size: 48),
-                            SizedBox(height: 12),
-                            Text(
-                              'Choose a player to continue',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Player information will appear after you select a profile.',
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
+                        child: Text(
+                          'Choose a player to continue',
+                          textAlign: TextAlign.center,
                         ),
                       ),
                     ),
@@ -110,65 +91,81 @@ class GuardianDashboardScreen extends ConsumerWidget {
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                     child: _PlayerSelector(
                       children: children,
-                      selectedId: child.id,
+                      selectedId: selected.id,
                       onChanged: (id) =>
                           ref.read(selectedChildIdProvider.notifier).select(id),
                     ),
                   ),
                   Expanded(
                     child: PlayerPrivacyGate(
-                      player: child,
+                      player: selected,
                       isGuardian: true,
-                      child: RefreshIndicator(
-                        onRefresh: () {
-                          ref.invalidate(childAttendanceProvider);
-                          return ref.refresh(linkedPlayersProvider.future);
-                        },
-                        child: ListView(
-                          padding: const EdgeInsets.all(16),
-                          children: [
-                            Text(
-                              child.name,
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                            Text(
-                              '${child.ageTier.label} · ${child.position?.code ?? 'No position'}',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: Colors.grey.shade600),
-                            ),
-                            const SizedBox(height: 16),
-                            Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: 300,
-                                ),
-                                child: PlayerCard(player: child),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            _StatRow(child: child),
-                            const SizedBox(height: 16),
-                            _RecentAttendanceCard(child: child),
-                            const SizedBox(height: 16),
-                            _InjuryHistoryCard(child: child),
-                          ],
-                        ),
-                      ),
+                      child: _GuardianUnlockedContent(selector: selected),
                     ),
                   ),
                 ],
               );
             },
           ),
-      bottomNavigationBar: ref.watch(selectedChildProvider) == null
-          ? null
-          : isPlayerPrivacyGateActive(ref, ref.watch(selectedChildProvider)!.id)
+      bottomNavigationBar:
+          selected == null || isPlayerPrivacyGateActive(ref, selected.id)
           ? null
           : PortalBottomNav(
-              player: ref.watch(selectedChildProvider)!,
+              player: selected,
               selectedIndex: 0,
               isGuardian: true,
             ),
+    );
+  }
+}
+
+class _GuardianUnlockedContent extends ConsumerWidget {
+  const _GuardianUnlockedContent({required this.selector});
+
+  final Player selector;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final details = ref.watch(selectedChildDetailsProvider(selector.id));
+    return details.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => DashboardErrorState(
+        message: friendlyErrorMessage(error, 'Could not load player profile.'),
+        onRetry: () =>
+            ref.invalidate(selectedChildDetailsProvider(selector.id)),
+      ),
+      data: (player) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(childAttendanceProvider(player.id));
+          ref.invalidate(selectedChildDetailsProvider(player.id));
+          await ref.read(selectedChildDetailsProvider(player.id).future);
+        },
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(player.name, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              '${player.ageTier.label} · ${player.position?.code ?? 'No position'}',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 300),
+                child: PlayerCard(player: player),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _StatRow(child: player),
+            const SizedBox(height: 16),
+            _RecentAttendanceCard(child: player),
+            const SizedBox(height: 16),
+            _InjuryHistoryCard(child: player),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -224,7 +221,7 @@ class _StatRow extends ConsumerWidget {
             icon: Icons.school_outlined,
             label: 'Academic Performance',
             value: child.eligibility.label,
-            color: _eligibilityColor(child.eligibility),
+            color: Colors.orange,
             subtitle: 'Tap for status history',
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
@@ -251,37 +248,6 @@ class _StatRow extends ConsumerWidget {
   }
 }
 
-/// Read-only entry point to the child's injury history. The server enforces
-/// the same rule: a guardian reads a linked child's records, never writes.
-class _InjuryHistoryCard extends StatelessWidget {
-  const _InjuryHistoryCard({required this.child});
-
-  final Player child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.healing_outlined),
-        title: const Text('Injury History'),
-        subtitle: Text(
-          "View ${child.name.split(' ').first}'s reported injuries",
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => InjuryHistoryScreen(
-              playerId: child.id,
-              playerName: child.name,
-              readOnly: true,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _RecentAttendanceCard extends ConsumerWidget {
   const _RecentAttendanceCard({required this.child});
 
@@ -302,38 +268,20 @@ class _RecentAttendanceCard extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             ...attendance.when(
-              loading: () => const [
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              ],
-              error: (e, _) => [
-                Text(
-                  friendlyErrorMessage(
-                    e,
-                    'Something went wrong loading attendance.',
-                  ),
-                ),
+              loading: () => const [CircularProgressIndicator()],
+              error: (error, _) => [
+                Text(friendlyErrorMessage(error, 'Could not load attendance.')),
               ],
               data: (records) => records.isEmpty
                   ? const [Text('No sessions recorded yet.')]
                   : [
                       for (final record in records.recent)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  '${record.sessionName ?? 'Training'} · '
-                                  '${formatShortDate(record.updatedAt)}',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              AttendanceStatusChip(status: record.status),
-                            ],
-                          ),
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(record.sessionName ?? 'Training'),
+                          subtitle: Text(formatShortDate(record.updatedAt)),
+                          trailing: AttendanceStatusChip(status: record.status),
                         ),
                     ],
             ),
@@ -359,9 +307,31 @@ class _RecentAttendanceCard extends ConsumerWidget {
   }
 }
 
-Color _eligibilityColor(EligibilityStatus status) => switch (status) {
-  EligibilityStatus.eligible => Colors.green,
-  EligibilityStatus.notEligible => Colors.red,
-  EligibilityStatus.pending => Colors.orange,
-  EligibilityStatus.academicWarning => Colors.amber.shade800,
-};
+class _InjuryHistoryCard extends StatelessWidget {
+  const _InjuryHistoryCard({required this.child});
+
+  final Player child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.healing_outlined),
+        title: const Text('Injury History'),
+        subtitle: Text(
+          'View ${child.name.split(' ').first}\'s reported injuries',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => InjuryHistoryScreen(
+              playerId: child.id,
+              playerName: child.name,
+              readOnly: true,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
