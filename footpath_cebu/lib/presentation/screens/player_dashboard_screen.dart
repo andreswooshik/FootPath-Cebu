@@ -17,7 +17,9 @@ import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
+import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
+import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/streak_counter.dart';
 import 'package:footpath_cebu/presentation/widgets/tier_badge.dart';
 
@@ -29,11 +31,12 @@ class PlayerDashboardScreen extends ConsumerWidget {
   const PlayerDashboardScreen({super.key});
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    ref.read(privacyUnlockedPlayersProvider.notifier).clear();
     await ref.read(signOutProvider)();
     if (!context.mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
   @override
@@ -49,7 +52,9 @@ class PlayerDashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ref.watch(myProfileProvider).when(
+      body: ref
+          .watch(myProfileProvider)
+          .when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => DashboardErrorState(
               message: friendlyErrorMessage(
@@ -58,45 +63,49 @@ class PlayerDashboardScreen extends ConsumerWidget {
               ),
               onRetry: () => ref.invalidate(myProfileProvider),
             ),
-            data: (player) => RefreshIndicator(
-              onRefresh: () => ref.refresh(myProfileProvider.future),
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Text(
-                    player.name,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  Text(
-                    '${player.ageTier.label} · ${player.classYear}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey.shade600,
-                        ),
-                  ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 300),
-                      child: PlayerCard(player: player),
+            data: (player) => PlayerPrivacyGate(
+              player: player,
+              child: RefreshIndicator(
+                onRefresh: () => ref.refresh(myProfileProvider.future),
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Text(
+                      player.name,
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Center(child: TierBadge(tier: CardTier.forPlayer(player))),
-                  const SizedBox(height: 16),
-                  _StreakSection(player: player),
-                  const SizedBox(height: 12),
-                  _EligibilityTile(player: player),
-                  const SizedBox(height: 16),
-                  _RecentAttendanceCard(player: player),
-                  const SizedBox(height: 16),
-                  _InjuryHistoryCard(player: player),
-                ],
+                    Text(
+                      '${player.ageTier.label} · ${player.classYear}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 300),
+                        child: PlayerCard(player: player),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Center(child: TierBadge(tier: CardTier.forPlayer(player))),
+                    const SizedBox(height: 16),
+                    _StreakSection(player: player),
+                    const SizedBox(height: 12),
+                    _EligibilityTile(player: player),
+                    const SizedBox(height: 16),
+                    _RecentAttendanceCard(player: player),
+                    const SizedBox(height: 16),
+                    _InjuryHistoryCard(player: player),
+                  ],
+                ),
               ),
             ),
           ),
-      bottomNavigationBar: ref.watch(myProfileProvider).maybeWhen(
-            data: (player) =>
-                PortalBottomNav(player: player, selectedIndex: 0),
+      bottomNavigationBar: ref
+          .watch(myProfileProvider)
+          .maybeWhen(
+            data: (player) => PortalBottomNav(player: player, selectedIndex: 0),
             orElse: () => null,
           ),
     );
@@ -149,11 +158,11 @@ class _EligibilityTile extends StatelessWidget {
 }
 
 String _eligibilityHeadline(EligibilityStatus status) => switch (status) {
-      EligibilityStatus.eligible => 'Ready to Play! 🚀',
-      EligibilityStatus.academicWarning => 'Almost there — hit the books 📚',
-      EligibilityStatus.notEligible => 'Bench time — grades first 📖',
-      EligibilityStatus.pending => 'Check pending ⏳',
-    };
+  EligibilityStatus.eligible => 'Ready to Play! 🚀',
+  EligibilityStatus.academicWarning => 'Almost there — hit the books 📚',
+  EligibilityStatus.notEligible => 'Bench time — grades first 📖',
+  EligibilityStatus.pending => 'Check pending ⏳',
+};
 
 class _RecentAttendanceCard extends ConsumerWidget {
   const _RecentAttendanceCard({required this.player});
@@ -260,8 +269,8 @@ class _InjuryHistoryCard extends StatelessWidget {
 }
 
 Color _eligibilityColor(EligibilityStatus status) => switch (status) {
-      EligibilityStatus.eligible => Colors.green,
-      EligibilityStatus.notEligible => Colors.red,
-      EligibilityStatus.pending => Colors.orange,
-      EligibilityStatus.academicWarning => Colors.amber.shade800,
-    };
+  EligibilityStatus.eligible => Colors.green,
+  EligibilityStatus.notEligible => Colors.red,
+  EligibilityStatus.pending => Colors.orange,
+  EligibilityStatus.academicWarning => Colors.amber.shade800,
+};

@@ -9,6 +9,7 @@ import 'package:footpath_cebu/presentation/providers/guardian_dashboard_provider
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
+import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 
 /// Progress tab — the coach's session-by-session feedback, most recent
 /// first. There's no separate "ratings" data: a coach's effort score and
@@ -16,9 +17,14 @@ import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 /// (see [LogAttendanceScreen]), so this screen is just those same attendance
 /// records, filtered to the ones a coach actually left a note on.
 class ProgressScreen extends ConsumerWidget {
-  const ProgressScreen({super.key, required this.player});
+  const ProgressScreen({
+    super.key,
+    required this.player,
+    this.isGuardian = false,
+  });
 
   final Player player;
+  final bool isGuardian;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -28,37 +34,45 @@ class ProgressScreen extends ConsumerWidget {
         automaticallyImplyLeading: false,
         title: const Text('Progress'),
       ),
-      body: attendanceAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => DashboardErrorState(
-          message: friendlyErrorMessage(
-            e,
-            'Something went wrong loading progress.',
-          ),
-          onRetry: () => ref.invalidate(childAttendanceProvider(player.id)),
-        ),
-        data: (records) {
-          final feedback =
-              records.where((a) => (a.note ?? '').trim().isNotEmpty).toList()
-                ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-          if (feedback.isEmpty) {
-            return const Center(child: Text('No coach feedback yet.'));
-          }
-          return RefreshIndicator(
-            onRefresh: () =>
-                ref.refresh(childAttendanceProvider(player.id).future),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: feedback.length,
-              itemBuilder: (context, index) => _ProgressEntry(
-                record: feedback[index],
-                isLast: index == feedback.length - 1,
-              ),
+      body: PlayerPrivacyGate(
+        player: player,
+        isGuardian: isGuardian,
+        child: attendanceAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => DashboardErrorState(
+            message: friendlyErrorMessage(
+              e,
+              'Something went wrong loading progress.',
             ),
-          );
-        },
+            onRetry: () => ref.invalidate(childAttendanceProvider(player.id)),
+          ),
+          data: (records) {
+            final feedback =
+                records.where((a) => (a.note ?? '').trim().isNotEmpty).toList()
+                  ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+            if (feedback.isEmpty) {
+              return const Center(child: Text('No coach feedback yet.'));
+            }
+            return RefreshIndicator(
+              onRefresh: () =>
+                  ref.refresh(childAttendanceProvider(player.id).future),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: feedback.length,
+                itemBuilder: (context, index) => _ProgressEntry(
+                  record: feedback[index],
+                  isLast: index == feedback.length - 1,
+                ),
+              ),
+            );
+          },
+        ),
       ),
-      bottomNavigationBar: PortalBottomNav(player: player, selectedIndex: 2),
+      bottomNavigationBar: PortalBottomNav(
+        player: player,
+        selectedIndex: 2,
+        isGuardian: isGuardian,
+      ),
     );
   }
 }

@@ -16,8 +16,10 @@ import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
+import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
+import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 
 /// Guardian Portal — a read-only dashboard mirroring the Player portal, but
 /// for the guardian's (first) linked child rather than the signed-in player.
@@ -27,11 +29,12 @@ class GuardianDashboardScreen extends ConsumerWidget {
   const GuardianDashboardScreen({super.key});
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    ref.read(privacyUnlockedPlayersProvider.notifier).clear();
     await ref.read(signOutProvider)();
     if (!context.mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
   @override
@@ -47,7 +50,9 @@ class GuardianDashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ref.watch(linkedPlayersProvider).when(
+      body: ref
+          .watch(linkedPlayersProvider)
+          .when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => DashboardErrorState(
               message: friendlyErrorMessage(
@@ -56,43 +61,76 @@ class GuardianDashboardScreen extends ConsumerWidget {
               ),
               onRetry: () => ref.invalidate(linkedPlayersProvider),
             ),
-            data: (_) {
+            data: (children) {
               final child = ref.watch(selectedChildProvider);
               if (child == null) {
                 return const Center(child: Text('No linked players yet.'));
               }
-              return RefreshIndicator(
-                onRefresh: () {
-                  ref.invalidate(childAttendanceProvider);
-                  return ref.refresh(linkedPlayersProvider.future);
-                },
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Text(
-                      child.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    Text(
-                      '${child.ageTier.label} · ${child.position?.code ?? 'No position'}',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey.shade600,
+              return PlayerPrivacyGate(
+                player: child,
+                isGuardian: true,
+                child: RefreshIndicator(
+                  onRefresh: () {
+                    ref.invalidate(childAttendanceProvider);
+                    return ref.refresh(linkedPlayersProvider.future);
+                  },
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (children.length > 1) ...[
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: child.id,
+                                hint: const Text('Choose a player'),
+                                items: [
+                                  for (final linked in children)
+                                    DropdownMenuItem(
+                                      value: linked.id,
+                                      child: Text(linked.name),
+                                    ),
+                                ],
+                                onChanged: (id) {
+                                  if (id != null) {
+                                    ref
+                                        .read(selectedChildIdProvider.notifier)
+                                        .select(id);
+                                  }
+                                },
+                              ),
+                            ),
                           ),
-                    ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 300),
-                        child: PlayerCard(player: child),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      Text(
+                        child.name,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    _StatRow(child: child),
-                    const SizedBox(height: 16),
-                    _RecentAttendanceCard(child: child),
-                    const SizedBox(height: 16),
-                    _InjuryHistoryCard(child: child),
-                  ],
+                      Text(
+                        '${child.ageTier.label} · ${child.position?.code ?? 'No position'}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 300),
+                          child: PlayerCard(player: child),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _StatRow(child: child),
+                      const SizedBox(height: 16),
+                      _RecentAttendanceCard(child: child),
+                      const SizedBox(height: 16),
+                      _InjuryHistoryCard(child: child),
+                    ],
+                  ),
                 ),
               );
             },
@@ -102,6 +140,7 @@ class GuardianDashboardScreen extends ConsumerWidget {
           : PortalBottomNav(
               player: ref.watch(selectedChildProvider)!,
               selectedIndex: 0,
+              isGuardian: true,
             ),
     );
   }
@@ -163,7 +202,9 @@ class _InjuryHistoryCard extends StatelessWidget {
       child: ListTile(
         leading: const Icon(Icons.healing_outlined),
         title: const Text('Injury History'),
-        subtitle: Text("View ${child.name.split(' ').first}'s reported injuries"),
+        subtitle: Text(
+          "View ${child.name.split(' ').first}'s reported injuries",
+        ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
@@ -257,8 +298,8 @@ class _RecentAttendanceCard extends ConsumerWidget {
 }
 
 Color _eligibilityColor(EligibilityStatus status) => switch (status) {
-      EligibilityStatus.eligible => Colors.green,
-      EligibilityStatus.notEligible => Colors.red,
-      EligibilityStatus.pending => Colors.orange,
-      EligibilityStatus.academicWarning => Colors.amber.shade800,
-    };
+  EligibilityStatus.eligible => Colors.green,
+  EligibilityStatus.notEligible => Colors.red,
+  EligibilityStatus.pending => Colors.orange,
+  EligibilityStatus.academicWarning => Colors.amber.shade800,
+};

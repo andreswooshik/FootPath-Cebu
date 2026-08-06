@@ -15,12 +15,14 @@ class PortalBottomNav extends StatelessWidget {
     super.key,
     required this.player,
     this.selectedIndex = 0,
+    this.isGuardian = false,
   });
 
   /// The player this portal shows — the signed-in player themselves, or the
   /// guardian's linked child.
   final Player player;
   final int selectedIndex;
+  final bool isGuardian;
 
   @override
   Widget build(BuildContext context) {
@@ -35,19 +37,24 @@ class PortalBottomNav extends StatelessWidget {
           case 1:
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
-                builder: (_) => ScheduleTabScreen(player: player),
+                builder: (_) =>
+                    ScheduleTabScreen(player: player, isGuardian: isGuardian),
               ),
               (route) => route.isFirst,
             );
           case 2:
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => ProgressScreen(player: player)),
+              MaterialPageRoute(
+                builder: (_) =>
+                    ProgressScreen(player: player, isGuardian: isGuardian),
+              ),
               (route) => route.isFirst,
             );
           case 3:
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
-                builder: (_) => ProfileTabScreen(player: player),
+                builder: (_) =>
+                    ProfileTabScreen(player: player, isGuardian: isGuardian),
               ),
               (route) => route.isFirst,
             );

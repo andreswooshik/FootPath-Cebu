@@ -6,6 +6,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
+import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 import 'package:footpath_cebu/presentation/widgets/session_confirmation_button.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 
@@ -14,9 +15,14 @@ import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 /// "Schedule New Session" action here). Confirmation is available only on
 /// the session day; players cannot confirm a future session.
 class ScheduleTabScreen extends ConsumerStatefulWidget {
-  const ScheduleTabScreen({super.key, required this.player});
+  const ScheduleTabScreen({
+    super.key,
+    required this.player,
+    this.isGuardian = false,
+  });
 
   final Player player;
+  final bool isGuardian;
 
   @override
   ConsumerState<ScheduleTabScreen> createState() => _ScheduleTabScreenState();
@@ -41,64 +47,70 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
           ],
         ),
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: _ScheduleTabs(
-              showPast: _showPast,
-              onChanged: (past) => setState(() => _showPast = past),
-            ),
-          ),
-          Expanded(
-            child: sessionsAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => DashboardErrorState(
-                message: friendlyErrorMessage(
-                  e,
-                  'Something went wrong loading the schedule.',
-                ),
-                onRetry: () => ref.invalidate(trainingSessionsProvider),
+      body: PlayerPrivacyGate(
+        player: widget.player,
+        isGuardian: widget.isGuardian,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: _ScheduleTabs(
+                showPast: _showPast,
+                onChanged: (past) => setState(() => _showPast = past),
               ),
-              data: (sessions) {
-                if (sessions.isEmpty) {
-                  return Center(
-                    child: Text(
-                      _showPast
-                          ? 'No past sessions yet.'
-                          : 'No upcoming sessions.',
-                      textAlign: TextAlign.center,
+            ),
+            Expanded(
+              child: sessionsAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => DashboardErrorState(
+                  message: friendlyErrorMessage(
+                    e,
+                    'Something went wrong loading the schedule.',
+                  ),
+                  onRetry: () => ref.invalidate(trainingSessionsProvider),
+                ),
+                data: (sessions) {
+                  if (sessions.isEmpty) {
+                    return Center(
+                      child: Text(
+                        _showPast
+                            ? 'No past sessions yet.'
+                            : 'No upcoming sessions.',
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                  }
+                  return RefreshIndicator(
+                    onRefresh: () =>
+                        ref.refresh(trainingSessionsProvider.future),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      itemCount: sessions.length,
+                      itemBuilder: (context, i) => TrainingSessionCard(
+                        session: sessions[i],
+                        trailing: _showPast || !sessions[i].isToday
+                            ? null
+                            : SessionConfirmationButton(
+                                sessionId: sessions[i].id,
+                                playerId: widget.player.id,
+                              ),
+                      ),
                     ),
                   );
-                }
-                return RefreshIndicator(
-                  onRefresh: () => ref.refresh(trainingSessionsProvider.future),
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    itemCount: sessions.length,
-                    itemBuilder: (context, i) => TrainingSessionCard(
-                      session: sessions[i],
-                      trailing: _showPast || !sessions[i].isToday
-                          ? null
-                          : SessionConfirmationButton(
-                              sessionId: sessions[i].id,
-                              playerId: widget.player.id,
-                            ),
-                    ),
-                  ),
-                );
-              },
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: PortalBottomNav(
         player: widget.player,
         selectedIndex: 1,
+        isGuardian: widget.isGuardian,
       ),
     );
   }

@@ -11,6 +11,7 @@ import 'package:footpath_cebu/data/repositories/api_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_progress_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
@@ -23,6 +24,7 @@ import 'package:footpath_cebu/data/repositories/mock_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_progress_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
@@ -35,6 +37,7 @@ import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 import 'package:footpath_cebu/domain/repositories/eligibility_history_repository.dart';
 import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/domain/repositories/progress_repository.dart';
 import 'package:footpath_cebu/domain/repositories/session_confirmation_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
@@ -47,6 +50,7 @@ import 'package:footpath_cebu/domain/usecases/get_injuries.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
+import 'package:footpath_cebu/domain/usecases/get_player_privacy_pin_status.dart';
 import 'package:footpath_cebu/domain/usecases/get_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_session_confirmations.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
@@ -59,6 +63,9 @@ import 'package:footpath_cebu/domain/usecases/respond_to_dispute.dart';
 import 'package:footpath_cebu/domain/usecases/save_injury.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_position.dart';
+import 'package:footpath_cebu/domain/usecases/set_player_privacy_pin.dart';
+import 'package:footpath_cebu/domain/usecases/verify_player_privacy_pin.dart';
+import 'package:footpath_cebu/domain/usecases/reset_player_privacy_pin.dart';
 import 'package:footpath_cebu/domain/usecases/cancel_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/change_password.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
@@ -97,6 +104,12 @@ final authRepositoryProvider = Provider<AuthRepository>(
 
 final playerRepositoryProvider = Provider<PlayerRepository>(
   (ref) => useMockData ? MockPlayerRepository() : ApiPlayerRepository(),
+);
+
+final playerPrivacyPinRepositoryProvider = Provider<PlayerPrivacyPinRepository>(
+  (ref) => useMockData
+      ? MockPlayerPrivacyPinRepository()
+      : ApiPlayerPrivacyPinRepository(),
 );
 
 /// Durable outbox for attendance saves made while offline. One app-wide
@@ -154,19 +167,19 @@ final disputeRepositoryProvider = Provider<DisputeRepository>(
 
 final eligibilityHistoryRepositoryProvider =
     Provider<EligibilityHistoryRepository>(
-  (ref) => useMockData
-      ? MockEligibilityHistoryRepository()
-      : ApiEligibilityHistoryRepository(),
-);
+      (ref) => useMockData
+          ? MockEligibilityHistoryRepository()
+          : ApiEligibilityHistoryRepository(),
+    );
 
 /// Player RSVPs now persist through the Django API (survive logout/restart and
 /// are visible to the coach); the in-memory mock stays the default for UI work.
 final sessionConfirmationRepositoryProvider =
     Provider<SessionConfirmationRepository>(
-  (ref) => useMockData
-      ? MockSessionConfirmationRepository()
-      : ApiSessionConfirmationRepository(),
-);
+      (ref) => useMockData
+          ? MockSessionConfirmationRepository()
+          : ApiSessionConfirmationRepository(),
+    );
 
 final deviceRepositoryProvider = Provider<DeviceRepository>(
   // The FCM plugin dependency lives here (the composition root), not in the
@@ -212,6 +225,24 @@ final getLinkedPlayersProvider = Provider<GetLinkedPlayers>(
   (ref) => GetLinkedPlayers(ref.watch(playerRepositoryProvider)),
 );
 
+final getPlayerPrivacyPinStatusProvider = Provider<GetPlayerPrivacyPinStatus>(
+  (ref) =>
+      GetPlayerPrivacyPinStatus(ref.watch(playerPrivacyPinRepositoryProvider)),
+);
+
+final setPlayerPrivacyPinProvider = Provider<SetPlayerPrivacyPin>(
+  (ref) => SetPlayerPrivacyPin(ref.watch(playerPrivacyPinRepositoryProvider)),
+);
+
+final verifyPlayerPrivacyPinProvider = Provider<VerifyPlayerPrivacyPin>(
+  (ref) =>
+      VerifyPlayerPrivacyPin(ref.watch(playerPrivacyPinRepositoryProvider)),
+);
+
+final resetPlayerPrivacyPinProvider = Provider<ResetPlayerPrivacyPin>(
+  (ref) => ResetPlayerPrivacyPin(ref.watch(playerPrivacyPinRepositoryProvider)),
+);
+
 final savePlayerAssessmentProvider = Provider<SavePlayerAssessment>(
   (ref) => SavePlayerAssessment(ref.watch(playerRepositoryProvider)),
 );
@@ -249,9 +280,8 @@ final getDisputesProvider = Provider<GetDisputes>(
 );
 
 final getEligibilityHistoryProvider = Provider<GetEligibilityHistory>(
-  (ref) => GetEligibilityHistory(
-    ref.watch(eligibilityHistoryRepositoryProvider),
-  ),
+  (ref) =>
+      GetEligibilityHistory(ref.watch(eligibilityHistoryRepositoryProvider)),
 );
 
 final raiseDisputeProvider = Provider<RaiseDispute>(
@@ -263,9 +293,8 @@ final respondToDisputeProvider = Provider<RespondToDispute>(
 );
 
 final getSessionConfirmationsProvider = Provider<GetSessionConfirmations>(
-  (ref) => GetSessionConfirmations(
-    ref.watch(sessionConfirmationRepositoryProvider),
-  ),
+  (ref) =>
+      GetSessionConfirmations(ref.watch(sessionConfirmationRepositoryProvider)),
 );
 
 final confirmSessionProvider = Provider<ConfirmSession>(
