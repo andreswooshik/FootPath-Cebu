@@ -5,13 +5,14 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/session_confirmation_button.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 
 /// Schedule tab — upcoming/past training sessions. Shared by the Player and
 /// Guardian portals (unlike the Coach's Training Schedule screen, there's no
-/// "Schedule New Session" action here). Upcoming sessions carry a
-/// confirmation control so [player] can RSVP; past sessions don't.
+/// "Schedule New Session" action here). Confirmation is available only on
+/// the session day; players cannot confirm a future session.
 class ScheduleTabScreen extends ConsumerStatefulWidget {
   const ScheduleTabScreen({super.key, required this.player});
 
@@ -31,6 +32,7 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
     );
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Row(
           children: [
             Icon(Icons.sports_soccer, size: 20),
@@ -71,8 +73,7 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
                   );
                 }
                 return RefreshIndicator(
-                  onRefresh: () =>
-                      ref.refresh(trainingSessionsProvider.future),
+                  onRefresh: () => ref.refresh(trainingSessionsProvider.future),
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -81,7 +82,7 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
                     itemCount: sessions.length,
                     itemBuilder: (context, i) => TrainingSessionCard(
                       session: sessions[i],
-                      trailing: _showPast
+                      trailing: _showPast || !sessions[i].isToday
                           ? null
                           : SessionConfirmationButton(
                               sessionId: sessions[i].id,
@@ -94,6 +95,10 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: PortalBottomNav(
+        player: widget.player,
+        selectedIndex: 1,
       ),
     );
   }

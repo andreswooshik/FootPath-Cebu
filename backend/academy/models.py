@@ -300,8 +300,8 @@ class Attendance(models.Model):
 
 
 class SessionConfirmation(models.Model):
-    """A player's RSVP for one upcoming session — set by the player before the
-    session happens. Distinct from [Attendance], which the coach records
+    """A player's RSVP for a session — set by the player on the session day.
+    Distinct from [Attendance], which the coach records
     during/after: this is intent, that is fact.
 
     One row per (player, session); confirming again flips the same row's status

@@ -33,22 +33,23 @@ class PortalBottomNav extends StatelessWidget {
             // Dashboard — back to the screen this bar was opened from.
             Navigator.of(context).popUntil((route) => route.isFirst);
           case 1:
-            Navigator.of(context).push(
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (_) => ScheduleTabScreen(player: player),
               ),
+              (route) => route.isFirst,
             );
           case 2:
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ProgressScreen(player: player),
-              ),
+            Navigator.of(context).pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => ProgressScreen(player: player)),
+              (route) => route.isFirst,
             );
           case 3:
-            Navigator.of(context).push(
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (_) => ProfileTabScreen(player: player),
               ),
+              (route) => route.isFirst,
             );
         }
       },

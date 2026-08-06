@@ -61,7 +61,10 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Profile'),
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(squadProvider.future),
         child: ListView(
@@ -82,9 +85,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
                 subtitle: const Text('Flagged issues and their threads'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const DisputeListScreen(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const DisputeListScreen()),
                 ),
               ),
             ),
@@ -113,9 +114,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 foregroundColor: Theme.of(context).colorScheme.error,
-                side: BorderSide(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                side: BorderSide(color: Theme.of(context).colorScheme.error),
               ),
             ),
           ],
@@ -129,7 +128,9 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
   }
 
   Widget _squadSnapshot() {
-    return ref.watch(squadProvider).when(
+    return ref
+        .watch(squadProvider)
+        .when(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(child: CircularProgressIndicator()),
@@ -148,9 +149,11 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
                 .where((p) => p.eligibility == EligibilityStatus.eligible)
                 .length;
             final needsAttention = squad
-                .where((p) =>
-                    p.eligibility == EligibilityStatus.academicWarning ||
-                    p.eligibility == EligibilityStatus.notEligible)
+                .where(
+                  (p) =>
+                      p.eligibility == EligibilityStatus.academicWarning ||
+                      p.eligibility == EligibilityStatus.notEligible,
+                )
                 .length;
             return Row(
               children: [
@@ -196,8 +199,9 @@ class _IdentityHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final initial =
-        profile.name.isNotEmpty ? profile.name[0].toUpperCase() : '?';
+    final initial = profile.name.isNotEmpty
+        ? profile.name[0].toUpperCase()
+        : '?';
     return Column(
       children: [
         CircleAvatar(
@@ -248,9 +252,9 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: Theme.of(context).colorScheme.primary,
-            fontWeight: FontWeight.bold,
-          ),
+        color: Theme.of(context).colorScheme.primary,
+        fontWeight: FontWeight.bold,
+      ),
     );
   }
 }

@@ -1515,6 +1515,22 @@ class SessionConfirmationTests(APITestCase):
         row = SessionConfirmation.objects.get()
         self.assertEqual(row.status, ConfirmationStatus.DECLINED)
 
+    def test_player_cannot_confirm_a_future_session(self):
+        future = TrainingSession.objects.create(
+            title='Future Training', date=date.today() + timedelta(days=1),
+            age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+        )
+        self.client.force_authenticate(self.player)
+        resp = self.client.post(
+            self._url(),
+            {'sessionId': str(future.id), 'status': 'CONFIRMED'},
+            format='json',
+        )
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(
+            SessionConfirmation.objects.filter(session=future).exists()
+        )
+
     def test_json_matches_flutter_contract(self):
         SessionConfirmation.objects.create(
             player=self.player, session=self.session,

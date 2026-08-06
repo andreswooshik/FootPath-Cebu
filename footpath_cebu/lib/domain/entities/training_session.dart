@@ -61,6 +61,14 @@ class TrainingSession {
   final SessionFocus focus;
   final int attendeeCount;
 
+  /// True only on the calendar day the session takes place.
+  bool get isToday {
+    final now = DateTime.now();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+  }
+
   /// [ageTiers] in canonical tier order, so display never depends on the order
   /// the coach happened to tap the chips in.
   List<AgeTier> get orderedTiers =>
@@ -113,22 +121,20 @@ class TrainingSession {
   /// it, where an empty session would just look broken.
   static Set<AgeTier> _tiersFromJson(dynamic raw) {
     if (raw is! List || raw.isEmpty) return AgeTier.values.toSet();
-    return raw
-        .map((v) => AgeTierInfo.fromWire(v.toString()))
-        .toSet();
+    return raw.map((v) => AgeTierInfo.fromWire(v.toString())).toSet();
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'ageTiers': orderedTiers.map((t) => t.wire).toList(growable: false),
-        // Date-only wire format (YYYY-MM-DD): the backend `date` is a Django
-        // DateField and rejects a full ISO timestamp. Mirrors InjuryRecord.
-        'date': date.toIso8601String().split('T').first,
-        'startTime': startTime,
-        'endTime': endTime,
-        'location': location,
-        'focus': focus.wire,
-        'attendeeCount': attendeeCount,
-      };
+    'id': id,
+    'title': title,
+    'ageTiers': orderedTiers.map((t) => t.wire).toList(growable: false),
+    // Date-only wire format (YYYY-MM-DD): the backend `date` is a Django
+    // DateField and rejects a full ISO timestamp. Mirrors InjuryRecord.
+    'date': date.toIso8601String().split('T').first,
+    'startTime': startTime,
+    'endTime': endTime,
+    'location': location,
+    'focus': focus.wire,
+    'attendeeCount': attendeeCount,
+  };
 }

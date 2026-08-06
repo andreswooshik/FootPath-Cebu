@@ -31,22 +31,25 @@ class CoachBottomNav extends StatelessWidget {
             // Squad — back to the roster this screen was opened from.
             Navigator.of(context).popUntil((route) => route.isFirst);
           case 1:
-            Navigator.of(context).push(
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (_) => TrainingScheduleScreen(profile: profile),
               ),
+              (route) => route.isFirst,
             );
           case 2:
-            Navigator.of(context).push(
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (_) => CoachProgressScreen(profile: profile),
               ),
+              (route) => route.isFirst,
             );
           case 3:
-            Navigator.of(context).push(
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (_) => CoachProfileScreen(profile: profile),
               ),
+              (route) => route.isFirst,
             );
         }
       },

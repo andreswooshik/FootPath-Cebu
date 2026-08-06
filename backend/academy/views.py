@@ -475,6 +475,10 @@ class SessionConfirmationView(APIView):
         # Tenancy: a player may only RSVP to sessions in their own club.
         if not _session_in_user_scope(request.user, session):
             raise PermissionDenied('That session is not in your club.')
+        if session.date > timezone.localdate():
+            raise ValidationError(
+                'Players can only confirm a session on its scheduled day.'
+            )
         confirmation, _ = SessionConfirmation.objects.update_or_create(
             player=request.user,
             session=session,

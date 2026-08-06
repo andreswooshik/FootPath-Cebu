@@ -24,7 +24,10 @@ class ProgressScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final attendanceAsync = ref.watch(childAttendanceProvider(player.id));
     return Scaffold(
-      appBar: AppBar(title: const Text('Progress')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Progress'),
+      ),
       body: attendanceAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => DashboardErrorState(

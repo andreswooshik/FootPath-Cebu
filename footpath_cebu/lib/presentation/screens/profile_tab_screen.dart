@@ -19,8 +19,7 @@ class ProfileTabScreen extends ConsumerWidget {
 
   final Player player;
 
-  bool get _isGoalkeeper =>
-      player.position?.group == PositionGroup.goalkeeper;
+  bool get _isGoalkeeper => player.position?.group == PositionGroup.goalkeeper;
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     await ref.read(signOutProvider)();
@@ -34,16 +33,25 @@ class ProfileTabScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Profile'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Center(
             child: Column(
               children: [
-                const CircleAvatar(radius: 40, child: Icon(Icons.person, size: 40)),
+                const CircleAvatar(
+                  radius: 40,
+                  child: Icon(Icons.person, size: 40),
+                ),
                 const SizedBox(height: 12),
-                Text(player.name, style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  player.name,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 Text(
                   '${player.position?.labelWithCode ?? 'No position'} · '
                   '${player.ageTier.label}',
@@ -96,9 +104,7 @@ class ProfileTabScreen extends ConsumerWidget {
               subtitle: const Text('Requires your current password'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const ChangePasswordScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
               ),
             ),
           ),

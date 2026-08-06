@@ -23,6 +23,7 @@ class CoachProgressScreen extends ConsumerWidget {
     final progress = ref.watch(squadProgressProvider);
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Row(
           children: [
             Icon(Icons.sports_soccer, size: 20),
@@ -60,9 +61,7 @@ class CoachProgressScreen extends ConsumerWidget {
               if (players.isEmpty)
                 const Padding(
                   padding: EdgeInsets.only(top: 32),
-                  child: Center(
-                    child: Text('No players in your squad yet.'),
-                  ),
+                  child: Center(child: Text('No players in your squad yet.')),
                 )
               else
                 for (final p in players) _PlayerProgressCard(progress: p),
@@ -87,8 +86,7 @@ class _SquadSummary extends StatelessWidget {
         .map((p) => p.attendanceRate)
         .whereType<double>()
         .toList();
-    final efforts =
-        players.map((p) => p.avgEffort).whereType<int>().toList();
+    final efforts = players.map((p) => p.avgEffort).whereType<int>().toList();
     final avgRate = rates.isEmpty
         ? null
         : rates.reduce((a, b) => a + b) / rates.length;
@@ -97,19 +95,19 @@ class _SquadSummary extends StatelessWidget {
         : efforts.reduce((a, b) => a + b) ~/ efforts.length;
 
     Widget stat(String label, String value) => Expanded(
-          child: Column(
-            children: [
-              Text(
-                value,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-              ),
-              Text(label, style: Theme.of(context).textTheme.bodySmall),
-            ],
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
-        );
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
 
     return Card(
       child: Padding(
@@ -158,9 +156,7 @@ class _PlayerProgressCard extends StatelessWidget {
                     children: [
                       Text(
                         progress.name,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
+                        style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       Text(
@@ -175,9 +171,7 @@ class _PlayerProgressCard extends StatelessWidget {
                     children: [
                       Text(
                         '${progress.avgEffort}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
+                        style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               fontWeight: FontWeight.w800,
                               color: cs.primary,
@@ -185,10 +179,9 @@ class _PlayerProgressCard extends StatelessWidget {
                       ),
                       Text(
                         'EFFORT',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(letterSpacing: 0.6),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.labelSmall?.copyWith(letterSpacing: 0.6),
                       ),
                     ],
                   ),
@@ -198,10 +191,9 @@ class _PlayerProgressCard extends StatelessWidget {
             if (rate == null)
               Text(
                 'No attendance recorded yet.',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodySmall
-                    ?.copyWith(color: cs.onSurfaceVariant),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
               )
             else ...[
               ClipRRect(

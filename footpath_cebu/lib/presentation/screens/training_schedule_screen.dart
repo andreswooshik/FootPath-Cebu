@@ -100,6 +100,7 @@ class _TrainingScheduleScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Row(
           children: [
             Icon(Icons.sports_soccer, size: 20),
