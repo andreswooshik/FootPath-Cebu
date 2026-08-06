@@ -44,6 +44,7 @@ class ApiPlayerPrivacyPinRepository implements PlayerPrivacyPinRepository {
     final response = await _request(
       'POST',
       '/api/players/$playerId/pin/reset/',
+      forceRefreshToken: true,
     );
     return PlayerPrivacyPinStatus.fromJson(_body(response));
   }
@@ -52,10 +53,11 @@ class ApiPlayerPrivacyPinRepository implements PlayerPrivacyPinRepository {
     String method,
     String path, {
     Map<String, dynamic>? body,
+    bool forceRefreshToken = false,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw const PlayerPrivacyPinException('Not signed in.');
-    final token = await user.getIdToken();
+    final token = await user.getIdToken(forceRefreshToken);
     if (token == null) throw const PlayerPrivacyPinException('Not signed in.');
     final uri = Uri.parse('${ApiConfig.baseUrl}$path');
     try {

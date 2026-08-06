@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 
@@ -140,13 +141,26 @@ class _PlayerPrivacyPinScreenState
   }
 
   Future<void> _resetAsGuardian() async {
+    final credentials = await showDialog<_GuardianCredentials>(
+      context: context,
+      builder: (_) => const _GuardianReauthenticationDialog(),
+    );
+    if (credentials == null || !mounted) return;
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
+      // The guardian password is used only to re-authenticate with Firebase;
+      // it is never sent to Django or stored in this screen.
+      await ref.read(reauthenticateProvider)(
+        email: credentials.email,
+        password: credentials.password,
+      );
       await ref.read(resetPlayerPrivacyPinProvider)(widget.player.id);
       ref.invalidate(playerPrivacyPinStatusProvider(widget.player.id));
+    } on AuthException catch (e) {
+      if (mounted) setState(() => _error = e.message);
     } on PlayerPrivacyPinException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -166,6 +180,93 @@ class _PlayerPrivacyPinScreenState
         border: const OutlineInputBorder(),
         counterText: '',
       ),
+    );
+  }
+}
+
+class _GuardianCredentials {
+  const _GuardianCredentials(this.email, this.password);
+
+  final String email;
+  final String password;
+}
+
+class _GuardianReauthenticationDialog extends StatefulWidget {
+  const _GuardianReauthenticationDialog();
+
+  @override
+  State<_GuardianReauthenticationDialog> createState() =>
+      _GuardianReauthenticationDialogState();
+}
+
+class _GuardianReauthenticationDialogState
+    extends State<_GuardianReauthenticationDialog> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _continue() {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Enter the guardian email and password.');
+      return;
+    }
+    Navigator.of(context).pop(_GuardianCredentials(email, password));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Verify guardian account'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'For security, verify the guardian account before resetting this player PIN.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Guardian email',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              onSubmitted: (_) => _continue(),
+              decoration: const InputDecoration(
+                labelText: 'Guardian password',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(_error!, style: TextStyle(color: Colors.red)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(onPressed: _continue, child: const Text('Verify')),
+      ],
     );
   }
 }

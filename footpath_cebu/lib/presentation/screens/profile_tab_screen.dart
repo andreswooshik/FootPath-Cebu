@@ -40,6 +40,51 @@ class ProfileTabScreen extends ConsumerWidget {
     );
   }
 
+  Widget _guardianBody(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        const Icon(Icons.family_restroom_outlined, size: 56),
+        const SizedBox(height: 12),
+        Text(
+          'Guardian account',
+          style: Theme.of(context).textTheme.headlineSmall,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Manage your household access without opening a player profile.',
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 24),
+        _PrivacyPinCard(player: player, isGuardian: true),
+        const SizedBox(height: 24),
+        Text('Account', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.lock_reset_outlined),
+            title: const Text('Change password'),
+            subtitle: const Text('Requires your current password'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ChangePasswordScreen()),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _signOut(context, ref),
+            icon: const Icon(Icons.logout),
+            label: const Text('Log out'),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
@@ -47,96 +92,128 @@ class ProfileTabScreen extends ConsumerWidget {
         automaticallyImplyLeading: false,
         title: const Text('Profile'),
       ),
-      body: PlayerPrivacyGate(
-        player: player,
-        isGuardian: isGuardian,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Center(
-              child: Column(
+      body: isGuardian
+          ? _guardianBody(context, ref)
+          : PlayerPrivacyGate(
+              player: player,
+              isGuardian: isGuardian,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  const CircleAvatar(
-                    radius: 40,
-                    child: Icon(Icons.person, size: 40),
+                  Center(
+                    child: Column(
+                      children: [
+                        const CircleAvatar(
+                          radius: 40,
+                          child: Icon(Icons.person, size: 40),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          player.name,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        Text(
+                          '${player.position?.labelWithCode ?? 'No position'} · '
+                          '${player.ageTier.label}',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        EligibilityBadge(status: player.eligibility),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
                   Text(
-                    player.name,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  Text(
-                    '${player.position?.labelWithCode ?? 'No position'} · '
-                    '${player.ageTier.label}',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    'Attributes',
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
-                  EligibilityBadge(status: player.eligibility),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: _isGoalkeeper
+                            ? [
+                                _attributeRow('Diving', player.ratings.diving),
+                                _attributeRow(
+                                  'Handling',
+                                  player.ratings.handling,
+                                ),
+                                _attributeRow(
+                                  'Kicking',
+                                  player.ratings.kicking,
+                                ),
+                                _attributeRow(
+                                  'Reflexes',
+                                  player.ratings.reflexes,
+                                ),
+                                _attributeRow('Speed', player.ratings.speed),
+                                _attributeRow(
+                                  'Positioning',
+                                  player.ratings.positioning,
+                                ),
+                              ]
+                            : [
+                                _attributeRow('Pace', player.ratings.pace),
+                                _attributeRow(
+                                  'Shooting',
+                                  player.ratings.shooting,
+                                ),
+                                _attributeRow(
+                                  'Passing',
+                                  player.ratings.passing,
+                                ),
+                                _attributeRow(
+                                  'Dribbling',
+                                  player.ratings.dribbling,
+                                ),
+                                _attributeRow(
+                                  'Defending',
+                                  player.ratings.defending,
+                                ),
+                                _attributeRow(
+                                  'Physical',
+                                  player.ratings.physical,
+                                ),
+                              ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _PrivacyPinCard(player: player, isGuardian: isGuardian),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Account',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  // Acts on whoever is signed in (player or guardian), like Log out
+                  // below — not on the viewed player.
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.lock_reset_outlined),
+                      title: const Text('Change password'),
+                      subtitle: const Text('Requires your current password'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ChangePasswordScreen(),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _signOut(context, ref),
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Log out'),
+                    ),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            Text('Attributes', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: _isGoalkeeper
-                      ? [
-                          _attributeRow('Diving', player.ratings.diving),
-                          _attributeRow('Handling', player.ratings.handling),
-                          _attributeRow('Kicking', player.ratings.kicking),
-                          _attributeRow('Reflexes', player.ratings.reflexes),
-                          _attributeRow('Speed', player.ratings.speed),
-                          _attributeRow(
-                            'Positioning',
-                            player.ratings.positioning,
-                          ),
-                        ]
-                      : [
-                          _attributeRow('Pace', player.ratings.pace),
-                          _attributeRow('Shooting', player.ratings.shooting),
-                          _attributeRow('Passing', player.ratings.passing),
-                          _attributeRow('Dribbling', player.ratings.dribbling),
-                          _attributeRow('Defending', player.ratings.defending),
-                          _attributeRow('Physical', player.ratings.physical),
-                        ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            _PrivacyPinCard(player: player, isGuardian: isGuardian),
-            const SizedBox(height: 24),
-            Text('Account', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            // Acts on whoever is signed in (player or guardian), like Log out
-            // below — not on the viewed player.
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.lock_reset_outlined),
-                title: const Text('Change password'),
-                subtitle: const Text('Requires your current password'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ChangePasswordScreen(),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _signOut(context, ref),
-                icon: const Icon(Icons.logout),
-                label: const Text('Log out'),
-              ),
-            ),
-          ],
-        ),
-      ),
       bottomNavigationBar: PortalBottomNav(
         player: player,
         selectedIndex: 3,

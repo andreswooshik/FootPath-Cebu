@@ -28,8 +28,7 @@ class _FakeAuthRepo implements AuthRepository {
   Future<UserProfile> signInAndFetchProfile({
     required String email,
     required String password,
-  }) =>
-      throw UnimplementedError();
+  }) => throw UnimplementedError();
 
   @override
   Future<void> signOut() => throw UnimplementedError();
@@ -38,6 +37,12 @@ class _FakeAuthRepo implements AuthRepository {
   Future<void> sendPasswordResetEmail({required String email}) async {
     lastResetEmail = email;
   }
+
+  @override
+  Future<void> reauthenticate({
+    required String email,
+    required String password,
+  }) async {}
 }
 
 /// Pushes the screen from a host route so popping on success is observable.
@@ -86,8 +91,9 @@ Future<void> _fillAndSubmit(
 }
 
 void main() {
-  testWidgets('a successful change confirms and returns to the profile',
-      (tester) async {
+  testWidgets('a successful change confirms and returns to the profile', (
+    tester,
+  ) async {
     final repo = _FakeAuthRepo();
     await _pumpAndOpen(tester, repo);
 
@@ -104,8 +110,9 @@ void main() {
     expect(find.text('Password changed successfully.'), findsOneWidget);
   });
 
-  testWidgets('a validation error keeps the screen open and shows the rule',
-      (tester) async {
+  testWidgets('a validation error keeps the screen open and shows the rule', (
+    tester,
+  ) async {
     final repo = _FakeAuthRepo();
     await _pumpAndOpen(tester, repo);
 
@@ -121,8 +128,7 @@ void main() {
     expect(find.text('New passwords do not match.'), findsOneWidget);
   });
 
-  testWidgets('a wrong current password shows the auth error',
-      (tester) async {
+  testWidgets('a wrong current password shows the auth error', (tester) async {
     final repo = _FakeAuthRepo()
       ..throwOnChange = AuthException('Current password is incorrect.');
     await _pumpAndOpen(tester, repo);
@@ -138,8 +144,9 @@ void main() {
     expect(find.text('Current password is incorrect.'), findsOneWidget);
   });
 
-  testWidgets('all fields obscure input until the visibility toggle is used',
-      (tester) async {
+  testWidgets('all fields obscure input until the visibility toggle is used', (
+    tester,
+  ) async {
     await _pumpAndOpen(tester, _FakeAuthRepo());
 
     List<bool> obscured() => tester
@@ -155,14 +162,16 @@ void main() {
     expect(obscured(), [false, false, false]);
   });
 
-  testWidgets('the reset-email fallback appears only when the email is known',
-      (tester) async {
+  testWidgets('the reset-email fallback appears only when the email is known', (
+    tester,
+  ) async {
     await _pumpAndOpen(tester, _FakeAuthRepo());
     expect(find.text('Forgot your current password?'), findsNothing);
   });
 
-  testWidgets('the reset-email fallback sends to the given address',
-      (tester) async {
+  testWidgets('the reset-email fallback sends to the given address', (
+    tester,
+  ) async {
     final repo = _FakeAuthRepo();
     await _pumpAndOpen(tester, repo, email: 'coach@example.com');
 

@@ -25,6 +25,14 @@ abstract class AuthRepository {
     required String currentPassword,
     required String newPassword,
   });
+
+  /// Re-authenticates the current account before a sensitive action.
+  /// Implementations must keep the password inside the identity provider
+  /// flow; it must never be sent to the application API.
+  Future<void> reauthenticate({
+    required String email,
+    required String password,
+  });
 }
 
 /// Thrown when sign-in fails.

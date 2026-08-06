@@ -27,14 +27,19 @@ class _RecordingAuthRepo implements AuthRepository {
   Future<UserProfile> signInAndFetchProfile({
     required String email,
     required String password,
-  }) =>
-      throw UnimplementedError();
+  }) => throw UnimplementedError();
 
   @override
   Future<void> signOut() => throw UnimplementedError();
 
   @override
   Future<void> sendPasswordResetEmail({required String email}) async {}
+
+  @override
+  Future<void> reauthenticate({
+    required String email,
+    required String password,
+  }) async {}
 }
 
 void main() {
@@ -118,7 +123,10 @@ void main() {
         next: 'same-secret-1',
         confirm: 'same-secret-1',
       );
-      expect(error, 'New password must be different from your current password.');
+      expect(
+        error,
+        'New password must be different from your current password.',
+      );
     });
 
     test('confirmation mismatch', () async {

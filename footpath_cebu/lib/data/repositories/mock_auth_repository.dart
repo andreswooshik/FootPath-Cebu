@@ -22,7 +22,8 @@ class MockAuthRepository implements AuthRepository {
     await Future.delayed(const Duration(milliseconds: 500));
 
     // Accept any email with password "demo123", OR use predefined accounts
-    final isValidAccount = mockAccounts[email] == password || password == 'demo123';
+    final isValidAccount =
+        mockAccounts[email] == password || password == 'demo123';
 
     if (isValidAccount) {
       // Mirror the real /api/auth/me/ contract (upper-case role, name parts).
@@ -69,6 +70,17 @@ class MockAuthRepository implements AuthRepository {
     // Every mock account signs in with the shared demo password.
     if (currentPassword != 'demo123') {
       throw AuthException('Current password is incorrect.');
+    }
+  }
+
+  @override
+  Future<void> reauthenticate({
+    required String email,
+    required String password,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    if (email.trim().isEmpty || password != 'demo123') {
+      throw AuthException('Guardian email or password is incorrect.');
     }
   }
 }

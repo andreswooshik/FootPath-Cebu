@@ -68,6 +68,7 @@ import 'package:footpath_cebu/domain/usecases/verify_player_privacy_pin.dart';
 import 'package:footpath_cebu/domain/usecases/reset_player_privacy_pin.dart';
 import 'package:footpath_cebu/domain/usecases/cancel_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/change_password.dart';
+import 'package:footpath_cebu/domain/usecases/reauthenticate.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/update_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
@@ -211,6 +212,10 @@ final sendPasswordResetProvider = Provider<SendPasswordReset>(
 
 final changePasswordProvider = Provider<ChangePassword>(
   (ref) => ChangePassword(ref.watch(authRepositoryProvider)),
+);
+
+final reauthenticateProvider = Provider<Reauthenticate>(
+  (ref) => Reauthenticate(ref.watch(authRepositoryProvider)),
 );
 
 final getSquadProvider = Provider<GetSquad>(

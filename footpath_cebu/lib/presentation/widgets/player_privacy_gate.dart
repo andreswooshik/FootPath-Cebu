@@ -64,24 +64,6 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
     }
   }
 
-  Future<void> _resetAsGuardian() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await ref.read(resetPlayerPrivacyPinProvider)(widget.player.id);
-      ref.invalidate(playerPrivacyPinStatusProvider(widget.player.id));
-      ref
-          .read(privacyUnlockedPlayersProvider.notifier)
-          .unlock(widget.player.id);
-    } on PlayerPrivacyPinException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
   Future<void> _createPin() async {
     final pin = _setupPinController.text;
     if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
@@ -144,7 +126,6 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
           error: _error,
           locked: pinStatus.locked,
           onVerify: _verify,
-          onReset: widget.isGuardian ? _resetAsGuardian : null,
         );
       },
     );
@@ -249,7 +230,6 @@ class _PinPrompt extends StatelessWidget {
     required this.error,
     required this.locked,
     required this.onVerify,
-    required this.onReset,
   });
 
   final Player player;
@@ -259,7 +239,6 @@ class _PinPrompt extends StatelessWidget {
   final String? error;
   final bool locked;
   final VoidCallback onVerify;
-  final VoidCallback? onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -317,20 +296,14 @@ class _PinPrompt extends StatelessWidget {
                           : const Text('Unlock profile'),
                     ),
                   ),
-                  if (onReset != null) ...[
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: busy ? null : onReset,
-                      child: const Text('Reset this player PIN'),
-                    ),
-                  ] else ...[
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Ask the linked guardian or coordinator to reset it.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ],
+                  const SizedBox(height: 8),
+                  Text(
+                    isGuardian
+                        ? 'To reset a lost PIN, open Profile -> Player privacy PIN.'
+                        : 'Ask the linked guardian or coordinator to reset it.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ],
               ),
             ),

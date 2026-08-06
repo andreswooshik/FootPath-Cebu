@@ -47,7 +47,9 @@ class FirebaseAuthRepository implements AuthRepository {
       throw AuthException(message);
     }
 
-    return UserProfile.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    return UserProfile.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   @override
@@ -97,6 +99,32 @@ class FirebaseAuthRepository implements AuthRepository {
     try {
       await user.updatePassword(newPassword);
     } on FirebaseAuthException catch (e) {
+      throw AuthException(_friendlyAuthMessage(e));
+    }
+  }
+
+  @override
+  Future<void> reauthenticate({
+    required String email,
+    required String password,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) {
+      throw AuthException('Your session has expired. Please sign in again.');
+    }
+    if (user.email!.trim().toLowerCase() != email.trim().toLowerCase()) {
+      throw AuthException(
+        'Enter the email for the signed-in guardian account.',
+      );
+    }
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: user.email!, password: password),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-credential' || e.code == 'wrong-password') {
+        throw AuthException('Guardian email or password is incorrect.');
+      }
       throw AuthException(_friendlyAuthMessage(e));
     }
   }
