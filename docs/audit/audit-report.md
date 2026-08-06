@@ -94,8 +94,8 @@ if (kReleaseMode) {
 ```
 
 Optionally, make it explicit via a dart-define (`--dart-define=USE_MOCK=true`) and assert
-it is never set in release. 🧪 Test: `test-cases.dart` → `main wiring never selects mock in release mode` (a
-guard test asserting the selection function returns the Firebase wiring when `kReleaseMode` is true).
+it is never set in release. The current Flutter wiring tests cover this guard in
+`footpath_cebu/test/wiring_and_assessment_test.dart`.
 
 ---
 
@@ -351,4 +351,5 @@ tree).
   - The brief's "sync conflict resolution" and "offline→online transition" tests are
     **N/A** (no sync layer).
 
-See `test-cases.dart` for runnable unit tests covering the top issues.
+See `auditdatetodya.md`, `footpath_cebu/test/`, and the Django app test modules for
+the current audit results and runnable regression tests.
