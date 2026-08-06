@@ -14,6 +14,38 @@ import 'package:http/http.dart' as http;
 /// `firebase_auth`.
 class FirebaseAuthRepository implements AuthRepository {
   @override
+  Future<UserProfile?> restoreSession() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return null;
+
+    final idToken = await user.getIdToken();
+    if (idToken == null) {
+      await FirebaseAuth.instance.signOut();
+      return null;
+    }
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/api/auth/me/'),
+      headers: {'Authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode != 200) {
+      // A Firebase session without a valid Django profile is not usable by
+      // the app. Clear it so startup cannot loop on a rejected account.
+      await FirebaseAuth.instance.signOut();
+      var message = 'Saved login rejected by server (${response.statusCode}).';
+      try {
+        final body = jsonDecode(response.body);
+        if (body is Map && body['detail'] is String) {
+          message = body['detail'] as String;
+        }
+      } catch (_) {}
+      throw AuthException(message);
+    }
+    return UserProfile.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  @override
   Future<UserProfile> signInAndFetchProfile({
     required String email,
     required String password,

@@ -1,7 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:footpath_cebu/presentation/screens/login_screen.dart';
+import 'package:footpath_cebu/presentation/screens/session_bootstrap_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 
 import 'firebase_options.dart';
@@ -45,7 +45,7 @@ class FootPathApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       home: setupError == null
-          ? const LoginScreen()
+          ? const SessionBootstrapScreen()
           : _SetupErrorScreen(message: setupError!),
     );
   }

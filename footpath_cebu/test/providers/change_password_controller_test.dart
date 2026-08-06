@@ -40,6 +40,9 @@ class _RecordingAuthRepo implements AuthRepository {
     required String email,
     required String password,
   }) async {}
+
+  @override
+  Future<UserProfile?> restoreSession() async => null;
 }
 
 void main() {

@@ -12,6 +12,10 @@ abstract class AuthRepository {
     required String password,
   });
 
+  /// Restores an existing provider session and fetches the current profile.
+  /// Returns null when no session is stored on the device.
+  Future<UserProfile?> restoreSession();
+
   /// Signs out the current user.
   Future<void> signOut();
 

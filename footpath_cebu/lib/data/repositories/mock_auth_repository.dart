@@ -3,6 +3,8 @@ import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 
 /// Mock implementation for UI development without Firebase.
 class MockAuthRepository implements AuthRepository {
+  UserProfile? _signedInProfile;
+
   /// Predefined test accounts for easy testing
   static const mockAccounts = {
     'player@example.com': 'demo123',
@@ -28,7 +30,7 @@ class MockAuthRepository implements AuthRepository {
     if (isValidAccount) {
       // Mirror the real /api/auth/me/ contract (upper-case role, name parts).
       final role = _getRoleFromEmail(email).toUpperCase();
-      return UserProfile(
+      final profile = UserProfile(
         id: '${email.hashCode}'.replaceAll('-', ''),
         email: email,
         firstName: email.split('@')[0].replaceAll('.', ' ').titleCase,
@@ -36,11 +38,16 @@ class MockAuthRepository implements AuthRepository {
         role: role,
         roleDisplay: role.titleCase,
       );
+      _signedInProfile = profile;
+      return profile;
     }
 
     // Simulate incorrect password
     throw AuthException('Incorrect email or password.');
   }
+
+  @override
+  Future<UserProfile?> restoreSession() async => _signedInProfile;
 
   String _getRoleFromEmail(String email) {
     if (email.contains('coach')) return 'coach';
@@ -54,6 +61,7 @@ class MockAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() async {
     await Future.delayed(const Duration(milliseconds: 200));
+    _signedInProfile = null;
   }
 
   @override

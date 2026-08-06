@@ -43,6 +43,9 @@ class _FakeAuthRepo implements AuthRepository {
     required String email,
     required String password,
   }) async {}
+
+  @override
+  Future<UserProfile?> restoreSession() async => null;
 }
 
 /// Pushes the screen from a host route so popping on success is observable.

@@ -59,6 +59,7 @@ import 'package:footpath_cebu/domain/usecases/get_training_sessions.dart';
 import 'package:footpath_cebu/domain/usecases/log_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/raise_dispute.dart';
 import 'package:footpath_cebu/domain/usecases/register_device.dart';
+import 'package:footpath_cebu/domain/usecases/restore_session.dart';
 import 'package:footpath_cebu/domain/usecases/respond_to_dispute.dart';
 import 'package:footpath_cebu/domain/usecases/save_injury.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
@@ -200,6 +201,10 @@ final deviceRepositoryProvider = Provider<DeviceRepository>(
 
 final signInProvider = Provider<SignIn>(
   (ref) => SignIn(ref.watch(authRepositoryProvider)),
+);
+
+final restoreSessionProvider = Provider<RestoreSession>(
+  (ref) => RestoreSession(ref.watch(authRepositoryProvider)),
 );
 
 final signOutProvider = Provider<SignOut>(
