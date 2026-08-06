@@ -320,6 +320,12 @@ class Attendance(models.Model):
         # The session upsert keys on (player, session); without this nothing
         # stops duplicate rows for the same player on the same session.
         unique_together = ('player', 'session')
+        indexes = [
+            models.Index(
+                fields=['session', 'status'],
+                name='academy_att_session_status_idx',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.player.email} · {self.status} · {self.updated_at:%Y-%m-%d}'
@@ -389,6 +395,12 @@ class InjuryRecord(models.Model):
 
     class Meta:
         ordering = ['-occurred_on', '-id']
+        indexes = [
+            models.Index(
+                fields=['player', '-occurred_on'],
+                name='academy_injury_player_date_idx',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.player.email} · {self.description} · {self.status}'

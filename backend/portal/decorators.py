@@ -20,6 +20,8 @@ def portal_role_required(*roles):
                 return redirect_to_login(request.get_full_path())
             if request.user.role not in roles:
                 raise PermissionDenied('Your role cannot access this page.')
+            if request.user.club_id is None:
+                raise PermissionDenied('Your account is not assigned to a club.')
             return view(request, *args, **kwargs)
 
         return _wrapped

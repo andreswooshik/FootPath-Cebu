@@ -12,7 +12,7 @@ from unittest.mock import patch
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from .models import Roles, User
+from .models import Club, Roles, User
 
 ALL_ROLES = [
     Roles.ADMIN,
@@ -205,7 +205,10 @@ class FirebaseAuthMappingTests(APITestCase):
     @patch('accounts.authentication.ensure_initialized')
     @patch('accounts.authentication.firebase_auth.verify_id_token')
     def test_valid_token_maps_to_provisioned_user(self, mock_verify, _mock_init):
-        make_user(Roles.COACH)  # firebase_uid = 'uid-coach'
+        club = Club.objects.create(name='Auth Test Club', slug='auth-test-club')
+        user = make_user(Roles.COACH)
+        user.club = club
+        user.save(update_fields=['club'])
         mock_verify.return_value = {'uid': 'uid-coach'}
 
         self.client.credentials(HTTP_AUTHORIZATION='Bearer fake-token')

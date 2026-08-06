@@ -3,6 +3,7 @@ from firebase_admin import auth as firebase_auth
 from rest_framework import authentication, exceptions
 
 from .firebase import ensure_initialized
+from .models import Roles
 
 User = get_user_model()
 
@@ -35,7 +36,10 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
         # actions) so a signed-out or disabled account loses write access
         # immediately, without paying the extra network round trip on every
         # cheap read (audit finding F4).
-        check_revoked = request.method not in ('GET', 'HEAD', 'OPTIONS')
+        # Read endpoints can expose household, medical, and academic data, so
+        # revoked tokens must lose read access immediately as well as write
+        # access.
+        check_revoked = True
         try:
             decoded = firebase_auth.verify_id_token(
                 token, clock_skew_seconds=10, check_revoked=check_revoked
@@ -57,6 +61,10 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
         except User.DoesNotExist:
             raise exceptions.AuthenticationFailed(
                 'No account for this login. Contact an administrator.'
+            )
+        if user.role != Roles.ADMIN and user.club_id is None:
+            raise exceptions.AuthenticationFailed(
+                'This account is not assigned to an academy club.'
             )
         return (user, decoded)
 

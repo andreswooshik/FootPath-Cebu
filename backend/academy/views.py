@@ -70,15 +70,17 @@ from .serializers import (
     InjuryRecordSerializer,
     PlayerPositionSerializer,
     PlayerSerializer,
+    PlayerSelectorSerializer,
     SessionAttendanceRecordSerializer,
     SessionConfirmationSerializer,
     TrainingSessionSerializer,
 )
+from .player_unlock import issue_player_unlock, require_player_unlock
+from .storage import upload_photo, validate_photo_upload
 
 # Roles that participate in the dispute process: the coach flags, School
 # Staff and Admin review/respond. Players and guardians have no access.
 DISPUTE_ROLES = (Roles.COACH, Roles.SCHOOL_STAFF, Roles.ADMIN)
-from .storage import upload_photo
 
 
 def _in_same_club(user, player_id):
@@ -132,7 +134,12 @@ def _may_read_eligibility(user, player_id):
 def _sessions_for(user):
     """The TrainingSession queryset visible to `user`: their own club's
     sessions, or every club's for Admin."""
-    qs = TrainingSession.objects.all()
+    qs = TrainingSession.objects.annotate(
+        present_attendee_count=Count(
+            'attendance_records',
+            filter=Q(attendance_records__status=AttendanceStatus.PRESENT),
+        )
+    )
     if user.role == Roles.ADMIN:
         return qs
     return qs.filter(club=user.club)
@@ -183,7 +190,21 @@ class LinkedPlayersView(APIView):
         profiles = PlayerProfile.objects.select_related('user').filter(
             user_id__in=player_ids
         )
-        return Response(PlayerSerializer(profiles, many=True).data)
+        return Response(PlayerSelectorSerializer(profiles, many=True).data)
+
+
+class PlayerDetailView(APIView):
+    """Return one player profile after normal authorization and PIN unlock."""
+
+    def get(self, request, player_id):
+        if not _guardian_may_read(request.user, player_id):
+            raise PermissionDenied('You may not view this player.')
+        if request.user.role == Roles.GUARDIAN:
+            require_player_unlock(request, player_id)
+        profile = get_object_or_404(
+            PlayerProfile.objects.select_related('user'), user_id=player_id
+        )
+        return Response(PlayerSerializer(profile).data)
 
 
 def _pin_profile(player_id):
@@ -261,8 +282,10 @@ class PlayerPrivacyPinView(APIView):
             raise ValidationError(str(exc))
         except ValueError as exc:
             raise ValidationError(str(exc))
-        AuditLog.record(request.user, 'player_pin.changed', target=request.user.email)
-        return Response(pin_status(player))
+        AuditLog.record(request.user, 'player_pin.changed', target=player.email)
+        result = pin_status(player)
+        result['unlockToken'] = issue_player_unlock(request.user.id, player.id)
+        return Response(result)
 
 
 class PlayerPrivacyPinVerifyView(APIView):
@@ -295,7 +318,10 @@ class PlayerPrivacyPinVerifyView(APIView):
             raise ValidationError(str(exc))
         except InvalidPin as exc:
             raise ValidationError(str(exc))
-        return Response({'verified': True})
+        return Response({
+            'verified': True,
+            'unlockToken': issue_player_unlock(request.user.id, player.id),
+        })
 
 
 class PlayerPrivacyPinResetView(APIView):
@@ -387,9 +413,11 @@ class AttendanceListView(APIView):
             raise ValidationError('A player query parameter is required.')
         if not _guardian_may_read(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
-        records = Attendance.objects.select_related('session', 'recorded_by').filter(
-            player_id=player_id
-        )
+        if request.user.role == Roles.GUARDIAN:
+            require_player_unlock(request, player_id)
+        records = Attendance.objects.select_related(
+            'session', 'recorded_by', 'player'
+        ).filter(player_id=player_id)
         return Response(AttendanceSerializer(records, many=True).data)
 
 
@@ -773,6 +801,8 @@ class EligibilityHistoryView(APIView):
                 'You may not view this player\'s eligibility history.'
             )
         get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
+        if request.user.role == Roles.GUARDIAN:
+            require_player_unlock(request, player_id)
         history = EligibilityHistory.objects.filter(
             player_id=player_id
         ).select_related('changed_by')
@@ -794,7 +824,9 @@ class InjuryRecordListCreateView(APIView):
 
     def get(self, request):
         if request.user.role == Roles.PLAYER:
-            records = InjuryRecord.objects.filter(player=request.user)
+            records = InjuryRecord.objects.select_related('player').filter(
+                player=request.user
+            )
         elif request.user.role in (Roles.COACH, Roles.ADMIN):
             records = InjuryRecord.objects.select_related('player')
             # Coaches are club-scoped; Admin sees every club.
@@ -811,7 +843,11 @@ class InjuryRecordListCreateView(APIView):
                 guardian=request.user, player_id=player_id
             ).exists():
                 raise PermissionDenied('You may not view this player.')
-            records = InjuryRecord.objects.filter(player_id=player_id)
+            if request.user.role == Roles.GUARDIAN:
+                require_player_unlock(request, player_id)
+            records = InjuryRecord.objects.select_related('player').filter(
+                player_id=player_id
+            )
         else:
             raise PermissionDenied('You may not view injury records.')
         return Response(InjuryRecordSerializer(records, many=True).data)
@@ -861,6 +897,8 @@ class InjuryRecordDetailView(APIView):
             )
         if not allowed:
             raise PermissionDenied('You may not access this injury record.')
+        if not write and request.user.role == Roles.GUARDIAN:
+            require_player_unlock(request, record.player_id)
         return record
 
     def get(self, request, pk):
@@ -914,12 +952,13 @@ class PlayerPhotoUploadView(APIView):
             raise ValidationError('A photo file is required (field "photo").')
         profile = get_object_or_404(PlayerProfile, user_id=player_id)
         try:
+            content_type = validate_photo_upload(upload)
             path = upload_photo(
                 player_id,
                 upload.read(),
-                content_type=upload.content_type or 'image/jpeg',
+                content_type=content_type,
             )
-        except RuntimeError as exc:
+        except (RuntimeError, ValueError) as exc:
             raise ValidationError(str(exc))
         profile.photo_path = path
         profile.save(update_fields=['photo_path'])

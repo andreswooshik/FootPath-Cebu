@@ -7,6 +7,11 @@ urlpatterns = [
     path('players/me/', views.MyProfileView.as_view(), name='players-me'),
     path('players/linked/', views.LinkedPlayersView.as_view(), name='players-linked'),
     path(
+        'players/<int:player_id>/profile/',
+        views.PlayerDetailView.as_view(),
+        name='player-detail',
+    ),
+    path(
         'players/<int:player_id>/pin/',
         views.PlayerPrivacyPinView.as_view(),
         name='player-pin',

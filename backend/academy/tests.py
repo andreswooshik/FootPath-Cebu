@@ -7,6 +7,7 @@ force_authenticate, and the FCM SDK is mocked. Mirrors accounts/tests.py.
 from datetime import date, timedelta
 from unittest.mock import patch
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -14,6 +15,7 @@ from rest_framework.test import APITestCase
 from accounts.models import Club, GuardianLink, Roles, User
 
 from .notifications import _recipients_for_session
+from .player_unlock import issue_player_unlock
 from .models import (
     AgeTier,
     AgeTierSetting,
@@ -144,7 +146,12 @@ class AttendanceAuthorizationTests(APITestCase):
 
     def test_guardian_can_read_linked_child(self):
         self.client.force_authenticate(self.guardian)
-        resp = self.client.get(self._url(self.my_child.id))
+        resp = self.client.get(
+            self._url(self.my_child.id),
+            HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
+                self.guardian.id, self.my_child.id
+            ),
+        )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
         self.assertEqual(resp.data[0]['playerId'], str(self.my_child.id))
@@ -623,7 +630,8 @@ class PlayerPrivacyPinTests(APITestCase):
             {'pin': '2468'}, format='json',
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {'hasPin': True, 'locked': False, 'lockedUntil': None})
+        self.assertTrue(response.data['hasPin'])
+        self.assertIn('unlockToken', response.data)
         stored = PlayerPrivacyPin.objects.get(player=self.player)
         self.assertNotEqual(stored.pin_hash, '2468')
 
@@ -632,7 +640,8 @@ class PlayerPrivacyPinTests(APITestCase):
             {'pin': '2468'}, format='json',
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {'verified': True})
+        self.assertTrue(response.data['verified'])
+        self.assertIn('unlockToken', response.data)
 
         response = self.client.put(
             reverse('player-pin', args=[self.player.id]),
@@ -729,7 +738,8 @@ class PlayerPrivacyPinTests(APITestCase):
             {'pin': '2468'}, format='json',
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, {'verified': True})
+        self.assertTrue(response.data['verified'])
+        self.assertIn('unlockToken', response.data)
 
     def test_player_cannot_read_or_reset_another_players_pin(self):
         other = make_player('other-pin-player@footpathcebu.test')
@@ -1109,13 +1119,24 @@ class InjuryRecordTests(APITestCase):
             ).status_code, 403,
         )
         resp = self.client.get(
-            f"{reverse('injuries')}?player={self.player.id}"
+            f"{reverse('injuries')}?player={self.player.id}",
+            HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
+                self.guardian.id, self.player.id
+            ),
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
         self.assertEqual(resp.data[0]['playerId'], str(self.player.id))
         # Detail read of the linked child's record works too.
-        self.assertEqual(self.client.get(self._detail()).status_code, 200)
+        self.assertEqual(
+            self.client.get(
+                self._detail(),
+                HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
+                    self.guardian.id, self.player.id
+                ),
+            ).status_code,
+            200,
+        )
         # Writes stay player-only.
         self.assertEqual(
             self.client.post(
@@ -1170,8 +1191,11 @@ class PhotoUploadTests(APITestCase):
         self.player = make_player('p@footpathcebu.test')
 
     def _upload(self):
-        from io import BytesIO
-        return {'photo': BytesIO(b'\xff\xd8\xfffakejpeg')}
+        return {
+            'photo': SimpleUploadedFile(
+                'player.jpg', b'\xff\xd8\xfffakejpeg', content_type='image/jpeg'
+            )
+        }
 
     def test_non_admin_cannot_upload(self):
         self.client.force_authenticate(make_user(Roles.COACH))
@@ -1375,7 +1399,15 @@ class EligibilityHistoryEndpointTests(APITestCase):
 
     def test_guardian_reads_linked_child_but_not_others(self):
         self.client.force_authenticate(self.guardian)
-        self.assertEqual(self.client.get(self._url()).status_code, 200)
+        self.assertEqual(
+            self.client.get(
+                self._url(),
+                HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
+                    self.guardian.id, self.player.id
+                ),
+            ).status_code,
+            200,
+        )
         self.assertEqual(
             self.client.get(self._url(self.other_player.id)).status_code, 403,
         )

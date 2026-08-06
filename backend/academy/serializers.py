@@ -81,6 +81,21 @@ class PlayerSerializer(serializers.ModelSerializer):
         return signed_photo_url(obj.photo_path) if obj.photo_path else None
 
 
+class PlayerSelectorSerializer(serializers.ModelSerializer):
+    """Non-sensitive player shape used before a household PIN is entered."""
+
+    id = serializers.CharField(source='user.id', read_only=True)
+    name = serializers.SerializerMethodField()
+    ageTier = serializers.CharField(source='age_tier', read_only=True)
+
+    class Meta:
+        model = PlayerProfile
+        fields = ['id', 'name', 'ageTier']
+
+    def get_name(self, obj):
+        return _display_name(obj.user)
+
+
 class AssessmentSerializer(serializers.ModelSerializer):
     """Write side for PUT /api/players/<id>/assessment/ — the twelve
     coach-editable ratings (outfield six + goalkeeper six) plus the coach's
@@ -165,12 +180,12 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
         ]
 
     def get_attendeeCount(self, obj):
-        # Present count for this session; 0 when none recorded yet.
-        return obj.attendance_records.filter(status='PRESENT').count()
+        # The list view annotates this value, avoiding one query per session.
+        return getattr(obj, 'present_attendee_count', 0)
 
     def validate_ageTiers(self, value):
         valid = set(AgeTier.values)
-        cleaned = [t.upper() for t in value]
+        cleaned = list(dict.fromkeys(t.upper() for t in value))
         bad = [t for t in cleaned if t not in valid]
         if bad:
             raise serializers.ValidationError(f'Unknown age tier(s): {bad}')
