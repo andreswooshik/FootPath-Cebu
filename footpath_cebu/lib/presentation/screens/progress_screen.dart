@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
@@ -37,7 +38,7 @@ class ProgressScreen extends ConsumerWidget {
         player: player,
         isGuardian: isGuardian,
         child: attendanceAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const DashboardLoadingState(),
           error: (e, _) => DashboardErrorState(
             message: friendlyErrorMessage(
               e,
@@ -58,16 +59,20 @@ class ProgressScreen extends ConsumerWidget {
               child: ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: feedback.length,
-                itemBuilder: (context, index) => _ProgressEntry(
-                  record: feedback[index],
-                  isLast: index == feedback.length - 1,
-                ),
+                itemBuilder: (context, index) =>
+                    _ProgressEntry(
+                      record: feedback[index],
+                      isLast: index == feedback.length - 1,
+                    ).animateListItem(
+                      key: ValueKey(feedback[index].updatedAt),
+                      index: index,
+                    ),
               ),
             );
           },
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/dispute.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/dispute_providers.dart';
@@ -35,13 +36,14 @@ class _FlagDisputeScreenState extends ConsumerState<FlagDisputeScreen> {
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final detail = _detailController.text.trim();
-    final dispute =
-        await ref.read(disputeFormControllerProvider.notifier).raise(
-              category: _category,
-              summary: _summaryController.text.trim(),
-              detail: detail.isEmpty ? null : detail,
-              subjectPlayerId: widget.player.id,
-            );
+    final dispute = await ref
+        .read(disputeFormControllerProvider.notifier)
+        .raise(
+          category: _category,
+          summary: _summaryController.text.trim(),
+          detail: detail.isEmpty ? null : detail,
+          subjectPlayerId: widget.player.id,
+        );
     if (!mounted) return;
     if (dispute == null) {
       final error = ref.read(disputeFormControllerProvider).error;
@@ -55,9 +57,9 @@ class _FlagDisputeScreenState extends ConsumerState<FlagDisputeScreen> {
       return;
     }
     Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Dispute raised.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Dispute raised.')));
   }
 
   @override
@@ -134,6 +136,6 @@ class _FlagDisputeScreenState extends ConsumerState<FlagDisputeScreen> {
           ],
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }

@@ -5,10 +5,10 @@ import 'package:footpath_cebu/domain/entities/injury_record.dart';
 
 /// One player's injury history, most recent first. Family-keyed by player id
 /// so the player's own screen and the coach's read-only view share caching.
-final injuriesProvider =
-    FutureProvider.autoDispose.family<List<InjuryRecord>, String>(
-  (ref, playerId) => ref.watch(getInjuriesProvider)(playerId),
-);
+final injuriesProvider = FutureProvider.autoDispose
+    .family<List<InjuryRecord>, String>(
+      (ref, playerId) => ref.watch(getInjuriesProvider)(playerId),
+    );
 
 /// Drives the injury add/edit form and the delete action.
 ///
@@ -55,5 +55,5 @@ class InjuryFormController extends AsyncNotifier<void> {
 
 final injuryFormControllerProvider =
     AsyncNotifierProvider.autoDispose<InjuryFormController, void>(
-  InjuryFormController.new,
-);
+      InjuryFormController.new,
+    );

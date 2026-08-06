@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/session_confirmation.dart';
 import 'package:footpath_cebu/presentation/providers/session_confirmation_providers.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
@@ -47,34 +48,38 @@ class SessionConfirmationButton extends ConsumerWidget {
         }
 
         if (confirmed) {
-          return OutlinedButton.icon(
-            onPressed: isSubmitting
-                ? null
-                : () => respond(ConfirmationStatus.declined),
-            icon: const Icon(Icons.check_circle, size: 18),
-            label: const Text('Confirmed'),
-            // Text/icon inherit the theme's AA-safe default foreground; only
-            // the outline itself carries the brand teal (a border only needs
-            // the 3:1 non-text contrast minimum, which teal clears on white).
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.teal),
+          return MotionPress(
+            child: OutlinedButton.icon(
+              onPressed: isSubmitting
+                  ? null
+                  : () => respond(ConfirmationStatus.declined),
+              icon: const Icon(Icons.check_circle, size: 18),
+              label: const Text('Confirmed'),
+              // Text/icon inherit the theme's AA-safe default foreground; only
+              // the outline itself carries the brand teal (a border only needs
+              // the 3:1 non-text contrast minimum, which teal clears on white).
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.teal),
+              ),
             ),
           );
         }
-        return FilledButton(
-          onPressed: isSubmitting
-              ? null
-              : () => respond(ConfirmationStatus.confirmed),
-          child: isSubmitting
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Text('Confirm'),
+        return MotionPress(
+          child: FilledButton(
+            onPressed: isSubmitting
+                ? null
+                : () => respond(ConfirmationStatus.confirmed),
+            child: isSubmitting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Text('Confirm'),
+          ),
         );
       },
     );

@@ -5,10 +5,10 @@ import 'package:footpath_cebu/domain/entities/session_confirmation.dart';
 
 /// One player's session confirmations. Family-keyed by player id so the
 /// schedule screen's cards can each look up their own session's status.
-final sessionConfirmationsProvider =
-    FutureProvider.autoDispose.family<List<SessionConfirmation>, String>(
-  (ref, playerId) => ref.watch(getSessionConfirmationsProvider)(playerId),
-);
+final sessionConfirmationsProvider = FutureProvider.autoDispose
+    .family<List<SessionConfirmation>, String>(
+      (ref, playerId) => ref.watch(getSessionConfirmationsProvider)(playerId),
+    );
 
 /// Drives the Confirm/Decline action on the schedule cards.
 ///
@@ -45,5 +45,5 @@ class SessionConfirmationController extends Notifier<Set<String>> {
 
 final sessionConfirmationControllerProvider =
     NotifierProvider.autoDispose<SessionConfirmationController, Set<String>>(
-  SessionConfirmationController.new,
-);
+      SessionConfirmationController.new,
+    );

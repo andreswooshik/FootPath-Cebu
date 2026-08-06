@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
@@ -49,7 +50,7 @@ class GuardianDashboardScreen extends ConsumerWidget {
       body: ref
           .watch(linkedPlayersProvider)
           .when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const DashboardLoadingState(),
             error: (error, _) => DashboardErrorState(
               message: friendlyErrorMessage(
                 error,
@@ -106,7 +107,7 @@ class GuardianDashboardScreen extends ConsumerWidget {
               );
             },
           ),
-    );
+    ).animateScreenEntrance();
   }
 }
 
@@ -119,7 +120,7 @@ class _GuardianUnlockedContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final details = ref.watch(selectedChildDetailsProvider(selector.id));
     return details.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const DashboardLoadingState(compact: true),
       error: (error, _) => DashboardErrorState(
         message: friendlyErrorMessage(error, 'Could not load player profile.'),
         onRetry: () =>
@@ -259,7 +260,13 @@ class _RecentAttendanceCard extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             ...attendance.when(
-              loading: () => const [CircularProgressIndicator()],
+              loading: () => const [
+                MotionSkeleton(
+                  width: double.infinity,
+                  height: 40,
+                  borderRadius: 12,
+                ),
+              ],
               error: (error, _) => [
                 Text(friendlyErrorMessage(error, 'Could not load attendance.')),
               ],
@@ -305,20 +312,22 @@ class _InjuryHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.healing_outlined),
-        title: const Text('Injury History'),
-        subtitle: Text(
-          'View ${child.name.split(' ').first}\'s reported injuries',
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => InjuryHistoryScreen(
-              playerId: child.id,
-              playerName: child.name,
-              readOnly: true,
+    return MotionPress(
+      child: Card(
+        child: ListTile(
+          leading: const Icon(Icons.healing_outlined),
+          title: const Text('Injury History'),
+          subtitle: Text(
+            'View ${child.name.split(' ').first}\'s reported injuries',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => InjuryHistoryScreen(
+                playerId: child.id,
+                playerName: child.name,
+                readOnly: true,
+              ),
             ),
           ),
         ),

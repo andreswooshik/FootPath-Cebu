@@ -32,7 +32,14 @@ class AttributeRadarChart extends StatelessWidget {
   final Color? fillColor;
   final double size;
 
-  static const _outfieldAxes = <String>['PAC', 'SHO', 'PAS', 'PHY', 'DEF', 'DRI'];
+  static const _outfieldAxes = <String>[
+    'PAC',
+    'SHO',
+    'PAS',
+    'PHY',
+    'DEF',
+    'DRI',
+  ];
   static const _gkAxes = <String>['DIV', 'HAN', 'KIC', 'POS', 'SPD', 'REF'];
 
   List<String> get _axes => isGoalkeeper ? _gkAxes : _outfieldAxes;
@@ -117,7 +124,8 @@ class _RadarPainter extends CustomPainter {
       final r = radius * ring / 4;
       final path = Path();
       for (var i = 0; i < count; i++) {
-        final p = center + Offset(math.cos(angleAt(i)), math.sin(angleAt(i))) * r;
+        final p =
+            center + Offset(math.cos(angleAt(i)), math.sin(angleAt(i))) * r;
         i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
       }
       path.close();
@@ -126,8 +134,8 @@ class _RadarPainter extends CustomPainter {
 
     // Spokes.
     for (var i = 0; i < count; i++) {
-      final p = center +
-          Offset(math.cos(angleAt(i)), math.sin(angleAt(i))) * radius;
+      final p =
+          center + Offset(math.cos(angleAt(i)), math.sin(angleAt(i))) * radius;
       canvas.drawLine(center, p, gridPaint);
     }
 
@@ -135,7 +143,8 @@ class _RadarPainter extends CustomPainter {
     final dataPath = Path();
     for (var i = 0; i < count; i++) {
       final v = (values[i].clamp(0.0, 1.0)) * progress;
-      final p = center +
+      final p =
+          center +
           Offset(math.cos(angleAt(i)), math.sin(angleAt(i))) * radius * v;
       i == 0 ? dataPath.moveTo(p.dx, p.dy) : dataPath.lineTo(p.dx, p.dy);
     }
@@ -157,14 +166,16 @@ class _RadarPainter extends CustomPainter {
     // Vertices.
     for (var i = 0; i < count; i++) {
       final v = (values[i].clamp(0.0, 1.0)) * progress;
-      final p = center +
+      final p =
+          center +
           Offset(math.cos(angleAt(i)), math.sin(angleAt(i))) * radius * v;
       canvas.drawCircle(p, 3, Paint()..color = accent);
     }
 
     // Axis labels.
     for (var i = 0; i < count; i++) {
-      final p = center +
+      final p =
+          center +
           Offset(math.cos(angleAt(i)), math.sin(angleAt(i))) * (radius + 16);
       final tp = TextPainter(
         text: TextSpan(
@@ -184,7 +195,5 @@ class _RadarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RadarPainter old) =>
-      old.progress != progress ||
-      old.values != values ||
-      old.accent != accent;
+      old.progress != progress || old.values != values || old.accent != accent;
 }

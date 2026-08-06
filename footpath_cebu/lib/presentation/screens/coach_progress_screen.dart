@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/player_progress.dart';
@@ -32,7 +33,7 @@ class CoachProgressScreen extends ConsumerWidget {
         ),
       ),
       body: progress.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const DashboardLoadingState(),
         error: (e, _) => DashboardErrorState(
           message: friendlyErrorMessage(
             e,
@@ -63,12 +64,15 @@ class CoachProgressScreen extends ConsumerWidget {
                   child: Center(child: Text('No players in your squad yet.')),
                 )
               else
-                for (final p in players) _PlayerProgressCard(progress: p),
+                for (var i = 0; i < players.length; i++)
+                  _PlayerProgressCard(
+                    progress: players[i],
+                  ).animateListItem(key: ValueKey(players[i].id), index: i),
             ],
           ),
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }
 

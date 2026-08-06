@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
+import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
 class PlayerPrivacyPinScreen extends ConsumerStatefulWidget {
   const PlayerPrivacyPinScreen({
@@ -77,7 +79,7 @@ class _PlayerPrivacyPinScreenState
     return Scaffold(
       appBar: AppBar(title: const Text('Privacy PIN')),
       body: status.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const DashboardLoadingState(compact: true),
         error: (error, _) => Center(child: Text(error.toString())),
         data: (pinStatus) => ListView(
           padding: const EdgeInsets.all(24),
@@ -137,7 +139,7 @@ class _PlayerPrivacyPinScreenState
           ],
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 
   Future<void> _resetAsGuardian() async {

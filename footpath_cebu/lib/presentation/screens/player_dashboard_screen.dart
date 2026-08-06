@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/card_tier.dart';
@@ -54,7 +55,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
       body: ref
           .watch(myProfileProvider)
           .when(
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const DashboardLoadingState(),
             error: (e, _) => DashboardErrorState(
               message: friendlyErrorMessage(
                 e,
@@ -102,7 +103,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
               ),
             ),
           ),
-    );
+    ).animateScreenEntrance();
   }
 }
 
@@ -181,7 +182,11 @@ class _RecentAttendanceCard extends ConsumerWidget {
               loading: () => const [
                 Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: MotionSkeleton(
+                    width: double.infinity,
+                    height: 40,
+                    borderRadius: 12,
+                  ),
                 ),
               ],
               error: (e, _) => [
@@ -243,17 +248,19 @@ class _InjuryHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: const Icon(Icons.healing_outlined),
-        title: const Text('Injury History'),
-        subtitle: const Text('Log and track your injuries'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => InjuryHistoryScreen(
-              playerId: player.id,
-              playerName: player.name,
+    return MotionPress(
+      child: Card(
+        child: ListTile(
+          leading: const Icon(Icons.healing_outlined),
+          title: const Text('Injury History'),
+          subtitle: const Text('Log and track your injuries'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => InjuryHistoryScreen(
+                playerId: player.id,
+                playerName: player.name,
+              ),
             ),
           ),
         ),

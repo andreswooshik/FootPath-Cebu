@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/presentation/providers/age_tier_providers.dart';
@@ -27,10 +28,12 @@ class ScheduleSessionScreen extends ConsumerStatefulWidget {
 }
 
 class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
-  late final _titleController =
-      TextEditingController(text: widget.existing?.title ?? '');
-  late final _locationController =
-      TextEditingController(text: widget.existing?.location ?? '');
+  late final _titleController = TextEditingController(
+    text: widget.existing?.title ?? '',
+  );
+  late final _locationController = TextEditingController(
+    text: widget.existing?.location ?? '',
+  );
 
   late DateTime? _date = widget.existing?.date;
   // Times are kept as display strings on the wire ("04:30 PM"), so an edit
@@ -125,7 +128,9 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     final today = DateTime(now.year, now.month, now.day);
     if (_date!.isBefore(today) && !_isEditing) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('The session date cannot be in the past.')),
+        const SnackBar(
+          content: Text('The session date cannot be in the past.'),
+        ),
       );
       return;
     }
@@ -150,7 +155,9 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_isEditing ? '"$title" updated.' : '"$title" scheduled.'),
+          content: Text(
+            _isEditing ? '"$title" updated.' : '"$title" scheduled.',
+          ),
         ),
       );
       Navigator.of(context).pop(true);
@@ -229,7 +236,8 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                   children: [
                     const _FieldLabel('Start Time'),
                     _PickerField(
-                      text: _startTime?.format(context) ??
+                      text:
+                          _startTime?.format(context) ??
                           widget.existing?.startTime ??
                           'Start',
                       placeholder:
@@ -247,7 +255,8 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                   children: [
                     const _FieldLabel('End Time'),
                     _PickerField(
-                      text: _endTime?.format(context) ??
+                      text:
+                          _endTime?.format(context) ??
                           widget.existing?.endTime ??
                           'End',
                       placeholder: _endTime == null && widget.existing == null,
@@ -332,7 +341,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
           const SizedBox(height: 20),
         ],
       ),
-    );
+    ).animateScreenEntrance();
   }
 }
 
@@ -402,8 +411,8 @@ class _TierSelectionHint extends StatelessWidget {
           child: Text(
             message,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: empty ? cs.error : cs.onSurfaceVariant,
-                ),
+              color: empty ? cs.error : cs.onSurfaceVariant,
+            ),
           ),
         ),
       ],

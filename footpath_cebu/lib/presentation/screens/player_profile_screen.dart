@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/card_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
@@ -255,7 +256,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           ),
         ],
       ),
-    );
+    ).animateScreenEntrance();
   }
 }
 

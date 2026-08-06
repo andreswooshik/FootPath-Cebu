@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
@@ -151,7 +152,7 @@ class _TrainingScheduleScreenState
         tooltip: 'Schedule new session',
         child: const Icon(Icons.add),
       ),
-    );
+    ).animateScreenEntrance();
   }
 
   Widget _buildBody() {
@@ -159,7 +160,7 @@ class _TrainingScheduleScreenState
       _showPast ? pastSessionsProvider : upcomingSessionsProvider,
     );
     return sessions.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const DashboardLoadingState(),
       error: (e, _) => DashboardErrorState(
         message: friendlyErrorMessage(
           e,
@@ -189,7 +190,7 @@ class _TrainingScheduleScreenState
               onLogAttendance: () => _logAttendance(list[i]),
               onEdit: () => _editSession(list[i]),
               onCancelSession: () => _cancelSession(list[i]),
-            ),
+            ).animateListItem(key: ValueKey(list[i].id), index: i),
           ),
         );
       },

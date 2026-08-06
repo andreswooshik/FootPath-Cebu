@@ -32,12 +32,14 @@ class RosterFilter {
     if (query.isNotEmpty) {
       final q = query.toLowerCase();
       result = result
-          .where((p) =>
-              p.name.toLowerCase().contains(q) ||
-              // Match the code ("st") or the full name ("striker"); an
-              // unassigned player simply never matches a position query.
-              (p.position?.code.toLowerCase().contains(q) ?? false) ||
-              (p.position?.label.toLowerCase().contains(q) ?? false))
+          .where(
+            (p) =>
+                p.name.toLowerCase().contains(q) ||
+                // Match the code ("st") or the full name ("striker"); an
+                // unassigned player simply never matches a position query.
+                (p.position?.code.toLowerCase().contains(q) ?? false) ||
+                (p.position?.label.toLowerCase().contains(q) ?? false),
+          )
           .toList(growable: false);
     }
     return result;
@@ -59,13 +61,14 @@ class RosterFilterNotifier extends Notifier<RosterFilter> {
 
 final rosterFilterProvider =
     NotifierProvider.autoDispose<RosterFilterNotifier, RosterFilter>(
-  RosterFilterNotifier.new,
-);
+      RosterFilterNotifier.new,
+    );
 
 /// The roster after applying the tier filter and the search query — derived
 /// state that recomputes whenever the squad, the filter, or the query change.
-final filteredSquadProvider =
-    Provider.autoDispose<AsyncValue<List<Player>>>((ref) {
+final filteredSquadProvider = Provider.autoDispose<AsyncValue<List<Player>>>((
+  ref,
+) {
   final filter = ref.watch(rosterFilterProvider);
   return ref.watch(squadProvider).whenData(filter.apply);
 });

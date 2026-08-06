@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
@@ -13,7 +14,7 @@ void main() {
       const ProviderScope(child: MaterialApp(home: PlayerPortalScreen())),
     );
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(MotionSkeleton), findsWidgets);
     await tester.pumpAndSettle();
     expect(find.text('Create your privacy PIN'), findsOneWidget);
     expect(find.byType(PlayerCard), findsNothing);
@@ -42,6 +43,7 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.pumpAndSettle();
     expect(find.text('Recent Attendance'), findsOneWidget);
     expect(find.text('View Full History'), findsOneWidget);
   });
@@ -53,7 +55,7 @@ void main() {
       const ProviderScope(child: MaterialApp(home: GuardianDashboardScreen())),
     );
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(MotionSkeleton), findsWidgets);
     await tester.pumpAndSettle();
     // The dashboard loads in two phases: linked children first, then that
     // child's attendance (a second delayed timer, started once the child's
@@ -80,6 +82,7 @@ void main() {
       200,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.pumpAndSettle();
     expect(find.text('Recent Attendance'), findsOneWidget);
     expect(find.text('View Full History'), findsOneWidget);
   });

@@ -36,5 +36,5 @@ class PlayerPositionController extends AsyncNotifier<void> {
 
 final playerPositionControllerProvider =
     AsyncNotifierProvider.autoDispose<PlayerPositionController, void>(
-  PlayerPositionController.new,
-);
+      PlayerPositionController.new,
+    );

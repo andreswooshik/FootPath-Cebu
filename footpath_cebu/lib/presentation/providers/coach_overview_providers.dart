@@ -48,8 +48,9 @@ class TeamAlert {
 
 /// Derives the [TeamOverview] from the squad and schedule providers. Stays an
 /// [AsyncValue] so the widget can show loading/error states consistently.
-final teamOverviewProvider =
-    Provider.autoDispose<AsyncValue<TeamOverview>>((ref) {
+final teamOverviewProvider = Provider.autoDispose<AsyncValue<TeamOverview>>((
+  ref,
+) {
   final squadAsync = ref.watch(squadProvider);
   final upcomingAsync = ref.watch(upcomingSessionsProvider);
 
@@ -71,21 +72,24 @@ final teamOverviewProvider =
     final alerts = <TeamAlert>[
       if (ineligible.isNotEmpty)
         TeamAlert(
-          title: '${ineligible.length} player'
+          title:
+              '${ineligible.length} player'
               '${ineligible.length == 1 ? '' : 's'} benched by grades',
           detail: 'Not cleared to play — review before selection.',
           severity: AlertSeverity.critical,
         ),
       if (warnings.isNotEmpty)
         TeamAlert(
-          title: '${warnings.length} academic warning'
+          title:
+              '${warnings.length} academic warning'
               '${warnings.length == 1 ? '' : 's'}',
           detail: 'Grades slipping — keep an eye on their progress.',
           severity: AlertSeverity.warning,
         ),
       if (unassigned.isNotEmpty)
         TeamAlert(
-          title: '${unassigned.length} player'
+          title:
+              '${unassigned.length} player'
               '${unassigned.length == 1 ? '' : 's'} need a position',
           detail: 'Assign a position after evaluating them.',
           severity: AlertSeverity.info,

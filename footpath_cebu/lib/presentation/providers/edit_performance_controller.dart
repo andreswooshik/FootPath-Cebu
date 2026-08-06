@@ -40,5 +40,5 @@ class EditPerformanceController extends AsyncNotifier<void> {
 
 final editPerformanceControllerProvider =
     AsyncNotifierProvider.autoDispose<EditPerformanceController, void>(
-  EditPerformanceController.new,
-);
+      EditPerformanceController.new,
+    );

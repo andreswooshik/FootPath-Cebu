@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
@@ -61,7 +62,7 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
             ),
             Expanded(
               child: sessionsAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const DashboardLoadingState(compact: true),
                 error: (e, _) => DashboardErrorState(
                   message: friendlyErrorMessage(
                     e,
@@ -89,15 +90,19 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
                         vertical: 8,
                       ),
                       itemCount: sessions.length,
-                      itemBuilder: (context, i) => TrainingSessionCard(
-                        session: sessions[i],
-                        trailing: _showPast || !sessions[i].isToday
-                            ? null
-                            : SessionConfirmationButton(
-                                sessionId: sessions[i].id,
-                                playerId: widget.player.id,
-                              ),
-                      ),
+                      itemBuilder: (context, i) =>
+                          TrainingSessionCard(
+                            session: sessions[i],
+                            trailing: _showPast || !sessions[i].isToday
+                                ? null
+                                : SessionConfirmationButton(
+                                    sessionId: sessions[i].id,
+                                    playerId: widget.player.id,
+                                  ),
+                          ).animateListItem(
+                            key: ValueKey(sessions[i].id),
+                            index: i,
+                          ),
                     ),
                   );
                 },
@@ -106,7 +111,7 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
           ],
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }
 

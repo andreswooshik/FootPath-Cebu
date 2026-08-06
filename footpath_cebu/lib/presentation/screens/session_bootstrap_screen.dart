@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/home_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
@@ -68,7 +69,7 @@ class _SessionBootstrapScreenState
         onContinue: () => setState(() => _showLogin = true),
       );
     }
-    return const Scaffold(
+    return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -81,7 +82,7 @@ class _SessionBootstrapScreenState
           ],
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }
 
@@ -118,6 +119,6 @@ class _RestoreErrorScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }

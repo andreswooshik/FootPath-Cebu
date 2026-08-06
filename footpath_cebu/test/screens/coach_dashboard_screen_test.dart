@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
@@ -36,12 +37,12 @@ void _tallView(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets('shows a loading spinner, then the mock roster', (tester) async {
+  testWidgets('shows a loading skeleton, then the mock roster', (tester) async {
     _tallView(tester);
     await tester.pumpWidget(_app());
 
     // First frame: squad is still loading.
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(MotionSkeleton), findsWidgets);
 
     // Let the mock repository's simulated latency resolve.
     await tester.pumpAndSettle();

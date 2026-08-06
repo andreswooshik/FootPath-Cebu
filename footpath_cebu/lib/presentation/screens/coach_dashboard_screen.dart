@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
@@ -138,7 +139,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
           ],
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }
 
@@ -179,10 +180,7 @@ class _RosterSliver extends ConsumerWidget {
         .watch(filteredSquadProvider)
         .when(
           loading: () => const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(48),
-              child: Center(child: CircularProgressIndicator()),
-            ),
+            child: DashboardLoadingState(compact: true, shrinkWrap: true),
           ),
           error: (e, _) => SliverToBoxAdapter(
             child: DashboardErrorState(
@@ -214,11 +212,15 @@ class _RosterSliver extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverList.builder(
                   itemCount: players.length,
-                  itemBuilder: (context, i) => MiniPlayerCard(
-                    player: players[i],
-                    onTap: () => onOpenProfile(players[i]),
-                    onMarkAttendance: () => onMarkAttendance(players[i]),
-                  ),
+                  itemBuilder: (context, i) =>
+                      MiniPlayerCard(
+                        player: players[i],
+                        onTap: () => onOpenProfile(players[i]),
+                        onMarkAttendance: () => onMarkAttendance(players[i]),
+                      ).animateListItem(
+                        key: ValueKey('mini-${players[i].id}'),
+                        index: i,
+                      ),
                 ),
               );
             }
@@ -232,10 +234,14 @@ class _RosterSliver extends ConsumerWidget {
                   childAspectRatio: 600 / 850,
                 ),
                 itemCount: players.length,
-                itemBuilder: (context, i) => PlayerCard(
-                  player: players[i],
-                  onTap: () => onOpenProfile(players[i]),
-                ),
+                itemBuilder: (context, i) =>
+                    PlayerCard(
+                      player: players[i],
+                      onTap: () => onOpenProfile(players[i]),
+                    ).animateListItem(
+                      key: ValueKey('card-${players[i].id}'),
+                      index: i,
+                    ),
               ),
             );
           },

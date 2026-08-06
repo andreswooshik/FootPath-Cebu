@@ -24,8 +24,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('lists the player\'s injuries with status chips',
-      (tester) async {
+  testWidgets('lists the player\'s injuries with status chips', (tester) async {
     await pump(tester);
 
     expect(find.text('Injuries · Rhobert Ronaldo'), findsOneWidget);
@@ -84,8 +83,9 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Log Injury'), findsOneWidget);
   });
 
-  testWidgets('tapping a record opens the edit form with a delete action',
-      (tester) async {
+  testWidgets('tapping a record opens the edit form with a delete action', (
+    tester,
+  ) async {
     await pump(tester);
 
     await tester.tap(find.text('Sprained ankle'));
@@ -103,10 +103,12 @@ void main() {
 
     expect(find.text('Injury deleted.'), findsOneWidget);
     expect(find.text('Sprained ankle'), findsNothing);
+    await tester.pump(const Duration(milliseconds: 500));
   });
 
-  testWidgets('read-only mode hides the FAB and blocks editing',
-      (tester) async {
+  testWidgets('read-only mode hides the FAB and blocks editing', (
+    tester,
+  ) async {
     await pump(tester, readOnly: true);
 
     expect(find.text('Log Injury'), findsNothing);

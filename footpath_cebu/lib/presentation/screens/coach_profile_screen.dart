@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
@@ -119,7 +120,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
           ],
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 
   Widget _squadSnapshot() {
@@ -128,7 +129,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
         .when(
           loading: () => const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(child: CircularProgressIndicator()),
+            child: DashboardLoadingState(compact: true, shrinkWrap: true),
           ),
           error: (e, _) => DashboardErrorState(
             message: friendlyErrorMessage(

@@ -6,6 +6,7 @@ import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
+import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/screens/player_privacy_pin_screen.dart';
 
 /// Whether child-scoped navigation should be available right now.
@@ -156,7 +157,7 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
         .watch(privacyUnlockedPlayersProvider)
         .contains(widget.player.id);
     return status.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const DashboardLoadingState(compact: true),
       error: (error, _) => Center(
         child: FilledButton.tonal(
           onPressed: () =>

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/presentation/providers/auth_controllers.dart';
 import 'package:footpath_cebu/presentation/screens/home_screen.dart';
 
@@ -29,7 +30,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleSignIn() async {
-    final profile = await ref.read(loginControllerProvider.notifier).signIn(
+    final profile = await ref
+        .read(loginControllerProvider.notifier)
+        .signIn(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
@@ -49,8 +52,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _handleForgotPassword() async {
     final email = _emailController.text.trim();
-    final sent =
-        await ref.read(loginControllerProvider.notifier).sendResetEmail(email);
+    final sent = await ref
+        .read(loginControllerProvider.notifier)
+        .sendResetEmail(email);
     if (!mounted) return;
     if (sent) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -97,8 +101,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 TextField(
                   controller: _passwordController,
                   obscureText: !state.showPassword,
-                  onSubmitted: (_) =>
-                      state.isLoading ? null : _handleSignIn(),
+                  onSubmitted: (_) => state.isLoading ? null : _handleSignIn(),
                   decoration: InputDecoration(
                     labelText: 'Password',
                     border: const OutlineInputBorder(),
@@ -124,9 +127,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ? const SizedBox(
                             height: 16,
                             width: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                            ),
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Text('Forgot password?'),
                   ),
@@ -148,9 +149,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ? const SizedBox(
                           height: 20,
                           width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Text('Sign In'),
                 ),
@@ -165,6 +164,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }

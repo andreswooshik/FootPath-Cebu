@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
@@ -59,6 +60,6 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
-    );
+    ).animateScreenEntrance();
   }
 }
