@@ -64,7 +64,45 @@ class GuardianDashboardScreen extends ConsumerWidget {
             data: (children) {
               final child = ref.watch(selectedChildProvider);
               if (child == null) {
-                return const Center(child: Text('No linked players yet.'));
+                if (children.isEmpty) {
+                  return const Center(child: Text('No linked players yet.'));
+                }
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _PlayerSelector(
+                      children: children,
+                      selectedId: null,
+                      onChanged: (id) =>
+                          ref.read(selectedChildIdProvider.notifier).select(id),
+                    ),
+                    const SizedBox(height: 24),
+                    const Card(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            Icon(Icons.touch_app_outlined, size: 48),
+                            SizedBox(height: 12),
+                            Text(
+                              'Choose a player to continue',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Player information will appear after you select a profile.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
               }
               return PlayerPrivacyGate(
                 player: child,
@@ -77,35 +115,14 @@ class GuardianDashboardScreen extends ConsumerWidget {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      if (children.length > 1) ...[
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                isExpanded: true,
-                                value: child.id,
-                                hint: const Text('Choose a player'),
-                                items: [
-                                  for (final linked in children)
-                                    DropdownMenuItem(
-                                      value: linked.id,
-                                      child: Text(linked.name),
-                                    ),
-                                ],
-                                onChanged: (id) {
-                                  if (id != null) {
-                                    ref
-                                        .read(selectedChildIdProvider.notifier)
-                                        .select(id);
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
+                      _PlayerSelector(
+                        children: children,
+                        selectedId: child.id,
+                        onChanged: (id) => ref
+                            .read(selectedChildIdProvider.notifier)
+                            .select(id),
+                      ),
+                      const SizedBox(height: 12),
                       Text(
                         child.name,
                         style: Theme.of(context).textTheme.titleLarge,
@@ -142,6 +159,41 @@ class GuardianDashboardScreen extends ConsumerWidget {
               selectedIndex: 0,
               isGuardian: true,
             ),
+    );
+  }
+}
+
+class _PlayerSelector extends StatelessWidget {
+  const _PlayerSelector({
+    required this.children,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  final List<Player> children;
+  final String? selectedId;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            isExpanded: true,
+            value: selectedId,
+            hint: const Text('Choose a player'),
+            items: [
+              for (final child in children)
+                DropdownMenuItem(value: child.id, child: Text(child.name)),
+            ],
+            onChanged: (id) {
+              if (id != null) onChanged(id);
+            },
+          ),
+        ),
+      ),
     );
   }
 }

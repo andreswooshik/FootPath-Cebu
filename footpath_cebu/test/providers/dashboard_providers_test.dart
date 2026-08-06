@@ -56,8 +56,7 @@ class _FakeRepo implements PlayerRepository {
     String playerId,
     PlayerRatings ratings, {
     required String coachNotes,
-  }) async =>
-      throw UnimplementedError();
+  }) async => throw UnimplementedError();
 }
 
 class _FakeAttendanceRepo implements AttendanceRepository {
@@ -78,8 +77,7 @@ class _FakeAttendanceRepo implements AttendanceRepository {
   Future<List<Attendance>> saveSessionAttendance(
     String sessionId,
     List<Attendance> records,
-  ) =>
-      throw UnimplementedError();
+  ) => throw UnimplementedError();
 }
 
 /// Automatic retry is disabled so error-path tests fail once instead of
@@ -124,8 +122,7 @@ void main() {
   });
 
   group('guardian providers', () {
-    test('linked children load and the first is selected by default',
-        () async {
+    test('linked children load with no player selected by default', () async {
       final container = _container(
         _FakeRepo(children: [_player('2', 'A'), _player('3', 'B')]),
       );
@@ -134,7 +131,7 @@ void main() {
       final children = await container.read(linkedPlayersProvider.future);
 
       expect(children.map((p) => p.name), ['A', 'B']);
-      expect(selected.read()?.name, 'A');
+      expect(selected.read(), isNull);
     });
 
     test('selecting a child switches the derived selection', () async {
@@ -162,10 +159,10 @@ void main() {
 
   group('AttendanceSummary', () {
     Attendance record(AttendanceStatus status) => Attendance(
-          playerId: 'p1',
-          status: status,
-          updatedAt: DateTime(2026, 7, 16),
-        );
+      playerId: 'p1',
+      status: status,
+      updatedAt: DateTime(2026, 7, 16),
+    );
 
     test('presentPercent is 0 for no records', () {
       expect(const <Attendance>[].presentPercent, 0);
@@ -182,10 +179,7 @@ void main() {
     });
 
     test('recent keeps only the first three records', () {
-      final records = List.generate(
-        5,
-        (_) => record(AttendanceStatus.present),
-      );
+      final records = List.generate(5, (_) => record(AttendanceStatus.present));
       expect(records.recent.length, 3);
     });
   });

@@ -63,9 +63,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('My Players'), findsOneWidget);
-    // The guardian can switch between all linked players.
-    expect(find.byType(PlayerCard), findsOneWidget);
+    // No child-scoped information is shown until the guardian chooses a
+    // player explicitly.
+    expect(find.byType(PlayerCard), findsNothing);
     expect(find.byType(DropdownButton<String>), findsOneWidget);
+
+    await tester.tap(find.byType(DropdownButton<String>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ralf Andre Messi').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(PlayerCard), findsOneWidget);
 
     // The attendance section sits below the fold — scroll it into view.
     await tester.scrollUntilVisible(

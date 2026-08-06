@@ -21,25 +21,28 @@ class SelectedChildIdNotifier extends Notifier<String?> {
 
 final selectedChildIdProvider =
     NotifierProvider.autoDispose<SelectedChildIdNotifier, String?>(
-  SelectedChildIdNotifier.new,
-);
+      SelectedChildIdNotifier.new,
+    );
 
 /// The child whose card and attendance are on screen, or null before the
 /// children have loaded (or when the guardian has no linked players).
 final selectedChildProvider = Provider.autoDispose<Player?>((ref) {
-  final children =
-      ref.watch(linkedPlayersProvider).value ?? const <Player>[];
+  final children = ref.watch(linkedPlayersProvider).value ?? const <Player>[];
   if (children.isEmpty) return null;
   final id = ref.watch(selectedChildIdProvider);
-  return children.firstWhere((c) => c.id == id, orElse: () => children.first);
+  if (id == null) return null;
+  for (final child in children) {
+    if (child.id == id) return child;
+  }
+  return null;
 });
 
 /// Attendance records for one player. A family so switching children swaps to
 /// (and caches) that child's records instead of clobbering shared state.
-final childAttendanceProvider =
-    FutureProvider.autoDispose.family<List<Attendance>, String>(
-  (ref, playerId) => ref.watch(getPlayerAttendanceProvider)(playerId),
-);
+final childAttendanceProvider = FutureProvider.autoDispose
+    .family<List<Attendance>, String>(
+      (ref, playerId) => ref.watch(getPlayerAttendanceProvider)(playerId),
+    );
 
 /// Summary of an attendance list, for the Guardian dashboard's stat tiles.
 extension AttendanceSummary on List<Attendance> {
@@ -51,8 +54,7 @@ extension AttendanceSummary on List<Attendance> {
   /// Percentage of recorded sessions the child was present for (0–100).
   int get presentPercent {
     if (isEmpty) return 0;
-    final present =
-        where((a) => a.status == AttendanceStatus.present).length;
+    final present = where((a) => a.status == AttendanceStatus.present).length;
     return ((present / length) * 100).round();
   }
 
