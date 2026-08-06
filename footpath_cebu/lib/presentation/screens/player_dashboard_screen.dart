@@ -65,6 +65,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
             ),
             data: (player) => PlayerPrivacyGate(
               player: player,
+              requirePinSetup: true,
               child: RefreshIndicator(
                 onRefresh: () => ref.refresh(myProfileProvider.future),
                 child: ListView(

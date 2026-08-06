@@ -6,17 +6,25 @@ import 'package:footpath_cebu/presentation/screens/player_dashboard_screen.dart'
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 
 void main() {
-  testWidgets('Player dashboard shows the player card after loading',
-      (tester) async {
+  testWidgets('Player must create a privacy PIN before seeing the dashboard', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const ProviderScope(child: MaterialApp(home: PlayerDashboardScreen())),
     );
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     await tester.pumpAndSettle();
-    // Attendance loads on a second delayed timer, started once the streak and
-    // recent-attendance sections build. Drain it so none is left pending at
-    // teardown.
+    expect(find.text('Create your privacy PIN'), findsOneWidget);
+    expect(find.byType(PlayerCard), findsNothing);
+    final pinFields = find.byType(TextField);
+    await tester.enterText(pinFields.at(0), '1234');
+    await tester.enterText(pinFields.at(1), '1234');
+    await tester.tap(find.text('Create PIN and continue'));
+    await tester.pumpAndSettle();
+
+    // Attendance loads on a second delayed timer, started once the dashboard
+    // sections build. Drain it so none is left pending at teardown.
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
@@ -38,8 +46,9 @@ void main() {
     expect(find.text('View Full History'), findsOneWidget);
   });
 
-  testWidgets('Guardian dashboard shows the linked child, no child selector',
-      (tester) async {
+  testWidgets('Guardian dashboard shows the linked child selector', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const ProviderScope(child: MaterialApp(home: GuardianDashboardScreen())),
     );
@@ -54,10 +63,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('My Players'), findsOneWidget);
-    // The dashboard mirrors the Player portal now: the guardian's first
-    // linked child shows directly, with no picker to switch children.
+    // The guardian can switch between all linked players.
     expect(find.byType(PlayerCard), findsOneWidget);
-    expect(find.byType(SegmentedButton<String>), findsNothing);
+    expect(find.byType(DropdownButton<String>), findsOneWidget);
 
     // The attendance section sits below the fold — scroll it into view.
     await tester.scrollUntilVisible(
