@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import Club, GuardianLink, Roles, User
@@ -672,7 +673,9 @@ class PlayerPrivacyPinTests(APITestCase):
             reverse('player-pin', args=[self.player.id]),
             {'pin': '2468'}, format='json',
         )
-        self.client.force_authenticate(self.guardian)
+        self.client.force_authenticate(
+            self.guardian, token={'auth_time': timezone.now().timestamp()}
+        )
         response = self.client.post(
             reverse('player-pin-reset', args=[self.player.id]), format='json',
         )
@@ -686,6 +689,24 @@ class PlayerPrivacyPinTests(APITestCase):
                 reverse('player-pin-reset', args=[self.player.id]), format='json',
             ).status_code,
             403,
+        )
+
+    def test_guardian_reset_requires_recent_reauthentication(self):
+        self.client.force_authenticate(self.player)
+        self.client.put(
+            reverse('player-pin', args=[self.player.id]),
+            {'pin': '2468'}, format='json',
+        )
+        self.client.force_authenticate(
+            self.guardian,
+            token={'auth_time': timezone.now().timestamp() - 301},
+        )
+        response = self.client.post(
+            reverse('player-pin-reset', args=[self.player.id]), format='json',
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(
+            PlayerPrivacyPin.objects.get(player=self.player).pin_hash
         )
 
     def test_linked_guardian_can_set_first_pin_for_managed_player(self):

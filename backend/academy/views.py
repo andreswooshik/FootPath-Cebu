@@ -206,6 +206,24 @@ def _may_manage_pin(user, player_id):
     return False
 
 
+def _has_recent_firebase_reauthentication(request, max_age_seconds=300):
+    """Require a recently reauthenticated Firebase ID token for recovery.
+
+    Firebase puts the time of the last password verification in ``auth_time``.
+    The Flutter client reauthenticates first and then forces a fresh token for
+    the reset call.  Keeping this check server-side prevents a stolen older
+    bearer token from silently clearing a player's PIN.
+    """
+    claims = request.auth
+    if not isinstance(claims, dict):
+        return False
+    try:
+        auth_time = float(claims['auth_time'])
+    except (KeyError, TypeError, ValueError):
+        return False
+    return timezone.now().timestamp() - auth_time <= max_age_seconds
+
+
 class PlayerPrivacyPinView(APIView):
     """GET status; PUT lets the player create or change their own PIN."""
 
@@ -288,6 +306,13 @@ class PlayerPrivacyPinResetView(APIView):
             raise PermissionDenied('You cannot reset that player PIN.')
         if request.user.role not in (Roles.ADMIN, Roles.COORDINATOR, Roles.GUARDIAN):
             raise PermissionDenied('Only a guardian or coordinator can reset a PIN.')
+        if (
+            request.user.role == Roles.GUARDIAN
+            and not _has_recent_firebase_reauthentication(request)
+        ):
+            raise PermissionDenied(
+                'Recent guardian verification is required before resetting a PIN.'
+            )
         player = _pin_profile(player_id).user
         reset_pin(player)
         AuditLog.record(
