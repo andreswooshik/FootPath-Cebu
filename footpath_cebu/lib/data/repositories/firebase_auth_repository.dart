@@ -15,7 +15,10 @@ import 'package:http/http.dart' as http;
 class FirebaseAuthRepository implements AuthRepository {
   @override
   Future<UserProfile?> restoreSession() async {
-    final user = FirebaseAuth.instance.currentUser;
+    // `currentUser` may still be null during the first frame while Firebase
+    // restores its local credentials. Wait for the initial auth-state event
+    // so a valid saved session is not mistaken for a signed-out user.
+    final user = await FirebaseAuth.instance.authStateChanges().first;
     if (user == null) return null;
 
     final idToken = await user.getIdToken();
