@@ -3,7 +3,7 @@
   Network security policy (audit finding S2).
 
   Cleartext (http://) is DENIED by default, so a release build pointed at the
-  production HTTPS API (via --dart-define=API_BASE_URL=https://...) can never be
+  production HTTPS API (via dart-define=API_BASE_URL=https://...) can never be
   silently downgraded to plaintext or MITM'd.
 
   The only exception is the local development hosts: the Android emulator's
