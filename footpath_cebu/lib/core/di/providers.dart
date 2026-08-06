@@ -1,4 +1,5 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,6 +30,7 @@ import 'package:footpath_cebu/data/repositories/mock_progress_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/offline_first_attendance_repository.dart';
+import 'package:footpath_cebu/core/security/player_unlock_token_store.dart';
 import 'package:footpath_cebu/domain/repositories/age_tier_repository.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
@@ -49,6 +51,7 @@ import 'package:footpath_cebu/domain/usecases/get_eligibility_history.dart';
 import 'package:footpath_cebu/domain/usecases/get_injuries.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
+import 'package:footpath_cebu/domain/usecases/get_player_details.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_privacy_pin_status.dart';
 import 'package:footpath_cebu/domain/usecases/get_session_attendance.dart';
@@ -105,7 +108,15 @@ final authRepositoryProvider = Provider<AuthRepository>(
 );
 
 final playerRepositoryProvider = Provider<PlayerRepository>(
-  (ref) => useMockData ? MockPlayerRepository() : ApiPlayerRepository(),
+  (ref) => useMockData
+      ? MockPlayerRepository()
+      : ApiPlayerRepository(
+          unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
+        ),
+);
+
+final playerUnlockTokenStoreProvider = Provider<PlayerUnlockTokenStore>(
+  (ref) => PlayerUnlockTokenStore(),
 );
 
 final playerPrivacyPinRepositoryProvider = Provider<PlayerPrivacyPinRepository>(
@@ -129,8 +140,11 @@ final attendanceRepositoryProvider = Provider<AttendanceRepository>(
       // Live attendance is offline-first: writes that fail at the network
       // level are queued in the outbox and replayed by the sync service.
       : OfflineFirstAttendanceRepository(
-          inner: ApiAttendanceRepository(),
+          inner: ApiAttendanceRepository(
+            unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
+          ),
           outbox: ref.watch(attendanceOutboxProvider),
+          ownerUid: () => FirebaseAuth.instance.currentUser?.uid,
         ),
 );
 
@@ -141,7 +155,10 @@ final attendanceSyncServiceProvider = Provider<AttendanceSyncService?>((ref) {
   if (useMockData) return null;
   final service = AttendanceSyncService(
     outbox: ref.watch(attendanceOutboxProvider),
-    inner: ApiAttendanceRepository(),
+    inner: ApiAttendanceRepository(
+      unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
+    ),
+    ownerUid: () => FirebaseAuth.instance.currentUser?.uid,
   );
   ref.onDispose(service.dispose);
   return service;
@@ -152,7 +169,11 @@ final trainingRepositoryProvider = Provider<TrainingRepository>(
 );
 
 final injuryRepositoryProvider = Provider<InjuryRepository>(
-  (ref) => useMockData ? MockInjuryRepository() : ApiInjuryRepository(),
+  (ref) => useMockData
+      ? MockInjuryRepository()
+      : ApiInjuryRepository(
+          unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
+        ),
 );
 
 final progressRepositoryProvider = Provider<ProgressRepository>(
@@ -171,7 +192,11 @@ final eligibilityHistoryRepositoryProvider =
     Provider<EligibilityHistoryRepository>(
       (ref) => useMockData
           ? MockEligibilityHistoryRepository()
-          : ApiEligibilityHistoryRepository(),
+          : ApiEligibilityHistoryRepository(
+              unlockTokenFor: ref
+                  .watch(playerUnlockTokenStoreProvider)
+                  .tokenFor,
+            ),
     );
 
 /// Player RSVPs now persist through the Django API (survive logout/restart and
@@ -208,7 +233,10 @@ final restoreSessionProvider = Provider<RestoreSession>(
 );
 
 final signOutProvider = Provider<SignOut>(
-  (ref) => SignOut(ref.watch(authRepositoryProvider)),
+  (ref) => SignOut(
+    ref.watch(authRepositoryProvider),
+    onSignedOut: () => ref.read(playerUnlockTokenStoreProvider).clear(),
+  ),
 );
 
 final sendPasswordResetProvider = Provider<SendPasswordReset>(
@@ -229,6 +257,12 @@ final getSquadProvider = Provider<GetSquad>(
 
 final getMyProfileProvider = Provider<GetMyProfile>(
   (ref) => GetMyProfile(ref.watch(playerRepositoryProvider)),
+);
+
+final getPlayerDetailsProvider = Provider<GetPlayerDetails>(
+  (ref) => GetPlayerDetails(
+    ref.watch(playerRepositoryProvider) as PlayerDetailsReader,
+  ),
 );
 
 final getLinkedPlayersProvider = Provider<GetLinkedPlayers>(

@@ -6,6 +6,8 @@ class GetEligibilityHistory {
   GetEligibilityHistory(this._repository);
   final EligibilityHistoryRepository _repository;
 
-  Future<List<EligibilityChange>> call(String playerId) =>
-      _repository.fetchHistoryForPlayer(playerId);
+  Future<List<EligibilityChange>> call(
+    String playerId, {
+    String? unlockToken,
+  }) => _repository.fetchHistoryForPlayer(playerId, unlockToken: unlockToken);
 }

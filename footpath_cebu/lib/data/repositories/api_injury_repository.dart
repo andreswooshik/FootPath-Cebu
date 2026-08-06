@@ -10,16 +10,28 @@ import 'package:http/http.dart' as http;
 /// signed-in user's Firebase ID token (same pattern as
 /// [ApiAttendanceRepository]).
 class ApiInjuryRepository implements InjuryRepository {
+  ApiInjuryRepository({this.unlockTokenFor});
+
+  final String? Function(String playerId)? unlockTokenFor;
+
   static const _path = '/api/injuries/';
 
   @override
-  Future<List<InjuryRecord>> fetchInjuriesForPlayer(String playerId) async {
+  Future<List<InjuryRecord>> fetchInjuriesForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async {
+    final playerUnlock = unlockToken ?? unlockTokenFor?.call(playerId);
     final response = await _send(
       (token) => http.get(
         // The server scopes a player to their own records regardless; the
         // query narrows the coach/admin read to one player.
         Uri.parse('${ApiConfig.baseUrl}$_path?player=$playerId'),
-        headers: {'Authorization': 'Bearer $token'},
+        headers: {
+          'Authorization': 'Bearer $token',
+          if (playerUnlock != null && playerUnlock.isNotEmpty)
+            'X-Player-Unlock': playerUnlock,
+        },
       ),
     );
     if (response.statusCode != 200) {
@@ -40,26 +52,24 @@ class ApiInjuryRepository implements InjuryRepository {
   @override
   Future<InjuryRecord> saveInjury(InjuryRecord record) async {
     final id = record.id;
-    final response = await _send(
-      (token) {
-        final headers = {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        };
-        final body = jsonEncode(record.toJson());
-        return id == null
-            ? http.post(
-                Uri.parse('${ApiConfig.baseUrl}$_path'),
-                headers: headers,
-                body: body,
-              )
-            : http.put(
-                Uri.parse('${ApiConfig.baseUrl}$_path$id/'),
-                headers: headers,
-                body: body,
-              );
-      },
-    );
+    final response = await _send((token) {
+      final headers = {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      };
+      final body = jsonEncode(record.toJson());
+      return id == null
+          ? http.post(
+              Uri.parse('${ApiConfig.baseUrl}$_path'),
+              headers: headers,
+              body: body,
+            )
+          : http.put(
+              Uri.parse('${ApiConfig.baseUrl}$_path$id/'),
+              headers: headers,
+              body: body,
+            );
+    });
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw InjuryRepositoryException(
         'Could not save the injury (${response.statusCode}).',

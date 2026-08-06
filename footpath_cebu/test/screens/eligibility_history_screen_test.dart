@@ -10,7 +10,10 @@ import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.da
 /// state needs an override.
 class _EmptyRepository implements EligibilityHistoryRepository {
   @override
-  Future<List<EligibilityChange>> fetchHistoryForPlayer(String playerId) async {
+  Future<List<EligibilityChange>> fetchHistoryForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async {
     return const [];
   }
 }
@@ -35,8 +38,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('shows the timeline newest first with old → new badges',
-      (tester) async {
+  testWidgets('shows the timeline newest first with old → new badges', (
+    tester,
+  ) async {
     await pump(tester);
 
     expect(find.text('Eligibility · Rhobert Ronaldo'), findsOneWidget);
@@ -48,8 +52,9 @@ void main() {
     expect(find.textContaining('by System'), findsOneWidget);
   });
 
-  testWidgets('the first-ever status shows a single badge, no arrow',
-      (tester) async {
+  testWidgets('the first-ever status shows a single badge, no arrow', (
+    tester,
+  ) async {
     await pump(tester);
 
     // The seed's oldest entry (null oldStatus) renders only its new status;
@@ -61,8 +66,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          eligibilityHistoryRepositoryProvider
-              .overrideWithValue(_EmptyRepository()),
+          eligibilityHistoryRepositoryProvider.overrideWithValue(
+            _EmptyRepository(),
+          ),
         ],
         child: const MaterialApp(
           home: EligibilityHistoryScreen(

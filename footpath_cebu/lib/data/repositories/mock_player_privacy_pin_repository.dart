@@ -24,14 +24,20 @@ class MockPlayerPrivacyPinRepository implements PlayerPrivacyPinRepository {
       throw const PlayerPrivacyPinException('PIN must contain 4 to 6 digits.');
     }
     _pins[playerId] = pin;
-    return fetchStatus(playerId);
+    final status = await fetchStatus(playerId);
+    return PlayerPrivacyPinStatus(
+      hasPin: status.hasPin,
+      locked: status.locked,
+      unlockToken: 'mock-unlock-$playerId',
+    );
   }
 
   @override
-  Future<void> verifyPin(String playerId, String pin) async {
+  Future<String> verifyPin(String playerId, String pin) async {
     if (_pins[playerId] != pin) {
       throw const PlayerPrivacyPinException('The PIN is incorrect.');
     }
+    return 'mock-unlock-$playerId';
   }
 
   @override

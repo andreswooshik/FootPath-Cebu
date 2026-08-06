@@ -89,10 +89,13 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
       _error = null;
     });
     try {
-      await ref.read(verifyPlayerPrivacyPinProvider)(widget.player.id, pin);
+      final token = await ref.read(verifyPlayerPrivacyPinProvider)(
+        widget.player.id,
+        pin,
+      );
       ref
           .read(privacyUnlockedPlayersProvider.notifier)
-          .unlock(widget.player.id);
+          .unlock(widget.player.id, token);
     } on PlayerPrivacyPinException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -115,10 +118,19 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
       _error = null;
     });
     try {
-      await ref.read(setPlayerPrivacyPinProvider)(widget.player.id, pin: pin);
+      final result = await ref.read(setPlayerPrivacyPinProvider)(
+        widget.player.id,
+        pin: pin,
+      );
+      final token = result.unlockToken;
+      if (token == null || token.isEmpty) {
+        throw const PlayerPrivacyPinException(
+          'The server did not return a profile unlock.',
+        );
+      }
       ref
           .read(privacyUnlockedPlayersProvider.notifier)
-          .unlock(widget.player.id);
+          .unlock(widget.player.id, token);
     } on PlayerPrivacyPinException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {

@@ -10,8 +10,10 @@ import 'package:footpath_cebu/presentation/providers/injury_providers.dart';
 /// are exercised without a backend.
 class _FailingInjuryRepo implements InjuryRepository {
   @override
-  Future<List<InjuryRecord>> fetchInjuriesForPlayer(String playerId) async =>
-      throw InjuryRepositoryException('boom');
+  Future<List<InjuryRecord>> fetchInjuriesForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async => throw InjuryRepositoryException('boom');
 
   @override
   Future<InjuryRecord> saveInjury(InjuryRecord record) async =>
@@ -23,12 +25,12 @@ class _FailingInjuryRepo implements InjuryRepository {
 }
 
 InjuryRecord _draft({String? id}) => InjuryRecord(
-      id: id,
-      playerId: 'p1',
-      description: 'Hamstring strain',
-      status: InjuryStatus.active,
-      occurredOn: DateTime(2026, 7, 10),
-    );
+  id: id,
+  playerId: 'p1',
+  description: 'Hamstring strain',
+  status: InjuryStatus.active,
+  occurredOn: DateTime(2026, 7, 10),
+);
 
 void main() {
   ProviderContainer containerWith(InjuryRepository repo) {
@@ -45,10 +47,7 @@ void main() {
 
       final records = await container.read(injuriesProvider('p1').future);
       expect(records, hasLength(2));
-      expect(
-        records.first.occurredOn.isAfter(records.last.occurredOn),
-        isTrue,
-      );
+      expect(records.first.occurredOn.isAfter(records.last.occurredOn), isTrue);
     });
 
     test('another player sees an empty history', () async {
@@ -60,8 +59,7 @@ void main() {
   group('InjuryFormController', () {
     test('submit creates a record and refreshes the list', () async {
       final container = containerWith(MockInjuryRepository());
-      final sub =
-          container.listen(injuryFormControllerProvider, (_, _) {});
+      final sub = container.listen(injuryFormControllerProvider, (_, _) {});
 
       final saved = await container
           .read(injuryFormControllerProvider.notifier)
@@ -111,10 +109,8 @@ void main() {
 
     test('failures surface as error state, not throws', () async {
       final container = containerWith(_FailingInjuryRepo());
-      final sub =
-          container.listen(injuryFormControllerProvider, (_, _) {});
-      final controller =
-          container.read(injuryFormControllerProvider.notifier);
+      final sub = container.listen(injuryFormControllerProvider, (_, _) {});
+      final controller = container.read(injuryFormControllerProvider.notifier);
 
       expect(await controller.submit(_draft()), isNull);
       expect(sub.read().hasError, isTrue);

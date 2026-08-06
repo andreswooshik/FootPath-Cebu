@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 
 /// The guardian's linked children. Refresh with
 /// `ref.refresh(linkedPlayersProvider.future)`.
@@ -36,6 +37,17 @@ final selectedChildProvider = Provider.autoDispose<Player?>((ref) {
   }
   return null;
 });
+
+/// Full profile data is fetched only after the server has issued a short-lived
+/// player unlock grant. The selector remains intentionally redacted.
+final selectedChildDetailsProvider = FutureProvider.autoDispose
+    .family<Player, String>((ref, playerId) {
+      ref.watch(privacyUnlockedPlayersProvider);
+      final token = ref
+          .watch(playerUnlockTokenStoreProvider)
+          .tokenFor(playerId);
+      return ref.watch(getPlayerDetailsProvider)(playerId, unlockToken: token);
+    });
 
 /// Attendance records for one player. A family so switching children swaps to
 /// (and caches) that child's records instead of clobbering shared state.

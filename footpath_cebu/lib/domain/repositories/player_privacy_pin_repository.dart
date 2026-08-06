@@ -9,7 +9,7 @@ abstract class PlayerPrivacyPinRepository {
     String? currentPin,
   });
 
-  Future<void> verifyPin(String playerId, String pin);
+  Future<String> verifyPin(String playerId, String pin);
 
   Future<PlayerPrivacyPinStatus> resetPin(String playerId);
 }

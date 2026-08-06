@@ -28,7 +28,7 @@ class ApiPlayerPrivacyPinRepository implements PlayerPrivacyPinRepository {
   }
 
   @override
-  Future<void> verifyPin(String playerId, String pin) async {
+  Future<String> verifyPin(String playerId, String pin) async {
     final response = await _request(
       'POST',
       '/api/players/$playerId/pin/verify/',
@@ -37,6 +37,14 @@ class ApiPlayerPrivacyPinRepository implements PlayerPrivacyPinRepository {
     if (response.statusCode != 200) {
       throw PlayerPrivacyPinException(_errorMessage(response));
     }
+    final body = _body(response);
+    final token = body['unlockToken'];
+    if (token is! String || token.isEmpty) {
+      throw const PlayerPrivacyPinException(
+        'The server did not return a profile unlock.',
+      );
+    }
+    return token;
   }
 
   @override

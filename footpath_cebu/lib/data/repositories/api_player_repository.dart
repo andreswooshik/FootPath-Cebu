@@ -10,13 +10,31 @@ import 'package:http/http.dart' as http;
 /// Live implementation backed by the Django REST API, authenticated with the
 /// signed-in coach's Firebase ID token (same pattern as
 /// [FirebaseAuthRepository]).
-class ApiPlayerRepository implements PlayerRepository {
+class ApiPlayerRepository implements PlayerRepository, PlayerDetailsReader {
+  ApiPlayerRepository({this.unlockTokenFor});
+
+  final String? Function(String playerId)? unlockTokenFor;
+
   @override
   Future<List<Player>> fetchSquad() => _getList('/api/players/');
 
   @override
-  Future<List<Player>> fetchLinkedPlayers() =>
-      _getList('/api/players/linked/');
+  Future<List<Player>> fetchLinkedPlayers() => _getList('/api/players/linked/');
+
+  @override
+  Future<Player> fetchPlayerDetails(
+    String playerId, {
+    String? unlockToken,
+  }) async {
+    final token = unlockToken ?? unlockTokenFor?.call(playerId);
+    final json = await _get(
+      '/api/players/$playerId/profile/',
+      extraHeaders: {
+        if (token != null && token.isNotEmpty) 'X-Player-Unlock': token,
+      },
+    );
+    return Player.fromJson(json);
+  }
 
   @override
   Future<Player> fetchMyProfile() async {
@@ -88,14 +106,17 @@ class ApiPlayerRepository implements PlayerRepository {
   }
 
   /// GETs a single JSON object from [path] with the coach/player's ID token.
-  Future<Map<String, dynamic>> _get(String path) async {
+  Future<Map<String, dynamic>> _get(
+    String path, {
+    Map<String, String> extraHeaders = const {},
+  }) async {
     final idToken = await _requireIdToken();
 
     final http.Response response;
     try {
       response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}$path'),
-        headers: {'Authorization': 'Bearer $idToken'},
+        headers: {'Authorization': 'Bearer $idToken', ...extraHeaders},
       );
     } catch (_) {
       throw PlayerRepositoryException(

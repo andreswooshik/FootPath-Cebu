@@ -4,11 +4,13 @@ class PlayerPrivacyPinStatus {
     required this.hasPin,
     required this.locked,
     this.lockedUntil,
+    this.unlockToken,
   });
 
   final bool hasPin;
   final bool locked;
   final DateTime? lockedUntil;
+  final String? unlockToken;
 
   factory PlayerPrivacyPinStatus.fromJson(Map<String, dynamic> json) {
     final raw = json['lockedUntil'];
@@ -16,6 +18,7 @@ class PlayerPrivacyPinStatus {
       hasPin: json['hasPin'] == true,
       locked: json['locked'] == true,
       lockedUntil: raw is String ? DateTime.tryParse(raw) : null,
+      unlockToken: json['unlockToken'] as String?,
     );
   }
 }

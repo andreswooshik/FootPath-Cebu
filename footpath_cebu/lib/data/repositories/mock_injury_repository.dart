@@ -29,7 +29,10 @@ class MockInjuryRepository implements InjuryRepository {
   int _nextId = 3;
 
   @override
-  Future<List<InjuryRecord>> fetchInjuriesForPlayer(String playerId) async {
+  Future<List<InjuryRecord>> fetchInjuriesForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async {
     // Simulate network latency so loading states are exercised in the UI.
     await Future.delayed(const Duration(milliseconds: 300));
     final records = _records.where((r) => r.playerId == playerId).toList()

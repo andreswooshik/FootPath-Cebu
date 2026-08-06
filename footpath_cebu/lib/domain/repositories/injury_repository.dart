@@ -4,7 +4,10 @@ import 'package:footpath_cebu/domain/entities/injury_record.dart';
 /// coach's read-only view.
 abstract class InjuryReader {
   /// Returns the player's injuries, most recent first.
-  Future<List<InjuryRecord>> fetchInjuriesForPlayer(String playerId);
+  Future<List<InjuryRecord>> fetchInjuriesForPlayer(
+    String playerId, {
+    String? unlockToken,
+  });
 }
 
 /// Writes injury records. Kept separate from the reader so the coach's

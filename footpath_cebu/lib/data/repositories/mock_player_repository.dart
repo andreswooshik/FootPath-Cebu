@@ -4,7 +4,7 @@ import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 
 /// In-memory squad roster for UI development without a backend.
-class MockPlayerRepository implements PlayerRepository {
+class MockPlayerRepository implements PlayerRepository, PlayerDetailsReader {
   static final List<Player> _squad = [
     const Player(
       id: 'p1',
@@ -15,7 +15,11 @@ class MockPlayerRepository implements PlayerRepository {
       position: PlayerPosition.striker,
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
-        pace: 99, shooting: 97, passing: 88, dribbling: 95, defending: 45,
+        pace: 99,
+        shooting: 97,
+        passing: 88,
+        dribbling: 95,
+        defending: 45,
         physical: 90,
       ),
     ),
@@ -28,7 +32,11 @@ class MockPlayerRepository implements PlayerRepository {
       position: PlayerPosition.attackingMidfielder,
       eligibility: EligibilityStatus.academicWarning,
       ratings: PlayerRatings(
-        pace: 91, shooting: 92, passing: 96, dribbling: 99, defending: 40,
+        pace: 91,
+        shooting: 92,
+        passing: 96,
+        dribbling: 99,
+        defending: 40,
         physical: 72,
       ),
     ),
@@ -41,7 +49,11 @@ class MockPlayerRepository implements PlayerRepository {
       position: PlayerPosition.leftWinger,
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
-        pace: 95, shooting: 89, passing: 90, dribbling: 96, defending: 38,
+        pace: 95,
+        shooting: 89,
+        passing: 90,
+        dribbling: 96,
+        defending: 38,
         physical: 68,
       ),
     ),
@@ -54,7 +66,11 @@ class MockPlayerRepository implements PlayerRepository {
       position: PlayerPosition.centralMidfielder,
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
-        pace: 78, shooting: 88, passing: 93, dribbling: 87, defending: 66,
+        pace: 78,
+        shooting: 88,
+        passing: 93,
+        dribbling: 87,
+        defending: 66,
         physical: 79,
       ),
     ),
@@ -67,7 +83,11 @@ class MockPlayerRepository implements PlayerRepository {
       position: PlayerPosition.centerBack,
       eligibility: EligibilityStatus.pending,
       ratings: PlayerRatings(
-        pace: 81, shooting: 60, passing: 71, dribbling: 72, defending: 95,
+        pace: 81,
+        shooting: 60,
+        passing: 71,
+        dribbling: 72,
+        defending: 95,
         physical: 92,
       ),
     ),
@@ -80,7 +100,11 @@ class MockPlayerRepository implements PlayerRepository {
       position: PlayerPosition.rightBack,
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
-        pace: 84, shooting: 66, passing: 86, dribbling: 80, defending: 82,
+        pace: 84,
+        shooting: 66,
+        passing: 86,
+        dribbling: 80,
+        defending: 82,
         physical: 76,
       ),
     ),
@@ -97,9 +121,17 @@ class MockPlayerRepository implements PlayerRepository {
       // parity with every other Player, but Player.overall ignores them for
       // a keeper (see Player.overall).
       ratings: PlayerRatings(
-        pace: 55, shooting: 22, passing: 74, dribbling: 60, defending: 48,
+        pace: 55,
+        shooting: 22,
+        passing: 74,
+        dribbling: 60,
+        defending: 48,
         physical: 88,
-        diving: 88, handling: 85, kicking: 70, reflexes: 92, speed: 62,
+        diving: 88,
+        handling: 85,
+        kicking: 70,
+        reflexes: 92,
+        speed: 62,
         positioning: 86,
       ),
     ),
@@ -112,7 +144,11 @@ class MockPlayerRepository implements PlayerRepository {
       position: PlayerPosition.centralMidfielder,
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
-        pace: 82, shooting: 84, passing: 85, dribbling: 88, defending: 70,
+        pace: 82,
+        shooting: 84,
+        passing: 85,
+        dribbling: 88,
+        defending: 70,
         physical: 74,
       ),
     ),
@@ -125,7 +161,11 @@ class MockPlayerRepository implements PlayerRepository {
       position: PlayerPosition.rightWinger,
       eligibility: EligibilityStatus.eligible,
       ratings: PlayerRatings(
-        pace: 76, shooting: 62, passing: 68, dribbling: 79, defending: 30,
+        pace: 76,
+        shooting: 62,
+        passing: 68,
+        dribbling: 79,
+        defending: 30,
         physical: 48,
       ),
     ),
@@ -140,7 +180,11 @@ class MockPlayerRepository implements PlayerRepository {
       position: null,
       eligibility: EligibilityStatus.pending,
       ratings: PlayerRatings(
-        pace: 64, shooting: 55, passing: 74, dribbling: 71, defending: 42,
+        pace: 64,
+        shooting: 55,
+        passing: 74,
+        dribbling: 71,
+        defending: 42,
         physical: 45,
       ),
     ),
@@ -165,6 +209,18 @@ class MockPlayerRepository implements PlayerRepository {
     await Future.delayed(const Duration(milliseconds: 500));
     // Stand-in for a guardian's two linked children.
     return List.unmodifiable(_squad.where((p) => p.id == 'p2' || p.id == 'p3'));
+  }
+
+  @override
+  Future<Player> fetchPlayerDetails(
+    String playerId, {
+    String? unlockToken,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 200));
+    return _squad.firstWhere(
+      (player) => player.id == playerId,
+      orElse: () => throw PlayerRepositoryException('No such player.'),
+    );
   }
 
   @override
@@ -194,8 +250,10 @@ class MockPlayerRepository implements PlayerRepository {
     }
     // Mutate in place so the change survives a later fetch, mirroring a real
     // backend write.
-    final updated =
-        _squad[index].copyWith(ratings: ratings, coachNotes: coachNotes);
+    final updated = _squad[index].copyWith(
+      ratings: ratings,
+      coachNotes: coachNotes,
+    );
     _squad[index] = updated;
     return updated;
   }

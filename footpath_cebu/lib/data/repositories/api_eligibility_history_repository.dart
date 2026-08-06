@@ -12,11 +12,17 @@ import 'package:http/http.dart' as http;
 /// The server scopes access (player self / linked guardian / staff / admin)
 /// and shapes `changedBy` for the viewer — this class just fetches and parses.
 class ApiEligibilityHistoryRepository implements EligibilityHistoryRepository {
+  ApiEligibilityHistoryRepository({this.unlockTokenFor});
+
+  final String? Function(String playerId)? unlockTokenFor;
+
   @override
   Future<List<EligibilityChange>> fetchHistoryForPlayer(
-    String playerId,
-  ) async {
+    String playerId, {
+    String? unlockToken,
+  }) async {
     final idToken = await _requireIdToken();
+    final playerUnlock = unlockToken ?? unlockTokenFor?.call(playerId);
 
     final http.Response response;
     try {
@@ -24,7 +30,11 @@ class ApiEligibilityHistoryRepository implements EligibilityHistoryRepository {
         Uri.parse(
           '${ApiConfig.baseUrl}/api/players/$playerId/eligibility-history/',
         ),
-        headers: {'Authorization': 'Bearer $idToken'},
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          if (playerUnlock != null && playerUnlock.isNotEmpty)
+            'X-Player-Unlock': playerUnlock,
+        },
       );
     } catch (_) {
       throw EligibilityHistoryRepositoryException(

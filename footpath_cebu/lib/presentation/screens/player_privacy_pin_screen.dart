@@ -54,7 +54,7 @@ class _PlayerPrivacyPinScreenState
       _error = null;
     });
     try {
-      await ref.read(setPlayerPrivacyPinProvider)(
+      final result = await ref.read(setPlayerPrivacyPinProvider)(
         widget.player.id,
         pin: pin,
         currentPin: hasPin ? _currentController.text : null,
@@ -62,7 +62,7 @@ class _PlayerPrivacyPinScreenState
       ref.invalidate(playerPrivacyPinStatusProvider(widget.player.id));
       ref
           .read(privacyUnlockedPlayersProvider.notifier)
-          .unlock(widget.player.id);
+          .unlock(widget.player.id, result.unlockToken ?? '');
       if (mounted) Navigator.of(context).pop();
     } on PlayerPrivacyPinException catch (e) {
       if (mounted) setState(() => _error = e.message);

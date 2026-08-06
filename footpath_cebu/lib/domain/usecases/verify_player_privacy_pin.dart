@@ -5,6 +5,6 @@ class VerifyPlayerPrivacyPin {
 
   final PlayerPrivacyPinRepository _repository;
 
-  Future<void> call(String playerId, String pin) =>
+  Future<String> call(String playerId, String pin) =>
       _repository.verifyPin(playerId, pin);
 }

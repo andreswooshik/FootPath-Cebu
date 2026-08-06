@@ -14,9 +14,15 @@ class PrivacyUnlockedPlayersNotifier extends Notifier<Set<String>> {
   @override
   Set<String> build() => <String>{};
 
-  void unlock(String playerId) => state = {...state, playerId};
+  void unlock(String playerId, String token) {
+    ref.read(playerUnlockTokenStoreProvider).put(playerId, token);
+    state = {...state, playerId};
+  }
 
-  void clear() => state = <String>{};
+  void clear() {
+    ref.read(playerUnlockTokenStoreProvider).clear();
+    state = <String>{};
+  }
 }
 
 final privacyUnlockedPlayersProvider =

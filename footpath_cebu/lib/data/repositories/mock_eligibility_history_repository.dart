@@ -42,8 +42,9 @@ class MockEligibilityHistoryRepository implements EligibilityHistoryRepository {
   /// and style the history UI for player and guardian views alike.
   @override
   Future<List<EligibilityChange>> fetchHistoryForPlayer(
-    String playerId,
-  ) async {
+    String playerId, {
+    String? unlockToken,
+  }) async {
     // Simulate network latency so loading states are exercised in the UI.
     await Future.delayed(const Duration(milliseconds: 300));
     final records = List.of(_records)

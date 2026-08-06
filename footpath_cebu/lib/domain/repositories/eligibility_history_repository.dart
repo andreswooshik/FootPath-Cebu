@@ -5,7 +5,10 @@ import 'package:footpath_cebu/domain/entities/eligibility_change.dart';
 /// signal, never by a client.
 abstract class EligibilityHistoryRepository {
   /// Returns the player's eligibility transitions, newest first.
-  Future<List<EligibilityChange>> fetchHistoryForPlayer(String playerId);
+  Future<List<EligibilityChange>> fetchHistoryForPlayer(
+    String playerId, {
+    String? unlockToken,
+  });
 }
 
 /// Thrown when the history cannot be read.

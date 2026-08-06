@@ -18,6 +18,12 @@ abstract class LinkedPlayersRepository {
   Future<List<Player>> fetchLinkedPlayers();
 }
 
+/// A sensitive player profile read. Guardian callers must provide the
+/// short-lived server-issued privacy unlock grant.
+abstract class PlayerDetailsReader {
+  Future<Player> fetchPlayerDetails(String playerId, {String? unlockToken});
+}
+
 /// Persists a coach's performance assessment — the six ratings *and* the
 /// written evaluation — for a player, and returns the updated player. Used by
 /// the coach's assessment form.

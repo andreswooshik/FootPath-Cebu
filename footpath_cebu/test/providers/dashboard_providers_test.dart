@@ -64,8 +64,10 @@ class _FakeAttendanceRepo implements AttendanceRepository {
   final List<Attendance> records;
 
   @override
-  Future<List<Attendance>> fetchAttendanceForPlayer(String playerId) async =>
-      records.where((a) => a.playerId == playerId).toList();
+  Future<List<Attendance>> fetchAttendanceForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async => records.where((a) => a.playerId == playerId).toList();
 
   // The guardian dashboard only reads a player's history — the session
   // read/write are never reached here.

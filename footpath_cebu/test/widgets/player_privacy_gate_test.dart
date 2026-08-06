@@ -56,7 +56,8 @@ class _PinRepo implements PlayerPrivacyPinRepository {
   }) => fetchStatus(playerId);
 
   @override
-  Future<void> verifyPin(String playerId, String pin) async {}
+  Future<String> verifyPin(String playerId, String pin) async =>
+      'test-unlock-token';
 
   @override
   Future<PlayerPrivacyPinStatus> resetPin(String playerId) =>

@@ -7,6 +7,6 @@ class GetInjuries {
 
   final InjuryReader _repository;
 
-  Future<List<InjuryRecord>> call(String playerId) =>
-      _repository.fetchInjuriesForPlayer(playerId);
+  Future<List<InjuryRecord>> call(String playerId, {String? unlockToken}) =>
+      _repository.fetchInjuriesForPlayer(playerId, unlockToken: unlockToken);
 }
