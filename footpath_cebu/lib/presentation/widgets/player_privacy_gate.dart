@@ -6,6 +6,7 @@ import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
+import 'package:footpath_cebu/presentation/screens/player_privacy_pin_screen.dart';
 
 /// Whether child-scoped navigation should be available right now.
 ///
@@ -125,6 +126,17 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
     }
   }
 
+  void _openPrivacyPinManagement() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => PlayerPrivacyPinScreen(
+          player: widget.player,
+          isGuardian: widget.isGuardian,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(playerPrivacyPinStatusProvider(widget.player.id));
@@ -161,6 +173,9 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
           error: _error,
           locked: pinStatus.locked,
           onVerify: _verify,
+          onOpenPrivacyPin: widget.isGuardian
+              ? _openPrivacyPinManagement
+              : null,
         );
       },
     );
@@ -265,6 +280,7 @@ class _PinPrompt extends StatelessWidget {
     required this.error,
     required this.locked,
     required this.onVerify,
+    required this.onOpenPrivacyPin,
   });
 
   final Player player;
@@ -274,6 +290,7 @@ class _PinPrompt extends StatelessWidget {
   final String? error;
   final bool locked;
   final VoidCallback onVerify;
+  final VoidCallback? onOpenPrivacyPin;
 
   @override
   Widget build(BuildContext context) {
@@ -332,13 +349,18 @@ class _PinPrompt extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    isGuardian
-                        ? 'To reset a lost PIN, open Profile -> Player privacy PIN.'
-                        : 'Ask the linked guardian or coordinator to reset it.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12),
-                  ),
+                  if (onOpenPrivacyPin != null)
+                    TextButton.icon(
+                      onPressed: busy ? null : onOpenPrivacyPin,
+                      icon: const Icon(Icons.lock_reset_outlined, size: 18),
+                      label: const Text('Reset PIN in Player privacy PIN'),
+                    )
+                  else
+                    const Text(
+                      'Ask the linked guardian or coordinator to reset it.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 12),
+                    ),
                 ],
               ),
             ),

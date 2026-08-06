@@ -107,6 +107,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Reset PIN in Player privacy PIN'), findsOneWidget);
+    await tester.tap(find.text('Reset PIN in Player privacy PIN'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Manage First Player'), findsOneWidget);
+    Navigator.of(
+      tester.element(find.textContaining('Manage First Player')),
+    ).pop();
+    await tester.pumpAndSettle();
+
     await tester.enterText(find.byType(TextField), '1234');
     await tester.tap(find.text('switch'));
     await tester.pumpAndSettle();
