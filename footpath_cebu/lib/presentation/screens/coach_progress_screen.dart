@@ -7,7 +7,6 @@ import 'package:footpath_cebu/domain/entities/player_progress.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/progress_providers.dart';
-import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
 /// Coach Portal — the Progress tab: per-player attendance and effort
@@ -69,7 +68,6 @@ class CoachProgressScreen extends ConsumerWidget {
           ),
         ),
       ),
-      bottomNavigationBar: CoachBottomNav(profile: profile, selectedIndex: 2),
     );
   }
 }

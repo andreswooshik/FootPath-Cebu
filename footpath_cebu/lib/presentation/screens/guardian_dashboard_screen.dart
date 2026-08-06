@@ -18,7 +18,6 @@ import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
-import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 
 class GuardianDashboardScreen extends ConsumerWidget {
@@ -107,14 +106,6 @@ class GuardianDashboardScreen extends ConsumerWidget {
               );
             },
           ),
-      bottomNavigationBar:
-          selected == null || isPlayerPrivacyGateActive(ref, selected.id)
-          ? null
-          : PortalBottomNav(
-              player: selected,
-              selectedIndex: 0,
-              isGuardian: true,
-            ),
     );
   }
 }

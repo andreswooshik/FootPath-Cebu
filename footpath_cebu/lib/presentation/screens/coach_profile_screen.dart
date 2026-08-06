@@ -10,7 +10,6 @@ import 'package:footpath_cebu/presentation/screens/change_password_screen.dart';
 import 'package:footpath_cebu/presentation/screens/dispute_list_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
-import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 
@@ -119,10 +118,6 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
             ),
           ],
         ),
-      ),
-      bottomNavigationBar: CoachBottomNav(
-        profile: widget.profile,
-        selectedIndex: 3,
       ),
     );
   }

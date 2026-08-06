@@ -16,7 +16,6 @@ import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
-import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
@@ -102,15 +101,6 @@ class PlayerDashboardScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          ),
-      bottomNavigationBar: ref
-          .watch(myProfileProvider)
-          .maybeWhen(
-            data: (player) =>
-                isPlayerPrivacyGateActive(ref, player.id, requirePinSetup: true)
-                ? null
-                : PortalBottomNav(player: player, selectedIndex: 0),
-            orElse: () => null,
           ),
     );
   }

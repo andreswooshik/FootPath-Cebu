@@ -13,7 +13,6 @@ import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/log_attendance_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_profile_screen.dart';
-import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/mini_player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
@@ -43,10 +42,8 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
   void _openProfile(Player player) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => PlayerProfileScreen(
-          player: player,
-          profile: widget.profile,
-        ),
+        builder: (_) =>
+            PlayerProfileScreen(player: player, profile: widget.profile),
       ),
     );
   }
@@ -69,10 +66,8 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
     }
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => LogAttendanceScreen(
-          session: open.first,
-          profile: widget.profile,
-        ),
+        builder: (_) =>
+            LogAttendanceScreen(session: open.first, profile: widget.profile),
       ),
     );
   }
@@ -143,7 +138,6 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: CoachBottomNav(profile: widget.profile),
     );
   }
 }
@@ -154,7 +148,9 @@ class _TeamOverviewSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(teamOverviewProvider).maybeWhen(
+    return ref
+        .watch(teamOverviewProvider)
+        .maybeWhen(
           data: (overview) => TeamOverviewCard(overview: overview),
           // While the squad loads, the roster below already shows a spinner —
           // keep the overview slot empty rather than doubling up.
@@ -179,7 +175,9 @@ class _RosterSliver extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(filteredSquadProvider).when(
+    return ref
+        .watch(filteredSquadProvider)
+        .when(
           loading: () => const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(48),
@@ -276,8 +274,7 @@ class _TierFilterBar extends ConsumerWidget {
     final squad = ref.watch(squadProvider).value ?? const [];
     final filter = ref.watch(rosterFilterProvider);
     final notifier = ref.read(rosterFilterProvider.notifier);
-    int countFor(AgeTier tier) =>
-        squad.where((p) => p.ageTier == tier).length;
+    int countFor(AgeTier tier) => squad.where((p) => p.ageTier == tier).length;
 
     return SizedBox(
       height: 40,

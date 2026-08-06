@@ -11,7 +11,6 @@ import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.
 import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/attribute_radar_chart.dart';
-import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/position_picker_sheet.dart';
 import 'package:footpath_cebu/presentation/widgets/tier_badge.dart';
@@ -42,8 +41,7 @@ class PlayerProfileScreen extends ConsumerStatefulWidget {
 class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   late Player _player = widget.player;
 
-  bool get _isGoalkeeper =>
-      _player.position?.group == PositionGroup.goalkeeper;
+  bool get _isGoalkeeper => _player.position?.group == PositionGroup.goalkeeper;
 
   Future<void> _openEditor() async {
     // The editor returns the whole saved Player, not just the ratings: the
@@ -51,10 +49,8 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     // leave this screen showing a stale one.
     final updated = await Navigator.of(context).push<Player>(
       MaterialPageRoute(
-        builder: (_) => EditPerformanceDataScreen(
-          player: _player,
-          profile: widget.profile,
-        ),
+        builder: (_) =>
+            EditPerformanceDataScreen(player: _player, profile: widget.profile),
       ),
     );
     if (updated == null) return;
@@ -78,15 +74,13 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(
-          previous == null ? 'Assign position?' : 'Change position?',
-        ),
+        title: Text(previous == null ? 'Assign position?' : 'Change position?'),
         content: Text(
           previous == null
               ? '${_player.name} will be assigned '
-                  '${picked.labelWithCode}.'
+                    '${picked.labelWithCode}.'
               : '${_player.name} will change from '
-                  '${previous.labelWithCode} to ${picked.labelWithCode}.',
+                    '${previous.labelWithCode} to ${picked.labelWithCode}.',
         ),
         actions: [
           TextButton(
@@ -149,9 +143,9 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           IconButton(
             icon: const Icon(Icons.share_outlined),
             tooltip: 'Share',
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Coming soon.')),
-            ),
+            onPressed: () => ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Coming soon.'))),
           ),
         ],
       ),
@@ -261,7 +255,6 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: CoachBottomNav(profile: widget.profile),
     );
   }
 }
@@ -357,11 +350,11 @@ class _PlayerPositionCard extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : assigned
-                    ? TextButton(onPressed: onEdit, child: const Text('Change'))
-                    : FilledButton.tonal(
-                        onPressed: onEdit,
-                        child: const Text('Assign'),
-                      ),
+                ? TextButton(onPressed: onEdit, child: const Text('Change'))
+                : FilledButton.tonal(
+                    onPressed: onEdit,
+                    child: const Text('Assign'),
+                  ),
           ],
         ],
       ),
@@ -497,8 +490,11 @@ class _AcademicStandingCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            child: const Icon(Icons.school_outlined,
-                color: Colors.white, size: 18),
+            child: const Icon(
+              Icons.school_outlined,
+              color: Colors.white,
+              size: 18,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -527,15 +523,15 @@ class _AcademicStandingCard extends StatelessWidget {
 }
 
 Color _eligibilityColor(EligibilityStatus status) => switch (status) {
-      EligibilityStatus.eligible => Colors.green,
-      EligibilityStatus.notEligible => Colors.red,
-      EligibilityStatus.pending => Colors.orange,
-      EligibilityStatus.academicWarning => Colors.amber.shade800,
-    };
+  EligibilityStatus.eligible => Colors.green,
+  EligibilityStatus.notEligible => Colors.red,
+  EligibilityStatus.pending => Colors.orange,
+  EligibilityStatus.academicWarning => Colors.amber.shade800,
+};
 
 String _standingDescription(EligibilityStatus status) => switch (status) {
-      EligibilityStatus.eligible => 'Eligible for National Selection',
-      EligibilityStatus.notEligible => 'Not eligible for selection',
-      EligibilityStatus.pending => 'Academic standing pending review',
-      EligibilityStatus.academicWarning => 'Academic warning — review required',
-    };
+  EligibilityStatus.eligible => 'Eligible for National Selection',
+  EligibilityStatus.notEligible => 'Not eligible for selection',
+  EligibilityStatus.pending => 'Academic standing pending review',
+  EligibilityStatus.academicWarning => 'Academic warning — review required',
+};

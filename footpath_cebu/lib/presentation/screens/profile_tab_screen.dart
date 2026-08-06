@@ -11,7 +11,6 @@ import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_privacy_pin_screen.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
-import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 
 /// Profile tab — one player's avatar, attributes, and a log-out action.
@@ -214,14 +213,6 @@ class ProfileTabScreen extends ConsumerWidget {
                 ],
               ),
             ),
-      bottomNavigationBar:
-          isGuardian || !isPlayerPrivacyGateActive(ref, player.id)
-          ? PortalBottomNav(
-              player: player,
-              selectedIndex: 3,
-              isGuardian: isGuardian,
-            )
-          : null,
     );
   }
 

@@ -5,7 +5,6 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
-import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 import 'package:footpath_cebu/presentation/widgets/session_confirmation_button.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
@@ -107,13 +106,6 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: isPlayerPrivacyGateActive(ref, widget.player.id)
-          ? null
-          : PortalBottomNav(
-              player: widget.player,
-              selectedIndex: 1,
-              isGuardian: widget.isGuardian,
-            ),
     );
   }
 }

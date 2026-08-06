@@ -8,7 +8,6 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
-import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 
 /// Progress tab — the coach's session-by-session feedback, most recent
@@ -68,13 +67,6 @@ class ProgressScreen extends ConsumerWidget {
           },
         ),
       ),
-      bottomNavigationBar: isPlayerPrivacyGateActive(ref, player.id)
-          ? null
-          : PortalBottomNav(
-              player: player,
-              selectedIndex: 2,
-              isGuardian: isGuardian,
-            ),
     );
   }
 }

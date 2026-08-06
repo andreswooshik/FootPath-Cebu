@@ -7,7 +7,6 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/log_attendance_screen.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_session_screen.dart';
-import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 
@@ -151,10 +150,6 @@ class _TrainingScheduleScreenState
         onPressed: _openScheduleForm,
         tooltip: 'Schedule new session',
         child: const Icon(Icons.add),
-      ),
-      bottomNavigationBar: CoachBottomNav(
-        profile: widget.profile,
-        selectedIndex: 1,
       ),
     );
   }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
-import 'package:footpath_cebu/presentation/screens/player_dashboard_screen.dart';
+import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 
 void main() {
@@ -10,7 +10,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const ProviderScope(child: MaterialApp(home: PlayerDashboardScreen())),
+      const ProviderScope(child: MaterialApp(home: PlayerPortalScreen())),
     );
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);

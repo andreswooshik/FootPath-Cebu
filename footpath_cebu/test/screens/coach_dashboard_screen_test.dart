@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
+import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/mini_player_card.dart';
 
 const _coach = UserProfile(
@@ -18,8 +19,12 @@ const _coach = UserProfile(
 /// never leaks between tests. The repository providers default to the
 /// in-memory mocks in a test environment (see core/di/providers.dart).
 Widget _app() => const ProviderScope(
-      child: MaterialApp(home: CoachDashboardScreen(profile: _coach)),
-    );
+  child: MaterialApp(home: CoachDashboardScreen(profile: _coach)),
+);
+
+Widget _portalApp() => const ProviderScope(
+  child: MaterialApp(home: CoachPortalScreen(profile: _coach)),
+);
 
 /// The dashboard scrolls the Team Overview above the roster, so give the test
 /// a phone-tall viewport — otherwise the lazily-built roster slivers fall
@@ -78,7 +83,9 @@ void main() {
 
     // The Team Overview sits above the filter row, so scroll the chip into
     // view before tapping it.
-    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Foundation (2)'));
+    await tester.ensureVisible(
+      find.widgetWithText(FilterChip, 'Foundation (2)'),
+    );
     await tester.tap(find.widgetWithText(FilterChip, 'Foundation (2)'));
     await tester.pumpAndSettle();
 
@@ -89,7 +96,9 @@ void main() {
     expect(find.text('Rhobert Ronaldo'), findsNothing);
 
     // Re-tapping the active chip clears the filter.
-    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Foundation (2)'));
+    await tester.ensureVisible(
+      find.widgetWithText(FilterChip, 'Foundation (2)'),
+    );
     await tester.tap(find.widgetWithText(FilterChip, 'Foundation (2)'));
     await tester.pumpAndSettle();
     expect(find.text('Rhobert Ronaldo'), findsOneWidget);
@@ -100,18 +109,23 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.widgetWithText(FilterChip, 'Foundation (2)'));
+    await tester.ensureVisible(
+      find.widgetWithText(FilterChip, 'Foundation (2)'),
+    );
     await tester.tap(find.widgetWithText(FilterChip, 'Foundation (2)'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'zzzz');
     await tester.pumpAndSettle();
 
-    expect(find.text('No Foundation players match your search.'), findsOneWidget);
+    expect(
+      find.text('No Foundation players match your search.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('renders the bottom navigation destinations', (tester) async {
     _tallView(tester);
-    await tester.pumpWidget(_app());
+    await tester.pumpWidget(_portalApp());
     await tester.pumpAndSettle();
 
     expect(find.text('Squad'), findsOneWidget);

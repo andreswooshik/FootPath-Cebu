@@ -33,7 +33,9 @@ generate one: `python -c "from django.core.management.utils import get_random_se
 Everything else in `.env.example` can stay commented out — no database
 setup needed, it defaults to a local SQLite file.
 
-`0.0.0.0` matters: the Android emulator reaches the host via `10.0.2.2`.
+`0.0.0.0` matters because it makes the development server reachable from an
+emulator or a physical tablet. The Android emulator reaches the host via
+`10.0.2.2`; a physical tablet must use the computer's LAN IP instead.
 
 `seed_users` creates one Firebase + local account per role (idempotent,
 default password `FootPath!2026`, override with `--password`):
@@ -105,8 +107,47 @@ backend regardless.
 
 The app picks the backend URL automatically: `http://localhost:8000` on
 web/desktop, `http://10.0.2.2:8000` on the Android emulator. Override with
-`--dart-define=API_BASE_URL=http://<lan-ip>:8000` for a physical device on
-the same Wi-Fi (run the server as `runserver 0.0.0.0:8000` in that case).
+`--dart-define=API_BASE_URL=http://<computer-lan-ip>:8000` for a physical
+device on the same Wi-Fi. Use the computer's IP, not the tablet's IP.
+
+### Physical Android tablet
+
+First pair the tablet through Android **Developer options → Wireless
+debugging**, then confirm that Flutter sees it:
+
+```powershell
+flutter devices
+```
+
+For wireless debugging, the pairing port and debug port are different:
+
+```powershell
+adb pair <tablet-ip>:<pairing-port>
+adb connect <tablet-ip>:<debug-port>
+```
+
+Then run the live Flutter app using the tablet device ID and the computer's
+LAN IP:
+
+```powershell
+flutter run -d <tablet-ip>:<debug-port> `
+  --dart-define=USE_MOCK=false `
+  --dart-define=API_BASE_URL=http://<computer-lan-ip>:8000
+```
+
+Example, where the tablet is `10.0.0.30:44107` and the computer is
+`10.0.0.4`:
+
+```powershell
+flutter run -d 10.0.0.30:44107 `
+  --dart-define=USE_MOCK=false `
+  --dart-define=API_BASE_URL=http://10.0.0.4:8000
+```
+
+The tablet and computer must be on the same Wi-Fi network, and Windows
+Firewall must allow inbound TCP traffic on port `8000`. The Flutter app needs
+an actual Firebase account with a matching provisioned Django user when
+`USE_MOCK=false`; mock/demo credentials are only for mock mode.
 
 ## Troubleshooting
 
@@ -115,6 +156,13 @@ the same Wi-Fi (run the server as `runserver 0.0.0.0:8000` in that case).
 - **Connection errors from the emulator**: confirm the server runs on
   `0.0.0.0:8000` and the manifest has `android:usesCleartextTraffic="true"`
   (dev-only; production uses HTTPS).
+- **"Could not sign in" on a physical tablet**: confirm the app was launched
+  with `USE_MOCK=false` and `API_BASE_URL=http://<computer-lan-ip>:8000`.
+  `10.0.2.2` is for the Android emulator and `localhost` points to the tablet
+  itself.
+- **Debug APK signing error**: use `flutter run` or build with
+  `flutter build apk --debug`. Release signing variables are intentionally
+  required only for release builds.
 - **`seed_users` fails / Firebase errors**: the service-account JSON is
   missing or in the wrong place — re-check step 0.
 - **`Bad state: databaseFactory not initialized`** in the browser console when
