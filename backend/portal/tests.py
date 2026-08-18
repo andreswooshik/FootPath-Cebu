@@ -13,6 +13,7 @@ from django.contrib.admin.sites import site
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils.text import slugify
 from firebase_admin import auth as firebase_auth
 
 from academy.models import (
@@ -20,9 +21,7 @@ from academy.models import (
 )
 from accounts.admin import ClubAdmin, CustomUserAdmin
 from accounts.models import Club, GuardianLink, Roles, User
-from accounts.services import provision_web_user
-
-from .services import register_coordinator
+from accounts.services import provision_club_coordinator, provision_web_user
 
 _PASSWORD = 'Str0ng!passphrase9'
 
@@ -64,14 +63,15 @@ def make_coordinator(email='coord@club.test', club_name='Alpha FC',
                      is_school_affiliated=True):
     """An approved (active) coordinator owning a fresh club (school-affiliated
     by default so the staff / eligibility surfaces are available)."""
-    user, club = register_coordinator(
-        first_name='Coord', last_name='One', email=email,
-        club_name=club_name, password=_PASSWORD,
+    club = Club.objects.create(
+        name=club_name, slug=slugify(club_name),
         is_school_affiliated=is_school_affiliated,
         school_name='Demo School' if is_school_affiliated else '',
     )
-    user.is_active = True
-    user.save(update_fields=['is_active'])
+    user, _password = provision_club_coordinator(
+        first_name='Coord', last_name='One', email=email,
+        club=club, password=_PASSWORD, is_active=True,
+    )
     return user, club
 
 
@@ -93,31 +93,18 @@ class CoordinatorSignupTests(TestCase):
             coordinator_name='Jane Doe', email='Jane@Club.Test',  # normalised
             club_name='Cebu United',
         ))
-        self.assertRedirects(resp, reverse('portal:signup-done'))
-
-        club = Club.objects.get(name='Cebu United')
-        user = User.objects.get(email='jane@club.test')
-        self.assertEqual(user.role, Roles.COORDINATOR)
-        self.assertEqual((user.first_name, user.last_name), ('Jane', 'Doe'))
-        self.assertEqual(user.club, club)
-        self.assertFalse(user.is_active)          # pending superadmin approval
-        self.assertTrue(user.has_usable_password())  # web session login
-        self.assertIsNone(user.firebase_uid)      # no Firebase for web users
-        # Registration details are captured on the club.
-        self.assertFalse(club.is_school_affiliated)   # checkbox left unticked
-        self.assertEqual(club.head_coach_name, 'Coach Carter')
-        self.assertEqual(club.cvfa_membership, 'CVFA-12345')
-        self.assertTrue(club.coach_license.name.startswith('coach-licenses/'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'Super Admin creates the club')
+        self.assertFalse(Club.objects.filter(name='Cebu United').exists())
+        self.assertFalse(User.objects.filter(email='jane@club.test').exists())
 
     def test_school_affiliated_signup_sets_flag(self):
         resp = self.client.post(reverse('portal:signup'), _signup_data(
             email='sa@club.test', club_name='Academy FC',
             is_school_affiliated='on', school_name='Cebu High',
         ))
-        self.assertRedirects(resp, reverse('portal:signup-done'))
-        club = Club.objects.get(name='Academy FC')
-        self.assertTrue(club.is_school_affiliated)
-        self.assertEqual(club.school_name, 'Cebu High')
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(Club.objects.filter(name='Academy FC').exists())
 
     def test_affiliated_without_school_name_rejected(self):
         resp = self.client.post(reverse('portal:signup'), _signup_data(
@@ -171,9 +158,10 @@ class CoordinatorSignupTests(TestCase):
         self.assertFalse(User.objects.filter(email='mm@club.test').exists())
 
     def test_pending_coordinator_cannot_login_until_approved(self):
-        register_coordinator(
+        club = Club.objects.create(name='Pending FC', slug='pending-fc')
+        provision_club_coordinator(
             first_name='P', last_name='Q', email='pending@club.test',
-            club_name='Pending FC', password=_PASSWORD,
+            club=club, password=_PASSWORD, is_active=False,
         )
         # Inactive -> ModelBackend refuses the login (OWASP A01).
         self.assertFalse(
@@ -209,15 +197,13 @@ class SignupHardeningTests(TestCase):
         self.assertFalse(Club.objects.filter(name='Forge FC').exists())
 
     def test_signup_is_rate_limited_per_ip(self):
-        # The limiter runs before the form, so even invalid POSTs are counted:
-        # five are allowed through, the sixth is throttled with 429.
-        for _ in range(5):
+        # Signup is now an informational, non-mutating page; repeated POSTs
+        # cannot create clubs and therefore need no creation throttle.
+        for _ in range(6):
             self.assertEqual(
                 self.client.post(reverse('portal:signup'), {}).status_code, 200
             )
-        self.assertEqual(
-            self.client.post(reverse('portal:signup'), {}).status_code, 429
-        )
+        self.assertEqual(Club.objects.count(), 0)
 
 
 class SchoolStaffGatingTests(TestCase):
@@ -249,12 +235,12 @@ class SchoolStaffGatingTests(TestCase):
         from django.core.exceptions import PermissionDenied
 
         from .services import create_club_account
-        _coord, club = make_coordinator(
+        coord, _club = make_coordinator(
             email='na3@club.test', club_name='NoSchool3 FC',
             is_school_affiliated=False,
         )
         with self.assertRaises(PermissionDenied):
-            create_club_account(account_type='staff', club=club, data={
+            create_club_account(account_type='staff', coordinator=coord, data={
                 'first_name': 'S', 'last_name': 'T', 'email': 'x@club.test',
             })
 
@@ -325,13 +311,16 @@ class CreateAccountTests(TestCase):
         self.assertTrue(PlayerProfile.objects.filter(user=user).exists())
         self.assertContains(resp, 'Temporary password')
 
-    def test_create_player_requires_an_active_guardian(self):
+    def test_create_player_may_be_created_without_guardian_link(self):
         response = self.client.post(reverse('portal:create-account'), {
             'account_type': 'player', 'first_name': 'No', 'last_name': 'Parent',
             'email': 'no-parent@club.test', 'date_of_birth': '2010-05-01',
         })
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(User.objects.filter(email='no-parent@club.test').exists())
+        player = User.objects.get(email='no-parent@club.test')
+        self.assertEqual(player.club, self.club)
+        self.assertTrue(PlayerProfile.objects.filter(user=player).exists())
+        self.assertFalse(GuardianLink.objects.filter(player=player).exists())
 
     def test_create_player_without_email_creates_guardian_managed_profile(self):
         guardian = User.objects.create(
@@ -627,9 +616,10 @@ class PasswordChangeTests(TestCase):
 
 class ApprovalActionTests(TestCase):
     def test_action_activates_only_pending_coordinators(self):
-        user, _club = register_coordinator(
+        club = Club.objects.create(name='Approve FC', slug='approve-fc')
+        user, _password = provision_club_coordinator(
             first_name='P', last_name='Q', email='approve@club.test',
-            club_name='Approve FC', password=_PASSWORD,
+            club=club, password=_PASSWORD, is_active=False,
         )
         self.assertFalse(user.is_active)
 
@@ -641,9 +631,10 @@ class ApprovalActionTests(TestCase):
         self.assertTrue(user.is_active)
 
     def test_club_registration_actions_approve_and_disapprove(self):
-        user, club = register_coordinator(
+        club = Club.objects.create(name='Club Action FC', slug='club-action-fc')
+        user, _password = provision_club_coordinator(
             first_name='C', last_name='A', email='club-action@club.test',
-            club_name='Club Action FC', password=_PASSWORD,
+            club=club, password=_PASSWORD, is_active=False,
         )
         admin = ClubAdmin(Club, site)
 

@@ -10,11 +10,10 @@ def role_required(*roles):
         message = 'You do not have permission to perform this action.'
 
         def has_permission(self, request, view):
-            return bool(
-                request.user
-                and request.user.is_authenticated
-                and request.user.role in roles
-            )
+            user = request.user
+            if not user or not user.is_authenticated or user.role not in roles:
+                return False
+            return True
 
     _RolePermission.__name__ = f'RoleRequired[{", ".join(roles)}]'
     return _RolePermission

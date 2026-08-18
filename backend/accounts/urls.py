@@ -11,6 +11,21 @@ urlpatterns = [
         name='admin-users',
     ),
     path(
+        'admin/clubs/',
+        views.AdminClubListCreateView.as_view(),
+        name='admin-clubs',
+    ),
+    path(
+        'admin/clubs/<int:pk>/',
+        views.AdminClubDetailView.as_view(),
+        name='admin-club-detail',
+    ),
+    path(
+        'admin/coordinators/',
+        views.AdminCoordinatorCreateView.as_view(),
+        name='admin-coordinators',
+    ),
+    path(
         'admin/users/<int:pk>/',
         views.AdminUserDetailView.as_view(),
         name='admin-user-detail',

@@ -123,19 +123,19 @@ class PlayerRatings {
   }
 
   Map<String, dynamic> toJson() => {
-        'pace': pace,
-        'shooting': shooting,
-        'passing': passing,
-        'dribbling': dribbling,
-        'defending': defending,
-        'physical': physical,
-        'diving': diving,
-        'handling': handling,
-        'kicking': kicking,
-        'reflexes': reflexes,
-        'speed': speed,
-        'positioning': positioning,
-      };
+    'pace': pace,
+    'shooting': shooting,
+    'passing': passing,
+    'dribbling': dribbling,
+    'defending': defending,
+    'physical': physical,
+    'diving': diving,
+    'handling': handling,
+    'kicking': kicking,
+    'reflexes': reflexes,
+    'speed': speed,
+    'positioning': positioning,
+  };
 }
 
 /// A player in the coach's squad roster. Immutable Model — no UI, no I/O.
@@ -149,6 +149,7 @@ class Player {
     this.position,
     required this.ratings,
     required this.eligibility,
+    this.academicEligibilityApplicable = true,
     this.photoUrl,
     this.coachNotes = '',
   });
@@ -172,6 +173,11 @@ class Player {
 
   final PlayerRatings ratings;
   final EligibilityStatus eligibility;
+
+  /// Applicability is separate from the four allowed status values. An
+  /// Independent club reports false and the UI displays N/A without inventing
+  /// a fifth stored eligibility status.
+  final bool academicEligibilityApplicable;
   final String? photoUrl;
 
   /// The coach's standing written evaluation, saved with the assessment.
@@ -214,6 +220,7 @@ class Player {
       position: position ?? this.position,
       ratings: ratings ?? this.ratings,
       eligibility: eligibility ?? this.eligibility,
+      academicEligibilityApplicable: academicEligibilityApplicable,
       photoUrl: photoUrl,
       coachNotes: coachNotes ?? this.coachNotes,
     );
@@ -233,21 +240,24 @@ class Player {
       eligibility: EligibilityStatusLabel.fromWire(
         json['eligibility'] as String? ?? 'PENDING',
       ),
+      academicEligibilityApplicable:
+          json['academicEligibilityApplicable'] as bool? ?? true,
       photoUrl: json['photoUrl'] as String?,
       coachNotes: json['coachNotes'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'age': age,
-        'classYear': classYear,
-        'ageTier': ageTier.wire,
-        'position': position?.wire,
-        'ratings': ratings.toJson(),
-        'eligibility': eligibility.wire,
-        'photoUrl': photoUrl,
-        'coachNotes': coachNotes,
-      };
+    'id': id,
+    'name': name,
+    'age': age,
+    'classYear': classYear,
+    'ageTier': ageTier.wire,
+    'position': position?.wire,
+    'ratings': ratings.toJson(),
+    'eligibility': eligibility.wire,
+    'academicEligibilityApplicable': academicEligibilityApplicable,
+    'photoUrl': photoUrl,
+    'coachNotes': coachNotes,
+  };
 }

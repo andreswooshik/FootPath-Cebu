@@ -97,7 +97,9 @@ class MiniPlayerCard extends StatelessWidget {
                             width: 8,
                             height: 8,
                             decoration: BoxDecoration(
-                              color: _eligibilityColor(player.eligibility),
+                              color: player.academicEligibilityApplicable
+                                  ? _eligibilityColor(player.eligibility)
+                                  : Colors.grey,
                               shape: BoxShape.circle,
                             ),
                           ),

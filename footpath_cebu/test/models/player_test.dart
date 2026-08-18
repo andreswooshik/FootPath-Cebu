@@ -70,8 +70,7 @@ void main() {
       expect(player.overall, player.ratings.gkOverall);
     });
 
-    test('an outfield player is judged on the outfield six, not the GK six',
-        () {
+    test('an outfield player is judged on the outfield six, not the GK six', () {
       const player = Player(
         id: 'st1',
         name: 'Test Striker',
@@ -182,6 +181,16 @@ void main() {
       expect(player.overall, 0);
     });
 
+    test('independent-club eligibility applicability round-trips as false', () {
+      final player = Player.fromJson({
+        'id': 8,
+        'name': 'Independent Player',
+        'academicEligibilityApplicable': false,
+      });
+      expect(player.academicEligibilityApplicable, isFalse);
+      expect(player.toJson()['academicEligibilityApplicable'], isFalse);
+    });
+
     test('a goalkeeper\'s GK six round-trips through JSON', () {
       const player = Player(
         id: 'gk1',
@@ -192,9 +201,17 @@ void main() {
         position: PlayerPosition.goalkeeper,
         eligibility: EligibilityStatus.eligible,
         ratings: PlayerRatings(
-          pace: 55, shooting: 22, passing: 74, dribbling: 60, defending: 48,
+          pace: 55,
+          shooting: 22,
+          passing: 74,
+          dribbling: 60,
+          defending: 48,
           physical: 88,
-          diving: 88, handling: 85, kicking: 70, reflexes: 92, speed: 62,
+          diving: 88,
+          handling: 85,
+          kicking: 70,
+          reflexes: 92,
+          speed: 62,
           positioning: 86,
         ),
       );

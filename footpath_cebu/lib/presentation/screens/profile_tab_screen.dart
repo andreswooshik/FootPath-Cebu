@@ -118,7 +118,10 @@ class ProfileTabScreen extends ConsumerWidget {
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const SizedBox(height: 8),
-                        EligibilityBadge(status: player.eligibility),
+                        EligibilityBadge(
+                          status: player.eligibility,
+                          applicable: player.academicEligibilityApplicable,
+                        ),
                       ],
                     ),
                   ),

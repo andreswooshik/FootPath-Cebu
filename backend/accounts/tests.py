@@ -16,6 +16,7 @@ from .models import Club, Roles, User
 
 ALL_ROLES = [
     Roles.ADMIN,
+    Roles.COORDINATOR,
     Roles.COACH,
     Roles.PLAYER,
     Roles.SCHOOL_STAFF,
@@ -25,11 +26,22 @@ ALL_ROLES = [
 
 def make_user(role):
     email = f'{role.lower()}@footpathcebu.test'
+    club = None
+    if role != Roles.ADMIN:
+        club, _ = Club.objects.get_or_create(
+            slug='accounts-test-club',
+            defaults={
+                'name': 'Accounts Test Club',
+                'is_school_affiliated': True,
+                'school_name': 'Test School',
+            },
+        )
     return User.objects.create(
         username=email,
         email=email,
         role=role,
         firebase_uid=f'uid-{role.lower()}',
+        club=club,
     )
 
 
@@ -42,6 +54,7 @@ class RolePermissionTests(APITestCase):
     def test_admin_users_endpoint_allows_only_admin(self):
         url = reverse('admin-users')
         for role in [
+            Roles.COORDINATOR,
             Roles.COACH,
             Roles.PLAYER,
             Roles.SCHOOL_STAFF,

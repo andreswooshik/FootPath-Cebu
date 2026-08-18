@@ -37,7 +37,7 @@ def _has_allowed_signature(upload):
 
 
 class CoordinatorSignupForm(forms.Form):
-    """Public club registration → creates a club + a pending coordinator."""
+    """Legacy validation form retained for compatibility; public signup is disabled."""
 
     club_name = forms.CharField(max_length=120, label='Club name')
     coordinator_name = forms.CharField(
@@ -160,8 +160,8 @@ class CreatePlayerForm(_BaseCreateAccountForm):
     )
     guardian = forms.ModelChoiceField(
         queryset=User.objects.none(),
-        required=True,
-        help_text='Required: create the guardian account first.',
+        required=False,
+        help_text='Optional: link an existing Guardian in this club.',
     )
 
     def __init__(self, *args, **kwargs):

@@ -20,9 +20,7 @@ from accounts.models import GuardianLink, Roles, User
 from accounts.services import ProvisioningError
 
 from .decorators import portal_role_required
-from .ratelimit import is_rate_limited
 from .forms import (
-    CoordinatorSignupForm,
     CreateCoachForm,
     CreateGuardianForm,
     CreatePlayerForm,
@@ -33,7 +31,6 @@ from .forms import (
 from .services import (
     create_club_account,
     link_guardian,
-    register_coordinator,
     set_player_eligibility,
     unlink_guardian,
 )
@@ -46,55 +43,15 @@ _ACCOUNT_FORMS = {
 }
 
 
-def _split_name(full_name):
-    """Split a single 'Full Name' field into (first, last) for the User model."""
-    parts = full_name.strip().split(None, 1)
-    return parts[0], (parts[1] if len(parts) > 1 else '')
-
-
 def signup(request):
-    """Public club registration → creates a club + a pending coordinator."""
+    """Public information page; account creation is Super Admin-controlled."""
     if request.user.is_authenticated:
         return redirect('portal:dashboard')
-    if request.method == 'POST':
-        # Throttle the anonymous create-and-upload so it cannot be scripted to
-        # spam pending clubs or spool large files (audit finding S3).
-        if is_rate_limited(
-            request, scope='signup', limit=5, window_seconds=3600
-        ):
-            messages.error(
-                request,
-                'Too many registration attempts from your network. Please try '
-                'again later.',
-            )
-            return render(
-                request, 'portal/signup.html',
-                {'form': CoordinatorSignupForm()}, status=429,
-            )
-        form = CoordinatorSignupForm(request.POST, request.FILES)
-        if form.is_valid():
-            cd = form.cleaned_data
-            first_name, last_name = _split_name(cd['coordinator_name'])
-            register_coordinator(
-                first_name=first_name,
-                last_name=last_name,
-                email=cd['email'],
-                club_name=cd['club_name'],
-                password=cd['password1'],
-                is_school_affiliated=cd['is_school_affiliated'],
-                school_name=cd.get('school_name', ''),
-                head_coach_name=cd['head_coach_name'],
-                coach_license=cd['coach_license'],
-                cvfa_membership=cd['cvfa_membership'],
-            )
-            return redirect('portal:signup-done')
-    else:
-        form = CoordinatorSignupForm()
-    return render(request, 'portal/signup.html', {'form': form})
+    return render(request, 'portal/signup.html')
 
 
 def signup_done(request):
-    return render(request, 'portal/signup_done.html')
+    return redirect('portal:signup')
 
 
 @login_required
@@ -105,10 +62,9 @@ def dashboard(request):
 class PortalPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
     """Change the signed-in portal user's password.
 
-    Coordinators arrive with the password they chose at signup, but School
-    Staff arrive with a relayed one-time password — without this page they'd
-    keep it forever (Django admin was the only escape hatch). Session auth
-    only; app roles change theirs through Firebase.
+    Coordinators and School Staff arrive with a password provisioned by an
+    authorized account creator. Session auth only; app roles change theirs
+    through Firebase.
     """
 
     template_name = 'portal/password_change.html'
@@ -142,7 +98,7 @@ def create_account(request):
             try:
                 user, credential = create_club_account(
                     account_type=account_type,
-                    club=club,
+                    coordinator=request.user,
                     data=form.cleaned_data,
                 )
             except ProvisioningError as exc:

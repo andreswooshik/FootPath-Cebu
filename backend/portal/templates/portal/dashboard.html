@@ -19,7 +19,7 @@
        class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md hover:border-green-200 transition-all group">
       <div class="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-2xl mb-4">👥</div>
       <div class="text-lg font-semibold text-gray-900 group-hover:text-green-600 transition-colors">Create accounts</div>
-      <p class="text-sm text-gray-500 mt-1">Add players, coaches, school staff and guardians to your club.</p>
+      <p class="text-sm text-gray-500 mt-1">Add players, coaches and guardians{% if request.user.club.is_school_affiliated %}, plus School Staff{% endif %}, to your club.</p>
       <span class="text-green-500 font-bold mt-4 block">→</span>
     </a>
     <a href="{% url 'portal:players' %}"
@@ -35,13 +35,14 @@
     <span>🏟️ Club: <strong class="text-gray-900">{{ request.user.club.name|default:"—" }}</strong></span>
     <span>👤 Coordinator: <strong class="text-gray-900">{{ user.get_full_name|default:user.email }}</strong></span>
     {% if request.user.club.is_school_affiliated %}
-      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">🎓 School Affiliated</span>
+      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">🎓 School Club · eligibility enabled</span>
     {% else %}
-      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">⚽ Club</span>
+      <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">⚽ Independent Club · eligibility N/A</span>
     {% endif %}
   </div>
 
 {% elif user.role == 'SCHOOL_STAFF' %}
+  {% if request.user.club.is_school_affiliated %}
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
     <a href="{% url 'portal:staff-eligibility' %}"
        class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md hover:border-green-200 transition-all group">
@@ -51,6 +52,12 @@
       <span class="text-green-500 font-bold mt-4 block">→</span>
     </a>
   </div>
+  {% else %}
+  <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-2xl">
+    <div class="text-lg font-semibold text-gray-900">Academic eligibility: N/A</div>
+    <p class="text-sm text-gray-500 mt-1">Academic eligibility is available only to School clubs.</p>
+  </div>
+  {% endif %}
 
 {% elif user.is_superuser or user.role == 'ADMIN' %}
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-2xl text-sm text-gray-700">

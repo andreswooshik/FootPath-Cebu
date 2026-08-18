@@ -86,7 +86,8 @@ class SquadEndpointTests(APITestCase):
         self.assertEqual(
             set(row.keys()),
             {'id', 'name', 'age', 'classYear', 'ageTier', 'position',
-             'ratings', 'eligibility', 'photoUrl', 'coachNotes'},
+             'ratings', 'eligibility', 'academicEligibilityApplicable',
+             'photoUrl', 'coachNotes'},
         )
         self.assertEqual(
             set(row['ratings'].keys()),
@@ -1510,15 +1511,24 @@ class NotificationFanOutTests(APITestCase):
         self.assertEqual(sent_tokens, {'t0', 't2'})
 
 
-def _fake_provision(*, email, first_name, last_name, role):
-    """Stand-in for accounts.services.provision_user that skips Firebase
-    entirely but still creates a real local User row, so callers see the
-    same (user, temp_password, note) shape the real function returns."""
+def _fake_provision_player(
+    *, email, first_name, last_name, middle_initial, date_of_birth, club,
+    guardian=None,
+):
+    """Stand-in for the aggregate player service that skips Firebase."""
     user = User.objects.create(
         username=email, email=email, first_name=first_name,
-        last_name=last_name, role=role, firebase_uid=f'uid-{email}',
+        last_name=last_name, role=Roles.PLAYER, firebase_uid=f'uid-{email}',
+        club=club,
     )
-    return user, 'TempPass123', 'New Firebase account created.'
+    age, tier = AgeTierSetting.profile_defaults_for(date_of_birth)
+    profile = PlayerProfile.objects.create(
+        user=user, middle_initial=middle_initial, date_of_birth=date_of_birth,
+        age=age, age_tier=tier,
+    )
+    if guardian is not None:
+        GuardianLink.objects.create(guardian=guardian, player=user)
+    return user, profile, 'TempPass123', 'New Firebase account created.'
 
 
 class AdminCreatePlayerViewTests(APITestCase):
@@ -1529,6 +1539,14 @@ class AdminCreatePlayerViewTests(APITestCase):
         self.admin = make_user(Roles.ADMIN)
         self.coach = make_user(Roles.COACH)
         self.guardian = make_user(Roles.GUARDIAN, email='g@footpathcebu.test')
+        self.club = Club.objects.create(
+            name='Admin Player Club', slug='admin-player-club',
+            is_school_affiliated=True, school_name='Admin Player School',
+        )
+        self.guardian.club = self.club
+        self.guardian.save(update_fields=['club'])
+        self.coach.club = self.club
+        self.coach.save(update_fields=['club'])
         self.url = reverse('admin-player-create')
 
     def _payload(self, **overrides):
@@ -1543,7 +1561,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         payload.update(overrides)
         return payload
 
-    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
     def test_admin_creates_player_with_profile_and_guardian(self, _mock):
         self.client.force_authenticate(self.admin)
         response = self.client.post(
@@ -1565,7 +1583,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         )
         self.assertEqual(response.data['temporary_password'], 'TempPass123')
 
-    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
     def test_age_and_tier_derived_from_dob(self, _mock):
         """New players are placed by the configured bands — not left on the
         model defaults (age 0 / DEVELOPMENT) as they were before audit F5.
@@ -1598,7 +1616,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         self.assertEqual(profile.age, 11)
         self.assertEqual(profile.age_tier, AgeTier.PATHWAY)
 
-    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
     def test_guardian_is_required(self, _mock):
         self.client.force_authenticate(self.admin)
         response = self.client.post(
@@ -1625,7 +1643,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         )
         self.assertIsNone(response.data['temporary_password'])
 
-    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
     def test_missing_required_field_creates_nothing(self, _mock):
         self.client.force_authenticate(self.admin)
         payload = self._payload()
@@ -1638,7 +1656,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         )
         self.assertFalse(PlayerProfile.objects.exists())
 
-    @patch('academy.views.provision_user', side_effect=_fake_provision)
+    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
     def test_blank_name_is_rejected(self, _mock):
         self.client.force_authenticate(self.admin)
         response = self.client.post(

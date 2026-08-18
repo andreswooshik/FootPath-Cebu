@@ -59,8 +59,8 @@ needs a Django superuser, not a seeded account:
 .\.venv\Scripts\python.exe manage.py createsuperuser
 ```
 
-Log in there with the **username** you set (not an email). Use it to approve
-club-coordinator signups too — see section 2.
+Log in there with the **username** you set (not an email). Use it for Super
+Admin Club and Coordinator setup—see section 2.
 
 ## 2. Web portal — club coordinators & school staff
 
@@ -69,23 +69,23 @@ separate from the Flutter app. It is server-rendered and uses **Django session
 login** (email + password), **not** Firebase — its users never touch the mobile
 app.
 
-**Club coordinator** — self-registers, then provisions their own club's accounts:
+**Super Admin setup, then Club Coordinator provisioning:**
 
-1. Sign up at `http://localhost:8000/portal/signup/` (name, email, club name,
-   password). This creates a **Club** and a coordinator account held **pending**.
-2. A developer reviews it in the Django admin: `/admin/` → **Clubs**, select
-   the registration, then run **Approve selected club registrations** or
-   **Disapprove selected club registrations**. Approving activates both the
-   club and coordinator login; disapproving deactivates both. (Until approved,
-   the coordinator cannot log in.)
+1. Super Admin opens `/admin/` → **Clubs**, creates the Club, and selects School
+   or Independent using the existing school-affiliation field.
+2. Super Admin creates the Club's single `COORDINATOR` user, assigns that Club,
+   and relays the generated/selected portal password. The protected API
+   equivalents are `POST /api/admin/clubs/` and
+   `POST /api/admin/coordinators/`.
 3. The coordinator logs in at `/portal/login/` and, from **Create accounts**,
-   provisions **players, coaches, school staff and guardians** — all scoped to
-   their club. Players / coaches / guardians get a one-time password for the
-   **mobile app** (Firebase); school staff get one for the **portal**.
+   provisions **players, coaches and guardians**—and **School Staff only for a
+   School Club**. The server always stamps the Coordinator's own Club.
 
 **School staff** — log in at `/portal/` and open **Academic eligibility** to set
 their club's players' eligibility (Eligible / Not Eligible / Pending / Academic
 Warning). Each change is recorded in the append-only eligibility history.
+Independent Clubs receive Not Applicable behavior and cannot create School
+Staff. FootPath Cebu never stores raw student grades.
 
 > Everything is isolated per club: a coordinator, coach or staff member only
 > ever sees their own club's players, roster, sessions and eligibility. Django

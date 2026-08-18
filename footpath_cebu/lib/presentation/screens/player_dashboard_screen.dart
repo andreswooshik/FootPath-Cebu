@@ -136,18 +136,26 @@ class _EligibilityTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return StatTile(
       icon: Icons.school_outlined,
-      label: 'School Grades',
-      value: _eligibilityHeadline(player.eligibility),
-      color: _eligibilityColor(player.eligibility),
-      subtitle: 'Tap for status history',
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => EligibilityHistoryScreen(
-            playerId: player.id,
-            playerName: player.name,
-          ),
-        ),
-      ),
+      label: 'Academic Eligibility',
+      value: player.academicEligibilityApplicable
+          ? _eligibilityHeadline(player.eligibility)
+          : 'N/A',
+      color: player.academicEligibilityApplicable
+          ? _eligibilityColor(player.eligibility)
+          : Colors.grey,
+      subtitle: player.academicEligibilityApplicable
+          ? 'Tap for status history'
+          : 'Available only to School clubs',
+      onTap: player.academicEligibilityApplicable
+          ? () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EligibilityHistoryScreen(
+                  playerId: player.id,
+                  playerName: player.name,
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

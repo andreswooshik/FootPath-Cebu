@@ -1,5 +1,9 @@
 # FootPath-Cebu — Full-Scale Audit (July 23, 2026)
 
+> **Historical snapshot:** The August 18, 2026 account and Club hierarchy
+> supersedes this document's public-registration decision. See
+> [Account and Club Hierarchy](../ACCOUNT-AND-CLUB-HIERARCHY.md).
+
 Supersedes the July 16 feature audit ([feature-audit.md](feature-audit.md)),
 which is kept as a historical snapshot. Audited against
 [docs/REQUIREMENTS.md](../REQUIREMENTS.md) (50% capstone defense scope) plus

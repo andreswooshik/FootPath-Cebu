@@ -1,5 +1,9 @@
 # FootPath-Cebu — Feature Audit
 
+> **Historical snapshot:** For the current Super Admin → Club → Coordinator
+> hierarchy and School/Independent behavior, see
+> [Account and Club Hierarchy](../ACCOUNT-AND-CLUB-HIERARCHY.md).
+
 _Audit of the specified feature set against the actual implementation, with a
 focus on whether each feature is **live with the backend** (real Django
 endpoint + wired client/console, not a mock-only stub)._

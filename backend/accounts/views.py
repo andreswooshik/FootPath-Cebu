@@ -8,15 +8,23 @@ from rest_framework.views import APIView
 
 from academy.models import AuditLog
 
-from .models import GuardianLink, Roles, User
+from .models import Club, GuardianLink, Roles, User
 from .permissions import IsAdmin
 from .serializers import (
+    AdminClubSerializer,
+    AdminCoordinatorCreateSerializer,
     AdminCreateUserSerializer,
     AdminUpdateUserSerializer,
     GuardianLinkSerializer,
     UserSerializer,
 )
-from .services import ProvisioningError, change_role, provision_user
+from .services import (
+    ProvisioningError,
+    change_role,
+    provision_club_coordinator,
+    provision_user,
+    provision_web_user,
+)
 
 
 class MeView(APIView):
@@ -37,11 +45,10 @@ def health(request):
 
 
 class AdminUserListCreateView(generics.ListCreateAPIView):
-    """Admin-only: list provisioned accounts, or create one.
+    """Super Admin registry and exceptional non-player member creation.
 
-    Account creation is restricted to Admin — this is the only way (besides
-    the seed_users dev command) that a Coach/Player/School Staff/Guardian
-    account comes into existence.
+    Club Coordinators are the normal creator of club members. Players are
+    excluded because their User and PlayerProfile must be created together.
     """
 
     permission_classes = [IsAdmin]
@@ -56,7 +63,12 @@ class AdminUserListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            user, temp_password, note = provision_user(**serializer.validated_data)
+            data = serializer.validated_data
+            if data['role'] == Roles.SCHOOL_STAFF:
+                user, temp_password = provision_web_user(**data)
+                note = 'School Staff portal account created.'
+            else:
+                user, temp_password, note = provision_user(**data)
         except ProvisioningError as exc:
             raise ValidationError(str(exc))
         AuditLog.record(
@@ -70,6 +82,71 @@ class AdminUserListCreateView(generics.ListCreateAPIView):
             },
             status=201,
         )
+
+
+class AdminClubListCreateView(generics.ListCreateAPIView):
+    """Super Admin creates and lists the platform's tenant clubs."""
+
+    permission_classes = [IsAdmin]
+    queryset = Club.objects.order_by('name')
+    serializer_class = AdminClubSerializer
+
+    def perform_create(self, serializer):
+        club = serializer.save()
+        AuditLog.record(
+            self.request.user,
+            'club.created',
+            target=club.name,
+            detail=club.club_type,
+        )
+
+
+class AdminClubDetailView(generics.RetrieveUpdateAPIView):
+    """Super Admin edits club details/type and its active state."""
+
+    permission_classes = [IsAdmin]
+    queryset = Club.objects.all()
+    serializer_class = AdminClubSerializer
+
+    def perform_update(self, serializer):
+        club = serializer.save()
+        if not club.is_active:
+            club.members.filter(role=Roles.COORDINATOR).update(is_active=False)
+        if not club.allows_school_staff:
+            club.members.filter(role=Roles.SCHOOL_STAFF).update(is_active=False)
+        AuditLog.record(
+            self.request.user,
+            'club.updated',
+            target=club.name,
+            detail=f'{club.club_type}; active={club.is_active}',
+        )
+
+
+class AdminCoordinatorCreateView(APIView):
+    """Super Admin assigns the single coordinator for a selected club."""
+
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        serializer = AdminCoordinatorCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            coordinator, password = provision_club_coordinator(
+                **serializer.validated_data
+            )
+        except ProvisioningError as exc:
+            raise ValidationError(str(exc))
+        AuditLog.record(
+            request.user,
+            'coordinator.created',
+            target=coordinator.email,
+            detail=coordinator.club.name,
+        )
+        return Response({
+            'user': UserSerializer(coordinator).data,
+            'temporary_password': password,
+            'note': 'Club Coordinator portal account created.',
+        }, status=201)
 
 
 class AdminUserDetailView(APIView):
@@ -106,6 +183,10 @@ class AdminUserDetailView(APIView):
                 detail=f'{previous_role} → {user.role}',
             )
         if 'is_active' in data and data['is_active'] != user.is_active:
+            if data['is_active'] and user.club_id and not user.club.is_active:
+                raise ValidationError(
+                    'A member cannot be activated while their club is inactive.'
+                )
             user.is_active = data['is_active']
             user.save(update_fields=['is_active'])
             AuditLog.record(

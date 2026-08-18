@@ -33,6 +33,13 @@ def fire_eligibility_changed(sender, instance, created, **kwargs):
     # record or announce.
     if created or previous is None or previous == instance.eligibility:
         return
+    if (
+        instance.user.club_id is not None
+        and not instance.user.club.allows_academic_eligibility
+    ):
+        # The stored default is kept for schema compatibility, but Independent
+        # clubs have no academic feature, history, or notifications.
+        return
     # Append-only history row, written in the same transaction as the change so
     # a rolled-back edit leaves no trail. changed_by is stashed on the instance
     # by the write path (admin save_model / a view); null when unknown.

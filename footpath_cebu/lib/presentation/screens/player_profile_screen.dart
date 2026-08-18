@@ -223,7 +223,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           const SizedBox(height: 16),
           _CoachEvaluationCard(notes: _player.coachNotes),
           const SizedBox(height: 16),
-          _AcademicStandingCard(status: _player.eligibility),
+          _AcademicStandingCard(
+            status: _player.eligibility,
+            applicable: _player.academicEligibilityApplicable,
+          ),
           const SizedBox(height: 16),
           // Medical context for training decisions. Read-only for the coach —
           // the player owns their records (and the server enforces it).
@@ -471,14 +474,15 @@ class _CoachEvaluationCard extends StatelessWidget {
 
 /// The academic gate set by School Staff — read-only for the coach.
 class _AcademicStandingCard extends StatelessWidget {
-  const _AcademicStandingCard({required this.status});
+  const _AcademicStandingCard({required this.status, required this.applicable});
 
   final EligibilityStatus status;
+  final bool applicable;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = _eligibilityColor(status);
+    final color = applicable ? _eligibilityColor(status) : Colors.grey;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -511,7 +515,9 @@ class _AcademicStandingCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _standingDescription(status),
+                  applicable
+                      ? _standingDescription(status)
+                      : 'Not applicable to an Independent club',
                   style: theme.textTheme.bodySmall,
                 ),
               ],

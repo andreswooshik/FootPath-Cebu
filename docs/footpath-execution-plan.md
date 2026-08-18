@@ -1,14 +1,22 @@
 # FootPath — 2-Week Execution Plan (Adviser Scope, Django-Aligned)
 **Scope authority:** adviser-issued feature list (supersedes prior internal drafts) · **Team:** 3 devs · **Stack:** Django REST Framework + PostgreSQL · Firebase Auth (Admin SDK verification) · FCM · Flutter MVVM (Provider + get_it) · Django Templates (Admin + School Staff web portals) · **Ship date:** Day 10 code freeze
 
+> **Architecture update (August 2026):** Account/Club provisioning in this
+> historical plan is superseded by
+> [Account and Club Hierarchy](ACCOUNT-AND-CLUB-HIERARCHY.md). Super Admin
+> creates Clubs and their Coordinators; the Coordinator normally creates
+> members only in their own Club. That document's School/Independent behavior
+> and grade-free eligibility boundary are authoritative.
+
 **Team split:**
 - **Member A** — Django backend: models, API endpoints, RBAC middleware, Firebase integration
 - **Member B** — Flutter mobile (Coach, Player, Guardian) + Django Templates portals (Admin, School Staff)
 - **Member C** — QA, testing infra (pytest-django, flutter_test), CI/CD (GitHub Actions), OWASP ZAP, demo data
 
 **Adviser scope, restated as the build list (nothing more, nothing less):**
-- RBAC across 5 roles: **Admin, Coach, Player, Guardian, School Staff** — Admin-only account creation, no public self-registration; Firebase-authenticated login with Admin-issued credentials
-- **Admin:** provision users (incl. linked Guardians), assign/manage role permissions, configure age-tier settings; 3 tiers (Foundation 10–12, Development 13–15, Pathway 16–18)
+- RBAC across 6 roles: **Super Admin, Club Coordinator, Coach, Player, Guardian, School Staff** — hierarchical account provisioning, no public self-registration; Firebase-authenticated mobile login with provisioned credentials
+- **Super Admin:** create/manage Clubs, choose School or Independent type, assign each Club's single Coordinator, and configure age-tier settings; 3 tiers (Foundation 10–12, Development 13–15, Pathway 16–18)
+- **Club Coordinator:** provision Coach, Player, Guardian, and—only for School Clubs—School Staff accounts inside their own active Club
 - **Coach:** schedule CRUD; offline-first attendance (Present/Absent/Excused) with auto-sync; **1–10 standardized rubric** ratings (position-aware + goalkeeper variants); qualitative feedback; view player profiles + performance trends
 - **Player:** view own profile / schedule / attendance / feedback+ratings / match performance stats / eligibility status; **injury history CRUD** (the one player-write feature)
 - **School Staff:** update eligibility status ∈ {ELIGIBLE, NOT_ELIGIBLE, PENDING, ACADEMIC_WARNING} with no grade entry/exposure; view eligibility status history of linked players
@@ -77,9 +85,9 @@ FcmDevice         → user FK, token, platform, last_seen
 
 ---
 
-### 1.1 Account Provisioning & Linking (Admin → Player + Guardian)
+### 1.1 Account Provisioning & Linking (Coordinator → Player + Guardian)
 
-**Principle:** No public self-registration means clients never call Firebase's signup APIs. The Admin portal (Django Templates) calls a Django service that uses the **Firebase Admin SDK server-side** to create the identity, then persists the domain record in PostgreSQL — with compensation so a DB failure never leaves an orphaned Firebase identity.
+**Principle:** No public self-registration means clients never call Firebase's signup APIs. The authenticated Club Coordinator portal calls a Django service that derives the Club from the coordinator, uses the **Firebase Admin SDK server-side** to create the identity, and persists the domain record in PostgreSQL—with compensation so a DB failure never leaves an orphaned Firebase identity. Super Admin separately creates Clubs and their single Coordinators.
 
 ```
 ┌─ ADMIN WEB PORTAL (Django Templates, Member B) ────────────────────────┐

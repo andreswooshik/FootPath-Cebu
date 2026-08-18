@@ -2,16 +2,30 @@ import os
 from uuid import uuid4
 
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
 class Roles(models.TextChoices):
-    ADMIN = 'ADMIN', 'Admin'
+    # The wire/database value remains ADMIN for backward compatibility; the
+    # product-facing name is Super Admin in the approved account hierarchy.
+    ADMIN = 'ADMIN', 'Super Admin'
     COORDINATOR = 'COORDINATOR', 'Club Coordinator'
     COACH = 'COACH', 'Coach'
     PLAYER = 'PLAYER', 'Player'
     SCHOOL_STAFF = 'SCHOOL_STAFF', 'School Staff'
     GUARDIAN = 'GUARDIAN', 'Guardian'
+
+
+class ClubTypes(models.TextChoices):
+    """API/UI vocabulary mapped onto the existing affiliation fields.
+
+    This is intentionally not another database column: `is_school_affiliated`
+    remains the single source of truth for a club's type.
+    """
+
+    SCHOOL = 'SCHOOL', 'School Club'
+    INDEPENDENT = 'INDEPENDENT', 'Independent Club'
 
 
 def coach_license_upload_to(instance, filename):
@@ -41,9 +55,8 @@ class Club(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # Registration details captured at signup and reviewed by a superadmin
-    # before the coordinator is approved. School staff / academic eligibility
-    # exist only for school-affiliated clubs.
+    # Club details maintained by Super Admin. School staff / academic
+    # eligibility exist only for school clubs.
     is_school_affiliated = models.BooleanField(default=False)
     school_name = models.CharField(max_length=150, blank=True)
     head_coach_name = models.CharField(max_length=150, blank=True)
@@ -69,6 +82,20 @@ class Club(models.Model):
         school-affiliated clubs."""
         return self.is_school_affiliated
 
+    @property
+    def allows_academic_eligibility(self):
+        """Whether status-only academic eligibility applies to this club."""
+        return self.is_school_affiliated
+
+    @property
+    def club_type(self):
+        """Expose the approved SCHOOL/INDEPENDENT label without new storage."""
+        return (
+            ClubTypes.SCHOOL
+            if self.is_school_affiliated
+            else ClubTypes.INDEPENDENT
+        )
+
 
 class User(AbstractUser):
     # Nullable so createsuperuser still works for the Django admin site;
@@ -89,6 +116,17 @@ class User(AbstractUser):
         blank=True,
         related_name='members',
     )
+
+    class Meta:
+        verbose_name = 'user'
+        verbose_name_plural = 'users'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['club'],
+                condition=models.Q(role=Roles.COORDINATOR),
+                name='one_coordinator_per_club',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.username} ({self.get_role_display()})'
@@ -111,6 +149,27 @@ class GuardianLink(models.Model):
 
     class Meta:
         unique_together = ('guardian', 'player')
+
+    def clean(self):
+        errors = {}
+        if self.guardian_id:
+            if self.guardian.role != Roles.GUARDIAN:
+                errors['guardian'] = 'The guardian account must have the Guardian role.'
+            if self.guardian.club_id is None:
+                errors['guardian'] = 'The guardian must belong to a club.'
+        if self.player_id:
+            if self.player.role != Roles.PLAYER:
+                errors['player'] = 'The player account must have the Player role.'
+            if self.player.club_id is None:
+                errors['player'] = 'The player must belong to a club.'
+        if (
+            self.guardian_id
+            and self.player_id
+            and self.guardian.club_id != self.player.club_id
+        ):
+            errors['player'] = 'Guardian and player must belong to the same club.'
+        if errors:
+            raise ValidationError(errors)
 
     def __str__(self):
         return f'{self.guardian.email} -> {self.player.email}'

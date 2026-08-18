@@ -64,8 +64,19 @@
       <button class="secondary" id="signout-button">Sign Out</button>
     </div>
 
-    <h2>Create Account</h2>
+    <h2>Platform Club Setup</h2>
     <div class="card">
+      <p>
+        Create and classify Clubs, then assign their single Club Coordinator in
+        the <a href="/admin/accounts/club/">Club administration</a>. Club
+        Coordinators are the normal creators of Coach, Player, Guardian, and
+        eligible School Staff accounts.
+      </p>
+    </div>
+
+    <h2>Emergency Member Creation</h2>
+    <div class="card">
+      <p>Use only for platform support; normal member provisioning belongs to the Club Coordinator.</p>
       <label for="create-email">Email</label>
       <input id="create-email" type="email">
       <label for="create-first-name">First name</label>
@@ -78,12 +89,14 @@
         <option value="SCHOOL_STAFF">School Staff</option>
         <option value="GUARDIAN">Guardian</option>
       </select>
+      <label for="create-club">Club</label>
+      <select id="create-club"></select>
       <button id="create-user-button">Create Account</button>
       <p id="create-user-error" class="error"></p>
       <div id="create-user-result" class="notice"></div>
     </div>
 
-    <h2>Add Player</h2>
+    <h2>Emergency Add Player</h2>
     <div class="card">
       <label for="player-email">Email (optional)</label>
       <input id="player-email" type="email">

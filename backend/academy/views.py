@@ -21,8 +21,7 @@ from accounts.permissions import IsAdmin
 from accounts.serializers import UserSerializer
 from accounts.services import (
     ProvisioningError,
-    provision_managed_player,
-    provision_user,
+    provision_player,
 )
 
 from .models import (
@@ -811,8 +810,10 @@ class EligibilityHistoryView(APIView):
             raise PermissionDenied(
                 'You may not view this player\'s eligibility history.'
             )
-        get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
+        player = get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
         _require_unlock_when_pin_exists(request, player_id)
+        if player.club_id is not None and not player.club.allows_academic_eligibility:
+            return Response({'applicable': False, 'results': []})
         history = EligibilityHistory.objects.filter(
             player_id=player_id
         ).select_related('changed_by')
@@ -1035,38 +1036,16 @@ class AdminCreatePlayerView(APIView):
         if not guardian.is_active:
             raise ValidationError('The selected guardian must be active.')
 
-        # Place the new player by the configured tier bands (previously both
-        # fields silently kept their model defaults: age 0, tier DEVELOPMENT).
-        age, tier = AgeTierSetting.profile_defaults_for(data['date_of_birth'])
-
         try:
-            with transaction.atomic():
-                email = data.get('email', '').strip()
-                if email:
-                    user, temp_password, note = provision_user(
-                        email=email,
-                        first_name=data['first_name'],
-                        last_name=data['last_name'],
-                        role=Roles.PLAYER,
-                    )
-                else:
-                    user = provision_managed_player(
-                        first_name=data['first_name'],
-                        last_name=data['last_name'],
-                        role=Roles.PLAYER,
-                    )
-                    temp_password = None
-                    note = (
-                        'Guardian-managed profile created; no player login exists yet.'
-                    )
-                profile = PlayerProfile.objects.create(
-                    user=user,
-                    middle_initial=data['middle_initial'],
-                    date_of_birth=data['date_of_birth'],
-                    age=age,
-                    age_tier=tier,
-                )
-                GuardianLink.objects.create(guardian=guardian, player=user)
+            user, profile, temp_password, note = provision_player(
+                email=data.get('email', ''),
+                first_name=data['first_name'],
+                last_name=data['last_name'],
+                middle_initial=data['middle_initial'],
+                date_of_birth=data['date_of_birth'],
+                club=guardian.club,
+                guardian=guardian,
+            )
         except ProvisioningError as exc:
             raise ValidationError(str(exc))
         AuditLog.record(

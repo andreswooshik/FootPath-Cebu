@@ -126,6 +126,17 @@ async function loadUsers() {
   }
 }
 
+async function loadClubs() {
+  const clubs = await apiFetch('/api/admin/clubs/');
+  const select = el('create-club');
+  select.innerHTML = '';
+  for (const club of clubs) {
+    if (club.is_active) {
+      select.add(new Option(`${club.name} (${club.club_type})`, club.id));
+    }
+  }
+}
+
 // Role switcher + activate/deactivate for one user row. Role changes are
 // limited to Coach / School Staff / Guardian — the server enforces the same
 // rule (players and coordinators are structurally tied to their role).
@@ -344,6 +355,7 @@ async function loadAgeTiers() {
 }
 
 async function refreshDashboard() {
+  await loadClubs();
   await loadUsers();
   await loadLinks();
   await loadDisputes();
@@ -406,6 +418,7 @@ el('create-user-button').addEventListener('click', async () => {
       first_name: el('create-first-name').value.trim(),
       last_name: el('create-last-name').value.trim(),
       role: el('create-role').value,
+      club_id: Number(el('create-club').value),
     };
     const result = await apiFetch('/api/admin/users/', {
       method: 'POST',

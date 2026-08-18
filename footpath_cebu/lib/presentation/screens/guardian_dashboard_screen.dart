@@ -212,17 +212,25 @@ class _StatRow extends ConsumerWidget {
           child: StatTile(
             icon: Icons.school_outlined,
             label: 'Academic Performance',
-            value: child.eligibility.label,
-            color: Colors.orange,
-            subtitle: 'Tap for status history',
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => EligibilityHistoryScreen(
-                  playerId: child.id,
-                  playerName: child.name,
-                ),
-              ),
-            ),
+            value: child.academicEligibilityApplicable
+                ? child.eligibility.label
+                : 'N/A',
+            color: child.academicEligibilityApplicable
+                ? Colors.orange
+                : Colors.grey,
+            subtitle: child.academicEligibilityApplicable
+                ? 'Tap for status history'
+                : 'Available only to School clubs',
+            onTap: child.academicEligibilityApplicable
+                ? () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => EligibilityHistoryScreen(
+                        playerId: child.id,
+                        playerName: child.name,
+                      ),
+                    ),
+                  )
+                : null,
           ),
         ),
         const SizedBox(width: 12),

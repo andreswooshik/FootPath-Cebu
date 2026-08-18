@@ -22,6 +22,15 @@ def portal_role_required(*roles):
                 raise PermissionDenied('Your role cannot access this page.')
             if request.user.club_id is None:
                 raise PermissionDenied('Your account is not assigned to a club.')
+            if not request.user.club.is_active:
+                raise PermissionDenied('Your club is inactive.')
+            if (
+                request.user.role == 'SCHOOL_STAFF'
+                and not request.user.club.allows_school_staff
+            ):
+                raise PermissionDenied(
+                    'School Staff access is unavailable for an Independent club.'
+                )
             return view(request, *args, **kwargs)
 
         return _wrapped

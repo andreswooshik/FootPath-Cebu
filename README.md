@@ -49,19 +49,30 @@ Tests live in `footpath_cebu/test/` (entity round-trips, provider filtering/erro
 ## 1. Comprehensive Workflow Architecture
 
 ### A. Account Provisioning & Linking
-Only the **Admin** can create accounts — there is **no public registration**.
+There is no public registration. The approved hierarchy is:
 
 ```
-Admin UI → Admin ViewModel → IUserRepository → Firebase Admin SDK
-  ├── Create Firebase Auth user
-  ├── Assign custom claims (role=PLAYER)
-  └── Generate temporary password → Firestore users/, players/
+SUPER ADMIN
+    ↓ creates/classifies
+CLUB (SCHOOL or INDEPENDENT)
+    ↓ receives one
+CLUB COORDINATOR
+    ↓ provisions only inside that club
+COACH / PLAYER / GUARDIAN / SCHOOL STAFF
 ```
 
-- **UI only submits:** Name, Email, Role, Age Tier
-- **UI never submits:** Claims, Permissions, UID
-- Only the backend can assign roles. Firestore Rules verify `request.auth.token.role`, **not** a `role` field inside the document.
-- Guardians are created the same way (`role=GUARDIAN`) and linked via `guardian_links/{guardianUid_playerUid}`.
+- Super Admin creates/manages Clubs and provisions each Club's Coordinator.
+- The Coordinator is the normal creator of Club members. Django derives the
+  target Club from the authenticated Coordinator and ignores manipulated
+  `club_id` input.
+- Player creation atomically creates the `PLAYER` user, non-null Club,
+  `PlayerProfile`, and optional same-Club Guardian link.
+- Only School Clubs allow School Staff and status-only academic eligibility.
+  Independent Clubs show eligibility as Not Applicable.
+- FootPath Cebu never stores raw student grades, GPA, report cards,
+  transcripts, or grade uploads.
+
+See [Account and Club Hierarchy](docs/ACCOUNT-AND-CLUB-HIERARCHY.md).
 
 ### B. Offline-to-Online Attendance
 Firestore local persistence is enabled, so the coach can mark attendance on the pitch with no internet:
@@ -77,7 +88,7 @@ On reconnect, Firestore's sync engine pushes to Cloud Firestore, a Cloud Functio
 School Staff set an eligibility **status enum only** — never grades, GPA, or report cards:
 
 ```
-eligibility/{playerUid} { status: ELIGIBLE | NOT_ELIGIBLE | PENDING | ACADEMIC_WARNING, updatedBy, updatedAt, remarks }
+  PlayerProfile.eligibility = ELIGIBLE | NOT_ELIGIBLE | PENDING | ACADEMIC_WARNING
 ```
 
 A Cloud Function notifies linked guardians on change. School Staff can access **only** the eligibility collection — not attendance, coach notes, or guardian accounts.
@@ -145,7 +156,8 @@ class AttendanceViewModel extends ChangeNotifier {
 
 **Authentication**
 - [ ] No public registration enabled
-- [ ] Admin SDK creates all users
+- [ ] Super Admin creates Clubs and their Coordinators
+- [ ] Club Coordinators create normal Club member accounts
 - [ ] Temporary passwords enforced
 - [ ] Firebase ID tokens validated
 - [ ] Custom claims assigned correctly & refreshed after role changes

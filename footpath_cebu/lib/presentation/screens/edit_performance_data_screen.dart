@@ -341,7 +341,11 @@ class _PlayerHeader extends StatelessWidget {
           alignment: WrapAlignment.center,
           children: [
             Chip(
-              label: Text(player.eligibility.label),
+              label: Text(
+                player.academicEligibilityApplicable
+                    ? player.eligibility.label
+                    : 'Eligibility N/A',
+              ),
               visualDensity: VisualDensity.compact,
             ),
             Chip(

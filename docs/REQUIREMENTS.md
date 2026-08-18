@@ -22,21 +22,24 @@ this milestone.
 Firebase is used for **identity only**. Roles, permissions, and all domain data
 live in the Django database, keyed to the Firebase UID.
 
-## Roles
+## Account and Club Hierarchy
 
-Five core roles: **Admin, Coach, Player, School Staff, Guardian** — plus
-**Club Coordinator**, added with multi-club support: a coordinator owns one
-club and provisions every account in it through the web portal.
+The approved hierarchy is:
+
+```text
+SUPER ADMIN → CLUB → CLUB COORDINATOR → COACH / PLAYER / GUARDIAN / SCHOOL STAFF
+```
+
+See [Account and Club Hierarchy](ACCOUNT-AND-CLUB-HIERARCHY.md) for the
+authoritative provisioning and club-type policy.
 
 - Role-based access control (RBAC) across all roles.
-- Account creation for end users (Coach, Player, School Staff, Guardian) is
-  **restricted to Admin and the club's Coordinator** — there is no public
-  self-registration for these roles. A Firebase account alone grants no
-  access; the backend rejects any UID it has not provisioned.
-- **Club registration is the one public signup** (decision, July 23 2026):
-  a coordinator registers their club through the portal, the account stays
-  inactive until a superadmin approves it, and all other accounts in that
-  club are then provisioned by the coordinator.
+- Super Admin creates/manages Clubs, chooses `SCHOOL` or `INDEPENDENT`, and
+  provisions the single Coordinator assigned to each Club.
+- The Club Coordinator is the normal and trusted creator of Coach, Player,
+  Guardian, and—only for a School Club—School Staff accounts in their own Club.
+- There is no public account or Club self-registration. A Firebase account
+  alone grants no access; the backend rejects any UID it has not provisioned.
 - Firebase-authenticated login for app roles (Coach, Player, Guardian) using
   issued credentials; Coordinators and School Staff are web-portal users with
   Django session login.
@@ -53,10 +56,17 @@ Three age tiers, configurable by Admin:
 
 ## Functional Requirements by Role
 
-### Admin
-- Provision user accounts for all roles, including linked Guardian accounts.
-- Assign and manage role-based permissions.
-- Configure age-tier settings.
+### Super Admin
+- Create, classify, activate, and deactivate Clubs.
+- Provision and manage the single Club Coordinator assigned to each Club.
+- Configure platform-wide age-tier settings.
+- Review platform-level configuration. Super Admin is not the normal creator
+  of Player, Coach, Guardian, or School Staff accounts.
+
+### Club Coordinator
+- Provision Coach, Player, and Guardian accounts only in their own active Club.
+- Provision School Staff only when their Club is a School Club.
+- Create Guardian links only between same-Club Guardians and Players.
 
 ### Coach
 - Create and manage training schedules.
@@ -80,6 +90,7 @@ Three age tiers, configurable by Admin:
 - Update a player's eligibility status (**Eligible, Not Eligible, Pending,
   Academic Warning**) without entering or exposing grades.
 - View the eligibility status history of linked players.
+- Has no account-provisioning privileges.
 
 ### Guardian
 - Log in with own credentials, linked to one or more player profiles.
@@ -90,7 +101,11 @@ Three age tiers, configurable by Admin:
 ## Cross-Cutting Requirements
 
 - **Eligibility privacy:** eligibility gating is driven by status flags only —
-  raw grades are never stored or exposed anywhere in the system.
+  FootPath Cebu never stores raw student grades, GPA, subject grades, report
+  cards, transcripts, or grade uploads.
+- **Club types:** School Clubs enable status-only academic eligibility and
+  School Staff. Independent Clubs receive Not Applicable behavior while all
+  unrelated football functionality remains available.
 - **Offline-first sync:** offline-captured records (attendance) sync
   automatically once connectivity returns.
 - **Push notifications:** the system delivers push notifications; Players and
@@ -103,9 +118,8 @@ Three age tiers, configurable by Admin:
 Everything not listed above, including (non-exhaustive): match management
 beyond viewing statistics, advanced analytics/reporting, payments/fees,
 messaging/chat, production deployment hardening (HTTPS, PostgreSQL), and
-self-registration for Coach/Player/School Staff/Guardian accounts
-(permanently out of scope by design — the approval-gated club registration
-signup is the sanctioned exception).
+self-registration for Clubs or any account role (permanently out of scope by
+design).
 
 ## Development Schedule Anchor
 

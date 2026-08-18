@@ -49,12 +49,14 @@ class PlayerSerializer(serializers.ModelSerializer):
     ratings = serializers.SerializerMethodField()
     photoUrl = serializers.SerializerMethodField()
     coachNotes = serializers.CharField(source='coach_notes', read_only=True)
+    academicEligibilityApplicable = serializers.SerializerMethodField()
 
     class Meta:
         model = PlayerProfile
         fields = [
             'id', 'name', 'age', 'classYear', 'ageTier', 'position',
-            'ratings', 'eligibility', 'photoUrl', 'coachNotes',
+            'ratings', 'eligibility', 'academicEligibilityApplicable',
+            'photoUrl', 'coachNotes',
         ]
 
     def get_name(self, obj):
@@ -79,6 +81,10 @@ class PlayerSerializer(serializers.ModelSerializer):
 
     def get_photoUrl(self, obj):
         return signed_photo_url(obj.photo_path) if obj.photo_path else None
+
+    def get_academicEligibilityApplicable(self, obj):
+        club = obj.user.club
+        return club is None or club.allows_academic_eligibility
 
 
 class PlayerSelectorSerializer(serializers.ModelSerializer):

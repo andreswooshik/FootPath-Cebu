@@ -1,5 +1,7 @@
+from django import forms
 from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 from django.contrib.auth.models import Group
 from django.db import transaction
 from django.utils.html import format_html
@@ -42,8 +44,48 @@ class BulkActionLabelMixin:
         )
 
 
+class FootPathUserValidationMixin:
+    """Keep manual Django-admin edits inside the approved hierarchy."""
+
+    def clean(self):
+        cleaned = super().clean()
+        role = cleaned.get('role')
+        club = cleaned.get('club')
+        if role == Roles.PLAYER:
+            raise forms.ValidationError(
+                'Create Players through the dedicated player flow so their '
+                'profile is created atomically.'
+            )
+        if role != Roles.ADMIN and club is None:
+            self.add_error('club', 'Every club-member account needs a club.')
+        if role == Roles.SCHOOL_STAFF and club and not club.allows_school_staff:
+            self.add_error(
+                'club', 'School Staff can be assigned only to a School club.'
+            )
+        if role == Roles.COORDINATOR and club:
+            existing = User.objects.filter(club=club, role=Roles.COORDINATOR)
+            if self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                self.add_error('club', 'This club already has a coordinator.')
+        return cleaned
+
+
+class FootPathUserCreationForm(FootPathUserValidationMixin, UserCreationForm):
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ('username', 'email', 'role', 'club')
+
+
+class FootPathUserChangeForm(FootPathUserValidationMixin, UserChangeForm):
+    class Meta(UserChangeForm.Meta):
+        model = User
+
+
 @admin.register(User)
 class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
+    add_form = FootPathUserCreationForm
+    form = FootPathUserChangeForm
     list_display = (
         'email', 'full_name', 'role_badge', 'club', 'status_chip', 'access_chip'
     )
@@ -72,7 +114,7 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
 
     @admin.action(description='Approve selected coordinators (activate login)')
     def approve_coordinators(self, request, queryset):
-        """Superadmin approval gate: flip pending coordinator signups active.
+        """Super Admin activation gate for coordinator accounts.
 
         A coordinator signs up via the web portal with is_active=False; until a
         developer runs this action they cannot log in (Django's ModelBackend
@@ -105,11 +147,19 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
         typed in the add form becomes the Firebase password, so the account
         works in the app immediately.
         """
+        if not change and obj.role == Roles.PLAYER:
+            raise forms.ValidationError(
+                'Create Players through the dedicated player flow.'
+            )
+        if obj.role != Roles.ADMIN and obj.club_id is None:
+            raise forms.ValidationError('Every club-member account needs a club.')
         super().save_model(request, obj, form, change)
 
-        # Only newly-created app accounts that aren't linked yet. Staff/superuser
-        # accounts log into /admin/ with a session password, not Firebase.
+        # Only newly-created mobile app accounts. Coordinator and School Staff
+        # use Django session passwords in the web portal.
         if change or obj.firebase_uid or obj.is_staff or obj.is_superuser:
+            return
+        if obj.role in (Roles.COORDINATOR, Roles.SCHOOL_STAFF):
             return
 
         if not obj.email:
@@ -208,7 +258,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     readonly_fields = ('created_at',)
     actions = ('approve_registrations', 'disapprove_registrations')
 
-    @admin.action(description='Approve selected club registrations')
+    @admin.action(description='Activate selected clubs and coordinators')
     def approve_registrations(self, request, queryset):
         """Approve clubs and activate their pending coordinator logins."""
         approved = 0
@@ -230,11 +280,11 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                     approved += 1
         self.message_user(
             request,
-            f'Approved {approved} club registration(s).',
+            f'Activated {approved} club(s).',
             level=messages.SUCCESS if approved else messages.WARNING,
         )
 
-    @admin.action(description='Disapprove selected club registrations')
+    @admin.action(description='Deactivate selected clubs and coordinators')
     def disapprove_registrations(self, request, queryset):
         """Deactivate clubs and prevent their coordinators from logging in."""
         disapproved = 0
@@ -252,7 +302,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                     disapproved += 1
         self.message_user(
             request,
-            f'Disapproved {disapproved} club registration(s).',
+            f'Deactivated {disapproved} club(s).',
             level=messages.SUCCESS if disapproved else messages.WARNING,
         )
 
@@ -261,7 +311,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
         coordinator = obj.coordinator
         return coordinator.email if coordinator else '—'
 
-    @admin.display(description='Registration')
+    @admin.display(description='Status')
     def registration_status(self, obj):
         coordinator = obj.coordinator
         if coordinator is None:
@@ -275,14 +325,14 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
         style = _PILL.format(extra=f'color:{color};background:{color}1A;')
         return format_html('<span style="{}">{}</span>', style, label)
 
-    @admin.display(description='School', ordering='is_school_affiliated')
+    @admin.display(description='Club type', ordering='is_school_affiliated')
     def school_chip(self, obj):
         if obj.is_school_affiliated:
             style = _PILL.format(extra='color:#0D9488;background:rgba(13,148,136,.15);')
             return format_html(
-                '<span style="{}">{}</span>', style, obj.school_name or 'Affiliated'
+                '<span style="{}">{}</span>', style, obj.school_name or 'School Club'
             )
-        return format_html('<span style="color:#64748B;">—</span>')
+        return format_html('<span style="color:#64748B;">Independent Club</span>')
 
     @admin.display(description='Members')
     def member_count(self, obj):

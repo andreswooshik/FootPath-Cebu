@@ -138,6 +138,7 @@ class PlayerCard extends StatelessWidget {
                         fit: BoxFit.scaleDown,
                         child: _EligibilityBadge(
                           status: player.eligibility,
+                          applicable: player.academicEligibilityApplicable,
                           scale: s,
                         ),
                       ),
@@ -310,32 +311,42 @@ class _StatColumn extends StatelessWidget {
 
 /// A translucent academic-standing pill sized for the dark card face.
 class _EligibilityBadge extends StatelessWidget {
-  const _EligibilityBadge({required this.status, required this.scale});
+  const _EligibilityBadge({
+    required this.status,
+    required this.applicable,
+    required this.scale,
+  });
 
   final EligibilityStatus status;
+  final bool applicable;
   final double scale;
 
   @override
   Widget build(BuildContext context) {
     late final Color color;
     late final IconData icon;
-    switch (status) {
-      case EligibilityStatus.eligible:
-        color = const Color(0xFF8FE3A6);
-        icon = Icons.check_circle;
-        break;
-      case EligibilityStatus.academicWarning:
-        color = const Color(0xFFFFC65C);
-        icon = Icons.warning_amber_rounded;
-        break;
-      case EligibilityStatus.notEligible:
-        color = const Color(0xFFFF8A80);
-        icon = Icons.cancel;
-        break;
-      case EligibilityStatus.pending:
-        color = const Color(0xFFB0BEC5);
-        icon = Icons.hourglass_bottom;
-        break;
+    if (!applicable) {
+      color = const Color(0xFFB0BEC5);
+      icon = Icons.block;
+    } else {
+      switch (status) {
+        case EligibilityStatus.eligible:
+          color = const Color(0xFF8FE3A6);
+          icon = Icons.check_circle;
+          break;
+        case EligibilityStatus.academicWarning:
+          color = const Color(0xFFFFC65C);
+          icon = Icons.warning_amber_rounded;
+          break;
+        case EligibilityStatus.notEligible:
+          color = const Color(0xFFFF8A80);
+          icon = Icons.cancel;
+          break;
+        case EligibilityStatus.pending:
+          color = const Color(0xFFB0BEC5);
+          icon = Icons.hourglass_bottom;
+          break;
+      }
     }
     return Container(
       padding: EdgeInsets.symmetric(
@@ -356,7 +367,7 @@ class _EligibilityBadge extends StatelessWidget {
           Icon(icon, size: 16 * scale, color: color),
           SizedBox(width: 6 * scale),
           Text(
-            status.label,
+            applicable ? status.label : 'Eligibility N/A',
             style: TextStyle(
               color: color,
               fontWeight: FontWeight.w700,

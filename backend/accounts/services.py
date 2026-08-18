@@ -4,7 +4,7 @@ from uuid import uuid4
 from firebase_admin import auth as firebase_auth
 
 from .firebase import ensure_initialized
-from .models import Roles, User
+from .models import Club, GuardianLink, Roles, User
 
 # Excludes visually-ambiguous characters (0/O, 1/l/I) for readability when an
 # admin has to relay this password to someone by hand.
@@ -13,6 +13,19 @@ _PASSWORD_CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789'
 
 class ProvisioningError(Exception):
     """Raised when a user cannot be provisioned (bad input, conflicts)."""
+
+
+def _require_active_club(club, *, role):
+    """Return a validated tenant for every club-member account."""
+    if not isinstance(club, Club) or club.pk is None:
+        raise ProvisioningError(f'{role} accounts must be assigned to a club.')
+    if not club.is_active:
+        raise ProvisioningError('Accounts cannot be created for an inactive club.')
+    if role == Roles.SCHOOL_STAFF and not club.allows_school_staff:
+        raise ProvisioningError(
+            'School Staff accounts are available only to School clubs.'
+        )
+    return club
 
 
 def link_or_create_firebase_user(user, *, password=None):
@@ -50,7 +63,9 @@ def link_or_create_firebase_user(user, *, password=None):
     return temp_password
 
 
-def provision_user(*, email, first_name, last_name, role, club=None):
+def provision_user(
+    *, email, first_name, last_name, role, club=None, _allow_player=False
+):
     """Create a Firebase account (if needed) and a linked local User.
 
     For app users (player / coach / guardian) who authenticate via Firebase.
@@ -61,6 +76,18 @@ def provision_user(*, email, first_name, last_name, role, club=None):
     existing, unlinked Firebase account is adopted instead, its password is
     left untouched and `note` explains that.
     """
+    if role == Roles.PLAYER and not _allow_player:
+        raise ProvisioningError(
+            'Players must be created through the player provisioning service.'
+        )
+    if role not in (Roles.COACH, Roles.GUARDIAN, Roles.PLAYER):
+        raise ProvisioningError(
+            'This provisioning path supports Coach, Guardian, and Player app accounts only.'
+        )
+    club = _require_active_club(club, role=role)
+    email = email.strip().lower()
+    if not email:
+        raise ProvisioningError('An email address is required for an app account.')
     if User.objects.filter(email__iexact=email).exists():
         raise ProvisioningError(f'{email} is already provisioned.')
 
@@ -96,20 +123,88 @@ def provision_user(*, email, first_name, last_name, role, club=None):
     return user, temp_password, note
 
 
-def provision_managed_player(*, first_name, last_name, role, club=None):
+def provision_managed_player(*, first_name, last_name, club):
     """Create a player profile with no independent login identity."""
+    club = _require_active_club(club, role=Roles.PLAYER)
     user = User(
         username=f'managed-player-{uuid4().hex}',
         email='',
         first_name=first_name,
         last_name=last_name,
-        role=role,
+        role=Roles.PLAYER,
         club=club,
         is_active=True,
     )
     user.set_unusable_password()
     user.save()
     return user
+
+
+def provision_player(
+    *, email, first_name, last_name, middle_initial, date_of_birth, club,
+    guardian=None,
+):
+    """Create one valid PLAYER aggregate in a single transaction.
+
+    Every player creation path calls this service. It derives the age/tier,
+    creates exactly one User and PlayerProfile, and optionally creates a
+    same-club GuardianLink. A failed profile/link write rolls back the database
+    and compensates a newly-created Firebase identity.
+    """
+    from academy.models import AgeTierSetting, PlayerProfile
+
+    club = _require_active_club(club, role=Roles.PLAYER)
+    if guardian is not None:
+        if guardian.role != Roles.GUARDIAN or not guardian.is_active:
+            raise ProvisioningError(
+                'The selected guardian must be active and have the Guardian role.'
+            )
+        if guardian.club_id != club.id:
+            raise ProvisioningError(
+                'Guardian and player must belong to the same club.'
+            )
+
+    user = None
+    temp_password = None
+    note = 'Managed player profile created without an independent login.'
+    try:
+        with transaction.atomic():
+            normalized_email = (email or '').strip().lower()
+            if normalized_email:
+                user, temp_password, note = provision_user(
+                    email=normalized_email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    role=Roles.PLAYER,
+                    club=club,
+                    _allow_player=True,
+                )
+            else:
+                user = provision_managed_player(
+                    first_name=first_name,
+                    last_name=last_name,
+                    club=club,
+                )
+
+            age, tier = AgeTierSetting.profile_defaults_for(date_of_birth)
+            profile = PlayerProfile.objects.create(
+                user=user,
+                middle_initial=middle_initial or '',
+                date_of_birth=date_of_birth,
+                age=age,
+                age_tier=tier,
+            )
+            if guardian is not None:
+                GuardianLink.objects.create(guardian=guardian, player=user)
+    except Exception:
+        if temp_password is not None and user and user.firebase_uid:
+            try:
+                firebase_auth.delete_user(user.firebase_uid)
+            except Exception:
+                pass
+        raise
+
+    return user, profile, temp_password, note
 
 
 # Roles an account may be switched between after creation. PLAYER is excluded
@@ -139,6 +234,7 @@ def change_role(user, new_role):
         )
     if new_role not in SWITCHABLE_ROLES:
         raise ProvisioningError(f'Accounts cannot be switched to {new_role}.')
+    _require_active_club(user.club, role=new_role)
     if (
         user.role == Roles.GUARDIAN
         and new_role != Roles.GUARDIAN
@@ -185,6 +281,12 @@ def provision_web_user(
     Returns (user, password) — the caller relays `password` to the person
     (the one supplied, or a generated temporary one).
     """
+    if role not in (Roles.COORDINATOR, Roles.SCHOOL_STAFF):
+        raise ProvisioningError(
+            'This provisioning path supports Club Coordinator and School Staff only.'
+        )
+    club = _require_active_club(club, role=role)
+    email = email.strip().lower()
     if User.objects.filter(email__iexact=email).exists():
         raise ProvisioningError(f'{email} is already provisioned.')
 
@@ -201,3 +303,22 @@ def provision_web_user(
     user.set_password(generated)
     user.save()
     return user, generated
+
+
+@transaction.atomic
+def provision_club_coordinator(
+    *, email, first_name, last_name, club, password=None, is_active=True
+):
+    """Super Admin flow for a club's single coordinator account."""
+    club = _require_active_club(club, role=Roles.COORDINATOR)
+    if User.objects.filter(club=club, role=Roles.COORDINATOR).exists():
+        raise ProvisioningError('This club already has a coordinator.')
+    return provision_web_user(
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        role=Roles.COORDINATOR,
+        club=club,
+        password=password,
+        is_active=is_active,
+    )

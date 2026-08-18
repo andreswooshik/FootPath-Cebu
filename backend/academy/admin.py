@@ -63,9 +63,18 @@ class PlayerEligibilityAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         return False
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(
+            user__club__is_school_affiliated=True
+        )
+
     def save_model(self, request, obj, form, change):
         # Hand the acting admin to the eligibility signal so the history row it
         # writes is attributed. Model signals have no request context otherwise.
+        if not obj.user.club.allows_academic_eligibility:
+            raise ValueError(
+                'Academic eligibility is not applicable to an Independent club.'
+            )
         obj._changed_by = request.user
         super().save_model(request, obj, form, change)
 

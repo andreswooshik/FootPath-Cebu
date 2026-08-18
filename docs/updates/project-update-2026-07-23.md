@@ -1,5 +1,9 @@
 # FootPath-Cebu — Project Update (July 23, 2026)
 
+> **Historical snapshot:** Public Club registration described below was later
+> removed. The current architecture is documented in
+> [Account and Club Hierarchy](../ACCOUNT-AND-CLUB-HIERARCHY.md).
+
 **To:** Team Leader
 **From:** Ralf Andre Ebuna
 **Period covered:** July 16 – 23, 2026
