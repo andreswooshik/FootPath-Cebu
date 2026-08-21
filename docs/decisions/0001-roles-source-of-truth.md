@@ -9,8 +9,8 @@ roles are stored as **Firebase custom claims** and enforced by **Firestore
 Security Rules** (`request.auth.token.role`). This project instead uses a
 **Django REST backend** with its own database for application data.
 
-We had to decide where a user's role (ADMIN / COACH / PLAYER / SCHOOL_STAFF /
-GUARDIAN) is stored and enforced.
+We had to decide where a user's role (SUPER ADMIN / CLUB COORDINATOR / COACH /
+PLAYER / SCHOOL STAFF / GUARDIAN) is stored and enforced.
 
 ## Decision
 
@@ -22,15 +22,16 @@ GUARDIAN) is stored and enforced.
   the `uid` to a provisioned Django user (`accounts/authentication.py`).
 - Authorization is enforced by DRF permission classes built from the role:
   `role_required(...)` → `IsAdmin`, `IsCoach`, etc. (`accounts/permissions.py`).
-- A valid Firebase token with **no** provisioned Django account is rejected —
-  account creation is Admin-only.
+- A valid Firebase token with **no** provisioned Django account is rejected.
+  Super Admin creates Clubs and their Coordinators; each Coordinator normally
+  provisions members only inside their own active Club.
 
 ## Consequences
 
 **Positive**
 - One authorization system to reason about (Django), not two.
-- No client can self-assign a role; roles are set only during Admin
-  provisioning, server-side.
+- No client can self-assign a role or Club; both are established through the
+  server-side hierarchy.
 - Testable in CI without Firebase — see `accounts/tests.py` (Firebase
   verification is mocked; role enforcement is asserted per role).
 
@@ -45,7 +46,8 @@ GUARDIAN) is stored and enforced.
 ## Verification
 
 `python manage.py test accounts` asserts:
-- every `admin/*` endpoint rejects non-admin roles and accepts Admin;
+- every `admin/*` endpoint rejects non-admin roles and accepts Super Admin;
 - `auth/me/` requires authentication and returns the caller's role;
 - a verified token maps to the right provisioned user;
-- a verified token with no local account is rejected.
+- a verified token with no local account is rejected;
+- Coordinators cannot provision across Clubs or create privileged roles.

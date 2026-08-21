@@ -4,7 +4,8 @@ import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 
 /// In-memory squad roster for UI development without a backend.
-class MockPlayerRepository implements PlayerRepository, PlayerDetailsReader {
+class MockPlayerRepository
+    implements PlayerRepository, PlayerDetailsReader, PlayerPhotoWriter {
   static final List<Player> _squad = [
     const Player(
       id: 'p1',
@@ -253,6 +254,28 @@ class MockPlayerRepository implements PlayerRepository, PlayerDetailsReader {
     final updated = _squad[index].copyWith(
       ratings: ratings,
       coachNotes: coachNotes,
+    );
+    _squad[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<Player> uploadPhoto(
+    String playerId, {
+    required List<int> bytes,
+    required String filename,
+    required String contentType,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    final index = _squad.indexWhere((player) => player.id == playerId);
+    if (index == -1) {
+      throw PlayerRepositoryException('No such player.');
+    }
+    if (bytes.isEmpty) {
+      throw PlayerRepositoryException('Choose a non-empty photo.');
+    }
+    final updated = _squad[index].copyWith(
+      photoUrl: 'https://example.invalid/mock-player-photo/$playerId',
     );
     _squad[index] = updated;
     return updated;

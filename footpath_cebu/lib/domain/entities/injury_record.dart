@@ -101,13 +101,13 @@ class InjuryRecord {
   /// Write shape for POST/PUT — dates are date-only, server-owned fields
   /// (id, playerId, timestamps) are omitted.
   Map<String, dynamic> toJson() => {
-        'description': description,
-        'status': status.wire,
-        'occurredOn': _dateOnly(occurredOn),
-        'bodyPart': bodyPart ?? '',
-        'resolvedOn': resolvedOn == null ? null : _dateOnly(resolvedOn!),
-        'notes': notes ?? '',
-      };
+    'description': description,
+    'status': status.wire,
+    'occurredOn': _dateOnly(occurredOn),
+    'bodyPart': bodyPart ?? '',
+    'resolvedOn': resolvedOn == null ? null : _dateOnly(resolvedOn!),
+    'notes': notes ?? '',
+  };
 
   static String _dateOnly(DateTime date) =>
       date.toIso8601String().split('T').first;

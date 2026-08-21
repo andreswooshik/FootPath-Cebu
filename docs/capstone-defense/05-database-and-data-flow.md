@@ -16,6 +16,7 @@ Club
  │   │   ├─ SessionConfirmation ── TrainingSession
  │   │   └─ InjuryRecord
  │   ├─ DeviceToken
+ │   ├─ NotificationRecord (durable inbox/read state)
  │   └─ GuardianLink (guardian User -> player User)
  ├─ TrainingSession
  └─ club-scoped queries/disputes through related users
@@ -44,6 +45,7 @@ AgeTierSetting (global configuration)
 | `DisputeResponse` | dispute, author, body, optional status transition, time | dispute cascades; author `SET_NULL` |
 | `AuditLog` | actor, action, target, detail, time | actor `SET_NULL` |
 | `DeviceToken` | user, token, platform, updated | token unique; user cascades |
+| `NotificationRecord` | user, event type, title/body, data, read time, created time | user cascades; current-user inbox index/order |
 
 `PlayerEligibility` is a proxy model and creates no separate table.
 
@@ -62,12 +64,13 @@ AgeTierSetting (global configuration)
 | Player → EligibilityHistory | one-to-many | append-only status transitions; changer optional FK |
 | Dispute → DisputeResponse | one-to-many | timestamped append-only thread responses |
 | User → DeviceToken | one-to-many | token itself globally unique |
+| User → NotificationRecord | one-to-many | durable per-user inbox rows; read time nullable |
 
 ## Data creation and retrieval examples
 
 ### Player account creation
 
-Trusted portal/admin input → provisioning service creates/links Firebase identity → Django `User` → `PlayerProfile` → optional `GuardianLink` → response. Cross-system compensation removes a newly created Firebase identity if relational persistence fails.
+Trusted portal/admin input → provisioning service creates/links Firebase identity → Django `User` with active Club → exactly one `PlayerProfile` → optional same-Club `GuardianLink` → response. Generic account creation cannot select `PLAYER`, and both seed commands repair/create this same aggregate idempotently. Cross-system compensation removes a newly created Firebase identity if relational persistence fails.
 
 ### Squad retrieval
 
@@ -81,9 +84,15 @@ The client sends a session ID and a complete `records` list. The server looks up
 
 Changing the current `PlayerProfile.eligibility` triggers signals. The prior value is captured before save; after save, a new append-only `EligibilityHistory` row and an audit entry are created. The current status is optimized for display while history supports accountability.
 
+### Notification persistence
+
+A committed notification event creates a `NotificationRecord` for each active recipient before best-effort FCM delivery. List/unread/mark-one/mark-all queries always filter by the authenticated user. The row remains available in the inbox even when a device token is absent or push transport fails.
+
 ## Mobile-local database
 
-The Flutter app creates a separate sqflite table only for queued attendance writes:
+Flutter uses sqflite for two owner-scoped resilience stores, not as a replica of the Django database.
+
+### Attendance outbox
 
 | Column | Meaning |
 |---|---|
@@ -97,15 +106,29 @@ The Flutter app creates a separate sqflite table only for queued attendance writ
 
 Owner scoping prevents one user who later signs in on the same device from replaying another user’s queued writes. Sequential oldest-first replay preserves intended order.
 
+### Authenticated GET cache
+
+| Column | Meaning |
+|---|---|
+| `owner_uid` + `cache_key` | composite identity for one user and exact request |
+| `status_code` | cached successful HTTP status |
+| `body` | successful JSON response body |
+| `headers_json` | serialized response headers |
+| `updated_at` | age/expiry basis |
+
+The shared API client writes only eligible successful JSON GET responses. It may read them only for a network-classified failure, never for HTTP 4xx/5xx or decode errors. Entries expire after 24 hours, protected unlock responses are excluded, and sign-out clears only the departing owner.
+
 ## Integrity mechanisms
 
 - model foreign keys and one-to-one relationships;
 - unique guardian links, attendance rows, confirmations, device tokens, and tier names;
+- central Player aggregate provisioning plus idempotent seed repair for active Club + exactly one PlayerProfile;
+- cross-field `TrainingSession` validation for paired supported 12-hour strings and start before end through serializer and model-save paths;
 - DRF field ranges and choices;
 - server-derived club/actor/player fields;
 - `transaction.atomic()` for multi-record attendance, account, PIN, and dispute operations;
 - `select_for_update()` for PIN failure/lock state;
-- `transaction.on_commit()` for notifications so a push is not sent for a rolled-back write;
+- `transaction.on_commit()` for notifications so inbox/push events are not emitted for a rolled-back write;
 - audit and eligibility history records.
 
 ## Deletion behavior worth knowing
@@ -120,7 +143,7 @@ Owner scoping prevents one user who later signs in on the same device from repla
 1. No performance-assessment history exists; new assessments overwrite the current twelve rating fields.
 2. No grades are stored; only an eligibility enum/history is stored.
 3. No match or scouting tables exist.
-4. Training times are strings rather than database time fields, and chronological validation was not found.
+4. Training times remain strings for the existing wire/display contract; serializer and model validation now require paired supported 12-hour values and enforce start before end, but native database `TIME` columns would offer stronger engine-level typing.
 5. `(player, session)` uniqueness includes a nullable session; SQL null semantics can allow multiple legacy null-session attendance rows.
 6. Rating constraints are primarily serializer-level; model/DB checks do not comprehensively enforce 0–99 for every write route.
 7. Player provisioning is centralized: every successful path commits a
@@ -131,7 +154,7 @@ Owner scoping prevents one user who later signs in on the same device from repla
 
 **Why structure it relationally?** The academy domain is relationship-heavy: users belong to clubs, guardians link to players, and players relate to many sessions through attendance/confirmation. Foreign keys, unique pairs, transactions, and joins make these invariants explicit.
 
-**How are duplicates/inconsistency prevented?** Unique fields/pairs, one-to-one profiles/PINs, serializer/form validation, server-derived ownership, atomic writes, and same-club checks work together. Known gaps are nullable-session uniqueness, DB-level rating ranges, and two admin provisioning paths.
+**How are duplicates/inconsistency prevented?** Unique fields/pairs, one-to-one profiles/PINs, central Player aggregate provisioning, serializer/model validation, server-derived ownership, atomic writes, and same-club checks work together. Remaining gaps include nullable-session uniqueness and DB-level rating ranges.
 
 **How do tables relate?** `accounts_user` is the identity hub. A player user owns one profile and connects to guardians, sessions, attendance, confirmation, eligibility history, injury, and disputes through FKs/junction rows.
 
@@ -139,4 +162,4 @@ Owner scoping prevents one user who later signs in on the same device from repla
 
 ## Database answer to memorize
 
-> Django ORM owns the data. SQLite is the default and test database; configured deployments can use PostgreSQL, including Supabase-hosted PostgreSQL. The relational design uses club/user links, one-to-one player profiles, unique session records, append-only eligibility/dispute histories, transactions, and server-derived tenant fields. Flutter has only a user-scoped local attendance outbox, not a copy of the main database.
+> Django ORM owns the data. SQLite is the default and test database; configured deployments can use PostgreSQL, including Supabase-hosted PostgreSQL. The relational design uses club/user links, one-to-one player profiles, unique session records, append-only eligibility/dispute histories, durable notification rows, transactions, and server-derived tenant fields. Flutter keeps only a user-scoped attendance outbox and eligible GET cache, not a copy of the main database.

@@ -38,8 +38,27 @@ abstract class AttendanceRepository
 
 /// Thrown when an attendance read or write cannot be completed.
 class AttendanceRepositoryException implements Exception {
-  AttendanceRepositoryException(this.message);
+  AttendanceRepositoryException(this.message, {this.statusCode});
+
   final String message;
+  final int? statusCode;
+
+  /// Whether replaying the same request later may succeed without changing
+  /// its payload. Unknown failures are retained rather than risking data loss.
+  bool get isRetryable {
+    final status = statusCode;
+    if (status == null) return true;
+    return status == 401 ||
+        status == 403 ||
+        status == 408 ||
+        status == 429 ||
+        status >= 500;
+  }
+
+  bool get isNonRetryableClientError {
+    final status = statusCode;
+    return status != null && status >= 400 && status < 500 && !isRetryable;
+  }
 
   @override
   String toString() => message;

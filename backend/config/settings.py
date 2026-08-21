@@ -23,10 +23,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / '.env')
 
-# True while running `manage.py test`. Used to force SQLite for the test suite
-# even when DB_* env vars point at a shared Postgres, so tests stay fast, run
-# offline, and never create a throwaway test DB on Supabase.
+# True while running `manage.py test`. Used to force isolated/local services
+# and to keep tests from emitting production telemetry.
 TESTING = 'test' in sys.argv
+
+# Optional production error monitoring. The integration is inert unless a
+# DSN is supplied, so local development and tests never send telemetry.
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '').strip()
+if SENTRY_DSN and not TESTING:
+    import sentry_sdk
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=os.environ.get('SENTRY_ENVIRONMENT', 'production'),
+        release=os.environ.get('RELEASE_SHA') or None,
+        send_default_pii=False,
+        traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0.05')),
+    )
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
@@ -76,8 +89,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -89,6 +103,10 @@ MIDDLEWARE = [
     # django-axes must be the LAST middleware so it sees the resolved user.
     'axes.middleware.AxesMiddleware',
 ]
+if TESTING:
+    # Tests exercise application behavior, not collected-static serving, and
+    # a fresh checkout intentionally has no generated staticfiles directory.
+    MIDDLEWARE.remove('whitenoise.middleware.WhiteNoiseMiddleware')
 
 # django-axes plugs in ahead of the normal ModelBackend so a locked-out
 # (username, IP) pair is rejected before any password is even checked. The
@@ -136,7 +154,9 @@ if os.environ.get('DB_HOST') and not TESTING:
             'PASSWORD': os.environ['DB_PASSWORD'],
             'HOST': os.environ['DB_HOST'],
             'PORT': os.environ.get('DB_PORT', '5432'),
-            'OPTIONS': {'sslmode': 'require'},
+            'OPTIONS': {
+                'sslmode': os.environ.get('DB_SSLMODE', 'require'),
+            },
             # Supabase's transaction pooler (port 6543) doesn't support the
             # server-side cursors Django uses by default; harmless on 5432.
             'DISABLE_SERVER_SIDE_CURSORS': os.environ.get('DB_PORT') == '6543',
@@ -196,6 +216,19 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': (
+            'django.contrib.staticfiles.storage.StaticFilesStorage'
+            if TESTING
+            else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+        ),
+    },
+}
 
 # Uploaded files (coach licenses submitted at club registration). Kept out of
 # git (see .gitignore); in DEBUG they are served by config/urls.py. A hard size
@@ -240,6 +273,34 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+}
+
+# Structured-enough console logs for container aggregation. Request bodies,
+# tokens, passwords, and student data are deliberately not added to log lines.
+LOG_LEVEL = os.environ.get('DJANGO_LOG_LEVEL', 'INFO').upper()
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'production': {
+            'format': '{asctime} {levelname} {name} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'production',
+        },
+    },
+    'root': {'handlers': ['console'], 'level': LOG_LEVEL},
+    'loggers': {
+        'django.security': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
 }
 
 # Cache. LocMemCache needs no external service, so a fresh clone and the test

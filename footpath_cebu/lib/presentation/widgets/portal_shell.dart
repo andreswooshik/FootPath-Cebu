@@ -15,27 +15,43 @@ class PortalShell extends StatefulWidget {
     required this.pages,
     required this.navigationBarBuilder,
     this.showNavigation = true,
+    this.initialIndex = 0,
   });
 
   final List<Widget> pages;
   final Widget Function(int selectedIndex, ValueChanged<int> onSelected)
   navigationBarBuilder;
   final bool showNavigation;
+  final int initialIndex;
 
   @override
   State<PortalShell> createState() => _PortalShellState();
 }
 
 class _PortalShellState extends State<PortalShell> {
-  int _selectedIndex = 0;
+  late int _selectedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = _safeIndex(widget.initialIndex);
+  }
 
   @override
   void didUpdateWidget(covariant PortalShell oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.pages.isEmpty) return;
-    if (_selectedIndex >= widget.pages.length) {
+    if (oldWidget.initialIndex != widget.initialIndex) {
+      _selectedIndex = _safeIndex(widget.initialIndex);
+    } else if (_selectedIndex >= widget.pages.length) {
       _selectedIndex = widget.pages.length - 1;
     }
+  }
+
+  int _safeIndex(int requested) {
+    if (widget.pages.isEmpty || requested < 0) return 0;
+    if (requested >= widget.pages.length) return widget.pages.length - 1;
+    return requested;
   }
 
   void _selectTab(int index) {

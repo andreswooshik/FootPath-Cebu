@@ -4,7 +4,7 @@ These 30 hostile questions are designed to expose overclaiming. Answer directly,
 
 ### A1. “Your README says Firestore. Did you even build what you proposed?”
 
-The current code uses Django ORM, not Firestore. That README section is stale planning material; ADR 0001 and the executable repositories make Django the source of truth. Before final submission we should reconcile the README so documentation matches the delivered system.
+The current code uses Django ORM, not Firestore. The root README has now been reconciled to that delivered architecture; ADR 0001 preserves historical decision context, and executable repositories make Django the source of truth. The remaining documented specification mismatch is the rating scale, which requires stakeholder approval rather than silent rewriting.
 
 ### A2. “Where exactly is your AI?”
 
@@ -12,7 +12,7 @@ There is no AI in the current executable source. Human-entered ratings and ORM a
 
 ### A3. “Then what is technically impressive about this?”
 
-The strongest engineering is layered authorization and resilience: Firebase identity mapped to Django role/club/object rules, a hashed and throttled guardian PIN with signed temporary unlocks, transactional audit/history, and a user-scoped ordered offline attendance outbox.
+The strongest engineering is layered authorization and resilience: Firebase identity mapped to Django role/club/object rules, a hashed and throttled guardian PIN with signed temporary unlocks, transactional audit/history, a user-scoped ordered attendance outbox/safe-read cache, and durable notification history independent of best-effort push transport.
 
 ### A4. “You claim six roles, but I only see three mobile screens.”
 
@@ -56,7 +56,7 @@ The code restricts injury reads/writes and minimizes guardian selector data, but
 
 ### A14. “You advertise notifications. Show me the inbox.”
 
-There is no complete inbox. Device registration and backend FCM sends exist, but bell callbacks, foreground handling, and notification history/navigation are incomplete. We label notifications partial.
+Open the role dashboard bell and `NotificationInboxScreen`. Django stores current-user `NotificationRecord` rows and exposes list/unread/read APIs; Flutter renders unread state and handles foreground pushes. A row tap, foreground **View**, or opened/initial push routes known trusted events to the authorized Schedule, Player/linked-child Profile, or Eligibility destination behind existing privacy gates; unknown events or profile failures safely focus the inbox. Actual physical-device delivery still depends on configured Firebase/APNs and is evidence separate from inbox persistence.
 
 ### A15. “Your demo works because it is all fake data, correct?”
 
@@ -64,7 +64,7 @@ Debug does default to mock repositories unless explicitly disabled. A valid inte
 
 ### A16. “What happens without internet?”
 
-Only attendance writes have designed offline fallback. A network-failed complete batch is queued and later replayed. Most reads and all other writes need connectivity, so the app is not fully offline.
+Only attendance writes have queued/replayed offline mutation support. A network-failed complete batch is queued and later replayed. Eligible successful authenticated GETs also have a 24-hour owner-scoped cache used only for connectivity failures; protected unlock reads and HTTP errors are excluded. Other writes need connectivity, so the app is not fully offline.
 
 ### A17. “How do you resolve two offline coaches editing the same attendance?”
 
@@ -88,31 +88,31 @@ No grades are stored. The system stores only eligibility status and a status-cha
 
 ### A22. “Can training end before it starts?”
 
-The code uses string time fields and no cross-field order validation was found, so that invalid state may be accepted. We should use typed time fields and serializer/form validation that start precedes end.
+No through supported write paths. `TrainingSession.validate_time_window` accepts/normalizes the supported 12-hour strings, requires start and end together, and rejects start greater than or equal to end. The serializer maps this validation for API input, and model `clean`/`save` cover ORM/admin paths. Native database time fields could still strengthen engine-level typing.
 
 ### A23. “Can database writes bypass your 0–99 serializer?”
 
 Yes, admin/direct ORM paths can bypass serializer-only range checks because comprehensive DB check constraints were not found. Defense in depth requires model validators and database constraints.
 
-### A24. “Show me a real bug you found.”
+### A24. “Show me a real integrity bug you found and fixed.”
 
-Every executable Player path now uses one transactional `provision_player` service. It requires an active Club, creates exactly one profile, validates optional same-Club Guardian linkage, and compensates a newly created Firebase identity on failure. Generic user creation excludes Player.
+Earlier admin/seed paths could leave a Player without the required Club/profile aggregate. Every executable Player path now uses one transactional `provision_player` service or a safe idempotent seed equivalent. It requires an active Club, creates exactly one profile, validates optional same-Club Guardian linkage, and compensates a newly created Firebase identity on failure. Generic user creation excludes Player.
 
 ### A25. “Does your administrator really see all progress?”
 
-Not in the current squad-progress view. Despite apparent intent, it filters with the admin’s normally-null club. Other views branch for admin. We classify this as a correctness bug and would align its queryset.
+Yes. `SquadProgressView` begins with all profiles/attendance and applies the Club filter only for Coach. Super Admin keeps the all-Club query; other roles are rejected. Regression coverage verifies both branches.
 
 ### A26. “How many tests passed?”
 
-In the verified local run on 2026-08-18, Flutter analyze passed, all 184 Flutter tests passed, and all 212 Django tests passed. The Django result includes the exact 24-case Club hierarchy security matrix.
+On 2026-08-21, Flutter analysis was clean, the full Flutter suite passed 240/240, and the full Django suite passed 241/241. Retain the command output and do not reuse these numbers after tests are added or removed.
 
-### A27. “So your backend is untested?”
+### A27. “Can the Coach really upload photos from Flutter?”
 
-No. A substantial backend test suite exists and CI is defined to install dependencies and execute it; however, this particular local review did not produce a completed backend run. The honest next action is a clean environment install and retained CI/local output.
+Yes for a same-Club Player. Flutter uses `image_picker`, a photo use case/controller, and authenticated multipart upload; Django repeats role, Club, size, MIME, and signature checks. The object upload requires configured Supabase credentials, and the service-role key stays server-side. Without valid storage configuration the UI reports the failure and retains its avatar fallback.
 
 ### A28. “Is this production-ready?”
 
-Not yet. It has many production-oriented controls and CI, but lacks verified live deployment/monitoring/backup evidence and still has provisioning, validation, notification, and privacy-governance work. It is a strong capstone implementation, not a claim of audited production readiness.
+Not yet as an evidenced live service. It now has Docker/Compose, Gunicorn/WhiteNoise, health/readiness checks, structured logs, optional Sentry, CI container validation, backup/restore scripts, and an operations runbook. The repository does not prove an active deployment, alert exercise, scheduled backup, completed restore drill, or privacy-governance approval.
 
 ### A29. “Why should we trust an `AuditLog` inside the same database?”
 
@@ -120,7 +120,7 @@ It improves accountability and debugging but is not immutable or independently t
 
 ### A30. “If you had one week, what would you fix rather than add?”
 
-First fix player provisioning invariants and their tests; reconcile requirements/README; install and run the full backend suite; enforce time/rating constraints; surface confirmation/network errors; and complete or clearly remove notification UI. Reliability and truthful scope are more valuable than another feature.
+First retain the completed suite outputs and obtain live-device/external-service evidence, reconcile the remaining rating requirements, add versioned assessment history and remaining database constraints, then execute deployment monitoring, scheduled-backup, restore-drill, and privacy-governance checklists. Reliability and truthful scope are more valuable than another feature.
 
 ## Attack response discipline
 

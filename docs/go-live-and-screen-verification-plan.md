@@ -1,5 +1,12 @@
 # Go-Live & Screen Verification Plan — Real Firebase + Supabase, Zero Mock Data
 
+> **Superseded historical plan.** The screen matrix and blocker statements below
+> describe the repository when this plan was written, not its current state; do
+> not use them as current implementation or verification evidence. Use the
+> [README](../README.md), [current project overview](capstone-defense/01-project-overview.md),
+> and [current testing/limitations chapter](capstone-defense/08-testing-and-limitations.md)
+> for the maintained status and explicitly unverified production/device items.
+
 **Goal:** run every Flutter screen against the real stack — Firebase Auth (identity) →
 Django REST → Supabase Postgres — with `USE_MOCK=false`, and prove each screen loads,
 reads, and writes real data.

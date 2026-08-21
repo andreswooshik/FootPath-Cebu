@@ -2,6 +2,7 @@
 parse (footpath_cebu/lib/domain/entities/). Field names and casing here are the
 API contract — do not rename without changing the client `fromJson` factories.
 """
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -20,6 +21,7 @@ from .models import (
     EligibilityHistory,
     InjuryRecord,
     InjuryStatus,
+    NotificationRecord,
     PlayerProfile,
     SessionConfirmation,
     SessionFocus,
@@ -188,6 +190,28 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
     def get_attendeeCount(self, obj):
         # The list view annotates this value, avoiding one query per session.
         return getattr(obj, 'present_attendee_count', 0)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        current_start = self.instance.start_time if self.instance else ''
+        current_end = self.instance.end_time if self.instance else ''
+        try:
+            start_time, end_time = TrainingSession.validate_time_window(
+                attrs.get('start_time', current_start),
+                attrs.get('end_time', current_end),
+            )
+        except DjangoValidationError as exc:
+            field_names = {
+                'start_time': 'startTime',
+                'end_time': 'endTime',
+            }
+            raise serializers.ValidationError({
+                field_names.get(field, field): messages
+                for field, messages in exc.message_dict.items()
+            }) from exc
+        attrs['start_time'] = start_time
+        attrs['end_time'] = end_time
+        return attrs
 
     def validate_ageTiers(self, value):
         valid = set(AgeTier.values)
@@ -450,6 +474,21 @@ class SessionAttendanceRecordSerializer(serializers.Serializer):
         if v not in set(AttendanceStatus.values):
             raise serializers.ValidationError(f'Unknown status: {value}')
         return v
+
+
+class NotificationRecordSerializer(serializers.ModelSerializer):
+    """Neutral, current-user-only inbox contract consumed by Flutter."""
+
+    type = serializers.CharField(source='event_type', read_only=True)
+    isRead = serializers.SerializerMethodField()
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
+    class Meta:
+        model = NotificationRecord
+        fields = ['id', 'type', 'title', 'body', 'data', 'isRead', 'createdAt']
+
+    def get_isRead(self, obj):
+        return obj.read_at is not None
 
 
 class AdminCreatePlayerSerializer(serializers.Serializer):

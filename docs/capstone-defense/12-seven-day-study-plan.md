@@ -6,12 +6,12 @@ Use 2 hours 30 minutes of active study per day plus a 15-minute break (2 hours 4
 
 | Day | 30 min theory/purpose | 45 min actual code | 15 min | 30 min system/data flow | 30 min panel questions | 15 min recall/self-test |
 |---|---|---|---|---|---|---|
-| 1 | problem, users, reconstructed objectives, scope | README/requirements drift; roles in models/HomeScreen | Break | objective → feature → module → table mapping | Q1–Q10, Q71–Q75 | record 90-second opening; list five absent features |
-| 2 | layered architecture, trust boundaries, OOP | `main.dart`, `providers.dart`, one full repository stack | Break | draw startup/login architecture twice | Q11–Q20; C1–C14 | trace startup in 60 seconds without notes |
+| 1 | problem, users, reconstructed objectives, scope | README/requirements alignment; roles in models/HomeScreen | Break | objective → feature → module → table mapping | Q1–Q10, Q71–Q75 | record 90-second opening; list five absent features |
+| 2 | layered architecture, trust boundaries, OOP | `main.dart`, `providers.dart`, shared API client/cache, one repository stack | Break | draw startup/login architecture twice | Q11–Q20; C1–C14 | trace startup in 60 seconds without notes |
 | 3 | Flutter/Riverpod async/state concepts | login, schedule, assessment, provider/controller files | Break | button → controller → use case → repository for three writes | Flutter/code questions C1–C14, C39–C40 | name ten Dart files and their responsibility |
 | 4 | relational design, constraints, transactions | account/academy models, serializers, migrations | Break | attendance/profile/eligibility lifecycles and ERD | Q36–Q66; C18–C30 | redraw tables/FKs/deletion behavior |
 | 5 | auth, RBAC, tenancy, privacy threats | authentication, permissions, PIN/unlock, portal security | Break | changed-ID and PIN-guess attack traces | Q21–Q35; C15–C23 | recite PIN numbers and server checks |
-| 6 | testing, AI truth, limitations, reliability | offline outbox/sync, CI, provisioning defect paths | Break | online/offline attendance and failure paths | Q67–Q80; attack A1–A30 sample | exact verification statement + top ten weaknesses |
+| 6 | testing, AI truth, limitations, reliability | offline outbox/cache, notification path, production artifacts, CI | Break | online/offline/cache and notification failure paths | Q67–Q80; attack A1–A30 sample | exact verification statement + remaining risks |
 | 7 | full project recap and demo theory | open top ten files and rehearse code jumps | Break | timed 10–12 minute live/fallback demo | random 20 panel + 10 trace questions | score mock defense and review only misses |
 
 The sections below give each day’s objectives, files, practical task, and expanded self-test.
@@ -23,11 +23,11 @@ The sections below give each day’s objectives, files, practical task, and expa
 - Read `01-project-overview.md` and `13-rapid-recall-sheet.md`.
 - Memorize the one-sentence defense, users, problem, reconstructed objectives, and scope boundary.
 - Practice saying “not implemented” for AI, scouting, match stats, chat, and mapping without sounding apologetic.
-- Understand the rating-scale and README architecture discrepancies.
+- Understand the remaining rating-scale discrepancy and why the reconciled README now matches Django ORM as the data authority.
 
 ### Inspect
 
-- `README.md` and `docs/REQUIREMENTS.md` only to identify drift.
+- `README.md` and `docs/REQUIREMENTS.md` to distinguish reconciled architecture from the remaining rating-specification drift.
 - `backend/accounts/models.py` for six roles.
 - `footpath_cebu/lib/presentation/screens/home_screen.dart` for three mobile roles.
 
@@ -46,12 +46,14 @@ Answer Q1–Q10 and Q71–Q75 in under 12 minutes.
 - Read `02-system-architecture.md`, `04-code-explanation.md`, and glossary sections for layers/OOP.
 - Draw the architecture from memory twice.
 - Explain dependency inversion, repository polymorphism, and the offline decorator.
+- Explain why `AuthenticatedApiClient` centralizes token, timeout, typed errors, multipart upload, and network-only safe-cache behavior.
 
 ### Inspect
 
 - `main.dart`.
 - `core/di/providers.dart`.
 - one entity, repository interface, use case, controller, API repository, mock repository.
+- `data/network/authenticated_api_client.dart` and `data/local/api_get_cache.dart`.
 
 ### Deliverable
 
@@ -113,13 +115,14 @@ Answer Q36–Q66 and C24–C30.
 - Read `08-testing-and-limitations.md` and the offline sections of the trace chapter.
 - Memorize verified test facts and what was not executed.
 - Understand complete-batch replacement, owner scoping, ordered replay, and last-write-wins.
-- Study the two admin provisioning bugs and three other limitations.
+- Study the resolved Player aggregate, Super Admin progress, session-time, RSVP, notification, and fallback findings, then distinguish them from current limitations.
 
 ### Inspect
 
-- `attendance_outbox.dart`, `attendance_sync_service.dart`, and `offline_first_attendance_repository.dart`.
-- `accounts/services.py` and admin account views/serializers.
-- `.github/workflows/ci.yml`.
+- `attendance_outbox.dart`, `api_get_cache.dart`, `authenticated_api_client.dart`, `attendance_sync_service.dart`, and `offline_first_attendance_repository.dart`.
+- `accounts/services.py`, both seed commands, and Player invariant tests.
+- notification model/helper/endpoints plus Flutter inbox/bell/FCM listeners.
+- `.github/workflows/ci.yml`, production Compose/Docker files, and `docs/PRODUCTION-OPERATIONS.md`.
 
 ### Deliverable
 
@@ -127,7 +130,7 @@ Explain offline attendance to a nontechnical listener in one minute, then to a d
 
 ### Closed-notes drill
 
-Answer Q67–Q80 and C31–C40. Never say “backend tests passed locally.”
+Answer Q67–Q80 and C31–C41. Quote only the latest verified command output; never reuse an older count after tests change.
 
 ## Day 6 — Demo rehearsal and attack mode
 
@@ -142,8 +145,9 @@ Answer Q67–Q80 and C31–C40. Never say “backend tests passed locally.”
 1. Run the full demo timed.
 2. Run the three-minute fallback.
 3. Simulate one network failure and one PIN failure.
-4. Practice switching to code/evidence calmly.
-5. Have a teammate ask all 30 attack questions randomly.
+4. Rehearse the inbox/foreground-push boundary and Coach photo upload with configured disposable services.
+5. Practice switching to code/evidence calmly.
+6. Have a teammate ask all 30 attack questions randomly.
 
 ### Deliverable
 
@@ -172,6 +176,8 @@ Run a 30–45 minute session:
 5. 5 minutes of attack questions and limitations.
 
 Require the mock panel to ask where the AI is, how cross-club access is stopped, whether Supabase uses RLS, whether tests really passed, and why the specification differs.
+
+Also require proof-oriented questions: “Is the live deployment verified?”, “Did a restore drill run?”, “Can a 403 be hidden by cache?”, and “What remains when FCM transport fails?”
 
 ### Final correction
 

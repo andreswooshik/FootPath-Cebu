@@ -31,6 +31,25 @@ def is_configured():
     return bool(url and key)
 
 
+def _auth_headers(key):
+    """Build Storage API headers for supported server-side Supabase keys.
+
+    Current ``sb_secret_`` keys are opaque values and must be sent through
+    ``apikey`` rather than parsed as bearer JWTs. Legacy service-role keys are
+    JWTs; sending them in both headers preserves the authenticated service-role
+    context while satisfying the API gateway. A publishable key is never an
+    acceptable substitute for the backend-only service credential.
+    """
+    if key.startswith('sb_secret_'):
+        return {'apikey': key}
+    if key.count('.') == 2:
+        return {'apikey': key, 'Authorization': f'Bearer {key}'}
+    raise RuntimeError(
+        'SUPABASE_SERVICE_KEY must be an sb_secret_ key or legacy '
+        'service-role JWT.'
+    )
+
+
 def validate_photo_upload(upload):
     """Validate size, declared type, and file signature before storage upload."""
     content_type = (getattr(upload, 'content_type', '') or '').lower()
@@ -65,18 +84,24 @@ def upload_photo(user_id, content, content_type='image/jpeg'):
     )
     path = f'{user_id}.{ext}'
     endpoint = f'{url}/storage/v1/object/{bucket}/{path}'
-    resp = httpx.post(
-        endpoint,
-        content=content,
-        headers={
-            'Authorization': f'Bearer {key}',
+    try:
+        headers = _auth_headers(key)
+        headers.update({
             'Content-Type': content_type,
             # Overwrite instead of erroring if the object already exists.
             'x-upsert': 'true',
-        },
-        timeout=_TIMEOUT,
-    )
-    resp.raise_for_status()
+        })
+        resp = httpx.post(
+            endpoint,
+            content=content,
+            headers=headers,
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise RuntimeError(
+            'Player photo storage is temporarily unavailable.'
+        ) from exc
     return f'{bucket}/{path}'
 
 
@@ -99,7 +124,7 @@ def signed_photo_url(photo_path, expires=3600):
         resp = httpx.post(
             endpoint,
             json={'expiresIn': expires},
-            headers={'Authorization': f'Bearer {key}'},
+            headers=_auth_headers(key),
             timeout=_TIMEOUT,
         )
         resp.raise_for_status()
@@ -110,3 +135,9 @@ def signed_photo_url(photo_path, expires=3600):
         return result
     except Exception:
         return None
+
+
+def invalidate_signed_photo_url(photo_path, expires=3600):
+    """Discard a cached signed URL after replacing its storage object."""
+    if photo_path:
+        cache.delete(f'photo-signed-url:{expires}:{photo_path}')

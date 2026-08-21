@@ -15,6 +15,7 @@ import 'package:footpath_cebu/presentation/providers/training_schedule_providers
 import 'package:footpath_cebu/presentation/screens/log_attendance_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_profile_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
 import 'package:footpath_cebu/presentation/widgets/mini_player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/team_overview_card.dart';
@@ -91,11 +92,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
             tooltip: _compact ? 'Card grid' : 'Compact list',
             onPressed: () => setState(() => _compact = !_compact),
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            tooltip: 'Notifications',
-            onPressed: () {},
-          ),
+          const NotificationBell(),
         ],
       ),
       body: RefreshIndicator(

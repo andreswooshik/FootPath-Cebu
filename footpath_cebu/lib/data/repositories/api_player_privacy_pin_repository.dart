@@ -1,16 +1,28 @@
 import 'dart:convert';
 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:footpath_cebu/core/config/api_config.dart';
+import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/player_privacy_pin.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
-import 'package:http/http.dart' as http;
 
 class ApiPlayerPrivacyPinRepository implements PlayerPrivacyPinRepository {
+  ApiPlayerPrivacyPinRepository({AuthenticatedApiClient? api})
+    : _api = api ?? AuthenticatedApiClient.shared;
+
+  final AuthenticatedApiClient _api;
+
   @override
   Future<PlayerPrivacyPinStatus> fetchStatus(String playerId) async {
-    final response = await _request('GET', '/api/players/$playerId/pin/');
-    return PlayerPrivacyPinStatus.fromJson(_body(response));
+    try {
+      // PIN lockout/configuration state must always be authoritative; it is not
+      // one of the ordinary offline-readable core records.
+      final response = await _api.get(
+        '/api/players/$playerId/pin/',
+        cache: false,
+      );
+      return PlayerPrivacyPinStatus.fromJson(_body(response.body));
+    } on ApiException catch (error) {
+      throw PlayerPrivacyPinException(_message(error));
+    }
   }
 
   @override
@@ -19,93 +31,56 @@ class ApiPlayerPrivacyPinRepository implements PlayerPrivacyPinRepository {
     required String pin,
     String? currentPin,
   }) async {
-    final response = await _request(
-      'PUT',
-      '/api/players/$playerId/pin/',
-      body: {'pin': pin, 'currentPin': ?currentPin},
-    );
-    return PlayerPrivacyPinStatus.fromJson(_body(response));
+    try {
+      final response = await _api.put(
+        '/api/players/$playerId/pin/',
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'pin': pin, 'currentPin': ?currentPin}),
+      );
+      return PlayerPrivacyPinStatus.fromJson(_body(response.body));
+    } on ApiException catch (error) {
+      throw PlayerPrivacyPinException(_message(error));
+    }
   }
 
   @override
   Future<String> verifyPin(String playerId, String pin) async {
-    final response = await _request(
-      'POST',
-      '/api/players/$playerId/pin/verify/',
-      body: {'pin': pin},
-    );
-    if (response.statusCode != 200) {
-      throw PlayerPrivacyPinException(_errorMessage(response));
-    }
-    final body = _body(response);
-    final token = body['unlockToken'];
-    if (token is! String || token.isEmpty) {
-      throw const PlayerPrivacyPinException(
-        'The server did not return a profile unlock.',
+    try {
+      final response = await _api.post(
+        '/api/players/$playerId/pin/verify/',
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'pin': pin}),
       );
+      final token = _body(response.body)['unlockToken'];
+      if (token is! String || token.isEmpty) {
+        throw const PlayerPrivacyPinException(
+          'The server did not return a profile unlock.',
+        );
+      }
+      return token;
+    } on ApiException catch (error) {
+      throw PlayerPrivacyPinException(_message(error));
     }
-    return token;
   }
 
   @override
   Future<PlayerPrivacyPinStatus> resetPin(String playerId) async {
-    final response = await _request(
-      'POST',
-      '/api/players/$playerId/pin/reset/',
-      forceRefreshToken: true,
-    );
-    return PlayerPrivacyPinStatus.fromJson(_body(response));
-  }
-
-  Future<http.Response> _request(
-    String method,
-    String path, {
-    Map<String, dynamic>? body,
-    bool forceRefreshToken = false,
-  }) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) throw const PlayerPrivacyPinException('Not signed in.');
-    final token = await user.getIdToken(forceRefreshToken);
-    if (token == null) throw const PlayerPrivacyPinException('Not signed in.');
-    final uri = Uri.parse('${ApiConfig.baseUrl}$path');
     try {
-      final headers = {
-        'Authorization': 'Bearer $token',
-        if (body != null) 'Content-Type': 'application/json',
-      };
-      return switch (method) {
-        'GET' => await http.get(uri, headers: headers),
-        'PUT' => await http.put(uri, headers: headers, body: jsonEncode(body)),
-        _ => await http.post(uri, headers: headers, body: jsonEncode(body)),
-      };
-    } catch (_) {
-      throw const PlayerPrivacyPinException(
-        'Could not reach the server. Is it running?',
+      final response = await _api.post(
+        '/api/players/$playerId/pin/reset/',
+        forceRefreshToken: true,
       );
+      return PlayerPrivacyPinStatus.fromJson(_body(response.body));
+    } on ApiException catch (error) {
+      throw PlayerPrivacyPinException(_message(error));
     }
   }
 
-  Map<String, dynamic> _body(http.Response response) {
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw PlayerPrivacyPinException(_errorMessage(response));
-    }
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
+  Map<String, dynamic> _body(String body) =>
+      jsonDecode(body) as Map<String, dynamic>;
 
-  String _errorMessage(http.Response response) {
-    try {
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      final detail = json['detail'];
-      if (detail is String && detail.isNotEmpty) return detail;
-      final first = json.values.firstWhere(
-        (value) => value is List && value.isNotEmpty,
-        orElse: () => null,
-      );
-      if (first is List && first.isNotEmpty) return first.first.toString();
-    } catch (_) {
-      // Fall through to the status-code message.
-    }
-    if (response.statusCode == 423) return 'The PIN is temporarily locked.';
-    return 'PIN request failed (${response.statusCode}).';
-  }
+  String _message(ApiException error) =>
+      error is ApiHttpException && error.statusCode == 423
+      ? 'The PIN is temporarily locked.'
+      : error.message;
 }

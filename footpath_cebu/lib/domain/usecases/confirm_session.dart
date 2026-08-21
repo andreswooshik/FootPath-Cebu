@@ -11,6 +11,5 @@ class ConfirmSession {
     String sessionId,
     String playerId,
     ConfirmationStatus status,
-  ) =>
-      _repository.confirmSession(sessionId, playerId, status);
+  ) => _repository.confirmSession(sessionId, playerId, status);
 }

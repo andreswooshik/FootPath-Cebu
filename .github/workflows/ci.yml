@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Django backend
@@ -13,8 +16,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - name: Install dependencies
@@ -26,6 +29,11 @@ jobs:
           DJANGO_SECRET_KEY: ci-only-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz
           DJANGO_DEBUG: '1'
         run: python manage.py test
+      - name: Check migration drift
+        env:
+          DJANGO_SECRET_KEY: ci-only-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+          DJANGO_DEBUG: '1'
+        run: python manage.py makemigrations --check --dry-run
       - name: Deployment checks
         # Run Django's production checklist with DEBUG off — surfaces missing
         # HTTPS/HSTS/cookie hardening as warnings.
@@ -35,6 +43,24 @@ jobs:
           CORS_ORIGINS: https://app.example.test
           REDIS_URL: redis://127.0.0.1:6379/0
         run: python manage.py check --deploy
+      - name: Validate operations scripts
+        run: |
+          python -m compileall -q scripts
+          python scripts/postgres_backup.py --help
+          python scripts/postgres_restore.py --help
+
+  container:
+    name: Production container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate production Compose configuration
+        env:
+          DJANGO_SECRET_KEY: ci-only-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+          DB_PASSWORD: ci-only-placeholder-password
+        run: docker compose -f compose.production.yml config --quiet
+      - name: Build backend image
+        run: docker build -t footpath-backend:ci backend
 
   flutter:
     name: Flutter app
@@ -43,7 +69,7 @@ jobs:
       run:
         working-directory: footpath_cebu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: subosito/flutter-action@v2
         with:
           channel: stable

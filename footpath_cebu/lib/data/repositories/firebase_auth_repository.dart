@@ -1,10 +1,38 @@
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:footpath_cebu/core/config/api_config.dart';
+import 'package:footpath_cebu/data/local/api_get_cache.dart';
+import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
-import 'package:http/http.dart' as http;
+
+/// Typed `/api/auth/me/` access through the same authenticated timeout and
+/// error boundary used by the other live REST repositories.
+class FirebaseProfileApi {
+  FirebaseProfileApi({AuthenticatedApiClient? api})
+    : _api = api ?? AuthenticatedApiClient.shared;
+
+  final AuthenticatedApiClient _api;
+
+  Future<UserProfile> fetchCurrentProfile() async {
+    // Authentication bootstrap must prove the backend recognizes the current
+    // identity. It must never succeed from an offline cached profile.
+    final response = await _api.get('/api/auth/me/', cache: false);
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) throw const FormatException();
+      return UserProfile.fromJson(Map<String, dynamic>.from(decoded));
+    } on FormatException {
+      throw const ApiDecodeException(
+        'The server returned an invalid account profile.',
+      );
+    } on TypeError {
+      throw const ApiDecodeException(
+        'The server returned an invalid account profile.',
+      );
+    }
+  }
+}
 
 /// Firebase implementation of [AuthRepository].
 ///
@@ -13,6 +41,15 @@ import 'package:http/http.dart' as http;
 /// translated to [AuthException] here so the presentation layer never imports
 /// `firebase_auth`.
 class FirebaseAuthRepository implements AuthRepository {
+  FirebaseAuthRepository({
+    ApiGetCache? apiCache,
+    FirebaseProfileApi? profileApi,
+  }) : _apiCache = apiCache ?? ApiGetCache.shared,
+       _profileApi = profileApi ?? FirebaseProfileApi();
+
+  final ApiGetCache _apiCache;
+  final FirebaseProfileApi _profileApi;
+
   @override
   Future<UserProfile?> restoreSession() async {
     // `currentUser` may still be null during the first frame while Firebase
@@ -21,36 +58,22 @@ class FirebaseAuthRepository implements AuthRepository {
     final user = await FirebaseAuth.instance.authStateChanges().first;
     if (user == null) return null;
 
-    final idToken = await user.getIdToken();
-    if (idToken == null) {
-      await FirebaseAuth.instance.signOut();
+    try {
+      return await _profileApi.fetchCurrentProfile();
+    } on ApiAuthenticationException {
+      await _signOutAndClearCache();
       return null;
-    }
-    final response = await http
-        .get(
-          Uri.parse('${ApiConfig.baseUrl}/api/auth/me/'),
-          headers: {'Authorization': 'Bearer $idToken'},
-        )
-        .timeout(const Duration(seconds: 15));
-    if (response.statusCode != 200) {
+    } on ApiHttpException catch (error) {
       // Only an explicit authentication/authorization rejection invalidates
       // the local Firebase session. Preserve it during outages so closing and
       // reopening the app does not force an unnecessary sign-in.
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        await FirebaseAuth.instance.signOut();
+      if (error.statusCode == 401 || error.statusCode == 403) {
+        await _signOutAndClearCache();
       }
-      var message = 'Saved login rejected by server (${response.statusCode}).';
-      try {
-        final body = jsonDecode(response.body);
-        if (body is Map && body['detail'] is String) {
-          message = body['detail'] as String;
-        }
-      } catch (_) {}
-      throw AuthException(message);
+      throw AuthException(error.message);
+    } on ApiException catch (error) {
+      throw AuthException(error.message);
     }
-    return UserProfile.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
   }
 
   @override
@@ -58,9 +81,8 @@ class FirebaseAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {
-    final UserCredential credential;
     try {
-      credential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -68,34 +90,22 @@ class FirebaseAuthRepository implements AuthRepository {
       throw AuthException(_friendlyAuthMessage(e));
     }
 
-    final idToken = await credential.user!.getIdToken();
-    final response = await http
-        .get(
-          Uri.parse('${ApiConfig.baseUrl}/api/auth/me/'),
-          headers: {'Authorization': 'Bearer $idToken'},
-        )
-        .timeout(const Duration(seconds: 15));
-
-    if (response.statusCode != 200) {
+    try {
+      return await _profileApi.fetchCurrentProfile();
+    } on ApiAuthenticationException catch (error) {
+      await _signOutAndClearCache();
+      throw AuthException(error.message);
+    } on ApiHttpException catch (error) {
       // Don't keep a Firebase session the backend refuses to recognize.
-      await FirebaseAuth.instance.signOut();
-      var message = 'Login rejected by server (${response.statusCode}).';
-      try {
-        final body = jsonDecode(response.body);
-        if (body is Map && body['detail'] is String) {
-          message = body['detail'] as String;
-        }
-      } catch (_) {}
-      throw AuthException(message);
+      await _signOutAndClearCache();
+      throw AuthException(error.message);
+    } on ApiException catch (error) {
+      throw AuthException(error.message);
     }
-
-    return UserProfile.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
   }
 
   @override
-  Future<void> signOut() => FirebaseAuth.instance.signOut();
+  Future<void> signOut() => _signOutAndClearCache();
 
   @override
   Future<void> sendPasswordResetEmail({required String email}) async {
@@ -193,6 +203,19 @@ class FirebaseAuthRepository implements AuthRepository {
         return 'For security, please sign out, sign in again, and retry.';
       default:
         return 'Sign-in failed (${e.code}).';
+    }
+  }
+
+  Future<void> _signOutAndClearCache() async {
+    final ownerUid = FirebaseAuth.instance.currentUser?.uid;
+    await FirebaseAuth.instance.signOut();
+    if (ownerUid == null || ownerUid.isEmpty) return;
+    try {
+      await _apiCache.clearOwner(ownerUid);
+    } catch (_) {
+      // SQLite is unavailable in some web builds. Those builds cannot have
+      // written this cache, and a successful Firebase sign-out must still
+      // complete.
     }
   }
 }

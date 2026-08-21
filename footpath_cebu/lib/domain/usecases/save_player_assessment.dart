@@ -14,6 +14,5 @@ class SavePlayerAssessment {
     String playerId,
     PlayerRatings ratings, {
     required String coachNotes,
-  }) =>
-      _repository.saveAssessment(playerId, ratings, coachNotes: coachNotes);
+  }) => _repository.saveAssessment(playerId, ratings, coachNotes: coachNotes);
 }

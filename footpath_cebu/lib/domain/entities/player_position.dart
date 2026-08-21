@@ -117,10 +117,10 @@ extension PlayerPositionInfo on PlayerPosition {
   String get wire => code;
 
   /// The positions in [group], in declaration order.
-  static List<PlayerPosition> inGroup(PositionGroup group) =>
-      PlayerPosition.values.where((p) => p.group == group).toList(
-            growable: false,
-          );
+  static List<PlayerPosition> inGroup(PositionGroup group) => PlayerPosition
+      .values
+      .where((p) => p.group == group)
+      .toList(growable: false);
 
   /// Reads a wire value, or null when the player has no position yet.
   ///

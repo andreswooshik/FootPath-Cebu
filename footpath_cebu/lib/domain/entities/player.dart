@@ -209,6 +209,7 @@ class Player {
     PlayerRatings? ratings,
     EligibilityStatus? eligibility,
     PlayerPosition? position,
+    String? photoUrl,
     String? coachNotes,
   }) {
     return Player(
@@ -221,7 +222,7 @@ class Player {
       ratings: ratings ?? this.ratings,
       eligibility: eligibility ?? this.eligibility,
       academicEligibilityApplicable: academicEligibilityApplicable,
-      photoUrl: photoUrl,
+      photoUrl: photoUrl ?? this.photoUrl,
       coachNotes: coachNotes ?? this.coachNotes,
     );
   }

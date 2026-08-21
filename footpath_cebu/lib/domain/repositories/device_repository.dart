@@ -8,4 +8,8 @@ abstract class DeviceRepository {
   /// throw into the login flow — a device that can't register still uses the
   /// app, just without push.
   Future<void> registerCurrentDevice();
+
+  /// Removes this device token from the signed-in user's backend registrations.
+  /// Best-effort so notification cleanup can never prevent sign-out.
+  Future<void> unregisterCurrentDevice();
 }

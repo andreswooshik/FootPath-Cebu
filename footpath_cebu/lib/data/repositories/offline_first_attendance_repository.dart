@@ -43,9 +43,10 @@ class OfflineFirstAttendanceRepository implements AttendanceRepository {
   Future<List<Attendance>> fetchAttendanceForSession(String sessionId) async {
     try {
       return await _inner.fetchAttendanceForSession(sessionId);
-    } on AttendanceRepositoryException {
-      // Offline (or the server errored): show the coach what they last
-      // queued for this session rather than an empty roll call.
+    } on AttendanceNetworkException {
+      // Only a transport failure may use queued data. An HTTP rejection (for
+      // example 401/403/500) must remain visible rather than being masked by a
+      // stale roll call.
       final ownerUid = _ownerUid();
       if (ownerUid == null || ownerUid.isEmpty) rethrow;
       final queued = await _outbox.latestBatchForSession(ownerUid, sessionId);

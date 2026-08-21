@@ -1,6 +1,11 @@
 # FootPath-Cebu — Feature Audit
 
-> **Historical snapshot:** For the current Super Admin → Club → Coordinator
+> **Superseded historical snapshot.** This audit's statuses and gap list capture
+> the repository at the audit date and must not be treated as current project
+> state. Use the [README](../../README.md),
+> [current project overview](../capstone-defense/01-project-overview.md), and
+> [current testing/limitations chapter](../capstone-defense/08-testing-and-limitations.md)
+> for maintained claims. For the current Super Admin → Club → Coordinator
 > hierarchy and School/Independent behavior, see
 > [Account and Club Hierarchy](../ACCOUNT-AND-CLUB-HIERARCHY.md).
 

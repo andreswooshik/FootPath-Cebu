@@ -8,12 +8,26 @@ import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
-  const HomeScreen({super.key, required this.profile});
+  const HomeScreen({
+    super.key,
+    required this.profile,
+    this.initialPortalTabIndex = 0,
+    this.initialGuardianPlayerId,
+    this.selectDefaultGuardianPlayer = false,
+    this.openEligibility = false,
+    this.openGuardianPlayerProfile = false,
+  });
 
   /// The signed-in user, from GET /api/auth/me/.
   final UserProfile profile;
+  final int initialPortalTabIndex;
+  final String? initialGuardianPlayerId;
+  final bool selectDefaultGuardianPlayer;
+  final bool openEligibility;
+  final bool openGuardianPlayerProfile;
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    await ref.read(unregisterDeviceProvider)();
     await ref.read(signOutProvider)();
     if (!context.mounted) return;
     Navigator.of(
@@ -27,11 +41,23 @@ class HomeScreen extends ConsumerWidget {
     // generic placeholder below.
     switch (profile.role) {
       case 'COACH':
-        return CoachPortalScreen(profile: profile);
+        return CoachPortalScreen(
+          profile: profile,
+          initialTabIndex: initialPortalTabIndex,
+        );
       case 'PLAYER':
-        return const PlayerPortalScreen();
+        return PlayerPortalScreen(
+          initialTabIndex: initialPortalTabIndex,
+          openEligibility: openEligibility,
+        );
       case 'GUARDIAN':
-        return const GuardianPortalScreen();
+        return GuardianPortalScreen(
+          initialTabIndex: initialPortalTabIndex,
+          initialPlayerId: initialGuardianPlayerId,
+          selectDefaultPlayer: selectDefaultGuardianPlayer,
+          openEligibility: openEligibility,
+          openPlayerProfile: openGuardianPlayerProfile,
+        );
     }
 
     return Scaffold(

@@ -87,6 +87,31 @@ urlpatterns = [
     ),
     path('devices/', views.DeviceRegisterView.as_view(), name='devices'),
     path(
+        'notifications/',
+        views.NotificationListView.as_view(),
+        name='notifications',
+    ),
+    path(
+        'notifications/unread-count/',
+        views.NotificationUnreadCountView.as_view(),
+        name='notification-unread-count',
+    ),
+    path(
+        'notifications/read-all/',
+        views.NotificationReadAllView.as_view(),
+        name='notification-read-all',
+    ),
+    path(
+        'notifications/<int:pk>/read/',
+        views.NotificationReadView.as_view(),
+        name='notification-read',
+    ),
+    path(
+        'players/<int:player_id>/photo/',
+        views.PlayerPhotoUploadView.as_view(),
+        name='player-photo-upload-mobile',
+    ),
+    path(
         'admin/players/',
         views.AdminCreatePlayerView.as_view(),
         name='admin-player-create',

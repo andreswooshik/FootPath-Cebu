@@ -32,8 +32,9 @@ class EligibilityChange {
     final rawOld = json['oldStatus'] as String? ?? '';
     return EligibilityChange(
       id: json['id'].toString(),
-      oldStatus:
-          rawOld.isEmpty ? null : EligibilityStatusLabel.fromWire(rawOld),
+      oldStatus: rawOld.isEmpty
+          ? null
+          : EligibilityStatusLabel.fromWire(rawOld),
       newStatus: EligibilityStatusLabel.fromWire(
         json['newStatus'] as String? ?? '',
       ),
@@ -43,10 +44,10 @@ class EligibilityChange {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'oldStatus': oldStatus?.wire ?? '',
-        'newStatus': newStatus.wire,
-        'changedAt': changedAt.toIso8601String(),
-        'changedBy': changedBy,
-      };
+    'id': id,
+    'oldStatus': oldStatus?.wire ?? '',
+    'newStatus': newStatus.wire,
+    'changedAt': changedAt.toIso8601String(),
+    'changedBy': changedBy,
+  };
 }

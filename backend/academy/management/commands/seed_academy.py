@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from accounts.models import GuardianLink, Roles, User
+from accounts.models import Club, GuardianLink, Roles, User
 from academy.models import (
     AgeTier,
     Attendance,
@@ -41,19 +41,42 @@ ROSTER = [
      Eligibility.NOT_ELIGIBLE),
 ]
 
+DEMO_CLUB_NAME = 'FootPath Cebu Demo Club'
+DEMO_CLUB_SLUG = 'footpath-cebu-demo'
+
 
 class Command(BaseCommand):
     help = 'Seed player profiles, training sessions, attendance, and a guardian link.'
 
     @transaction.atomic
     def handle(self, *args, **options):
-        coach = User.objects.filter(role=Roles.COACH).first()
+        club, _ = Club.objects.get_or_create(
+            name=DEMO_CLUB_NAME,
+            defaults={'slug': DEMO_CLUB_SLUG},
+        )
+        club.is_active = True
+        club.is_school_affiliated = True
+        club.school_name = DEMO_CLUB_NAME
+        club.save(update_fields=[
+            'is_active', 'is_school_affiliated', 'school_name',
+        ])
+
+        coach = User.objects.filter(
+            email='coach@footpathcebu.test', role=Roles.COACH,
+        ).first()
+        if coach and coach.club_id != club.id:
+            coach.club = club
+            coach.save(update_fields=['club'])
 
         # 1. Give the seeded login-player a profile, if present.
         login_player = User.objects.filter(
             email='player@footpathcebu.test'
         ).first()
         if login_player:
+            login_player.role = Roles.PLAYER
+            login_player.club = club
+            login_player.is_active = True
+            login_player.save(update_fields=['role', 'club', 'is_active'])
             self._ensure_profile(
                 login_player, 15, 'Class of 2027', AgeTier.DEVELOPMENT, 'CAM',
                 (80, 81, 83, 85, 60, 72), Eligibility.ELIGIBLE,
@@ -66,14 +89,14 @@ class Command(BaseCommand):
                 username=email,
                 defaults={
                     'email': email, 'first_name': first, 'last_name': last,
-                    'role': Roles.PLAYER, 'is_active': True,
+                    'role': Roles.PLAYER, 'club': club, 'is_active': True,
                 },
             )
             self._ensure_profile(user, age, cls, tier, pos, ratings, elig)
             players.append(user)
 
         # 3. Training schedule (two upcoming, one past).
-        sessions = self._seed_sessions(coach)
+        sessions = self._seed_sessions(coach, club)
 
         # 4. Attendance for the login-player across the past session.
         past = next((s for s in sessions if s.date < date.today()), None)
@@ -96,6 +119,10 @@ class Command(BaseCommand):
         # 5. Link the seeded guardian to the login-player for the guardian demo.
         guardian = User.objects.filter(email='guardian@footpathcebu.test').first()
         if guardian and login_player:
+            guardian.role = Roles.GUARDIAN
+            guardian.club = club
+            guardian.is_active = True
+            guardian.save(update_fields=['role', 'club', 'is_active'])
             GuardianLink.objects.get_or_create(
                 guardian=guardian, player=login_player
             )
@@ -118,7 +145,7 @@ class Command(BaseCommand):
             },
         )
 
-    def _seed_sessions(self, coach):
+    def _seed_sessions(self, coach, club):
         today = date.today()
         specs = [
             ('Evening Technical Training', today + timedelta(days=2), '04:30 PM',
@@ -138,6 +165,7 @@ class Command(BaseCommand):
                 defaults={
                     'start_time': start, 'end_time': end, 'location': loc,
                     'focus': focus, 'age_tiers': list(tiers), 'created_by': coach,
+                    'club': club,
                 },
             )
             sessions.append(session)

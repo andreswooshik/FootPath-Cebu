@@ -4,4 +4,7 @@ import 'package:footpath_cebu/domain/repositories/device_repository.dart';
 class MockDeviceRepository implements DeviceRepository {
   @override
   Future<void> registerCurrentDevice() async {}
+
+  @override
+  Future<void> unregisterCurrentDevice() async {}
 }

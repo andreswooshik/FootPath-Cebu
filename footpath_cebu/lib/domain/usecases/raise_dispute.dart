@@ -12,11 +12,10 @@ class RaiseDispute {
     required String summary,
     String? detail,
     String? subjectPlayerId,
-  }) =>
-      _repository.raiseDispute(
-        category: category,
-        summary: summary,
-        detail: detail,
-        subjectPlayerId: subjectPlayerId,
-      );
+  }) => _repository.raiseDispute(
+    category: category,
+    summary: summary,
+    detail: detail,
+    subjectPlayerId: subjectPlayerId,
+  );
 }

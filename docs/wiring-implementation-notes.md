@@ -1,5 +1,12 @@
 # Mock → Real Data Wiring — Implementation Notes
 
+> **Superseded historical snapshot (2026-07-16).** This file records the wiring
+> state and test totals at that implementation milestone; its counts, endpoint
+> inventory, and remaining-gap statements are not the current project status.
+> Use the [README](../README.md), [current project overview](capstone-defense/01-project-overview.md),
+> and [current testing/limitations chapter](capstone-defense/08-testing-and-limitations.md)
+> for present-tense claims.
+
 **Date:** 2026-07-16 · Follows [the approved plan](../../.claude/plans/) and the
 [audit](audit/audit-report.md).
 

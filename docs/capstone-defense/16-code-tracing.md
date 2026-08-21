@@ -26,6 +26,8 @@ This execution map follows only verified repository connections. Approximate loc
 | Async traces | Async Code Traces section |
 | Failure/error traces | Failure / Error Path Matrix and workflow failure paths |
 | Top 20 important function call chains | Top 20 Important Function Call Chains section |
+| Shared HTTP/offline-read trace | Cross-Cutting Trace: Shared Authenticated API Client and Owner-Scoped Cache |
+| Production hardening trace | Repository Production Hardening Trace |
 
 ## Workflow 1: Application Startup
 
@@ -43,7 +45,7 @@ There is no user input yet. `WidgetsFlutterBinding.ensureInitialized()` prepares
 
 ### Step 3 — Service / Repository Layer
 
-Startup itself uses Firebase Core; session work is deferred to `SessionBootstrapScreen`. Dependency factories live in `core/di/providers.dart` and are lazily read.
+Startup uses Firebase Core and, in live mode, `_FootPathAppState.initState()` subscribes to foreground messages, opened-message events, and FCM token refresh. Session work is deferred to `SessionBootstrapScreen`. Dependency factories live in `core/di/providers.dart` and are lazily read.
 
 ### Step 4 — Backend / API
 
@@ -63,13 +65,13 @@ No domain model conversion occurs.
 
 ### Step 8 — State Update
 
-The caught setup error becomes the immutable `FootPathApp.setupError` constructor value. Riverpod state begins inside `ProviderScope`.
+The caught setup error becomes the immutable `FootPathApp.setupError` constructor value. Riverpod state begins inside `ProviderScope`; successful live startup retains the three messaging subscriptions until `dispose()` cancels them.
 
 ### Step 9 — UI Update
 
 Flutter renders `SessionBootstrapScreen` or `_SetupErrorScreen` through normal widget build.
 
-**Call chain:** `main()` → `ensureInitialized()` → `Firebase.initializeApp()` → `runApp()` → `ProviderScope` → `FootPathApp.build()` → `MaterialApp` → `SessionBootstrapScreen`.
+**Call chain:** `main()` → `ensureInitialized()` → `Firebase.initializeApp()` → `runApp()` → `ProviderScope` → `_FootPathAppState.initState()` → FCM foreground/open/token listeners → `FootPathApp.build()` → `MaterialApp` → `SessionBootstrapScreen`.
 
 **Failure path:** Firebase initialization exception → `setupError` string → `_SetupErrorScreen`; no login/profile call is attempted.
 
@@ -233,23 +235,23 @@ The icon/button `onPressed` invokes the screen’s async `_signOut` method.
 
 ### Step 2 — State / Controller Layer
 
-The method calls `ref.read(signOutProvider)()`. The dependency graph also exposes the in-memory unlock-token store, which is cleared by logout integration/callback wiring.
+The method first awaits `ref.read(unregisterDeviceProvider)()` and then awaits `ref.read(signOutProvider)()`. Player/Guardian paths also clear the in-memory privacy-unlock store before leaving the portal.
 
 ### Step 3 — Service / Repository Layer
 
-`SignOut.call()` delegates to `FirebaseAuthRepository.signOut()`, which calls `FirebaseAuth.instance.signOut()`.
+`UnregisterDevice.call()` delegates to `ApiDeviceRepository.unregisterCurrentDevice()`: it obtains the current FCM token with a five-second timeout and asks the authenticated API to delete that token. The repository catches/logs token or HTTP failures so cleanup can never block logout. `SignOut.call()` then delegates to `FirebaseAuthRepository.signOut()`, which signs out of Firebase and clears that owner's durable GET cache.
 
 ### Step 4 — Backend / API
 
-No Django logout endpoint is used for Firebase-authenticated mobile sessions. Future requests lack a current Firebase user/token. Token revocation server-side is not part of ordinary local logout.
+Before Firebase sign-out, Flutter sends `DELETE /api/devices/` with JSON `{token}` and the current Bearer token. `DeviceRegisterView.delete()` scopes deletion to `user=request.user`; it cannot remove another account's token association. No separate Django session-logout endpoint is used, and server-side Firebase token revocation is not part of ordinary local logout.
 
 ### Step 5 — Database
 
-No academy database row is changed. FCM device tokens are not deleted by the shown mobile logout flow.
+On successful unregister, the matching current-user row in `academy_devicetoken` is deleted. No training, player, attendance, assessment, or other academy domain row is changed. If token lookup or transport fails, the row may remain until later cleanup, but sign-out still proceeds.
 
 ### Step 6 — Backend Response
 
-Not applicable; Firebase sign-out returns `Future<void>`.
+The unregister endpoint returns HTTP 204 whether or not the scoped token row existed. Flutter accepts 200/204 and swallows/logs unregister failures; Firebase sign-out then returns `Future<void>`.
 
 ### Step 7 — Model Conversion
 
@@ -263,9 +265,9 @@ Firebase local auth state becomes signed out; guardian unlock tokens are cleared
 
 `Navigator` removes/replaces the authenticated route with `LoginScreen`, so back navigation does not reopen the portal.
 
-**Call chain:** sign-out button → `_signOut()` → `signOutProvider` → `SignOut.call()` → `FirebaseAuthRepository.signOut()` → `FirebaseAuth.instance.signOut()` → clear unlock store → Navigator to `LoginScreen`.
+**Call chain:** sign-out button → `_signOut()` → `unregisterDeviceProvider` → `UnregisterDevice.call()` → `ApiDeviceRepository.unregisterCurrentDevice()` → FCM token → `DELETE /api/devices/` → scoped `DeviceToken.delete()` → `signOutProvider` → `SignOut.call()` → Firebase sign-out/current-owner cache clear → clear unlock store → Navigator to `LoginScreen`.
 
-**Failure path:** a Firebase sign-out exception can interrupt navigation; the exact screen methods do not all expose a rich recovery message. No database deletion occurs.
+**Failure path:** token absence, timeout, or unregister HTTP failure is logged and does not prevent Firebase sign-out. A Firebase sign-out exception can still interrupt navigation; the exact screen methods do not all expose a rich recovery message. Only the current user's matching device-token row is eligible for deletion.
 
 ## Workflow 6: Role Checking and Authorization
 
@@ -375,7 +377,7 @@ Player dashboard consumes an `AsyncValue<Player>` and renders loading/error/data
 
 ### Step 3 — Service / Repository Layer
 
-`GetMyProfile.call()` calls `ApiPlayerRepository.fetchMyProfile()`, which uses `_get('/api/players/me/')`. It obtains a Firebase ID token and performs an HTTP GET. Guardian detail calls `fetchPlayerDetails(playerId, unlockToken)` and adds `X-Player-Unlock`.
+`GetMyProfile.call()` calls `ApiPlayerRepository.fetchMyProfile()`, which delegates `_get('/api/players/me/')` to the shared `AuthenticatedApiClient`. The client resolves the current Firebase UID/token, applies the common timeout/error policy, and performs the GET. Guardian detail calls `fetchPlayerDetails(playerId, unlockToken)` and adds `X-Player-Unlock`; that protected response is deliberately excluded from durable caching.
 
 ### Step 4 — Backend / API
 
@@ -595,7 +597,7 @@ The add/schedule button in `presentation/screens/training_schedule_screen.dart` 
 
 ### Step 1 — UI
 
-`ScheduleSessionScreen` holds title/location controllers and selected `_date`, `_startTime`, `_endTime`, `_selectedTiers`, `_focus`. `_submit()` rejects empty fields, missing tiers, and invalid date conditions, then constructs an immutable `TrainingSession` draft.
+`ScheduleSessionScreen` holds title/location controllers and selected `_date`, `_startTime`, `_endTime`, `_selectedTiers`, `_focus`. `_submit()` rejects empty fields, missing tiers, and invalid date conditions, then constructs an immutable `TrainingSession` draft. The server remains authoritative for the paired time-window invariant.
 
 ### Step 2 — State / Controller Layer
 
@@ -603,11 +605,11 @@ The add/schedule button in `presentation/screens/training_schedule_screen.dart` 
 
 ### Step 3 — Service / Repository Layer
 
-`ScheduleTrainingSession.call(draft)` calls `TrainingRepository.createSession`. `ApiTrainingRepository.createSession()` gets the ID token, converts `draft.toJson()`, and POSTs it.
+`ScheduleTrainingSession.call(draft)` calls `TrainingRepository.createSession`. `ApiTrainingRepository.createSession()` converts `draft.toJson()` and delegates the authenticated POST to `AuthenticatedApiClient`.
 
 ### Step 4 — Backend / API
 
-`POST /api/training-sessions/`; headers Bearer token + JSON content type. Payload: `id`, `title`, `ageTiers`, ISO date-only `date`, display-string `startTime`, `endTime`, `location`, uppercase `focus`, and `attendeeCount`. `TrainingSessionListCreateView.post()` requires coach; `TrainingSessionSerializer` validates; server overrides/assigns `created_by=request.user`, `club=request.user.club`.
+`POST /api/training-sessions/`; headers Bearer token + JSON content type. Payload: `id`, `title`, `ageTiers`, ISO date-only `date`, display-string `startTime`, `endTime`, `location`, uppercase `focus`, and `attendeeCount`. `TrainingSessionListCreateView.post()` requires coach; `TrainingSessionSerializer.validate()` calls `TrainingSession.validate_time_window()` so start/end must be supplied together, match the 12-hour wire format, and end later on the same day. The model repeats this through `clean()`/`save()` for non-API writes. The view assigns `created_by=request.user`, `club=request.user.club`.
 
 ### Step 5 — Database
 
@@ -635,7 +637,7 @@ Success `Navigator.pop(true)` returns to schedule and refreshed providers rebuil
 
 New draft uses a client placeholder/empty ID → server ignores/generates model PK → serializer returns `id` → `TrainingSession.fromJson` stores it as String → edit/cancel/log-attendance routes use `session.id`.
 
-**Failure path:** UI validation prevents request; missing token throws “Not signed in”; transport catch maps to reach-server error; non-201 maps to status error; controller `AsyncError` → SnackBar.
+**Failure path:** UI validation prevents an incomplete request; missing token throws “Not signed in”; malformed/unpaired/reversed times return field-specific 400 errors; a transport failure maps to the shared reach-server error; another non-success status remains an HTTP error; controller `AsyncError` → SnackBar.
 
 ## Workflow 14: Training Attendance Recording
 
@@ -705,7 +707,7 @@ The screen’s rating values/controllers and coach-notes controller contain the 
 
 ### Step 3 — Service / Repository Layer
 
-`SavePlayerAssessment.call(player.id, ratings, coachNotes: ...)` → `ApiPlayerRepository.saveAssessment()`. It gets a Firebase token and JSON-encodes `{'ratings': ratings.toJson(), 'coachNotes': coachNotes}`.
+`SavePlayerAssessment.call(player.id, ratings, coachNotes: ...)` → `ApiPlayerRepository.saveAssessment()`. It JSON-encodes `{'ratings': ratings.toJson(), 'coachNotes': coachNotes}` and delegates the authenticated PUT to `AuthenticatedApiClient`.
 
 ### Step 4 — Backend / API
 
@@ -801,11 +803,11 @@ The `ConsumerWidget` renders loading, error, or a squad summary plus `_PlayerPro
 
 ### Step 3 — Service / Repository Layer
 
-`GetSquadProgress.call()` → `ApiProgressRepository.fetchSquadProgress()` → get Firebase ID token → authenticated GET.
+`GetSquadProgress.call()` → `ApiProgressRepository.fetchSquadProgress()` → shared `AuthenticatedApiClient` → authenticated GET.
 
 ### Step 4 — Backend / API
 
-`GET /api/progress/squad/`. `SquadProgressView.get()` allows coach/admin, filters profiles/attendance by `request.user.club_id`, and uses ORM `Count` filters plus `Avg('effort')`.
+`GET /api/progress/squad/`. `SquadProgressView.get()` allows Coach/Super Admin. It filters profiles and attendance to `request.user.club_id` only for a Coach; the Super Admin keeps the all-club querysets. It uses ORM `Count` filters plus `Avg('effort')`.
 
 ### Step 5 — Database
 
@@ -829,7 +831,7 @@ Provider resolves `AsyncData<List<PlayerProgress>>`; error becomes `AsyncError` 
 
 **Call chain:** Progress tab → `CoachProgressScreen` → `squadProgressProvider` → `GetSquadProgress.call()` → `ApiProgressRepository.fetchSquadProgress()` → `SquadProgressView.get()` → ORM Count/Avg → `PlayerProgress.fromJson()` → cards.
 
-**Failure/weakness:** network/non-200 → error UI. The admin branch is inconsistent: filtering by a normally-null admin club does not implement genuine all-club progress.
+**Failure path:** network/non-200 → error UI. Role branching is explicit: Coach is club-scoped; Super Admin receives genuine all-club progress rather than filtering on the Admin's normally-null club.
 
 ## Workflow 18: Academic Eligibility Retrieval
 
@@ -931,71 +933,75 @@ Form choice → cleaned `new_status` → service → `PlayerProfile.eligibility`
 
 ### Trigger
 
-Two linked triggers exist: (a) successful login/restore calls `registerDeviceProvider`; (b) schedule/assessment/eligibility mutations call notification helpers, usually through `transaction.on_commit`.
+Three linked triggers exist: (a) successful login/restore calls `registerDeviceProvider`; (b) schedule/assessment/eligibility mutations call notification helpers, usually through `transaction.on_commit`; and (c) a bell tap, inbox-row tap, foreground FCM **View** action, opened push, or initial push enters the notification read/routing flow.
 
 ### Step 1 — UI
 
-Registration is initiated without blocking the login/bootstrap UI. Coach/schedule notification-bell `onPressed: () {}` callbacks are empty; no implemented inbox trigger exists.
+Registration is initiated without blocking the login/bootstrap UI. `NotificationBell` watches the unread-count provider, displays a badge, and pushes `NotificationInboxScreen`. In live mode, a foreground message shows a SnackBar with a **View** action. That action, an opened/initial push, and an inbox-row tap use the same destination policy: `session_*` enters the role portal's schedule tab; `assessment_saved` enters the Player's own or Guardian's authorized child profile tab; `eligibility_changed` opens eligibility history for the Player or authorized child; unknown/unsupported events stay in a focused inbox. Player payload IDs are ignored in favor of the current profile, and a Guardian payload ID is only a hint that must match the linked-child list; protected destinations still enforce PIN/privacy gates.
 
 ### Step 2 — State / Controller Layer
 
-`RegisterDevice` use case is invoked after auth. Mutation controllers do not send push directly; backend business events do.
+`RegisterDevice` is invoked after auth. `notificationsProvider`, `notificationUnreadCountProvider`, and `notificationActionsProvider` own inbox loading and read-state refresh. `notificationNavigationControllerProvider` re-fetches the server-authoritative current profile, resolves a role-appropriate `NotificationDestination`, suppresses duplicate active callbacks, and marks the represented inbox record read best-effort. Mutation controllers do not send notifications directly; backend business events do.
 
 ### Step 3 — Service / Repository Layer
 
-Flutter `ApiDeviceRepository` obtains `FirebaseMessaging.instance.getToken()`/platform data and POSTs through the `DeviceRepository` contract. Backend `academy.notifications` selects recipient users/tokens and calls Firebase Admin messaging; invalid tokens can be removed.
+Flutter `ApiDeviceRepository` obtains `FirebaseMessaging.instance.getToken()`/platform data and POSTs through the `DeviceRepository` contract. `ApiNotificationRepository` uses `AuthenticatedApiClient` for list/count/mark-read operations and converts JSON to `AppNotification`. Backend `academy.notifications._send_to_users()` resolves active recipients, persists one `NotificationRecord` per recipient, and then performs best-effort Firebase Admin fanout; invalid tokens can be removed.
 
 ### Step 4 — Backend / API
 
-Registration: `POST /api/devices/` JSON `{token, platform}` with Bearer auth → `DeviceRegisterView.post()`. Sending is server-to-FCM, triggered for session scheduled/updated/cancelled, assessment saved, and eligibility changed.
+Registration: `POST /api/devices/` JSON `{token, platform}` with Bearer auth → `DeviceRegisterView.post()`. Logout cleanup uses `DELETE /api/devices/` JSON `{token}` → `DeviceRegisterView.delete()`, scoped to the current user. Inbox APIs are `GET /api/notifications/`, `GET /api/notifications/unread-count/`, `PATCH /api/notifications/{id}/read/`, and `POST /api/notifications/read-all/`; every query is scoped to `request.user`. Sending is triggered for session scheduled/updated/cancelled, assessment saved, and eligibility changed. For cancellation, the view snapshots recipients, deletes the session, and schedules `notify_session_cancelled(...)` with `transaction.on_commit`, so a failed delete cannot emit a false cancellation.
 
 ### Step 5 — Database
 
-`academy_devicetoken`: `update_or_create(token=..., defaults={user,platform})`; token is unique and references `accounts_user`. Notification events read this table. There is no notification-inbox/read-state table.
+`academy_devicetoken`: registration uses `update_or_create(token=..., defaults={user,platform})`; logout deletes only a row matching both the authenticated user and token. The token is unique and references `accounts_user`. `academy_notificationrecord` stores recipient, event type, title, body, neutral JSON data, nullable `read_at`, and `created_at`, indexed by user/read/time. Notification events create inbox rows before attempting FCM.
 
 ### Step 6 — Backend Response
 
-Device registration returns HTTP 204. FCM send helpers handle delivery failures so business writes are not generally failed by push; exact delivery is controlled by Firebase and device state.
+Device registration and unregister return HTTP 204. Inbox endpoints return the current user's newest records/count/read result. FCM failures are logged/swallowed after inbox persistence, so the business write and notification history survive unavailable Firebase; exact device delivery still depends on Firebase, Apple/Android configuration, OS permission, and device state.
 
 ### Step 7 — Model Conversion
 
-No notification Dart domain model/inbox conversion exists. Registration uses primitive token/platform strings.
+Inbox JSON is converted by `AppNotification.fromJson()` to a Dart object containing ID, type, title, body, data, read state, and timestamp. An inbox row or FCM data map becomes `NotificationOpenRequest`; current role plus event type becomes a `NotificationDestination`. IDs remain routing hints rather than authorization grants. Device registration still uses primitive token/platform strings.
 
 ### Step 8 — State Update
 
-Device-token row is refreshed. No Flutter `FirebaseMessaging.onMessage`/opened-message state provider was found.
+Device-token and token-refresh registration keep delivery endpoints current. Foreground/opened handlers invalidate inbox/count providers; mark-one/mark-all actions also invalidate those providers after success. Opening a notification marks the exact ID, or the newest matching type/domain-ID row, read best-effort. An active-request key prevents duplicate navigation callbacks for the same delivery while its route operation is in progress.
 
 ### Step 9 — UI Update
 
-OS push behavior may occur through Firebase configuration, but a verified foreground banner, notification history, bell list, or deep-link screen is absent.
+Foreground pushes display a SnackBar; the bell shows the inbox with loading, retry, pull-to-refresh, unread styling, and mark-read actions. Known opened/initial/foreground/inbox-row events enter the schedule, profile, or eligibility destination. Guardian child selection is resolved from the authenticated linked-child provider, and Player/Guardian privacy gates remain in force. Unknown events and profile-resolution failures fall back to the focused current-user inbox.
 
 **Call chains:** login success → `registerDeviceProvider` → `RegisterDevice` → `ApiDeviceRepository.registerCurrentDevice()` → Firebase messaging token → `POST /api/devices/` → `DeviceRegisterView.post()` → `DeviceToken.update_or_create()`.
 
-Business mutation → transaction commit → `notify_*` helper → device token queryset → Firebase Admin FCM send.
+Business mutation → transaction commit → `notify_*` helper → `_send_to_users()` → `NotificationRecord.bulk_create()` → device-token queryset → best-effort Firebase Admin FCM send.
 
-**Failure path:** token unavailable/request failure does not block login because registration is unawaited; invalid/stale FCM tokens can be cleaned; UI receive failure has no inbox fallback. **Feature status: PARTIALLY IMPLEMENTED.**
+Bell → `NotificationInboxScreen` → notification providers/repository → current-user inbox endpoints → `NotificationRecordSerializer` → `AppNotification.fromJson()` → badge/list/read-state UI.
+
+Opened/initial/foreground **View**/inbox row → `NotificationOpenRequest` → `NotificationNavigationController.open()` → re-resolve `/api/auth/me/` → `resolveNotificationDestination()` → best-effort mark-read + duplicate suppression → `NotificationDestinationScreen` → role portal initial tab/protected detail, or focused inbox fallback.
+
+**Failure path:** token unavailable/request failure does not block login because registration is unawaited; invalid/stale FCM tokens can be cleaned. FCM/permission/device-delivery failure does not remove the persisted inbox record. Inbox network/server errors render retryable UI. A missing current profile or unknown event falls back to the inbox; an untrusted child ID cannot bypass linked-child lookup or privacy gates. Inbox/router behavior is covered by local mocked tests, while real Firebase/APNs transport and notification presentation still require a signed physical-device verification.
 
 ## Workflow 21: File/Image Upload
 
 ### Trigger
 
-Coordinator portal file form posts to `portal.views.player_photo(request, player_id)` near line 283; protected admin API alternative is `POST /api/admin/players/{id}/photo/` handled by `PlayerPhotoUploadView.post()`.
+There are two UI entry points: a Coordinator portal file form posts to `portal.views.player_photo(request, player_id)`, and a Coach viewing a roster player taps **Update player photo** in `PlayerProfileScreen`, which invokes `_pickAndUploadPhoto()`. The protected DRF route is `POST /api/players/{id}/photo/` with the older `/api/admin/players/{id}/photo/` alias handled by the same `PlayerPhotoUploadView.post()`.
 
 ### Step 1 — UI
 
-The coordinator selects an image in the server-rendered portal and presses upload. Flutter has no photo-upload action; it only displays `Player.photoUrl`.
+The Coordinator selects an image in the server-rendered portal. In Flutter, the Coach uses `ImagePicker` to select a gallery image; the screen accepts JPEG/PNG/WebP content types, reads bytes, disables the action while uploading, and displays success or failure feedback.
 
 ### Step 2 — State / Controller Layer
 
-No Riverpod controller. Django receives `request.FILES['photo']` through multipart parsing/form POST.
+Flutter calls `PlayerPhotoController.submit()`, which invokes the `UploadPlayerPhoto` use case through `PlayerPhotoWriter`, stores loading/error state, and invalidates `squadProvider` after success. Django receives `request.FILES['photo']` through multipart parsing/form POST.
 
 ### Step 3 — Service / Repository Layer
 
-The portal/API calls `academy.storage.validate_photo_upload(upload)`, reads bytes, then `upload_photo(user_id, content, content_type)`. Storage configuration comes from server environment only.
+`ApiPlayerRepository.uploadPhoto()` delegates an authenticated multipart `photo` part to `AuthenticatedApiClient.postMultipart()`. The portal/API then calls `academy.storage.validate_photo_upload(upload)`, reads bytes, and invokes `upload_photo(user_id, content, content_type)`. Storage configuration comes from server environment only.
 
 ### Step 4 — Backend / API
 
-Portal POST is session/CSRF/role/club protected. Admin DRF POST requires `IsAdmin`. Django then calls Supabase Storage REST using the server service credential. Client never calls `storage.upload()` directly.
+Portal POST is session/CSRF/Coordinator/club protected. `PlayerPhotoUploadView` permits a same-Club Coach or the Super Admin and rejects a cross-club Coach. Django then calls Supabase Storage REST using the server service credential. Flutter never receives that credential and never calls Storage directly.
 
 ### Step 5 — Database
 
@@ -1003,7 +1009,7 @@ After storage success, update `academy_playerprofile.photo_path` with the privat
 
 ### Step 6 — Backend Response
 
-Portal redirects/messages; API returns HTTP 200 serialized player. Missing file, invalid signature/MIME, over 5 MB, unconfigured storage, or upload failure becomes validation/form error. Signed-read failure may return no URL so UI can use a fallback.
+Portal redirects/messages; API returns HTTP 200 serialized player. Missing file, invalid signature/MIME, over 5 MB, unconfigured Supabase credentials, or upload failure becomes a visible validation/controller error. Signed-read failure may return no URL so UI can use a fallback.
 
 ### Step 7 — Model Conversion
 
@@ -1011,15 +1017,17 @@ API/profile JSON `photoUrl` → `Player.fromJson()` `String? photoUrl`. The priv
 
 ### Step 8 — State Update
 
-Portal updates DB and redirects. Flutter receives the URL on next profile/squad refetch.
+Portal updates DB and redirects. Flutter replaces its local `_player` with the serialized response immediately and invalidates the squad for the next roster read.
 
 ### Step 9 — UI Update
 
-Player avatars use `NetworkImage(url)` when nonempty; otherwise a default/initial avatar is rendered.
+Portal feedback confirms the upload; Flutter shows a success SnackBar and the returned avatar immediately. Player avatars use `NetworkImage(url)` when nonempty; otherwise a default/initial avatar is rendered.
 
-**Call chain:** portal upload submit → `player_photo()` → `validate_photo_upload()` → `upload_photo()` → Supabase Storage REST → `PlayerProfile.photo_path` save → redirect → later `PlayerSerializer` → `signed_photo_url()` → `Player.fromJson()` → `NetworkImage`.
+**Call chains:** Coach update action → `_pickAndUploadPhoto()` → `ImagePicker` → `PlayerPhotoController.submit()` → `UploadPlayerPhoto.call()` → `ApiPlayerRepository.uploadPhoto()` → `AuthenticatedApiClient.postMultipart()` → `PlayerPhotoUploadView.post()` → `validate_photo_upload()` → Supabase REST → `PlayerProfile.photo_path` → `PlayerSerializer` → `Player.fromJson()` → local avatar/squad refresh.
 
-**Failure path:** validation/storage error → no `photo_path` update and visible form/API error; signed URL failure → null photo URL/fallback. Flutter upload: **NOT IMPLEMENTED IN CURRENT REPOSITORY**.
+Portal upload submit → `player_photo()` → `validate_photo_upload()` → `upload_photo()` → Supabase Storage REST → `PlayerProfile.photo_path` save → redirect → later `PlayerSerializer` → `signed_photo_url()` → `Player.fromJson()` → `NetworkImage`.
+
+**Failure path:** picker cancellation → no request; unsupported client type → SnackBar; auth/cross-club/validation/storage error → no `photo_path` update and visible form/API error; signed URL failure → null photo URL/fallback. The upload path requires configured Supabase server credentials; implementation alone is not proof of a successful live storage upload.
 
 ## Workflow 22: Search / Filtering
 
@@ -1135,7 +1143,7 @@ Portal POST uses Django session + CSRF + role. Mobile-user provisioning calls Fi
 
 ### Step 5 — Database
 
-Insert/update `accounts_user` (email/names/Firebase UID/role/club), `academy_playerprofile` for players, and `accounts_guardianlink` for families. Club is the coordinator’s trusted server value. Firebase temporary password is not stored in plaintext in these tables.
+Insert/update `accounts_user` (email/names/Firebase UID/role/club), `academy_playerprofile` for players, and `accounts_guardianlink` for families. Club is the Coordinator's trusted server value or the dedicated Admin-player flow's guardian-derived same Club. Firebase temporary passwords are not stored in plaintext in these tables.
 
 ### Step 6 — Backend Response
 
@@ -1155,7 +1163,7 @@ Coordinator roster/account lists show the new user. The user can then sign into 
 
 **Call chain:** create-account form → `create_account()` → role-specific form → `create_club_account(coordinator=request.user)` → server-derived Club → `provision_player()` or role-appropriate service → Firebase Admin where applicable → transaction → portal success.
 
-**Invariant:** generic user creation excludes `PLAYER`; every Player path uses `provision_player`, which requires an active Club and creates exactly one `PlayerProfile` plus an optional same-Club GuardianLink atomically.
+**Invariant:** generic user creation and manual generic Admin creation exclude `PLAYER`; non-Admin member accounts require an active Club. Every Player creation path uses `provision_player`, which requires an active Club and creates exactly one `PlayerProfile` plus an optional same-Club GuardianLink atomically. `seed_users` repairs/assigns the active demo Club to every non-Admin seed and ensures its Player profile; `seed_academy` likewise repairs seeded Player/Guardian/Coach roles, Club membership, and profiles before related data is created.
 
 ## Workflow 25: Guardian PIN Unlock and Child Selection
 
@@ -1335,15 +1343,15 @@ JSON → `SessionConfirmation.fromJson()`.
 
 ### Step 8 — State Update
 
-Provider invalidation refetches confirmation list; submitting set removes session ID. However the widget’s `respond` call does not visibly surface false/error.
+Provider invalidation refetches the confirmation list; the submitting set removes the session ID. The widget checks the returned boolean and surfaces a failed submission instead of silently swallowing it.
 
 ### Step 9 — UI Update
 
-On successful refetch, selected response/confirmation UI changes. On failure, buttons re-enable but the current implementation gives no clear error message.
+On successful refetch, selected response/confirmation UI changes. On submit failure, buttons re-enable and a SnackBar tells the player that the response could not be updated. An initial confirmation-list load error renders a **Retry RSVP** button.
 
 **Call chain:** response button → local `respond()` → `SessionConfirmationController.submit()` → `ConfirmSession.call()` → API repository → POST → `SessionConfirmationView.post()` → `update_or_create()` → `SessionConfirmation.fromJson()` → invalidate/refetch → button state.
 
-**Failure path:** repository exception → controller catches/returns false → no visible SnackBar/error in widget. This silent failure is a known UX defect.
+**Failure path:** repository exception → controller catches/returns false → visible retry-oriented SnackBar; initial load error → **Retry RSVP** button. No false optimistic confirmation is shown.
 
 ## Workflow 29: Password Reset and Change
 
@@ -1392,6 +1400,24 @@ Forgot flow shows feedback that reset was requested; change flow shows success/n
 Change button → `ChangePasswordController.submit()` → `_validate()` → `ChangePassword.call()` → repository reauthenticate → `updatePassword()` → success/error UI.
 
 **Failure path:** local change validation → no Firebase call; wrong current password → mapped error; no current user/email → expired-session error; network/Firebase error → controller error. There is no Django DB rollback because no Django write occurs.
+
+## Cross-Cutting Trace: Shared Authenticated API Client and Owner-Scoped Cache
+
+Live academy REST adapters delegate authentication, the 15-second timeout, accepted-status checks, safe server-error extraction, and multipart handling to `data/network/authenticated_api_client.dart` instead of duplicating those policies in each repository. `FirebaseAuthRepository` keeps the `/api/auth/me/` login/restore boundary separate because it creates or restores the identity that the shared client later consumes.
+
+**Successful GET chain:** Riverpod/use case → domain repository adapter → `AuthenticatedApiClient.get(path)` → current `ApiIdentity(uid,getIdToken)` → Bearer request → accepted HTTP response → JSON validation → `ApiGetCache.put(ownerUid,requestKey,response)` → repository model conversion → provider/UI.
+
+**Network-only fallback chain:** token-network failure, timeout, socket, TLS handshake, or `http.ClientException` before a response → `_networkFallback()` → `ApiGetCache.get(currentUid,requestKey)` → cached response marked with `x-footpath-cache: true`, if a fresh owner-scoped entry exists. An HTTP 401/403/5xx, missing identity, or malformed successful JSON throws its typed auth/HTTP/decode exception and never falls back. Requests carrying `X-Player-Unlock` are neither cached nor served from cache, and writes/multipart uploads are never cached or replayed by this client.
+
+Attendance mutation replay remains a separate, intentionally narrow path: `OfflineFirstAttendanceRepository` queues a complete attendance batch only on `AttendanceNetworkException`; HTTP rejection remains visible. Its session-roll-call fallback likewise reads only the current owner's latest queued batch and only after a network exception. Other successful authenticated GETs may use the owner-scoped response cache, but this does not make every mutation offline-capable.
+
+## Repository Production Hardening Trace
+
+The repository contains a production image and service topology (`backend/Dockerfile`, `compose.production.yml`) using Gunicorn, WhiteNoise, PostgreSQL, and Redis; production settings add TLS/HSTS/cookie hardening, structured logs, and optional Sentry without request PII. `/api/health/` is a cheap liveness probe, while `/api/ready/` checks database and cache dependencies and returns 503 when unavailable. CI runs deploy checks, validates the guarded PostgreSQL backup/restore scripts, and builds the backend image.
+
+Operational flow: container start → migrations/static collection → Gunicorn → liveness/readiness probes → platform log/optional Sentry collection. Backup flow: operator/scheduler → `scripts/postgres_backup.py` → `pg_dump` custom-format file + retention. Restore-drill flow: explicit isolated database name → `scripts/postgres_restore.py` confirmation guard → `pg_restore`.
+
+**Evidence boundary:** these are repeatable repository artifacts and documented procedures, not evidence of a verified live deployment, exercised monitor/alert, scheduled backup, or successful restore drill. `docs/PRODUCTION-OPERATIONS.md` deliberately leaves those evidence entries unsupplied.
 
 # Database Query Traces
 
@@ -1485,11 +1511,11 @@ Change button → `ChangePasswordController.submit()` → `_validate()` → `Cha
 - **Function:** `SquadProgressView.get()`.
 - **Query:** player profile list + attendance `.values('player_id').annotate(Count(...),Avg('effort'))`.
 - **Table:** `academy_playerprofile`, `accounts_user`, `academy_attendance`.
-- **Filter:** `request.user.club_id`.
+- **Filter:** Coach adds `user__club_id=request.user.club_id` and `player__club_id=request.user.club_id`; Super Admin adds no Club filter.
 - **Data Sent:** token only.
 - **Data Returned:** manually shaped list of per-player aggregate maps.
 - **Error Handling:** wrong role 403; DB failure 5xx.
-- **Allowed Role:** coach/admin, with known incorrect null-club admin semantics.
+- **Allowed Role:** Coach sees their own Club; Super Admin sees all Clubs.
 
 ## QRY-9: Verify PIN
 
@@ -1553,14 +1579,14 @@ Change button → `ChangePasswordController.submit()` → `_validate()` → `Cha
 
 ## QRY-14: Account Provisioning
 
-- **Source File:** `backend/accounts/services.py`, `backend/portal/services.py`.
-- **Function:** `provision_user()`, `provision_managed_player()`, `create_club_account()`.
+- **Source File:** `backend/accounts/services.py`, `backend/portal/services.py`, `backend/academy/views.py`, and both seed commands.
+- **Function:** `provision_user()`, `provision_player()`, `provision_managed_player()`, `create_club_account()`, and seed repair helpers.
 - **Query:** user insert/update plus profile/link creation under transactions.
 - **Table:** `accounts_user`, `academy_playerprofile`, `accounts_guardianlink`.
 - **Filter:** unique email/Firebase UID; guardian/player/club checks.
 - **Data Sent:** trusted role-specific form/serializer data; server club.
 - **Data Returned:** user/temp-credential metadata or portal result.
-- **Error Handling:** Firebase provisioning exception; DB failure compensation deletes newly created identity.
+- **Error Handling:** generic Player creation is rejected; missing/inactive Club or invalid same-Club guardian is rejected; DB failure rolls back the aggregate and compensation deletes a newly created Firebase identity. Seed commands repair non-Admin Club scope and Player profiles idempotently.
 - **Allowed Role:** coordinator for own club or admin for protected global path.
 
 ## QRY-15: Photo Path
@@ -1569,11 +1595,23 @@ Change button → `ChangePasswordController.submit()` → `_validate()` → `Cha
 - **Function:** `upload_photo()`, `PlayerPhotoUploadView.post()`, `player_photo()`.
 - **Query:** external object upload followed by profile path update; signed URL query for read.
 - **Table:** `academy_playerprofile.photo_path`; external private storage object.
-- **Filter:** target player ID, coordinator club or admin role.
+- **Filter:** target player ID; same-Club Coordinator in the portal, same-Club Coach through the mobile API, or Super Admin through the API.
 - **Data Sent:** validated bytes/content type to storage; object path to DB.
 - **Data Returned:** serialized player/success redirect; signed URL on later read.
 - **Error Handling:** size/MIME/signature/config/network failures prevent path update.
-- **Allowed Role:** admin API; same-club coordinator portal.
+- **Allowed Role:** same-Club Coach/Super Admin API; same-Club Coordinator portal.
+
+## QRY-16: Notification Inbox and Read State
+
+- **Source File:** `backend/academy/notifications.py`, `backend/academy/views.py`.
+- **Function:** `_send_to_users()`, `NotificationListView`, `NotificationUnreadCountView`, `NotificationReadView`, `NotificationReadAllView`.
+- **Query:** bulk-create a recipient record before FCM; list newest 100; count unread; update one/all `read_at` values.
+- **Table:** `academy_notificationrecord` plus `academy_devicetoken` for optional push fanout.
+- **Filter:** active recipient IDs when creating; `user=request.user` on every inbox read/update.
+- **Data Sent:** server-created event/title/body/data; authenticated request for inbox actions.
+- **Data Returned:** serialized `AppNotification` contract, unread count, or updated count/read record.
+- **Error Handling:** cross-user record IDs return 404; FCM unavailable leaves the persisted inbox row intact.
+- **Allowed Role:** any authenticated user, strictly for their own inbox.
 
 # Variable Traces
 
@@ -1633,7 +1671,7 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 
 ## Object: Player
 
-- **Created from:** `PlayerSerializer` JSON from squad/me/detail/assessment/position.
+- **Created from:** `PlayerSerializer` JSON from squad/me/detail/assessment/position/photo.
 - **Converted using:** `Player.fromJson()` with nested rating/tier/position/eligibility converters.
 - **Stored in:** Riverpod `FutureProvider` results and route constructor arguments.
 - **Consumed by:** roster cards, profile, assessment editor, guardian/player dashboards.
@@ -1684,30 +1722,38 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 - **Stored in:** unique `academy_sessionconfirmation` player/session row.
 - **Consumed by:** `SessionConfirmationButton` and coach confirmation views/providers.
 
+## Object: AppNotification
+
+- **Created from:** current-user `NotificationRecordSerializer` JSON.
+- **Converted using:** `AppNotification.fromJson()`.
+- **Stored in:** `academy_notificationrecord`; transient Riverpod inbox lists and unread count.
+- **Consumed by:** `NotificationBell`, `NotificationInboxScreen`, `NotificationNavigationController`, foreground/opened-push handling, role-aware destination routing, and mark-read actions.
+- **Key fields:** ID/type/title/body/neutral data/read state/timestamp; FCM is a delivery channel, not the history store.
+
 # Button-to-Database/API Traces
 
 | # | Button/action | Callback | Controller/use case | API/service | Store/result | UI change |
 |---|---|---|---|---|---|---|
 | 1 | Login | `LoginScreen._handleSignIn()` | `LoginController.signIn` → `SignIn` | Firebase sign-in + `GET /api/auth/me/` | reads `accounts_user` | `HomeScreen` or error |
 | 2 | Forgot password | `_handleForgotPassword()` | reset controller/use case | Firebase `sendPasswordResetEmail` | Firebase identity service | feedback/error |
-| 3 | Logout | role screen `_signOut()` | `SignOut` | Firebase `signOut` | local session/unlock cleared | login route |
+| 3 | Logout | role screen `_signOut()` | `UnregisterDevice` → `SignOut` | current-token `DELETE /api/devices/` → Firebase `signOut` | scoped device row removed best-effort; local session/cache/unlock cleared | login route even if unregister fails |
 | 4 | Save session | `ScheduleSessionScreen._submit()` | schedule controller/use case | `POST /api/training-sessions/` | insert session/audit | pop + refreshed list |
 | 5 | Edit session | same `_submit()` with `existing` | `.saveChanges` → update use case | `PUT /api/training-sessions/{id}/` | update session/audit | pop + refresh |
-| 6 | Cancel session | `_cancelSession()` | controller `.cancel` | `DELETE /api/training-sessions/{id}/` | delete session; attendance retains null FK | list refresh |
+| 6 | Cancel session | `_cancelSession()` | controller `.cancel` | `DELETE /api/training-sessions/{id}/` | delete session; on-commit cancellation inbox/push; attendance retains null FK | list refresh |
 | 7 | Finalize attendance | `LogAttendanceScreen._finalize()` | attendance controller/use case | POST attendance or local outbox | upsert/prune attendance / queue | pop + history refresh |
 | 8 | Save assessment | `EditPerformanceDataScreen._save()` | assessment controller/use case | `PUT /api/players/{id}/assessment/` | update player profile/audit | updated card/profile |
 | 9 | Assign position | position picker selection | position controller/use case | `PUT /api/players/{id}/position/` | update profile/audit | position label refresh |
 | 10 | Verify PIN | privacy gate submit | PIN controller/use case | `POST /api/players/{id}/pin/verify/` | PIN counter/lock; signed token | unlocked child content |
-| 11 | Confirm session | confirmation option `respond()` | confirmation controller/use case | `POST /api/session-confirmations/` | upsert confirmation | selected response |
+| 11 | Confirm session | confirmation option `respond()` | confirmation controller/use case | `POST /api/session-confirmations/` | upsert confirmation | selected response or visible retry feedback |
 | 12 | Add injury | injury form `_save()` | injury controller/use case | `POST /api/injuries/` | insert injury | refreshed history |
 | 13 | Edit injury | injury form `_save()` | same | `PUT /api/injuries/{id}/` | update injury | refreshed history |
 | 14 | Delete injury | injury form `_delete()` | controller `.remove` | `DELETE /api/injuries/{id}/` | delete injury | list item removed after refetch |
 | 15 | Flag dispute | `FlagDisputeScreen._submit()` | dispute controller/use case | `POST /api/disputes/` | insert dispute | list/thread refresh |
 | 16 | Respond dispute | response submit | controller `.respond` | `POST /api/disputes/{id}/responses/` | insert response/update status | thread refresh |
 | 17 | Staff eligibility save | portal form submit | portal service | Django `set_player_eligibility` | profile + history + audit | portal/mobile refresh |
-| 18 | Upload photo | portal/admin multipart submit | storage helper | Supabase Storage REST | object + profile path | new avatar on refetch |
+| 18 | Upload photo | Coach picker or portal multipart submit | photo controller/use case or portal service | Django multipart → Supabase Storage REST | object + profile path | immediate/refetched avatar or visible error |
 | 19 | Coordinator create account | portal form submit | `create_club_account` | Firebase Admin/service/ORM | user/profile/link | roster/account list |
-| 20 | Notification bell | empty callback | none | none | none | **No change; stub** |
+| 20 | Notification bell / row / push open | bell or `_openMessage()` / `_openNotification()` | notification providers + `NotificationNavigationController` | current-user notification and profile APIs | read/update `NotificationRecord`; protected destination data remains API-scoped | badged inbox or role-aware schedule/profile/eligibility destination |
 
 # Screen-to-Screen Navigation Traces
 
@@ -1722,6 +1768,7 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 - Eligibility tile → `Navigator.push(EligibilityHistoryScreen(playerId,...))`.
 - Attendance history button → `Navigator.push(AttendanceHistoryScreen(playerId,...))`.
 - Injury history tile → `Navigator.push(InjuryHistoryScreen(playerId,readOnly...))`.
+- Notification bell → `Navigator.push(NotificationInboxScreen())`. A known inbox row, foreground SnackBar **View**, `onMessageOpenedApp`, or `getInitialMessage()` → `NotificationNavigationController` → current profile/role resolution → schedule tab (`session_*`), Player/authorized Guardian profile (`assessment_saved`), or Player/authorized Guardian eligibility history (`eligibility_changed`). Unknown events or profile-resolution failures open/focus the inbox. Player IDs cannot be overridden by payload data, Guardian IDs are checked against linked children, and protected destinations retain PIN/privacy gates.
 - Sign out → navigation replacement/removal to `LoginScreen`.
 
 Navigation uses Flutter `Navigator` with `MaterialPageRoute`, plus `IndexedStack` for tabs. No GoRouter, AutoRoute, GetX, or named-route table was found.
@@ -1738,7 +1785,7 @@ Async operations wait for auth state, credential sign-in, token issuance, networ
 
 ## API read providers
 
-Riverpod `FutureProvider` runs HTTP asynchronously and exposes loading/data/error. Widgets rebuild on completion instead of blocking frames. Disposing a screen releases `autoDispose` provider state, although an underlying HTTP call is not automatically a database transaction cancellation.
+Riverpod `FutureProvider` runs HTTP asynchronously and exposes loading/data/error. Widgets rebuild on completion instead of blocking frames. Live repository reads cross `AuthenticatedApiClient`; only a pre-response network failure may resolve from a fresh current-owner cache entry. Disposing a screen releases `autoDispose` provider state, although an underlying HTTP call is not automatically a database transaction cancellation.
 
 ## Mutations
 
@@ -1752,9 +1799,13 @@ Network and sqflite operations are awaited sequentially so queue order is preser
 
 Login/bootstrap uses `unawaited(registerDeviceProvider...)` because push registration is secondary and should not delay portal entry. The tradeoff is reduced immediate error visibility.
 
+## Foreground and opened notifications
+
+`FirebaseMessaging.onMessage` and `onMessageOpenedApp` stream subscriptions live for the app state lifetime; `getInitialMessage()` handles a push that launched the app, and `onTokenRefresh` re-registers the current token. Handlers invalidate inbox/count providers and use navigator/messenger keys without requiring a screen-local context. Open actions pass through the same tested destination controller as inbox-row taps, while unknown/unsafe requests fall back to the persistent inbox.
+
 ## Django `transaction.on_commit`
 
-This callback is asynchronous in event timing, not a Flutter `Future`: it defers FCM side effects until the relational commit succeeds. Notification helpers must not change the already returned domain result.
+This callback is asynchronous in event timing, not a Flutter `Future`: it defers notification persistence/FCM side effects until the relational commit succeeds. Session cancellation snapshots recipient IDs before deleting, but registers its notification only after `session.delete()` succeeds; a failed delete cannot announce a cancellation. Notification helpers must not change the already returned domain result.
 
 ### Defense answers
 
@@ -1768,18 +1819,18 @@ This callback is asynchronous in event timing, not a Flutter `Future`: it defers
 |---|---|---|---|---|
 | Restore | malformed profile → parse/auth error | 401/403 signs out | network/5xx → restore error | retry/continue/login, never cached role authorization |
 | Login | empty not prechecked; Firebase rejects | local missing/inactive/clubless rejects | Firebase/HTTP error | controller error text, button re-enabled |
-| Schedule | empty field/no tier/date guard | non-coach/cross-club edit 403 | HTTP/DB error | form stays + SnackBar |
+| Schedule | empty/tier/date or paired/ordered time validation | non-coach/cross-club edit 403 | HTTP/DB error | field/API error; form stays + SnackBar |
 | Attendance | unmarked/dialog/window/serializer | non-coach/cross-club/player set 403 | network queues; HTTP/DB does not | queued/success pop; other error SnackBar |
 | Assessment | malformed/range serializer | non-coach/cross-club 403 | transport/DB error | form remains, old current values |
-| Profile read | optional photo null is valid | role/link/unlock rejects | network/DB error | AsyncError/retry or avatar fallback |
+| Profile read | optional photo null is valid | role/link/unlock rejects | network-only may use current-owner GET cache; HTTP/DB errors remain visible | cached data or AsyncError/retry; avatar fallback |
 | PIN | format/incorrect → 400 | missing link 403 | transaction error | failure count/lock feedback; no child detail |
 | Eligibility | invalid form/choice | staff/club/read permission | DB/notification failure | DB success survives push failure; refresh required |
-| Confirmation | invalid today/status/session | non-player/cross-club | network/server | current widget silently re-enables—known weakness |
+| Confirmation | invalid today/status/session | non-player/cross-club | network/server | submit SnackBar or **Retry RSVP**; no false selected response |
 | Injury | invalid fields/dates | only owner writes; scoped reads | network/DB | controller error, list unchanged |
 | Dispute | summary/category/status invalid | role/club/scope | network/transaction | controller error, thread unchanged |
-| Photo | missing/size/MIME/signature | coordinator club/admin | storage/config/DB | no path update; error/fallback |
+| Photo | missing/size/MIME/signature | same-Club Coordinator portal; same-Club Coach/Super Admin API | storage config/network/DB | no path update; visible error/fallback |
 | Provisioning | duplicate/invalid role/link | coordinator/admin gate | Firebase/DB | compensation attempts Firebase cleanup |
-| Notification | missing token | API auth | FCM invalid/unavailable | business record remains; no inbox fallback |
+| Notification | malformed inbox action/missing token/unknown event | every inbox query is current-user scoped; current profile + linked-child/privacy gates protect destinations | FCM invalid/unavailable, profile/inbox network error | business + inbox record remain; known safe route or focused-inbox fallback; device push may be absent |
 
 # Authorization Trace
 
@@ -1807,7 +1858,7 @@ Access control is a combination of backend authentication, business/view authori
 
 - **Create:** coordinator/admin form → provisioning service → Firebase identity where applicable + `accounts_user`.
 - **Validate:** form/serializer, unique email/UID, allowed role, club rules.
-- **Store:** Firebase identity and Django user; player may add profile/link.
+- **Store:** Firebase identity and Django user; a Player is never a bare generic user—the dedicated aggregate also creates exactly one profile and optional same-Club guardian link. Seed commands repair the same Club/profile invariant for demo data.
 - **Retrieve:** `/api/auth/me/`, portal/admin lists; token UID mapping.
 - **Display:** role portal/profile/account lists.
 - **Update:** admin role/status/account operations; password handled by Firebase for mobile or Django for web.
@@ -1820,13 +1871,13 @@ Access control is a combination of backend authentication, business/view authori
 - **Store:** current fields in `academy_playerprofile`.
 - **Retrieve:** squad/me/detail endpoints → `Player`.
 - **Display:** cards, dashboard, radar, notes, eligibility.
-- **Update:** coach assessment/position; staff eligibility; coordinator/admin photo.
+- **Update:** Coach assessment/position/mobile photo; School Staff eligibility; Coordinator portal photo; Super Admin photo.
 - **Delete/archive:** player user deletion cascades profile/dependents; no assessment archive/history exists.
 
 ## 3. Training Session
 
 - **Create:** coach form/API → session insert with server club/creator.
-- **Validate:** required fields/choices/tiers/date; time ordering remains a gap.
+- **Validate:** required fields/choices/tiers/date plus paired 12-hour start/end values with start strictly before end, enforced by serializer and model.
 - **Store:** `academy_trainingsession`.
 - **Retrieve:** club-scoped training-session GET → `TrainingSession` list.
 - **Display:** schedule cards/tabs and player confirmation.
@@ -1853,32 +1904,42 @@ Access control is a combination of backend authentication, business/view authori
 - **Update:** school-staff portal save, signals/audit/FCM.
 - **Delete/archive:** player deletion cascades history; no normal history edit/delete UI.
 
+## 6. Notification
+
+- **Create:** committed business event → `notify_*` → `_send_to_users()` → one `NotificationRecord` for each active recipient, followed by optional FCM fanout.
+- **Validate/scope:** event payload is server-created; recipient IDs come from Club/player/guardian relationships rather than a client-selected inbox owner.
+- **Store:** authoritative history/read state in `academy_notificationrecord`; optional delivery endpoints in `academy_devicetoken`.
+- **Retrieve:** current-user list and unread-count endpoints → `AppNotification` list/count providers.
+- **Display:** foreground SnackBar, badged bell, and retryable inbox; known opened pushes/rows route to the role-appropriate schedule, profile, or eligibility destination, while unknown events remain in the inbox.
+- **Update:** current-user mark-one/mark-all endpoints set `read_at`; cross-user IDs are not addressable.
+- **Delete/archive:** deleting a user cascades their records; there is no normal inbox delete action.
+
 ## Scouting Report Lifecycle
 
 `NOT IMPLEMENTED IN CURRENT REPOSITORY` at every lifecycle stage.
 
 # Top 20 Important Function Call Chains
 
-1. **Startup:** `main()` → `Firebase.initializeApp()` → `runApp(ProviderScope)` → `FootPathApp.build()` → `SessionBootstrapScreen`.
+1. **Startup:** `main()` → `Firebase.initializeApp()` → `runApp(ProviderScope)` → `_FootPathAppState.initState()` messaging listeners → `FootPathApp.build()` → `SessionBootstrapScreen`.
 2. **Restore:** `initState()` → `_restore()` → `RestoreSession.call()` → `FirebaseAuthRepository.restoreSession()` → `authStateChanges().first` → `/api/auth/me/` → `UserProfile.fromJson()` → `HomeScreen`.
 3. **Login:** `_handleSignIn()` → `LoginController.signIn()` → `SignIn.call()` → `signInAndFetchProfile()` → Firebase sign-in → `/api/auth/me/` → role portal.
-4. **Logout:** `_signOut()` → `SignOut.call()` → `FirebaseAuthRepository.signOut()` → Firebase sign-out → clear unlocks → `LoginScreen`.
+4. **Logout:** `_signOut()` → `UnregisterDevice.call()` → current FCM token → scoped `DELETE /api/devices/` (best-effort) → `SignOut.call()` → Firebase sign-out + current-owner GET-cache clear → clear unlocks → `LoginScreen`.
 5. **Role authorization:** API call → Bearer token → `FirebaseAuthentication.authenticate()` → local `User` → view role check → club/object/link check → response/403.
 6. **Player self profile:** `PlayerDashboardScreen` → `myProfileProvider` → `GetMyProfile.call()` → `fetchMyProfile()` → `MyProfileView.get()` → `PlayerSerializer` → `Player.fromJson()`.
 7. **Guardian child profile:** select child → PIN verify controller → API verify → `verify_pin()` → `issue_player_unlock()` → token store → `fetchPlayerDetails()` with header → guarded detail view → `Player.fromJson()`.
 8. **Squad list:** coach screen → `squadProvider` → `GetSquad.call()` → `fetchSquad()` → `SquadListView.get()` → club query → `List<Player>`.
 9. **Position:** picker → `PlayerPositionController` → `SavePlayerPosition.call()` → `savePosition()` → `PlayerPositionView.put()` → serializer save/audit → `Player.fromJson()` → invalidate.
-10. **Assessment:** save button → `_save()` → `EditPerformanceController.submit()` → `SavePlayerAssessment.call()` → `saveAssessment()` → `PlayerAssessmentView.put()` → profile/audit/push → `Player.fromJson()`.
-11. **Create session:** add → form `_submit()` → `ScheduleSessionController.submit()` → `ScheduleTrainingSession.call()` → `createSession()` → `TrainingSessionListCreateView.post()` → session/audit/push → refresh.
+10. **Assessment:** save button → `_save()` → `EditPerformanceController.submit()` → `SavePlayerAssessment.call()` → `saveAssessment()` → `PlayerAssessmentView.put()` → profile/audit/on-commit inbox + FCM → `Player.fromJson()`.
+11. **Create session:** add → form `_submit()` → `ScheduleSessionController.submit()` → `ScheduleTrainingSession.call()` → `createSession()` → `TrainingSessionListCreateView.post()` → session/audit/on-commit inbox + FCM → refresh.
 12. **Edit session:** form `_submit()` → controller `.saveChanges()` → `UpdateTrainingSession.call()` → repository `updateSession()` → `TrainingSessionDetailView.put()` → refresh.
-13. **Cancel session:** `_cancelSession()` → controller `.cancel()` → `CancelTrainingSession.call()` → repository `deleteSession()` → `TrainingSessionDetailView.delete()` → notification/audit/delete → refresh.
+13. **Cancel session:** `_cancelSession()` → controller `.cancel()` → `CancelTrainingSession.call()` → repository `deleteSession()` → `TrainingSessionDetailView.delete()` → snapshot recipients/audit/delete → on-commit inbox + FCM → refresh.
 14. **Attendance online:** `_finalize()` → `AttendanceLogController.save()` → `LogSessionAttendance.call()` → offline decorator → API repository POST → `SessionAttendanceView.post()` → atomic upsert/prune → decode/invalidate.
 15. **Attendance offline replay:** API transport exception → decorator → `AttendanceOutbox.enqueue()` → `AttendanceSyncService` owner query → API repository retry → backend save → outbox delete.
-16. **Squad progress:** progress screen → `squadProgressProvider` → `GetSquadProgress.call()` → API progress repository → `SquadProgressView.get()` → ORM Count/Avg → `PlayerProgress.fromJson()`.
-17. **Eligibility change:** staff form → `staff_eligibility()` → `set_player_eligibility()` → `PlayerProfile.save()` → pre/post signals → history/audit → on-commit FCM.
+16. **Squad progress:** progress screen → `squadProgressProvider` → `GetSquadProgress.call()` → API progress repository → `SquadProgressView.get()` → Coach Club filter or Super Admin all-club query → ORM Count/Avg → `PlayerProgress.fromJson()`.
+17. **Eligibility change:** staff form → `staff_eligibility()` → `set_player_eligibility()` → `PlayerProfile.save()` → pre/post signals → history/audit → on-commit inbox + FCM.
 18. **Injury create:** injury form `_save()` → `InjuryFormController.submit()` → `SaveInjury.call()` → API injury repository POST → `InjuryRecordListCreateView.post()` → model → `InjuryRecord.fromJson()` → invalidate.
 19. **Dispute response:** response action → `DisputeFormController.respond()` → `RespondToDispute.call()` → API POST responses → `DisputeResponseCreateView.post()` → response/status transaction → `Dispute.fromJson()`.
-20. **Device registration:** login/restore success → `RegisterDevice.call()` → `ApiDeviceRepository` → Firebase Messaging token → `DeviceRegisterView.post()` → `DeviceToken.update_or_create()`.
+20. **Notification delivery/open:** mutation commit → `NotificationRecord` persistence + best-effort FCM → foreground/opened handler, bell, or inbox row → notification providers/API + `NotificationNavigationController` → current-profile role mapping → protected schedule/profile/eligibility destination or focused inbox fallback. Device registration supplies the optional FCM delivery token.
 
 # Code-Tracing Defense Questions (35)
 
@@ -1956,7 +2017,7 @@ It verifies the Firebase Bearer token, extracts UID, finds the active `accounts_
 
 ### T19. What happens when the user logs out?
 
-The `SignOut` use case calls Firebase sign-out, guardian unlock memory is cleared, and navigation replaces the authenticated portal with login. No Django academy row is deleted.
+The screen first calls `UnregisterDevice`: it obtains the current FCM token and sends a current-user-scoped `DELETE /api/devices/`; absence, timeout, or HTTP failure is logged and cannot block logout. `SignOut` then calls `FirebaseAuthRepository._signOutAndClearCache()`: it captures the owner UID, signs out of Firebase, clears that owner's durable API GET cache, clears guardian/player unlock memory, and replaces the authenticated portal with login. Only the matching device-token row is deleted; no training/player domain row is removed.
 
 ### T20. How are sessions restored after app restart?
 
@@ -1968,7 +2029,7 @@ Outbox stores owner/session/record JSON. Sync loads current-owner rows oldest fi
 
 ### T22. What stops offline data crossing accounts?
 
-Each outbox row has `owner_uid`; current sync requests rows for only the active Firebase UID.
+Each outbox row has `owner_uid`; current sync requests rows for only the active Firebase UID. The general GET cache uses the same owner UID in its composite key and is cleared for that owner on sign-out; unlock-protected reads are excluded entirely.
 
 ### T23. What happens if the attendance API returns 403 while offline logic is enabled?
 
@@ -1996,11 +2057,11 @@ One endpoint groups attendance by player and annotates status counts and average
 
 ### T29. How does file upload avoid exposing a Supabase service key?
 
-Browser sends multipart to Django; server validates bytes and calls Supabase REST using server environment credentials; it stores only object path and returns signed read URLs.
+Browser or Flutter sends multipart to Django; the Flutter path uses `AuthenticatedApiClient.postMultipart()` and never receives the storage credential. Django validates bytes, calls Supabase REST using server environment credentials, stores only the object path, and returns signed read URLs.
 
 ### T30. What happens when a session is canceled?
 
-Coach confirms UI → delete use case/repository → same-club `TrainingSessionDetailView.delete` → notification/audit then model delete → session list invalidation. Attendance session FK becomes null; confirmations cascade.
+Coach confirms UI → delete use case/repository → same-club `TrainingSessionDetailView.delete` → snapshot recipients and audit → model delete → register on-commit cancellation inbox/FCM → session list invalidation. Attendance session FK becomes null; confirmations cascade. If deletion fails, the on-commit callback is never registered/executed as a successful cancellation.
 
 ### T31. Why can the player ID be trusted in a URL?
 
@@ -2008,7 +2069,7 @@ It is not trusted by itself. Django combines it with verified `request.user`, ro
 
 ### T32. Where is a new account’s club assigned?
 
-Coordinator portal passes the authenticated coordinator’s `club` into `create_club_account`/provisioning. The admin player path’s omission is a known defect, proving why the invariant matters.
+Coordinator portal passes the authenticated Coordinator's Club into `create_club_account`/provisioning. Generic Admin user creation requires an active selected Club and excludes `PLAYER`; the dedicated Admin-player path derives the Player Club from the required active same-Club guardian and calls `provision_player`. Seed commands also repair every non-Admin seed's Club and ensure each seeded Player has exactly one profile.
 
 ### T33. How is a duplicate RSVP prevented?
 
@@ -2020,7 +2081,7 @@ Riverpod exposes loading; the `ConsumerWidget` renders a progress state. On reso
 
 ### T35. Where is notification receiving traced?
 
-It cannot be traced end-to-end because no foreground listener/inbox/deep-link code was found. Registration and backend FCM send can be traced; final in-app display is unverified/partial.
+Backend event helpers persist current-user `NotificationRecord` rows before optional FCM. Flutter traces `onMessage` to a foreground SnackBar and provider invalidation, and traces its **View** action plus `onMessageOpenedApp`, `getInitialMessage()`, and inbox-row taps through `NotificationNavigationController`. The controller re-resolves `/api/auth/me/`, suppresses duplicate active opens, marks the matching row read best-effort, and maps session events to Schedule, assessments to the Player/authorized Guardian child Profile, and eligibility changes to the protected eligibility history; unknown/unsafe requests fall back to the inbox. Local tests verify the inbox/router policy, but signed physical-device FCM/APNs delivery remains environment-dependent and unverified.
 
 # Memorization Cards — Ten Critical Workflows
 
@@ -2148,7 +2209,7 @@ The provider calls a player use case and authenticated API repository. Django ap
 
 ### 60-second technical explanation
 
-The player dashboard watches `myProfileProvider`, which invokes `GetMyProfile` and the API repository. It sends a Bearer GET to `/api/players/me/`; Django requires player role and queries the profile related to `request.user`. Guardians use the detail route plus unlock header. `PlayerSerializer` returns nested ratings and optional photo URL; `Player.fromJson` creates enums/nested `PlayerRatings`; the provider changes from loading to data and the consumer renders cards. Errors become `AsyncError`.
+The player dashboard watches `myProfileProvider`, which invokes `GetMyProfile` and the API repository. The shared client sends a Bearer GET to `/api/players/me/`; Django requires player role and queries the profile related to `request.user`. Guardians use the detail route plus unlock header, which disables persistent caching for that request. `PlayerSerializer` returns nested ratings and optional photo URL; `Player.fromJson` creates enums/nested `PlayerRatings`; the provider changes from loading to data and the consumer renders cards. A pre-response network failure may use the current owner's cached successful GET; HTTP/auth/decode errors become `AsyncError`.
 
 ## Card 4: Guardian Unlock
 
@@ -2358,7 +2419,7 @@ Opening the tab triggers one authenticated aggregate request. Django computes at
 
 ### 60-second technical explanation
 
-`CoachProgressScreen` consumes `squadProgressProvider`. The get-progress use case calls its API adapter with an ID token. `SquadProgressView` checks coach/admin and uses player profiles plus an attendance group-by query with filtered `Count` and `Avg`. It shapes a JSON list with zero/null defaults. `PlayerProgress.fromJson` converts each row; Riverpod resolves and rebuilds summary/card widgets. This is deterministic analytics, not AI. The admin null-club filter is a known correctness bug.
+`CoachProgressScreen` consumes `squadProgressProvider`. The get-progress use case calls its API adapter through `AuthenticatedApiClient`. `SquadProgressView` checks Coach/Super Admin, Club-filters both profile and attendance querysets only for a Coach, and leaves them all-club for Super Admin before the filtered `Count`/`Avg` group-by. It shapes a JSON list with zero/null defaults. `PlayerProgress.fromJson` converts each row; Riverpod resolves and rebuilds summary/card widgets. This is deterministic analytics, not AI.
 
 ## Card 9: Eligibility Update and Read
 
@@ -2442,7 +2503,7 @@ The player submits a typed injury form; Django derives the owner from the authen
 
 ### 60-second technical explanation
 
-The form creates an `InjuryRecord` draft and calls `InjuryFormController`, which invokes `SaveInjury` and the API repository. New records POST to `/api/injuries/` with a Firebase token. The view requires player role and ignores any attempt to choose another owner by saving `player=request.user`. Serializer writes the row and returns JSON; `InjuryRecord.fromJson` converts it, controller invalidates `injuriesProvider(playerId)`, and the list rebuilds. Invalid fields, network errors, and non-owner writes remain errors with no optimistic mutation.
+The form creates an `InjuryRecord` draft and calls `InjuryFormController`, which invokes `SaveInjury` and the API repository. The repository delegates the authenticated POST to `AuthenticatedApiClient`. The view requires player role and ignores any attempt to choose another owner by saving `player=request.user`. Serializer writes the row and returns JSON; `InjuryRecord.fromJson` converts it, controller invalidates `injuriesProvider(playerId)`, and the list rebuilds. Invalid fields, network errors, and non-owner writes remain errors with no optimistic mutation.
 
 # Final Trace Verification Notes
 
@@ -2450,5 +2511,6 @@ The form creates an `InjuryRecord` draft and calls `InjuryFormController`, which
 - Table names follow Django defaults verified from model/migration naming; `PlayerEligibility` is a proxy and has no table.
 - No secret values, tokens, database passwords, or service credentials are included.
 - Scout/scouting and AI paths are marked `NOT IMPLEMENTED IN CURRENT REPOSITORY` because no executable connection exists.
-- Notification sending/device registration is traceable; final foreground/inbox display is not, so it remains partial rather than fabricated.
+- Notification persistence, current-user inbox/read APIs, device registration/unregister, foreground SnackBar handling, bell navigation, duplicate suppression, best-effort read marking, and role-aware session/profile/eligibility destinations are traceable and locally tested. Real Firebase/APNs delivery and presentation on a signed physical device are not claimed as verified.
+- Container/compose, health/readiness, optional Sentry, backup/restore scripts, runbook, and CI image-build paths are traceable repository artifacts; no live deployment, executed alert, scheduled backup, or successful restore drill is claimed.
 - The code comment in `PlayerAssessmentView` still says “six ratings,” while the executable entity/profile supports twelve (six outfield plus six goalkeeper); this trace follows the actual fields.

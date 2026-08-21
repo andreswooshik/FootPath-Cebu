@@ -41,11 +41,26 @@ from .models import (
 )
 
 
+def default_test_club():
+    club, _ = Club.objects.get_or_create(
+        name='Academy API Test Club',
+        defaults={
+            'slug': 'academy-api-test-club',
+            'is_school_affiliated': True,
+            'school_name': 'Academy API Test School',
+        },
+    )
+    return club
+
+
 def make_user(role, email=None):
     email = email or f'{role.lower()}@footpathcebu.test'
     return User.objects.create(
         username=email, email=email, role=role,
         firebase_uid=f'uid-{email}',
+        # Super Admin intentionally remains cross-club; every ordinary test
+        # account follows the production tenant invariant.
+        club=None if role == Roles.ADMIN else default_test_club(),
     )
 
 
@@ -224,6 +239,7 @@ class SessionAttendanceTests(APITestCase):
         self.session = TrainingSession.objects.create(
             title='Evening Training', date=date.today(),
             age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
         )
 
     def _url(self):
@@ -330,6 +346,7 @@ class SessionAttendanceTests(APITestCase):
         session = TrainingSession.objects.create(
             title=f'session {when}', date=when,
             age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
         )
         url = reverse('attendance-session', args=[session.id])
         return self.client.post(url, self._payload(), format='json')
@@ -566,11 +583,12 @@ class SquadProgressTests(APITestCase):
         self.player = make_player('prog@footpathcebu.test')
         s1 = TrainingSession.objects.create(
             title='A', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL,
+            focus=SessionFocus.TECHNICAL, club=self.coach.club,
         )
         s2 = TrainingSession.objects.create(
             title='B', date=date.today() - timedelta(days=7),
             age_tiers=['DEVELOPMENT'], focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
         )
         Attendance.objects.create(
             player=self.player, session=s1,
@@ -630,7 +648,7 @@ class AuditLogTests(APITestCase):
     def test_session_cancellation_is_audited(self, _mock):
         session = TrainingSession.objects.create(
             title='Doomed', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL,
+            focus=SessionFocus.TECHNICAL, club=self.coach.club,
         )
         self.client.force_authenticate(self.coach)
         self.client.delete(
@@ -822,7 +840,7 @@ class TrainingSessionTests(APITestCase):
     def test_coach_edits_a_session(self, mock_notify):
         session = TrainingSession.objects.create(
             title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL,
+            focus=SessionFocus.TECHNICAL, club=self.coach.club,
         )
         self.client.force_authenticate(self.coach)
         # The push is deferred to on_commit, which a wrapped test transaction
@@ -844,26 +862,31 @@ class TrainingSessionTests(APITestCase):
         player = make_player('att@footpathcebu.test')
         session = TrainingSession.objects.create(
             title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL,
+            focus=SessionFocus.TECHNICAL, club=self.coach.club,
         )
         record = Attendance.objects.create(
             player=player, session=session, status=AttendanceStatus.PRESENT,
         )
+        original_session_id = session.id
         self.client.force_authenticate(self.coach)
-        resp = self.client.delete(
-            reverse('training-session-detail', args=[session.id])
-        )
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.delete(
+                reverse('training-session-detail', args=[session.id])
+            )
         self.assertEqual(resp.status_code, 204)
         self.assertFalse(TrainingSession.objects.filter(pk=session.pk).exists())
         # Recorded history is never destroyed: the FK just goes null.
         record.refresh_from_db()
         self.assertIsNone(record.session)
         mock_notify.assert_called_once()
+        self.assertEqual(
+            mock_notify.call_args.kwargs['session_id'], original_session_id,
+        )
 
     def test_non_coach_cannot_edit_or_cancel(self):
         session = TrainingSession.objects.create(
             title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL,
+            focus=SessionFocus.TECHNICAL, club=self.coach.club,
         )
         url = reverse('training-session-detail', args=[session.id])
         self.client.force_authenticate(make_user(Roles.PLAYER))
@@ -898,7 +921,7 @@ class TrainingSessionTests(APITestCase):
     def test_any_authenticated_user_can_list(self):
         TrainingSession.objects.create(
             title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL,
+            focus=SessionFocus.TECHNICAL, club=default_test_club(),
         )
         self.client.force_authenticate(make_user(Roles.GUARDIAN))
         resp = self.client.get(reverse('training-sessions'))
@@ -1229,8 +1252,8 @@ class PhotoUploadTests(APITestCase):
             )
         }
 
-    def test_non_admin_cannot_upload(self):
-        self.client.force_authenticate(make_user(Roles.COACH))
+    def test_non_coach_non_admin_cannot_upload(self):
+        self.client.force_authenticate(make_user(Roles.GUARDIAN))
         url = reverse('player-photo-upload', args=[self.player.id])
         resp = self.client.post(url, self._upload(), format='multipart')
         self.assertEqual(resp.status_code, 403)
@@ -1318,7 +1341,8 @@ class PushTriggerTests(APITestCase):
         sent = mock_messaging.send_each_for_multicast.call_args[0][0]
         self.assertEqual(set(sent.tokens), {'t0', 't1'})
         self.assertEqual(sent.data['type'], 'eligibility_changed')
-        self.assertEqual(sent.data['previous'], Eligibility.ELIGIBLE)
+        self.assertNotIn('previous', sent.data)
+        self.assertNotIn('eligibility', sent.data)
 
     @patch('academy.notifications.ensure_initialized')
     @patch('academy.notifications.messaging')
@@ -1499,7 +1523,7 @@ class NotificationFanOutTests(APITestCase):
 
         session = TrainingSession.objects.create(
             title='Dev only', date=date.today(), age_tiers=[AgeTier.DEVELOPMENT],
-            focus=SessionFocus.TECHNICAL,
+            focus=SessionFocus.TECHNICAL, club=dev_player.club,
         )
         sent = notify_session_scheduled(session)
 
@@ -1719,6 +1743,7 @@ class SessionConfirmationTests(APITestCase):
         self.session = TrainingSession.objects.create(
             title='Evening Training', date=date.today(),
             age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+            club=self.player.club,
         )
 
     def _url(self, player_id=None):
@@ -1757,6 +1782,7 @@ class SessionConfirmationTests(APITestCase):
         future = TrainingSession.objects.create(
             title='Future Training', date=date.today() + timedelta(days=1),
             age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+            club=self.player.club,
         )
         self.client.force_authenticate(self.player)
         resp = self.client.post(

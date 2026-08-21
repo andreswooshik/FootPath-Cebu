@@ -1,17 +1,17 @@
 import 'dart:convert';
 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:footpath_cebu/core/config/api_config.dart';
+import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
-import 'package:http/http.dart' as http;
 
 /// Live implementation backed by the Django REST API, authenticated with the
 /// signed-in user's Firebase ID token (same pattern as [ApiTrainingRepository]).
 class ApiAttendanceRepository implements AttendanceRepository {
-  ApiAttendanceRepository({this.unlockTokenFor});
+  ApiAttendanceRepository({this.unlockTokenFor, AuthenticatedApiClient? api})
+    : _api = api ?? AuthenticatedApiClient.shared;
 
   final String? Function(String playerId)? unlockTokenFor;
+  final AuthenticatedApiClient _api;
 
   static const _path = '/api/attendance/';
 
@@ -20,58 +20,44 @@ class ApiAttendanceRepository implements AttendanceRepository {
     String playerId, {
     String? unlockToken,
   }) async {
-    final idToken = await _requireIdToken();
     final playerUnlock = unlockToken ?? unlockTokenFor?.call(playerId);
-
-    final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}$_path?player=$playerId'),
+      final response = await _api.get(
+        '$_path?player=$playerId',
         headers: {
-          'Authorization': 'Bearer $idToken',
           if (playerUnlock != null && playerUnlock.isNotEmpty)
             'X-Player-Unlock': playerUnlock,
         },
       );
-    } catch (_) {
-      throw AttendanceNetworkException(
-        'Could not reach the server. Is it running?',
-      );
-    }
-
-    if (response.statusCode != 200) {
+      return _decodeRecords(response.body)
+        ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    } on ApiNetworkException catch (error) {
+      throw AttendanceNetworkException(error.message);
+    } on ApiHttpException catch (error) {
       throw AttendanceRepositoryException(
-        'Request failed (${response.statusCode}).',
+        error.message,
+        statusCode: error.statusCode,
       );
+    } on ApiException catch (error) {
+      throw AttendanceRepositoryException(error.message);
     }
-
-    return _decodeRecords(response.body)
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   }
 
   @override
   Future<List<Attendance>> fetchAttendanceForSession(String sessionId) async {
-    final idToken = await _requireIdToken();
-
-    final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}${_path}session/$sessionId/'),
-        headers: {'Authorization': 'Bearer $idToken'},
-      );
-    } catch (_) {
-      throw AttendanceNetworkException(
-        'Could not reach the server. Is it running?',
-      );
-    }
-
-    if (response.statusCode != 200) {
+      final response = await _api.get('${_path}session/$sessionId/');
+      return _decodeRecords(response.body);
+    } on ApiNetworkException catch (error) {
+      throw AttendanceNetworkException(error.message);
+    } on ApiHttpException catch (error) {
       throw AttendanceRepositoryException(
-        'Request failed (${response.statusCode}).',
+        error.message,
+        statusCode: error.statusCode,
       );
+    } on ApiException catch (error) {
+      throw AttendanceRepositoryException(error.message);
     }
-
-    return _decodeRecords(response.body);
   }
 
   @override
@@ -79,32 +65,24 @@ class ApiAttendanceRepository implements AttendanceRepository {
     String sessionId,
     List<Attendance> records,
   ) async {
-    final idToken = await _requireIdToken();
-
-    final http.Response response;
     try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}${_path}session/$sessionId/'),
-        headers: {
-          'Authorization': 'Bearer $idToken',
-          'Content-Type': 'application/json',
-        },
+      final response = await _api.post(
+        '${_path}session/$sessionId/',
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'records': records.map((r) => r.toJson()).toList()}),
       );
-    } catch (_) {
-      throw AttendanceNetworkException(
-        'Could not reach the server. Is it running?',
-      );
-    }
-
-    if (response.statusCode != 200) {
+      // The server echoes the session's saved records back.
+      return _decodeRecords(response.body);
+    } on ApiNetworkException catch (error) {
+      throw AttendanceNetworkException(error.message);
+    } on ApiHttpException catch (error) {
       throw AttendanceRepositoryException(
-        'Request failed (${response.statusCode}).',
+        error.message,
+        statusCode: error.statusCode,
       );
+    } on ApiException catch (error) {
+      throw AttendanceRepositoryException(error.message);
     }
-
-    // The server echoes the session's saved records back.
-    return _decodeRecords(response.body);
   }
 
   List<Attendance> _decodeRecords(String body) {
@@ -113,17 +91,5 @@ class ApiAttendanceRepository implements AttendanceRepository {
         ? (decoded['results'] as List? ?? const [])
         : (decoded as List? ?? const []);
     return list.cast<Map<String, dynamic>>().map(Attendance.fromJson).toList();
-  }
-
-  Future<String> _requireIdToken() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw AttendanceRepositoryException('Not signed in.');
-    }
-    final token = await user.getIdToken();
-    if (token == null) {
-      throw AttendanceRepositoryException('Not signed in.');
-    }
-    return token;
   }
 }
