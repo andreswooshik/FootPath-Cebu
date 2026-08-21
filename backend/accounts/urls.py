@@ -5,6 +5,7 @@ from . import views
 urlpatterns = [
     path('auth/me/', views.MeView.as_view(), name='auth-me'),
     path('health/', views.health, name='health'),
+    path('ready/', views.readiness, name='readiness'),
     path(
         'admin/users/',
         views.AdminUserListCreateView.as_view(),

@@ -10,9 +10,9 @@ import logging
 from firebase_admin import messaging
 
 from accounts.firebase import ensure_initialized
-from accounts.models import GuardianLink
+from accounts.models import GuardianLink, User
 
-from .models import DeviceToken, PlayerProfile
+from .models import DeviceToken, NotificationRecord, PlayerProfile
 
 logger = logging.getLogger(__name__)
 
@@ -45,18 +45,30 @@ def _player_and_guardian_ids(player_id):
     return {player_id} | guardian_ids
 
 
-def _player_display_name(profile):
-    user = profile.user
-    full = f'{user.first_name} {user.last_name}'.strip()
-    return full or user.email.split('@')[0]
-
-
 def _send_to_users(user_ids, *, title, body, data):
-    """Fan one notification out to every device of `user_ids`.
+    """Persist an inbox record, then fan out to every registered device.
 
-    Best-effort: logs and swallows all errors, prunes dead tokens. Returns
-    the number of successful sends.
+    Inbox persistence is authoritative and happens even when Firebase is not
+    configured or the recipient denied notification permission. FCM remains
+    best-effort: errors are logged/swallowed and dead tokens are pruned.
     """
+    recipient_ids = list(
+        User.objects.filter(pk__in=set(user_ids), is_active=True)
+        .values_list('pk', flat=True)
+    )
+    if not recipient_ids:
+        return 0
+    NotificationRecord.objects.bulk_create([
+        NotificationRecord(
+            user_id=user_id,
+            event_type=str(data.get('type') or 'general')[:40],
+            title=title[:120],
+            body=body[:300],
+            data=data,
+        )
+        for user_id in recipient_ids
+    ])
+
     try:
         ensure_initialized()
     except Exception as exc:  # SDK not configured (e.g. local dev)
@@ -64,7 +76,7 @@ def _send_to_users(user_ids, *, title, body, data):
         return 0
 
     tokens = list(
-        DeviceToken.objects.filter(user_id__in=user_ids)
+        DeviceToken.objects.filter(user_id__in=recipient_ids)
         .values_list('token', flat=True)
     )
     if not tokens:
@@ -88,11 +100,10 @@ def _send_to_users(user_ids, *, title, body, data):
 
 def notify_session_scheduled(session):
     """Push a 'new training session' notification to everyone concerned."""
-    tier_label = ', '.join(session.age_tiers or []) or 'all tiers'
     return _send_to_users(
         _recipients_for_session(session),
         title='New training session',
-        body=f'{session.title} on {session.date} · {tier_label}',
+        body='Open FootPath Cebu to view the latest schedule.',
         data={'type': 'session_scheduled', 'sessionId': str(session.id)},
     )
 
@@ -102,19 +113,25 @@ def notify_session_updated(session):
     return _send_to_users(
         _recipients_for_session(session),
         title='Training session updated',
-        body=f'{session.title} on {session.date} was changed — check the schedule.',
+        body='A training schedule was updated. Sign in to view the details.',
         data={'type': 'session_updated', 'sessionId': str(session.id)},
     )
 
 
-def notify_session_cancelled(session):
+def notify_session_cancelled(session, user_ids=None, session_id=None):
     """Push after a coach cancels (deletes) a session. Called BEFORE the row
     is deleted so the recipient query can still see it."""
     return _send_to_users(
-        _recipients_for_session(session),
+        user_ids if user_ids is not None else _recipients_for_session(session),
         title='Training session cancelled',
-        body=f'{session.title} on {session.date} was cancelled.',
-        data={'type': 'session_cancelled', 'sessionId': str(session.id)},
+        body='A training session was cancelled. Sign in to view the schedule.',
+        data={
+            'type': 'session_cancelled',
+            # Django clears an instance's primary key after delete(). The
+            # caller snapshots it so the post-commit notification still links
+            # to the actual cancelled session rather than "None".
+            'sessionId': str(session_id if session_id is not None else session.id),
+        },
     )
 
 
@@ -125,7 +142,7 @@ def notify_assessment_saved(profile):
     return _send_to_users(
         _player_and_guardian_ids(profile.user_id),
         title='Performance assessment updated',
-        body=f'New ratings were saved for {_player_display_name(profile)}.',
+        body='A performance assessment was updated. Sign in to view it.',
         data={'type': 'assessment_saved', 'playerId': str(profile.user_id)},
     )
 
@@ -136,15 +153,10 @@ def notify_eligibility_changed(profile, previous):
     return _send_to_users(
         _player_and_guardian_ids(profile.user_id),
         title='Eligibility updated',
-        body=(
-            f'{_player_display_name(profile)} is now '
-            f'{profile.get_eligibility_display()}.'
-        ),
+        body='Academic eligibility status was updated. Sign in to view it.',
         data={
             'type': 'eligibility_changed',
             'playerId': str(profile.user_id),
-            'eligibility': profile.eligibility,
-            'previous': previous or '',
         },
     )
 

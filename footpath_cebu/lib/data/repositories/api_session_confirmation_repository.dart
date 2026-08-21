@@ -1,10 +1,8 @@
 import 'dart:convert';
 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:footpath_cebu/core/config/api_config.dart';
+import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/session_confirmation.dart';
 import 'package:footpath_cebu/domain/repositories/session_confirmation_repository.dart';
-import 'package:http/http.dart' as http;
 
 /// Live implementation backed by the Django REST API, authenticated with the
 /// signed-in user's Firebase ID token (same pattern as [ApiAttendanceRepository]).
@@ -13,34 +11,24 @@ import 'package:http/http.dart' as http;
 /// app restarts, and are visible to the coach — unlike the in-memory mock.
 class ApiSessionConfirmationRepository
     implements SessionConfirmationRepository {
+  ApiSessionConfirmationRepository({AuthenticatedApiClient? api})
+    : _api = api ?? AuthenticatedApiClient.shared;
+
   static const _path = '/api/session-confirmations/';
+
+  final AuthenticatedApiClient _api;
 
   @override
   Future<List<SessionConfirmation>> fetchConfirmationsForPlayer(
     String playerId,
   ) async {
-    final idToken = await _requireIdToken();
-
-    final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}$_path?player=$playerId'),
-        headers: {'Authorization': 'Bearer $idToken'},
-      );
-    } catch (_) {
-      throw SessionConfirmationRepositoryException(
-        'Could not reach the server. Is it running?',
-      );
+      final response = await _api.get('$_path?player=$playerId');
+      return _decode(response.body)
+        ..sort((a, b) => b.respondedAt.compareTo(a.respondedAt));
+    } on ApiException catch (error) {
+      throw SessionConfirmationRepositoryException(error.message);
     }
-
-    if (response.statusCode != 200) {
-      throw SessionConfirmationRepositoryException(
-        'Request failed (${response.statusCode}).',
-      );
-    }
-
-    return _decode(response.body)
-      ..sort((a, b) => b.respondedAt.compareTo(a.respondedAt));
   }
 
   @override
@@ -49,35 +37,21 @@ class ApiSessionConfirmationRepository
     String playerId,
     ConfirmationStatus status,
   ) async {
-    final idToken = await _requireIdToken();
-
     // The player is derived from the authenticated request server-side, so
     // only the session and the intended status are sent.
-    final http.Response response;
     try {
-      response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}$_path'),
-        headers: {
-          'Authorization': 'Bearer $idToken',
-          'Content-Type': 'application/json',
-        },
+      final response = await _api.post(
+        _path,
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'sessionId': sessionId, 'status': status.wire}),
+        expectedStatuses: const {200, 201},
       );
-    } catch (_) {
-      throw SessionConfirmationRepositoryException(
-        'Could not reach the server. Is it running?',
+      return SessionConfirmation.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
       );
+    } on ApiException catch (error) {
+      throw SessionConfirmationRepositoryException(error.message);
     }
-
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw SessionConfirmationRepositoryException(
-        'Request failed (${response.statusCode}).',
-      );
-    }
-
-    return SessionConfirmation.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
   }
 
   List<SessionConfirmation> _decode(String body) {
@@ -89,17 +63,5 @@ class ApiSessionConfirmationRepository
         .cast<Map<String, dynamic>>()
         .map(SessionConfirmation.fromJson)
         .toList();
-  }
-
-  Future<String> _requireIdToken() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw SessionConfirmationRepositoryException('Not signed in.');
-    }
-    final token = await user.getIdToken();
-    if (token == null) {
-      throw SessionConfirmationRepositoryException('Not signed in.');
-    }
-    return token;
   }
 }

@@ -22,17 +22,17 @@ FootPath Cebu is a role-based youth football academy management system that cent
 
 > Youth academies can fragment player ratings, attendance, schedules, injury notes, and eligibility decisions across paper or separate files. FootPath Cebu centralizes those records and gives six roles only the operations they need. Coaches manage development and training in Flutter. Players see their own records and confirm sessions. Linked guardians unlock a child’s private information with an additional household PIN. Coordinators provision club accounts, school staff maintain eligibility, and administrators manage the system through Django.
 >
-> The mobile app uses Riverpod and domain/repository layers. Firebase handles identity and push; Django REST verifies every token, enforces role, club, ownership, and family links, and persists through the ORM. Attendance can be queued locally during network failure. AI, scouting, match statistics, and a complete notification inbox are not current features.
+> The mobile app uses Riverpod and domain/repository layers. Firebase handles identity and push; Django REST verifies every token, enforces role, club, ownership, and family links, and persists through the ORM. Attendance writes can be queued locally during network failure, and safe authenticated GET responses have a Firebase-user-scoped cache. Notifications are stored in a current-user inbox, shown through unread bells, and handled while the app is foregrounded or opened from a push. AI, scouting, and match statistics are not current features.
 
 ## Three-minute technical explanation
 
 > The Flutter app starts in `main.dart`, initializes Firebase, enters a Riverpod `ProviderScope`, and shows `SessionBootstrapScreen`. A restored Firebase user still must call Django `/api/auth/me/`; Django verifies the ID token with revocation checking, maps its UID to an active local `User`, requires a club for non-admin roles, and returns the authoritative role. `HomeScreen` then selects the coach, player, or guardian mobile portal. Coordinator and school-staff operations use Django’s session-authenticated portal, and administrators use Django admin/protected APIs.
 >
-> Flutter is divided into presentation screens/providers, domain entities/use cases/repository contracts, and concrete data adapters. `core/di/providers.dart` composes mock or live implementations. Live API repositories attach the Firebase Bearer token and convert JSON with factories such as `Player.fromJson`. Django URL views apply role and object checks, serializers validate payloads, services handle cross-system work, and models persist relational data. SQLite is the default/test database; environment settings can select PostgreSQL, including Supabase-hosted PostgreSQL. Supabase Storage is optional for private player photos and is called by Django only, so Supabase Auth and RLS are not part of the design.
+> Flutter is divided into presentation screens/providers, domain entities/use cases/repository contracts, and concrete data adapters. `core/di/providers.dart` composes mock or live implementations. Live repositories use a shared authenticated client for Firebase Bearer tokens, timeouts, typed errors, and owner-scoped safe-GET caching, then convert JSON with factories such as `Player.fromJson`. Django URL views apply role and object checks, serializers validate payloads, services handle cross-system work, and models persist relational data. SQLite is the default/test database; environment settings can select PostgreSQL, including Supabase-hosted PostgreSQL. Supabase Storage is optional for private player photos and is called through Django, so Supabase Auth and RLS are not part of the design.
 >
 > A representative coach write is assessment saving: the editor calls a Riverpod controller, `SavePlayerAssessment`, and `ApiPlayerRepository`; Django checks coach and same-club access, validates twelve ratings in the implemented 0–99 scale, updates `PlayerProfile`, audits, schedules FCM after commit, and returns the updated player for provider refresh. Attendance adds resilience: a complete batch is atomically upserted/pruned on Django, but a transport failure stores it in a Firebase-user-scoped sqflite outbox and replays it oldest first.
 >
-> Security is server-authoritative. Firebase proves identity; Django decides role, tenant, ownership, and guardian links. Guardian detail adds a hashed 4–6 digit PIN, five-attempt lockout, and a ten-minute signed user/player unlock token. The project has strong implemented operations but does not currently contain AI, scouting, match statistics, grades, chat, or maps, and notification receiving remains partial.
+> Security is server-authoritative. Firebase proves identity; Django decides role, tenant, ownership, and guardian links. Guardian detail adds a hashed 4–6 digit PIN, five-attempt lockout, and a ten-minute signed user/player unlock token. Player provisioning now enforces the Player/Club/PlayerProfile aggregate across admin, portal, API, and seed paths. The project has strong implemented operations but does not currently contain AI, scouting, match statistics, grades, chat, or maps.
 
 ## Repository technical inventory
 
@@ -46,16 +46,16 @@ FootPath Cebu is a role-based youth football academy management system that cent
 | Authentication | Firebase Auth for mobile; Django sessions for portal/admin |
 | Authorization | Django role, club, object/ownership, GuardianLink, and PIN-unlock checks |
 | Main database | Django ORM; SQLite default/test or configured PostgreSQL/Supabase host |
-| Mobile local storage | sqflite attendance outbox only |
+| Mobile local storage | Firebase-user-scoped sqflite attendance outbox and authenticated GET cache |
 | Object storage | optional private Supabase Storage through Django |
 | External services | Firebase Auth/Admin/FCM; optional Supabase database/storage infrastructure |
-| Key Flutter packages | `firebase_core`, `firebase_auth`, `firebase_messaging`, `http`, `flutter_riverpod`, `sqflite`, `connectivity_plus`, `flutter_svg`, `google_fonts`, `flutter_animate` |
-| Key backend packages | Django, Jazzmin, DRF, Firebase Admin, CORS Headers, Axes, Argon2, python-dotenv, httpx, psycopg |
+| Key Flutter packages | `firebase_core`, `firebase_auth`, `firebase_messaging`, `http`, `flutter_riverpod`, `sqflite`, `connectivity_plus`, `image_picker`, `flutter_svg`, `google_fonts`, `flutter_animate` |
+| Key backend packages | Django, Jazzmin, DRF, Firebase Admin, CORS Headers, Axes, Argon2, python-dotenv, httpx, psycopg, Gunicorn, WhiteNoise, Redis, Sentry SDK |
 | Platform configuration | Android/iOS/macOS/web/desktop Flutter scaffolding; Firebase client configuration is present for supported app platforms |
 | AI/ML | not found |
-| Testing | Flutter test/widget/unit suite; Django test suite; GitHub Actions CI |
+| Testing | 2026-08-21 local verification: Flutter analyze clean, Flutter 240/240, Django 241/241; GitHub Actions CI configured |
 | Major backend apps | `accounts`, `academy`, `portal`, `console`, `config` |
-| Current status | core academy workflows implemented; notifications/deployment/photos partly bounded; AI/scouting and listed absent features not found |
+| Current status | core academy, notification-inbox, resilient-networking, and authorized-photo workflows implemented; production artifacts exist but operational evidence remains unverified; AI/scouting and listed absent features not found |
 
 ## What was actually inspected
 
@@ -67,10 +67,12 @@ This reviewer is based on the executable repository, not only on planning docume
 - Django ORM persistence using SQLite by default or PostgreSQL when configured;
 - optional Supabase-hosted PostgreSQL and private Supabase Storage, both accessed by Django rather than directly by Flutter;
 - a Django session-authenticated coordinator/school-staff portal and Django admin console;
-- an offline attendance outbox in the mobile app using SQLite (`sqflite`);
+- an offline attendance outbox and owner-scoped authenticated GET cache in the mobile app using SQLite (`sqflite`);
+- a persistent notification inbox with unread state, foreground handling, and role-aware push-open navigation;
+- container, readiness, observability hooks, and backup/restore runbooks for production operations;
 - automated Django and Flutter tests plus GitHub Actions CI.
 
-The source inventory found 71 Python files and 190 Dart files repository-wide. The primary implementation areas contain approximately 10,021 backend source/template/static lines and 14,687 Flutter `lib/` lines. Flutter tests contain 34 Dart files and approximately 3,746 lines.
+The repository inventory includes Python backend code, Dart mobile code, Django templates/static assets, automated tests, CI, container manifests, and operations scripts. Counts change as hardening work is added, so the defense should rely on current test output and source paths rather than an older snapshot count.
 
 ## Problem addressed
 
@@ -102,8 +104,8 @@ The implemented system addresses fragmented academy operations. Without a shared
 9. Player-reported injury CRUD and authorized read access.
 10. Dispute creation and append-only response/status history.
 11. Player household privacy PIN with hashing, throttling, temporary signed unlock tokens, and guardian access headers.
-12. Device-token registration and selected FCM notification fan-out.
-13. Private player-photo upload through Django to optional Supabase Storage.
+12. Device-token lifecycle, persistent notification inbox/read state, selected FCM fan-out, foreground display, and role-aware push-open routing.
+13. Private player-photo upload through Django from authorized web/admin and same-Club Coach mobile workflows, when Supabase credentials are configured.
 14. Coordinator and school-staff web workflows.
 
 ## Formal objectives: repository finding
@@ -133,7 +135,7 @@ To design and implement a secure, role-based academy information system that cen
 | Provide controlled family access | Linked-player selector and PIN unlock | guardian providers, `pin_service.py`, `player_unlock.py` | `accounts_guardianlink`, `academy_playerprivacypin` | Redacted pre-unlock list; guarded detail requires signed user/player token |
 | Preserve accountability | Eligibility history, disputes, audit | `academy/signals.py`, dispute views, `AuditLog` calls | eligibility history, disputes/responses, audit table | Actor/time/status records are created by verified workflows |
 | Enforce role/club isolation | Firebase-to-Django auth and endpoint checks | `accounts/authentication.py`, `permissions.py`, `academy/views.py` | `accounts_user.role/club_id`, related FKs | Server rejects wrong role/cross-club/unauthorized object requests |
-| Improve field reliability | Offline attendance queue | offline decorator, outbox, sync service | mobile `outbox_attendance` then backend attendance | Network-failed batches persist per owner and replay to same endpoint |
+| Improve field reliability | Offline attendance queue and safe-read cache | offline decorator, outbox, sync service, shared authenticated client, GET cache | mobile owner-scoped SQLite data then backend APIs | Transport-failed attendance batches replay; eligible GETs use scoped cache only for network failures, never HTTP errors |
 | Centralize trusted provisioning | Coordinator/admin account workflows | `accounts/services.py`, `portal/services.py` | users, profiles, guardian links, Firebase identity | Coordinator path creates linked domain records with Firebase compensation |
 
 ## Scope boundary
@@ -146,15 +148,19 @@ To design and implement a secure, role-based academy information system that cen
 - schedules, confirmations, attendance, effort, and notes;
 - injury history, eligibility history, disputes, and audit entries;
 - Firebase identity, token verification, password reset/change, and FCM sending;
-- private photo storage through the server;
+- persistent notification inbox/read state, foreground handling, unread bells, and role-aware push-open routing;
+- private photo storage through the server, including same-Club Coach mobile upload when Supabase is configured;
 - local mock repositories for UI/demo development and real API repositories for live operation.
 
-### Partially implemented
+### Implemented with explicit boundaries
 
-- **Notifications:** device-token registration and backend FCM fan-out exist, but the mobile notification-bell callbacks are empty and no foreground listener, notification inbox, or notification-to-screen navigation was found.
-- **Production deployment:** production security and database configuration exist, and CI performs deployment checks, but no complete infrastructure deployment manifest or proof of an active production deployment is in the repository.
-- **Player photos:** coordinator/admin upload and mobile display exist; Flutter does not provide a photo-upload workflow.
+- **Notifications:** authenticated inbox/read-state APIs, current-user persistence, device-token lifecycle, FCM fan-out, foreground feedback, unread bells, and role-aware routing are implemented. Session events open the schedule; assessment/eligibility events open the authorized Player/Guardian destination behind existing privacy gates; unknown events fall back to the focused inbox. Actual remote delivery still depends on valid Firebase/APNs configuration and should be demonstrated on a supported device.
+- **Player photos:** coordinator/admin and same-Club Coach mobile upload paths validate files and send them through Django. Storage succeeds only when the deployment has valid Supabase Storage credentials; mobile display retains an avatar fallback.
 - **Academic eligibility:** School Clubs store only one of four eligibility statuses and its history. Independent Clubs receive Not Applicable. FootPath Cebu never stores raw student grades.
+
+### Operationally unverified
+
+- **Production deployment:** Docker/Compose, Gunicorn/WhiteNoise, health/readiness checks, optional Sentry hooks, CI validation, backup/restore scripts, and an operations runbook now exist. The repository does not prove an active live deployment, monitor/alert execution, scheduled backups, or a completed restore drill.
 
 ### Not found in executable source
 
@@ -168,13 +174,13 @@ To design and implement a secure, role-based academy information system that cen
 - Supabase Auth or row-level security policies;
 - formal approved objective statements.
 
-## Important documentation discrepancy
+## Documentation alignment note
 
-The root `README.md` contains earlier/planned Firestore and custom-claims language. The implemented architecture and ADR use Firebase only for identity/push; Django is the authorization and data source of truth. Supabase, when configured, is a PostgreSQL host and private object store. In a defense, describe the code that exists and acknowledge the README as stale planning material.
+The root `README.md` now matches the implemented architecture: Firebase supplies identity and push, while Django is the authorization and relational-data source of truth. Supabase, when configured, is a PostgreSQL host and private object store. The approved requirements still contain a rating-scale mismatch documented elsewhere in this reviewer; do not silently rewrite that approved wording.
 
 ## Core value proposition
 
-The project’s strongest defensible contribution is not an AI feature. It is the integration of role-scoped academy workflows with a deliberate security model: trusted identity from Firebase, authorization and tenancy in Django, relational history/audit records, household PIN protection for guardian access, and an offline attendance queue for unreliable field connectivity.
+The project’s strongest defensible contribution is not an AI feature. It is the integration of role-scoped academy workflows with a deliberate security model: trusted identity from Firebase, authorization and tenancy in Django, relational history/audit records, household PIN protection for guardian access, resilient attendance writes and safe cached reads, plus a persistent notification channel.
 
 ## Short opening statement for the panel
 

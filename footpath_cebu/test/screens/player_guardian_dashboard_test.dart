@@ -86,4 +86,27 @@ void main() {
     expect(find.text('Recent Attendance'), findsOneWidget);
     expect(find.text('View Full History'), findsOneWidget);
   });
+
+  testWidgets('Guardian notification route selects a safe default schedule', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: GuardianPortalScreen(
+            initialTabIndex: 1,
+            selectDefaultPlayer: true,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      1,
+    );
+    expect(find.text('Schedule'), findsOneWidget);
+  });
 }

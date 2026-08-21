@@ -57,10 +57,10 @@ These questions focus on what a panelist can point to in source. Answers describ
 - **Answer:** The queue represents ordered full-session batches. Continuing past a failed older batch could reverse the user’s intended last-write order.
 - **Evidence:** `attendance_sync_service.dart`.
 
-### C12. What is risky about the session-attendance fallback catch?
+### C12. How does the session-attendance fallback avoid masking server errors?
 
-- **Answer:** It catches a broad repository exception rather than only network failures, so queued data can mask an authorization or backend error. It should discriminate like the write path.
-- **Evidence:** `offline_first_attendance_repository.dart` read method.
+- **Answer:** Both queued writes and queued roll-call reads fall back only on `AttendanceNetworkException`. Authentication, permission, validation, and 5xx HTTP responses remain visible instead of being replaced by local data.
+- **Evidence:** `offline_first_attendance_repository.dart`; shared client and attendance tests.
 
 ### C13. How does `ApiConfig` prevent an unsafe release endpoint?
 
@@ -87,9 +87,9 @@ These questions focus on what a panelist can point to in source. Answers describ
 - **Answer:** It creates/links Firebase identity and relational user inside a controlled service. If a newly created Firebase identity would become orphaned because the DB save fails, compensation deletes it.
 - **Evidence:** `backend/accounts/services.py`.
 
-### C18. Why use `transaction.on_commit()` for push?
+### C18. Why use `transaction.on_commit()` for notifications?
 
-- **Answer:** Sending before commit could notify users about data that later rolls back. The callback runs only after successful database commit.
+- **Answer:** Creating an inbox event or sending a push before commit could advertise data that later rolls back. The callback runs only after successful database commit; cancellation snapshots recipients first but emits only after deletion commits.
 - **Evidence:** `academy/views.py`; `academy/signals.py`; `academy/notifications.py`.
 
 ### C19. What do `pre_save` and `post_save` do for eligibility?
@@ -137,10 +137,10 @@ These questions focus on what a panelist can point to in source. Answers describ
 - **Answer:** A unique pair containing SQL `NULL` may permit multiple rows for the same player with no session. A conditional uniqueness rule or explicit legacy event key would be stronger.
 - **Evidence:** `Attendance` model constraint and nullable `session`.
 
-### C28. Why are training time strings a risk?
+### C28. How are string-based training times made safe?
 
-- **Answer:** String storage and missing cross-field validation allow semantically invalid ranges such as an end before start. Typed `TimeField`s and serializer validation would enforce meaning.
-- **Evidence:** `TrainingSession` model and serializer.
+- **Answer:** The wire contract still uses display strings, but one model helper parses/normalizes supported 12-hour values, requires start/end as a pair, and rejects start greater than or equal to end. DRF maps the same errors and `save()` invokes model validation for ORM/admin paths. Native `TimeField`s would still provide stronger database typing.
+- **Evidence:** `TrainingSession.validate_time_window`, `clean`, and `save`; `TrainingSessionSerializer.validate`.
 
 ### C29. How are nested performance ratings persisted?
 
@@ -157,20 +157,20 @@ These questions focus on what a panelist can point to in source. Answers describ
 - **Answer:** It derives the Club from the selected active Guardian and calls the same `provision_player` aggregate service used by the Coordinator flow.
 - **Evidence:** admin player view in `backend/accounts/views.py`; club gate in `authentication.py`.
 
-### C32. What is the second admin player-invariant bug?
+### C32. How is generic admin creation prevented from creating a profile-less Player?
 
 - **Answer:** It cannot: generic choices exclude `PLAYER`; the dedicated service creates one User and one `PlayerProfile` in the same transaction.
 - **Evidence:** `AdminCreateUserSerializer`; `AdminUserListCreateView`; `PlayerProfile` access paths.
 
-### C33. How would you fix both provisioning bugs?
+### C33. How are Player invariants preserved outside interactive provisioning?
 
-- **Answer:** Make one transactional `provision_player(club, guardian, ...)` service the only player creation route; remove `PLAYER` from generic creation; validate same-club guardian; create profile/link atomically; test compensation and auth.
-- **Evidence:** existing `accounts/services.py` and `portal/services.py` patterns.
+- **Answer:** Both seed commands use the aggregate service or an idempotent equivalent that assigns an active Club and `get_or_create`s exactly one PlayerProfile. Re-running seeds repairs incomplete demo rows rather than creating duplicates.
+- **Evidence:** `accounts/management/commands/seed_users.py`; `academy/management/commands/seed_academy.py`; integrity tests.
 
-### C34. What is the squad-progress admin mismatch?
+### C34. How does squad progress scope Coach versus Super Admin?
 
-- **Answer:** The view suggests an admin can see all but filters by `request.user.club_id`. A normal global admin has null club, so results are not truly all-club.
-- **Evidence:** `SquadProgressView` in `academy/views.py` compared with other admin queryset helpers.
+- **Answer:** The base profile/attendance query spans all Clubs. It adds a Club filter only for Coach; Super Admin keeps the all-Club queryset. Other roles are rejected.
+- **Evidence:** `SquadProgressView` in `academy/views.py` and its role-scope tests.
 
 ### C35. What is weak about `AuditLog.record()`’s guarantee?
 
@@ -179,18 +179,18 @@ These questions focus on what a panelist can point to in source. Answers describ
 
 ### C36. How are file uploads validated before Supabase?
 
-- **Answer:** Django checks maximum size, declared content type, and file signature, then uploads with a server-held service credential and generates signed reads.
-- **Evidence:** `backend/academy/storage.py`; portal/admin upload views.
+- **Answer:** Django first checks the caller (same-Club Coach or authorized web/admin path), maximum size, declared content type, and file signature, then uploads with a server-held service credential and generates signed reads. Flutter’s picker/use case adds early type/size feedback but never replaces server validation.
+- **Evidence:** `backend/academy/storage.py`; photo upload views; `player_profile_screen.dart`; `upload_player_photo.dart`.
 
 ### C37. Why is `unsafe-inline`/`unsafe-eval` in CSP a concern?
 
 - **Answer:** It weakens the browser’s protection against injected script. It currently supports CDN Tailwind/Alpine usage; local bundled assets with nonce/hash policy would be safer.
 - **Evidence:** `backend/portal/middleware.py`; portal templates.
 
-### C38. Why can the notification bell be called a stub?
+### C38. What happens when the notification bell is pressed?
 
-- **Answer:** Its `onPressed` callback is empty. Back-end push sending does not automatically make an inbox or in-app notification workflow.
-- **Evidence:** `coach_dashboard_screen.dart`; `training_schedule_screen.dart`; lack of `FirebaseMessaging.onMessage` listener.
+- **Answer:** The bell opens the authenticated notification inbox, whose provider loads current-user records and unread count. Rows can be marked read or all read. A row tap, foreground **View**, or opened/initial push sends known trusted events to the authorized Schedule, Player/linked-child Profile, or Eligibility destination; unknown events and current-profile failures safely return to the focused inbox.
+- **Evidence:** `notification_bell.dart`; `notification_inbox_screen.dart`; notification providers/repository; `main.dart`.
 
 ### C39. What happens after a successful mutation in Riverpod?
 
@@ -202,6 +202,11 @@ These questions focus on what a panelist can point to in source. Answers describ
 - **Answer:** It is simple and consistent but can trigger extra API work and reset parts of UI state. Targeted cache updates/pagination would scale better.
 - **Evidence:** repeated `ref.invalidate(...)` in presentation providers.
 
+### C41. Why centralize API transport in `AuthenticatedApiClient`?
+
+- **Answer:** It applies one Bearer-token, timeout, safe error-extraction, multipart, and cache policy across repositories. Eligible successful GETs are cached by Firebase UID and exact request; only network failures may read cache, while 401/403/other HTTP/decode errors cannot be hidden.
+- **Evidence:** `data/network/authenticated_api_client.dart`; `data/local/api_get_cache.dart`; transport/cache tests.
+
 ## Code-walk checklist
 
 When asked to open code live, choose one of these coherent chains:
@@ -210,5 +215,7 @@ When asked to open code live, choose one of these coherent chains:
 2. `log_attendance_screen.dart` → attendance controller/use case → offline decorator → API repository → attendance Django view → model.
 3. `guardian_dashboard_screen.dart`/privacy gate → PIN provider/use case → API repository → `pin_service.py` → `player_unlock.py` → guarded detail view.
 4. assessment editor → controller/use case → player API repository → assessment serializer/view → profile model/signals/notifications.
+5. `main.dart` FCM listener → notification provider/repository → notification endpoints → `NotificationRecord` → inbox/bell/read state.
+6. player profile picker → photo controller/use case → authenticated multipart client → photo endpoint/storage validation → `photo_path`/signed URL.
 
 Do not jump among unrelated snippets. Narrate inputs, trust decisions, persistence, output, UI state, and failure path in that order.

@@ -16,8 +16,8 @@ this milestone.
 | Backend API | Django + Django REST Framework (`backend/`) |
 | Identity | Firebase Authentication (email/password, Admin-issued credentials only) |
 | Token verification | Firebase Admin SDK on the Django backend (ID token check per request) |
-| Database (dev) | SQLite (PostgreSQL planned for production) |
-| Push notifications | Firebase Cloud Messaging (foundation) |
+| Database | SQLite for local/tests; PostgreSQL configuration for deployment |
+| Push notifications | Persistent Django inbox + Firebase Cloud Messaging |
 
 Firebase is used for **identity only**. Roles, permissions, and all domain data
 live in the Django database, keyed to the Firebase UID.
@@ -82,7 +82,6 @@ Three age tiers, configurable by Admin:
 - View own profile (position, age tier, attributes).
 - View training schedule and attendance record.
 - View coach feedback and ratings.
-- View match performance statistics.
 - Injury history (CRUD).
 - View current academic eligibility status (**status only, no grades**).
 
@@ -106,18 +105,20 @@ Three age tiers, configurable by Admin:
 - **Club types:** School Clubs enable status-only academic eligibility and
   School Staff. Independent Clubs receive Not Applicable behavior while all
   unrelated football functionality remains available.
-- **Offline-first sync:** offline-captured records (attendance) sync
-  automatically once connectivity returns.
-- **Push notifications:** the system delivers push notifications; Players and
-  Guardians receive them for schedule, feedback, and eligibility updates.
+- **Offline-first access:** successful authenticated reads are cached per
+  Firebase user for connection-only fallback; offline-captured attendance
+  batches sync automatically once connectivity returns.
+- **Push notifications:** Django stores an authorized inbox record and delivers
+  neutral FCM alerts; Players and Guardians receive schedule, feedback, and
+  eligibility updates with foreground handling and tap routing.
 - **Dispute and audit log foundation:** Coach can flag/respond, School Staff
   participate, Admin reviews. All sensitive changes are auditable.
 
 ## Out of Scope for This Milestone (remaining 50%)
 
-Everything not listed above, including (non-exhaustive): match management
-beyond viewing statistics, advanced analytics/reporting, payments/fees,
-messaging/chat, production deployment hardening (HTTPS, PostgreSQL), and
+Everything not listed above, including (non-exhaustive): match management and
+match statistics, advanced analytics/reporting, payments/fees,
+messaging/chat, operating a verified live production environment, and
 self-registration for Clubs or any account role (permanently out of scope by
 design).
 

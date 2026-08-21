@@ -98,8 +98,9 @@ class DisputeResponse {
       createdAt: DateTime.parse(json['createdAt'] as String),
       authorName: json['authorName'] as String?,
       authorRole: json['authorRole'] as String?,
-      statusChangeTo:
-          statusChange == null ? null : DisputeStatusWire.fromWire(statusChange),
+      statusChangeTo: statusChange == null
+          ? null
+          : DisputeStatusWire.fromWire(statusChange),
     );
   }
 }

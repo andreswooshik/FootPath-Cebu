@@ -10,10 +10,7 @@ class SignIn {
 
   final AuthRepository _auth;
 
-  Future<UserProfile> call({
-    required String email,
-    required String password,
-  }) {
+  Future<UserProfile> call({required String email, required String password}) {
     return _auth.signInAndFetchProfile(email: email, password: password);
   }
 }

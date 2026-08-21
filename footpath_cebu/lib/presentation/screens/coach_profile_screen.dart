@@ -49,6 +49,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
     );
     if (confirmed != true) return;
 
+    await ref.read(unregisterDeviceProvider)();
     await ref.read(signOutProvider)();
     if (!mounted) return;
     // Clear the whole stack so Back cannot return to the signed-in portal.

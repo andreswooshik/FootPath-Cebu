@@ -10,9 +10,9 @@ import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 /// Batches are replayed sequentially, oldest first, so the newest save for a
 /// session lands last and wins (the endpoint replaces a session's records
 /// wholesale). A batch that still fails with a network error stops the drain
-/// and schedules a retry with capped exponential backoff; a batch rejected by
-/// the server (validation) is dropped after being recorded — replaying it
-/// forever could never succeed.
+/// and schedules a retry with capped exponential backoff. Only a known,
+/// non-retryable HTTP client/validation rejection is dropped; authentication,
+/// throttling, timeout, and server failures retain the coach's queued work.
 ///
 /// Plain Dart aside from the connectivity plugin type, so tests can inject a
 /// fake connectivity stream and never touch platform channels.
@@ -72,10 +72,18 @@ class AttendanceSyncService {
           _scheduleRetry();
           return;
         } on AttendanceRepositoryException catch (e) {
-          // The server understood and refused (validation): retrying the
-          // identical payload can never succeed, so drop it and move on.
           await _outbox.markFailed(batch.id, e.message);
-          await _outbox.markSynced(batch.id);
+          if (e.isNonRetryableClientError) {
+            // The server understood and permanently rejected this payload
+            // (for example 400/404/422). Replaying it unchanged cannot work.
+            await _outbox.markSynced(batch.id);
+            continue;
+          }
+          // Unknown errors and retryable HTTP responses (401/403/408/429/5xx)
+          // remain durable. A later sign-in, permission repair, or healthy
+          // server may make the exact batch valid again.
+          _scheduleRetry();
+          return;
         }
       }
       _backoff = _initialBackoff;

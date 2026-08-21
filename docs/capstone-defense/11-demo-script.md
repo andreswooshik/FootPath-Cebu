@@ -20,6 +20,8 @@ Complete this before the panel enters:
 - Turn off debug banners/log overlays that may reveal tokens.
 - Verify Flutter is not showing mock-only fixture names.
 - Test the network path from the actual phone/emulator.
+- If demonstrating photo upload, confirm Supabase Storage credentials/bucket and use a disposable non-child image.
+- If demonstrating remote push, confirm Firebase/APNs device configuration and send one rehearsed event; otherwise demonstrate the persistent inbox/API without claiming physical push delivery.
 - Take a recoverable pre-demo database snapshot and write down the reset steps.
 - Have terminal commands and backup screenshots/video available, but label any backup media as prerecorded evidence.
 
@@ -93,13 +95,25 @@ If demonstrating offline:
 
 1. As coach, open the training schedule and show a club session.
 2. Optionally create a future session with a recognizable title if live push is configured.
-3. Do not use the empty notification bell as evidence of a working inbox.
-4. Sign in as the player and show today’s session confirmation control.
-5. Submit the player response and show it on the coach’s confirmation view if available.
+3. Open the notification bell and show the authenticated inbox/unread state; if an actual push arrives, show foreground feedback and the trusted route to Schedule/Profile/Eligibility for a known event, or the focused-inbox fallback for an unknown event/profile failure.
+4. Explain that Django validates start/end together and requires start before end through both serializer and model paths.
+5. Sign in as the player and show today’s session confirmation control.
+6. Submit the player response and show it on the coach’s confirmation view if available.
 
 Say:
 
-> The backend derives the confirming player from the token and only accepts today’s same-club session. One known UI limitation is that a confirmation submission error currently needs better visible feedback.
+> The backend derives the confirming player from the token and only accepts today’s same-club session. Failed submission now produces visible retryable feedback rather than implying it was saved.
+
+### Optional 1-minute insert — Coach player photo
+
+1. As Coach, open a player from the same Club.
+2. Choose **Update player photo** and select a prepared JPEG/PNG/WebP.
+3. Show upload feedback and the refreshed roster/profile image.
+4. In the backend log, show only the multipart endpoint/path and success status.
+
+Say:
+
+> Flutter performs early type/size validation, but Django repeats role, same-Club, size, MIME, and signature checks before private storage. The service credential never enters Flutter. This demo requires configured Supabase Storage credentials.
 
 ### 6:30–8:30 — Guardian privacy boundary
 
@@ -132,7 +146,7 @@ Say:
 
 1. Use the guardian/player sign-out action.
 2. Show that the app returns to login and back navigation does not reopen private child data.
-3. Explain that Firebase local auth state and the in-memory unlock store are cleared; academy rows are not deleted.
+3. Explain that the device token is best-effort unregistered, that owner’s safe-read cache and in-memory unlock store are cleared, and Firebase signs out; academy rows are not deleted.
 
 Say:
 
@@ -142,11 +156,11 @@ Say:
 
 Say:
 
-> The implemented core includes development profiles, schedules, attendance, eligibility, injuries, disputes, privacy PINs, account provisioning, and partial FCM support. AI, scouting, match statistics, chat, and a full notification inbox are not implemented. Our next hardening work is to fix two admin player-provisioning invariants, align the 0–99 rating specification, and finish notification/error UX.
+> The implemented core includes development profiles, schedules, attendance, eligibility, injuries, disputes, privacy PINs, invariant-safe account provisioning, private Coach photo upload, and a durable notification inbox with foreground/open handling. AI, scouting, match statistics, and chat are not implemented. The final local suites are green; remaining defense work is to reconcile the 0–99 rating specification and attach real device, deployment, monitoring, backup, and restore evidence.
 
 Close with the architecture in one sentence:
 
-> Flutter handles interaction, Firebase proves identity, Django decides authorization and persists relational data, and local SQLite queues only attendance network failures.
+> Flutter handles interaction, Firebase proves identity, Django decides authorization and persists relational data, and local SQLite queues attendance network failures while safely caching eligible reads by owner.
 
 ## Possible panel interruptions by demo step
 
@@ -162,10 +176,10 @@ Close with the architecture in one sentence:
 | Session/RSVP | “Can a player RSVP for someone else?” | Backend ignores client player identity and derives player from `request.user` |
 | Guardian PIN | “Is four digits secure?” | It is secondary to login/link, hashed, five-attempt locked, and grants only a ten-minute bound token |
 | Eligibility | “Where are the grades?” | No grades are stored—only status and append-only change history |
-| Notifications | “Open the notification inbox.” | Token/send path exists, but inbox/foreground navigation is a declared partial feature |
+| Notifications | “Open the notification inbox.” | Open the bell/inbox, show unread/read actions, and explain that known trusted events route to authorized Schedule/Profile/Eligibility destinations while unknown events/profile failures safely focus the inbox; keep physical push delivery evidence separate |
 | AI | “Where is the AI recommendation?” | No AI exists; aggregates are deterministic and are not misrepresented |
 | Logout | “Does logout revoke the token globally?” | Ordinary logout clears local Firebase state; backend revocation checking supports revoked tokens, but local logout is not an admin global revoke |
-| Closing | “Is it production-ready?” | No; production-oriented controls exist, but known defects, deployment proof, governance, and monitoring remain |
+| Closing | “Is it production-ready?” | Repository hardening exists—container, probes, runbook, monitoring hooks, backup/restore scripts—but live deployment, alert, scheduled-backup, restore-drill, and governance evidence remain |
 
 ## Three-minute fallback demo
 
@@ -173,7 +187,7 @@ Close with the architecture in one sentence:
 2. Edit one player assessment and show it persisted/refetched.
 3. Sign in as guardian, show redacted selector, PIN rejection, successful unlock, and updated player data.
 4. State offline attendance and eligibility history with code/database evidence rather than performing them.
-5. Finish with implemented/partial/not-found scope.
+5. Finish with implemented/external-evidence/not-found scope.
 
 ## Failure recovery matrix
 
@@ -182,8 +196,8 @@ Close with the architecture in one sentence:
 | Firebase login unavailable | Show prerecorded login proof + backend tests/code | “The external identity dependency is unavailable; here is the exact verified boundary and prior evidence.” |
 | Backend unreachable | Check safe status/log; switch to code trace | “The client cannot persist without Django; I will trace the request and show automated evidence.” |
 | Wrong API host on physical phone | Use emulator or reachable LAN host configured in advance | Do not change secrets live or imply mock data is live |
-| Supabase photo missing | Continue; photo storage is optional | “Core relational data is Django-owned; storage is an optional private object service.” |
-| Push not visible | Show device token + backend notification call evidence | “Send-side exists; foreground/inbox UX is a declared partial feature.” |
+| Supabase photo upload unavailable | Show validated endpoint/code/tests and continue | “The workflow is implemented, but object upload requires configured Supabase credentials; core relational data remains Django-owned.” |
+| Push not visible | Open the persisted inbox and show backend notification evidence | “Inbox persistence and receive handlers are implemented; this device’s remote transport still requires valid Firebase/APNs configuration.” |
 | Offline batch does not replay quickly | Restore network, invoke documented sync path, inspect queue safely | Do not resubmit repeatedly and create ambiguous last-write state |
 | PIN locked | Switch to a prepared second player/account | Explain five failures/15-minute lock as designed behavior |
 | Demo mutation already exists | Use a timestamped note/title or restore snapshot | Keep actions deterministic and reversible |
@@ -198,10 +212,10 @@ Close with the architecture in one sentence:
 ## What not to do
 
 - Do not open local `.env` or service-account files.
-- Do not call the bell a notification inbox.
+- Do not claim a push reached a physical device unless it is visibly demonstrated; the persistent inbox is separate evidence.
 - Do not show mock mode while claiming database integration.
 - Do not call deterministic averages AI.
 - Do not claim grades, scouting, or match statistics.
 - Do not use a real child’s personal or health data.
-- Do not claim the local Django test suite passed until it is actually run in an installed environment.
+- Do not quote a stale test count; use the final verified command output.
 - Do not hide known limitations if the panel asks.

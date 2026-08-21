@@ -33,8 +33,8 @@ enum CardTier {
 
   /// The tier above this one, or null when already Gold.
   CardTier? get nextTier => switch (this) {
-        bronze => silver,
-        silver => gold,
-        gold => null,
-      };
+    bronze => silver,
+    silver => gold,
+    gold => null,
+  };
 }

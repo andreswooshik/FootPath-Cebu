@@ -1,0 +1,74 @@
+services:
+  web:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000
+             --workers 3 --timeout 60 --access-logfile - --error-logfile -"
+    ports:
+      # Bind to loopback for a host TLS reverse proxy by default. Override the
+      # address only when the surrounding platform supplies equivalent network
+      # isolation and TLS termination.
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8000}:8000"
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY}
+      DJANGO_DEBUG: "0"
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://localhost}
+      DB_HOST: db
+      DB_NAME: ${DB_NAME:-footpath}
+      DB_USER: ${DB_USER:-footpath}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+      DB_PORT: "5432"
+      DB_SSLMODE: disable
+      REDIS_URL: redis://redis:6379/0
+      FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-secrets/firebase-service-account.json}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
+      SUPABASE_PHOTO_BUCKET: ${SUPABASE_PHOTO_BUCKET:-player-photos}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      RELEASE_SHA: ${RELEASE_SHA:-local}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/secrets:/app/secrets:ro
+      - media_data:/app/media
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-footpath}
+      POSTGRES_USER: ${DB_USER:-footpath}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-footpath} -d ${DB_NAME:-footpath}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:

@@ -1,35 +1,30 @@
 import 'dart:convert';
 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:footpath_cebu/core/config/api_config.dart';
+import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/dispute.dart';
 import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
-import 'package:http/http.dart' as http;
 
-/// Live implementation backed by the Django REST API, authenticated with the
-/// signed-in coach's Firebase ID token (same pattern as
-/// [ApiInjuryRepository]).
+/// Live dispute data backed by the authenticated Django REST API.
 class ApiDisputeRepository implements DisputeRepository {
+  ApiDisputeRepository({AuthenticatedApiClient? api})
+    : _api = api ?? AuthenticatedApiClient.shared;
+
   static const _path = '/api/disputes/';
+
+  final AuthenticatedApiClient _api;
 
   @override
   Future<List<Dispute>> fetchDisputes() async {
-    final response = await _send(
-      (token) => http.get(
-        Uri.parse('${ApiConfig.baseUrl}$_path'),
-        headers: {'Authorization': 'Bearer $token'},
-      ),
-    );
-    if (response.statusCode != 200) {
-      throw DisputeRepositoryException(
-        'Request failed (${response.statusCode}).',
-      );
+    try {
+      final response = await _api.get(_path);
+      final decoded = jsonDecode(response.body);
+      final list = decoded is Map<String, dynamic>
+          ? (decoded['results'] as List? ?? const [])
+          : (decoded as List? ?? const []);
+      return list.cast<Map<String, dynamic>>().map(Dispute.fromJson).toList();
+    } on ApiException catch (error) {
+      throw DisputeRepositoryException(error.message);
     }
-    final decoded = jsonDecode(response.body);
-    final list = decoded is Map<String, dynamic>
-        ? (decoded['results'] as List? ?? const [])
-        : (decoded as List? ?? const []);
-    return list.cast<Map<String, dynamic>>().map(Dispute.fromJson).toList();
   }
 
   @override
@@ -39,29 +34,24 @@ class ApiDisputeRepository implements DisputeRepository {
     String? detail,
     String? subjectPlayerId,
   }) async {
-    final response = await _send(
-      (token) => http.post(
-        Uri.parse('${ApiConfig.baseUrl}$_path'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
+    try {
+      final response = await _api.post(
+        _path,
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'category': category.wire,
           'summary': summary,
           'detail': ?detail,
           'subjectPlayerId': ?subjectPlayerId,
         }),
-      ),
-    );
-    if (response.statusCode != 201) {
-      throw DisputeRepositoryException(
-        'Could not raise the dispute (${response.statusCode}).',
+        expectedStatuses: const {201},
       );
+      return Dispute.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    } on ApiException catch (error) {
+      throw DisputeRepositoryException(error.message);
     }
-    return Dispute.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
   }
 
   @override
@@ -70,48 +60,21 @@ class ApiDisputeRepository implements DisputeRepository {
     String body, {
     DisputeStatus? statusChangeTo,
   }) async {
-    final response = await _send(
-      (token) => http.post(
-        Uri.parse('${ApiConfig.baseUrl}$_path$disputeId/responses/'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
+    try {
+      final response = await _api.post(
+        '$_path$disputeId/responses/',
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'body': body,
           if (statusChangeTo != null) 'statusChangeTo': statusChangeTo.wire,
         }),
-      ),
-    );
-    if (response.statusCode != 201) {
-      throw DisputeRepositoryException(
-        'Could not post the response (${response.statusCode}).',
+        expectedStatuses: const {201},
       );
-    }
-    return Dispute.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
-    );
-  }
-
-  /// Runs one authenticated request, translating connection-level failures
-  /// into [DisputeRepositoryException].
-  Future<http.Response> _send(
-    Future<http.Response> Function(String idToken) request,
-  ) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw DisputeRepositoryException('Not signed in.');
-    }
-    final token = await user.getIdToken();
-    if (token == null) {
-      throw DisputeRepositoryException('Not signed in.');
-    }
-    try {
-      return await request(token);
-    } catch (_) {
-      throw DisputeRepositoryException(
-        'Could not reach the server. Is it running?',
+      return Dispute.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
       );
+    } on ApiException catch (error) {
+      throw DisputeRepositoryException(error.message);
     }
   }
 }

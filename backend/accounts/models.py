@@ -107,11 +107,12 @@ class User(AbstractUser):
         max_length=20, choices=Roles.choices, default=Roles.PLAYER
     )
     # The club this account belongs to. Null for ADMIN / superusers (cross-club)
-    # and for legacy rows created before multi-club tenancy existed. SET_NULL so
-    # removing a club never cascades away its people.
+    # and for legacy rows created before multi-club tenancy existed. PROTECT
+    # prevents deleting an occupied tenant and silently recreating club-less
+    # members; clubs are deactivated instead of removed.
     club = models.ForeignKey(
         Club,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name='members',

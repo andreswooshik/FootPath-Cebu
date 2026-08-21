@@ -33,7 +33,11 @@ class SessionConfirmationButton extends ConsumerWidget {
       // Nothing to show yet, but the card shouldn't jump around once the
       // list arrives — reserve the button's usual height.
       loading: () => const SizedBox(height: 36),
-      error: (_, _) => const SizedBox.shrink(),
+      error: (_, _) => OutlinedButton.icon(
+        onPressed: () => ref.invalidate(sessionConfirmationsProvider(playerId)),
+        icon: const Icon(Icons.refresh, size: 18),
+        label: const Text('Retry RSVP'),
+      ),
       data: (confirmations) {
         SessionConfirmation? mine;
         for (final c in confirmations) {
@@ -42,9 +46,17 @@ class SessionConfirmationButton extends ConsumerWidget {
         final confirmed = mine?.status == ConfirmationStatus.confirmed;
 
         Future<void> respond(ConfirmationStatus status) async {
-          await ref
+          final succeeded = await ref
               .read(sessionConfirmationControllerProvider.notifier)
               .submit(sessionId, playerId, status);
+          if (!context.mounted || succeeded) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Could not update your response. Check your connection and try again.',
+              ),
+            ),
+          );
         }
 
         if (confirmed) {

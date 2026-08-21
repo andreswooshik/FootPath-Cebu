@@ -49,9 +49,9 @@ class SessionConfirmation {
   }
 
   Map<String, dynamic> toJson() => {
-        'sessionId': sessionId,
-        'playerId': playerId,
-        'status': status.wire,
-        'respondedAt': respondedAt.toIso8601String(),
-      };
+    'sessionId': sessionId,
+    'playerId': playerId,
+    'status': status.wire,
+    'respondedAt': respondedAt.toIso8601String(),
+  };
 }

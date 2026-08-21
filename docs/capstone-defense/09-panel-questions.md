@@ -71,9 +71,9 @@ Questions are not duplicated when one answer covers several panel categories. Us
 
 ### Q7. What is your project’s unique value?
 
-- **Short:** It combines development operations with layered role/club privacy and offline attendance.
-- **Technical:** Firebase identity, Django RBAC/tenancy, household PIN unlock, audit/history, and a user-scoped outbox work together.
-- **Evidence:** `accounts/authentication.py`; `pin_service.py`; `attendance_outbox.dart`.
+- **Short:** It combines development operations with layered role/club privacy, resilient field data, and persistent notifications.
+- **Technical:** Firebase identity, Django RBAC/tenancy, household PIN unlock, audit/history, a user-scoped attendance outbox/safe-read cache, and a durable notification inbox work together.
+- **Evidence:** `accounts/authentication.py`; `pin_service.py`; `attendance_outbox.dart`; `api_get_cache.dart`; `NotificationRecord`.
 
 ### Q8. Is this an AI system?
 
@@ -252,7 +252,7 @@ Questions are not duplicated when one answer covers several panel categories. Us
 ### Q36. How is a training session created?
 
 - **Short:** Coach form → use case/API → coach/club validation → session save → audit/notification → refresh.
-- **Technical:** Django assigns creator and club rather than trusting the payload and schedules FCM after commit.
+- **Technical:** Django assigns creator and club rather than trusting the payload. Serializer and model validation require paired supported 12-hour times with start before end; notification persistence/fan-out is scheduled after commit.
 - **Evidence:** `schedule_session_screen.dart`; `api_training_repository.dart`; session create view.
 
 ### Q37. Who can edit or cancel a session?
@@ -284,6 +284,8 @@ Questions are not duplicated when one answer covers several panel categories. Us
 - **Short:** Network-failed writes enter a user-scoped local queue and replay later.
 - **Technical:** The decorator queues only `AttendanceNetworkException`, stores JSON in sqflite, and syncs oldest first; success deletes and failure records retry state.
 - **Evidence:** `offline_first_attendance_repository.dart`; `attendance_outbox.dart`; `attendance_sync_service.dart`.
+
+Eligible authenticated GETs have a separate 24-hour, Firebase-user-scoped cache in `api_get_cache.dart`. It is used only after timeout/socket/handshake/client failures; 401/403/other HTTP failures and protected unlock reads never use it. Attendance remains the only queued/replayed write.
 
 ### Q42. What is the offline conflict strategy?
 
@@ -318,7 +320,7 @@ Questions are not duplicated when one answer covers several panel categories. Us
 ### Q47. How is progress computed?
 
 - **Short:** Django aggregates deterministic attendance/effort data per player.
-- **Technical:** The progress endpoint uses ORM counts/averages and returns `PlayerProgress`; this is analytics, not AI.
+- **Technical:** The progress endpoint uses ORM counts/averages and returns `PlayerProgress`; Super Admin sees all Clubs while Coach remains club-scoped. This is analytics, not AI.
 - **Evidence:** `SquadProgressView`; `api_progress_repository.dart`.
 
 ### Q48. How is eligibility changed?
@@ -351,35 +353,35 @@ Questions are not duplicated when one answer covers several panel categories. Us
 - **Technical:** The backend derives player from the token and uses `update_or_create` for the player/session pair.
 - **Evidence:** `session_confirmation_button.dart`; confirmation repository/view/model.
 
-### Q53. What is incomplete about confirmations?
+### Q53. How are confirmation failures shown?
 
-- **Short:** Submission errors are caught without visible user feedback.
-- **Technical:** This can leave the player uncertain whether the RSVP persisted; controller state should surface a retryable error.
-- **Evidence:** session confirmation widget/controller.
+- **Short:** A failed RSVP submit shows a SnackBar, and a failed initial load offers `Retry RSVP`.
+- **Technical:** The controller returns success/failure, keeps duplicate taps isolated by session, and the widget turns failure into visible retryable feedback rather than implying persistence.
+- **Evidence:** session confirmation widget/controller and widget tests.
 
 ### Q54. How do notifications work?
 
-- **Short:** Django sends selected FCM pushes to registered device tokens after commits.
-- **Technical:** Schedule, assessment, and eligibility events fan out through `academy/notifications.py`; invalid token cleanup is supported.
-- **Evidence:** device repository/endpoints; `academy/notifications.py`; signals/views.
+- **Short:** Django stores a current-user inbox event after commit, then best-effort sends FCM to registered device tokens.
+- **Technical:** Schedule, assessment, eligibility, and cancellation events create `NotificationRecord` rows, expose list/unread/read APIs, fan out through `academy/notifications.py`, and clean invalid tokens. Cancellation sends only after its delete commits.
+- **Evidence:** device/notification endpoints; `NotificationRecord`; `academy/notifications.py`; signals/views.
 
-### Q55. Are notifications fully implemented?
+### Q55. Is the in-app notification experience implemented?
 
-- **Short:** No; sending/registration exist, but the in-app receive/inbox experience is incomplete.
-- **Technical:** Bell callbacks are empty and no foreground listener/deep-link path was found.
-- **Evidence:** coach/schedule screens; lack of Firebase Messaging listeners in `lib/`.
+- **Short:** Yes: unread bells, inbox/read state, foreground feedback, and role-aware opened-notification routing are implemented.
+- **Technical:** Flutter handles `onMessage`, `onMessageOpenedApp`, the initial message, and token refresh. The navigation controller re-resolves `/api/auth/me/`, suppresses duplicate opens, and marks the matching inbox row read best-effort. Session events enter the schedule; assessment and eligibility events resolve the current Player or an authorized linked Guardian child behind existing privacy gates; unknown events use the focused inbox. Actual remote delivery still requires configured Firebase/APNs and a supported device smoke test.
+- **Evidence:** `main.dart`; `notification_bell.dart`; `notification_inbox_screen.dart`; notification providers/tests.
 
 ### Q56. How are player photos stored?
 
 - **Short:** Django validates and uploads private objects to optional Supabase Storage.
-- **Technical:** A service-role REST call stays server-side; reads use signed URLs and degrade when storage is unconfigured.
-- **Evidence:** `academy/storage.py`; admin/portal upload views.
+- **Technical:** A service-role REST call stays server-side; upload validates size/MIME/signature and reads use signed URLs. Storage requires configured Supabase credentials and display degrades to an avatar when unavailable.
+- **Evidence:** `academy/storage.py`; admin/portal/API photo views.
 
-### Q57. Can players upload photos in Flutter?
+### Q57. Can photos be uploaded in Flutter?
 
-- **Short:** No; upload is coordinator/admin web-side, while Flutter can display returned URLs.
-- **Technical:** No Flutter picker/upload repository or endpoint call was found.
-- **Evidence:** portal/admin photo handlers; player-card/profile image rendering.
+- **Short:** A same-Club Coach can select and upload a player photo; Players cannot self-upload through this workflow.
+- **Technical:** `image_picker` feeds validated bytes to `UploadPlayerPhoto`; the repository sends authenticated multipart data, and Django repeats Coach/same-Club and file validation before Supabase Storage.
+- **Evidence:** `player_profile_screen.dart`; `player_photo_controller.dart`; `upload_player_photo.dart`; `PlayerPhotoUploadView`.
 
 ### Q58. How does roster search work?
 
@@ -441,15 +443,15 @@ Questions are not duplicated when one answer covers several panel categories. Us
 
 ### Q67. What tests currently pass?
 
-- **Short:** In this workspace, Flutter analyze passes, all 184 Flutter tests pass, and all 212 Django tests pass.
-- **Technical:** The backend suite, including the exact 24-case Club hierarchy security matrix, completed successfully.
-- **Evidence:** verified local run on 2026-08-18.
+- **Short:** On 2026-08-21, Flutter analyze was clean, all 240 Flutter tests passed, and all 241 Django tests passed.
+- **Technical:** The final full runs cover shared transport/cache, notification UX and focus resolution, photo upload, confirmation feedback, Player invariants, progress scope, session-time validation, readiness, and existing workflows.
+- **Evidence:** verified local runs on 2026-08-21 and the corresponding test files.
 
 ### Q68. How many backend tests are there?
 
-- **Short:** The current Django suite executes 212 tests.
-- **Technical:** All 212 passed locally, including 24 dedicated account-and-Club hierarchy regressions.
-- **Evidence:** `backend/accounts/tests.py`, `test_provisioning.py`, `academy/tests.py`, `portal/tests.py`.
+- **Short:** The current Django suite executes 241 tests.
+- **Technical:** All 241 passed locally on 2026-08-21, including the Club hierarchy matrix and new integrity, tenant-deletion, notification/photo, and readiness coverage.
+- **Evidence:** `backend/accounts/tests.py`, `test_provisioning.py`, `accounts/test_club_deletion.py`, `academy/tests.py`, `academy/test_integrity_fixes.py`, `academy/test_notifications_and_photo.py`, `accounts/test_readiness.py`.
 
 ### Q69. Do you have CI?
 
@@ -459,9 +461,9 @@ Questions are not duplicated when one answer covers several panel categories. Us
 
 ### Q70. Is the system production deployed?
 
-- **Short:** The repository shows production configuration and a plan, not proof of a live deployment.
-- **Technical:** No complete infrastructure manifest, monitoring evidence, active URL, or backup/restore result was verified.
-- **Evidence:** `settings.py`, CI, and planning docs; absence of deployment artifact/proof.
+- **Short:** The repository is deployment-ready by artifact, but it does not prove a live deployment.
+- **Technical:** Docker/Compose, Gunicorn/WhiteNoise, health/readiness checks, optional Sentry, CI validation, backup/restore scripts, and a runbook exist. No active URL, alert exercise, scheduled backup, or completed restore drill was verified.
+- **Evidence:** `backend/Dockerfile`; `compose.production.yml`; health/readiness views; `docs/PRODUCTION-OPERATIONS.md`.
 
 ### Q71. What is your biggest technical strength?
 
@@ -471,9 +473,9 @@ Questions are not duplicated when one answer covers several panel categories. Us
 
 ### Q72. What is your biggest defect?
 
-- **Short:** Admin player provisioning can violate the required club/profile invariants.
-- **Technical:** One path omits club; another permits a player user without `PlayerProfile`. Both need one centralized service and regression tests.
-- **Evidence:** `accounts/views.py`; admin serializers/services; `PlayerProfile` expectations.
+- **Short:** The largest remaining data limitation is that performance assessment saves overwrite the current profile instead of preserving versions.
+- **Technical:** Player/Club/Profile invariants are now centralized and seed-repaired. A dedicated assessment-history model would improve longitudinal auditability without changing the current display contract.
+- **Evidence:** `PlayerProfile`; assessment serializer/view; absence of an assessment-version model.
 
 ### Q73. Why is `academy/views.py` a maintainability risk?
 
@@ -483,9 +485,9 @@ Questions are not duplicated when one answer covers several panel categories. Us
 
 ### Q74. What would you improve first before defense?
 
-- **Short:** Fix provisioning invariants, reconcile specs, run backend tests in a clean environment, and demonstrate live mode.
-- **Technical:** Then add time/rating DB validation, visible errors, and complete notification receive behavior.
-- **Evidence:** identified code risks, test result, `ApiConfig` mock default.
+- **Short:** Reconcile the remaining rating specification, run the final full suites, demonstrate live mode and device push/photo configuration, then collect deployment/recovery evidence.
+- **Technical:** Next engineering priorities are assessment history, remaining database-level integrity, pagination/scalability, and completed privacy/operations evidence. Provisioning, session-time, RSVP, notification receive, and API-fallback defects are already fixed.
+- **Evidence:** remaining-risk register, `ApiConfig` mock default, operations runbook.
 
 ### Q75. Why should the panel trust your claims?
 
@@ -502,7 +504,7 @@ Questions are not duplicated when one answer covers several panel categories. Us
 ### Q77. How did you trace requirements to implementation?
 
 - **Short:** Each derived objective is mapped to a feature, code path, table, and executable evidence.
-- **Technical:** Conflicts are recorded rather than hidden—for example Firestore planning versus Django ORM and 1–10 requirements versus 0–99 code.
+- **Technical:** Conflicts are recorded rather than hidden—for example the remaining 1–10 requirements versus 0–99 code mismatch. The root README has been reconciled to the implemented Django-ORM architecture; older ADR planning context remains historical.
 - **Evidence:** objective matrix in `01-project-overview.md`; actual models/views/entities; `docs/REQUIREMENTS.md`.
 
 ### Q78. How were stakeholder roles identified?
@@ -531,12 +533,12 @@ Questions are not duplicated when one answer covers several panel categories. Us
 4. Six backend roles; three dedicated mobile portals.
 5. No public mobile signup; active accounts are provisioned.
 6. Guardian reads add link + PIN + signed ten-minute token.
-7. Attendance alone has offline write resilience.
+7. Attendance alone has offline write replay; eligible reads have a user-scoped network-failure cache.
 8. Ratings are current 0–99 values; requirements saying 1–10 are stale/inconsistent.
 9. Eligibility status is stored; grades are not.
 10. No AI, scouting, match stats, chat, or mapping.
-11. Notifications are partially implemented.
-12. Flutter analysis and all 184 tests pass locally.
-13. All 212 Django tests pass locally.
-14. Two admin provisioning paths can violate player invariants.
+11. Notifications have durable inbox/read state, unread bells, foreground handling, and role-aware push-open routing with a safe inbox fallback.
+12. Flutter analysis is clean and all 240 tests pass locally.
+13. All 241 Django tests pass locally.
+14. Player provisioning now enforces active Club plus exactly one PlayerProfile across trusted and seed paths.
 15. A live defense must run with `USE_MOCK=false`.

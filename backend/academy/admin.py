@@ -7,6 +7,7 @@ from .models import (
     DisputeResponse,
     EligibilityHistory,
     InjuryRecord,
+    NotificationRecord,
     PlayerEligibility,
 )
 
@@ -21,6 +22,27 @@ class AuditLogAdmin(admin.ModelAdmin):
     list_filter = ('action',)
     search_fields = ('target', 'detail', 'actor__email')
     date_hierarchy = 'created_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(NotificationRecord)
+class NotificationRecordAdmin(admin.ModelAdmin):
+    """Read-only delivery/inbox evidence; application endpoints own read state."""
+
+    list_display = ('created_at', 'user', 'event_type', 'title', 'read_at')
+    list_filter = ('event_type', 'read_at')
+    search_fields = ('user__email', 'title', 'body')
+    readonly_fields = (
+        'user', 'event_type', 'title', 'body', 'data', 'read_at', 'created_at',
+    )
 
     def has_add_permission(self, request):
         return False

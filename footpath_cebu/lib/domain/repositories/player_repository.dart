@@ -47,6 +47,17 @@ abstract class PositionWriter {
   Future<Player> savePosition(String playerId, PlayerPosition position);
 }
 
+/// Replaces a player's roster photo. Kept separate from [PlayerRepository] so
+/// read-only player consumers do not gain access to a Coach-only write.
+abstract class PlayerPhotoWriter {
+  Future<Player> uploadPhoto(
+    String playerId, {
+    required List<int> bytes,
+    required String filename,
+    required String contentType,
+  });
+}
+
 /// Aggregate of the player-domain reads and writes. Concrete data sources
 /// implement this one interface, while each presentation provider depends only
 /// on the narrow interface it actually uses (Interface Segregation) — so the

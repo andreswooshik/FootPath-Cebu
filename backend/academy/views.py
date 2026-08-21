@@ -35,12 +35,14 @@ from .models import (
     DisputeResponse,
     EligibilityHistory,
     InjuryRecord,
+    NotificationRecord,
     PlayerProfile,
     PlayerPrivacyPin,
     SessionConfirmation,
     TrainingSession,
 )
 from .notifications import (
+    _recipients_for_session,
     notify_assessment_saved,
     notify_session_cancelled,
     notify_session_scheduled,
@@ -67,6 +69,7 @@ from .serializers import (
     DisputeSerializer,
     EligibilityHistorySerializer,
     InjuryRecordSerializer,
+    NotificationRecordSerializer,
     PlayerPositionSerializer,
     PlayerSerializer,
     PlayerSelectorSerializer,
@@ -75,7 +78,11 @@ from .serializers import (
     TrainingSessionSerializer,
 )
 from .player_unlock import issue_player_unlock, require_player_unlock
-from .storage import upload_photo, validate_photo_upload
+from .storage import (
+    invalidate_signed_photo_url,
+    upload_photo,
+    validate_photo_upload,
+)
 
 # Roles that participate in the dispute process: the coach flags, School
 # Staff and Admin review/respond. Players and guardians have no access.
@@ -85,10 +92,12 @@ DISPUTE_ROLES = (Roles.COACH, Roles.SCHOOL_STAFF, Roles.ADMIN)
 def _in_same_club(user, player_id):
     """True if `player_id` names a user in `user`'s club (multi-tenant scope).
 
-    Matches on club_id including NULL==NULL, so legacy club-less accounts still
-    interoperate; returns False when no such user exists. ADMIN is club-less by
-    design and is always handled by an explicit branch before this is called.
+    A missing requester club always fails closed: legacy club-less accounts are
+    not a shared tenant. ADMIN is club-less by design and is handled by an
+    explicit cross-club branch before this helper is called.
     """
+    if user.club_id is None:
+        return False
     row = User.objects.filter(pk=player_id).values('club_id').first()
     return row is not None and row['club_id'] == user.club_id
 
@@ -141,7 +150,9 @@ def _sessions_for(user):
     )
     if user.role == Roles.ADMIN:
         return qs
-    return qs.filter(club=user.club)
+    if user.club_id is None:
+        return qs.none()
+    return qs.filter(club_id=user.club_id)
 
 
 def _session_in_user_scope(user, session):
@@ -149,7 +160,7 @@ def _session_in_user_scope(user, session):
     club; everyone else: only their own club's sessions)."""
     if user.role == Roles.ADMIN:
         return True
-    return session.club_id == user.club_id
+    return user.club_id is not None and session.club_id == user.club_id
 
 
 class SquadListView(APIView):
@@ -161,7 +172,10 @@ class SquadListView(APIView):
         profiles = PlayerProfile.objects.select_related('user')
         # Coaches see only their own club's roster; Admin sees every club.
         if request.user.role == Roles.COACH:
-            profiles = profiles.filter(user__club=request.user.club)
+            if request.user.club_id is None:
+                profiles = profiles.none()
+            else:
+                profiles = profiles.filter(user__club_id=request.user.club_id)
         return Response(PlayerSerializer(profiles, many=True).data)
 
 
@@ -369,7 +383,10 @@ class PlayerAssessmentView(APIView):
             PlayerProfile.objects.select_related('user'), user_id=player_id
         )
         # Tenancy: a coach may only assess players in their own club.
-        if profile.user.club_id != request.user.club_id:
+        if (
+            request.user.club_id is None
+            or profile.user.club_id != request.user.club_id
+        ):
             raise PermissionDenied('That player is not in your club.')
         serializer = AssessmentSerializer(profile, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -396,7 +413,10 @@ class PlayerPositionView(APIView):
         )
         # Tenancy: a coach may only edit players in their own club — same
         # check as PlayerAssessmentView.
-        if profile.user.club_id != request.user.club_id:
+        if (
+            request.user.club_id is None
+            or profile.user.club_id != request.user.club_id
+        ):
             raise PermissionDenied('That player is not in your club.')
         serializer = PlayerPositionSerializer(
             profile, data=request.data, partial=True
@@ -515,6 +535,8 @@ class TrainingSessionListCreateView(APIView):
     def post(self, request):
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can schedule sessions.')
+        if request.user.club_id is None:
+            raise PermissionDenied('Coach account must belong to a club.')
         serializer = TrainingSessionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         # Tenancy: the session belongs to the scheduling coach's club (set
@@ -537,26 +559,33 @@ class SquadProgressView(APIView):
     """GET /api/progress/squad/ — per-player attendance and effort aggregates
     for the requester's club: the data behind the coach's Progress tab.
 
-    Coach (own club) and Admin (legacy club-less rows match NULL==NULL, same
-    convention as everywhere else). One aggregate query, not one per player.
+    Coach sees only their own club; Super Admin sees every club. One aggregate
+    query, not one per player.
     """
 
     def get(self, request):
         if request.user.role not in (Roles.COACH, Roles.ADMIN):
-            raise PermissionDenied('Only coaches can view squad progress.')
+            raise PermissionDenied(
+                'Only Coaches and the Super Admin can view squad progress.'
+            )
 
-        profiles = (
-            PlayerProfile.objects.select_related('user')
-            .filter(user__club_id=request.user.club_id)
-            .order_by('user__first_name', 'user__last_name')
-        )
+        profiles = PlayerProfile.objects.select_related('user')
+        attendance = Attendance.objects.all()
+        if request.user.role == Roles.COACH:
+            if request.user.club_id is None:
+                profiles = profiles.none()
+                attendance = attendance.none()
+            else:
+                profiles = profiles.filter(
+                    user__club_id=request.user.club_id
+                )
+                attendance = attendance.filter(
+                    player__club_id=request.user.club_id
+                )
+        profiles = profiles.order_by('user__first_name', 'user__last_name')
         stats = {
             row['player_id']: row
-            for row in Attendance.objects.filter(
-                player__club_id=request.user.club_id
-            )
-            .values('player_id')
-            .annotate(
+            for row in attendance.values('player_id').annotate(
                 present=Count('id', filter=Q(status=AttendanceStatus.PRESENT)),
                 absent=Count('id', filter=Q(status=AttendanceStatus.ABSENT)),
                 excused=Count('id', filter=Q(status=AttendanceStatus.EXCUSED)),
@@ -599,7 +628,7 @@ class TrainingSessionDetailView(APIView):
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can manage sessions.')
         session = get_object_or_404(TrainingSession, pk=pk)
-        if session.club_id != request.user.club_id:
+        if not _session_in_user_scope(request.user, session):
             raise PermissionDenied('That session is not in your club.')
         return session
 
@@ -619,14 +648,21 @@ class TrainingSessionDetailView(APIView):
 
     def delete(self, request, pk):
         session = self._session_for(request, pk)
-        # Sent before the delete: the recipient query needs the row, and the
-        # notify helpers never raise into the request path.
-        notify_session_cancelled(session)
+        # Snapshot recipients before deletion, but create/send the alert only
+        # after deletion commits. A failed delete must never produce a false
+        # cancellation notification.
+        recipient_ids = _recipients_for_session(session)
+        session_id = session.pk
         AuditLog.record(
             request.user, 'session.cancelled',
             target=session.title, detail=str(session.date),
         )
         session.delete()
+        transaction.on_commit(
+            lambda: notify_session_cancelled(
+                session, recipient_ids, session_id=session_id,
+            )
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -690,7 +726,8 @@ def _dispute_in_user_scope(user, dispute):
     if user.role == Roles.ADMIN:
         return True
     return (
-        dispute.raised_by_id is not None
+        user.club_id is not None
+        and dispute.raised_by_id is not None
         and dispute.raised_by.club_id == user.club_id
     )
 
@@ -711,12 +748,19 @@ class DisputeListCreateView(APIView):
         ).prefetch_related('responses__author')
         # Tenancy: coach/staff see only their own club's disputes; Admin all.
         if request.user.role != Roles.ADMIN:
-            disputes = disputes.filter(raised_by__club=request.user.club)
+            if request.user.club_id is None:
+                disputes = disputes.none()
+            else:
+                disputes = disputes.filter(
+                    raised_by__club_id=request.user.club_id
+                )
         return Response(DisputeSerializer(disputes, many=True).data)
 
     def post(self, request):
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can raise disputes.')
+        if request.user.club_id is None:
+            raise PermissionDenied('Coach account must belong to a club.')
         serializer = DisputeCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -842,7 +886,12 @@ class InjuryRecordListCreateView(APIView):
             records = InjuryRecord.objects.select_related('player')
             # Coaches are club-scoped; Admin sees every club.
             if request.user.role == Roles.COACH:
-                records = records.filter(player__club=request.user.club)
+                if request.user.club_id is None:
+                    records = records.none()
+                else:
+                    records = records.filter(
+                        player__club_id=request.user.club_id
+                    )
             player_id = request.query_params.get('player')
             if player_id:
                 records = records.filter(player_id=player_id)
@@ -892,6 +941,7 @@ class InjuryRecordDetailView(APIView):
                 request.user.role == Roles.ADMIN
                 or (
                     request.user.role == Roles.COACH
+                    and request.user.club_id is not None
                     and record.player.club_id == request.user.club_id
                 )
                 or (
@@ -949,18 +999,72 @@ class DeviceRegisterView(APIView):
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    def delete(self, request):
+        """Forget this account's association with one device token."""
+        token = (request.data.get('token') or '').strip()
+        if not token:
+            raise ValidationError('A device token is required.')
+        DeviceToken.objects.filter(user=request.user, token=token).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class NotificationListView(APIView):
+    """GET the authenticated user's newest persistent inbox entries."""
+
+    def get(self, request):
+        records = NotificationRecord.objects.filter(user=request.user)[:100]
+        return Response(NotificationRecordSerializer(records, many=True).data)
+
+
+class NotificationUnreadCountView(APIView):
+    def get(self, request):
+        count = NotificationRecord.objects.filter(
+            user=request.user, read_at__isnull=True,
+        ).count()
+        return Response({'count': count})
+
+
+class NotificationReadView(APIView):
+    def patch(self, request, pk):
+        record = get_object_or_404(
+            NotificationRecord, pk=pk, user=request.user,
+        )
+        if record.read_at is None:
+            record.read_at = timezone.now()
+            record.save(update_fields=['read_at'])
+        return Response(NotificationRecordSerializer(record).data)
+
+
+class NotificationReadAllView(APIView):
+    def post(self, request):
+        updated = NotificationRecord.objects.filter(
+            user=request.user, read_at__isnull=True,
+        ).update(read_at=timezone.now())
+        return Response({'updated': updated})
+
 
 class PlayerPhotoUploadView(APIView):
-    """POST /api/admin/players/<id>/photo/ (multipart) — Admin uploads a player
-    photo to Supabase Storage and stores its object path on the profile."""
+    """Upload a roster photo as Super Admin or a same-Club Coach."""
 
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, player_id):
+        profile = get_object_or_404(
+            PlayerProfile.objects.select_related('user'), user_id=player_id,
+        )
+        if request.user.role == Roles.COACH:
+            if (
+                request.user.club_id is None
+                or profile.user.club_id != request.user.club_id
+            ):
+                raise PermissionDenied('That player is not in your club.')
+        elif request.user.role != Roles.ADMIN:
+            raise PermissionDenied(
+                'Only a same-Club Coach or the Super Admin can upload photos.'
+            )
         upload = request.FILES.get('photo')
         if upload is None:
             raise ValidationError('A photo file is required (field "photo").')
-        profile = get_object_or_404(PlayerProfile, user_id=player_id)
         try:
             content_type = validate_photo_upload(upload)
             path = upload_photo(
@@ -972,6 +1076,12 @@ class PlayerPhotoUploadView(APIView):
             raise ValidationError(str(exc))
         profile.photo_path = path
         profile.save(update_fields=['photo_path'])
+        invalidate_signed_photo_url(path)
+        AuditLog.record(
+            request.user,
+            'player.photo_updated',
+            target=profile.user.email,
+        )
         return Response(PlayerSerializer(profile).data)
 
 

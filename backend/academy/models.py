@@ -6,9 +6,11 @@ FOUNDATION / PRESENT) mirror the Flutter entities in
 `footpath_cebu/lib/domain/entities/` so the JSON contract needs no translation
 layer on the client.
 """
+import re
 from datetime import date
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from accounts.models import Roles
@@ -262,16 +264,84 @@ class TrainingSession(models.Model):
         related_name='created_sessions',
     )
     # The club that owns this session (multi-tenancy). Set from the scheduling
-    # coach's club; null for legacy rows created before tenancy. SET_NULL so a
-    # removed club never deletes its calendar history.
+    # coach's club; null only for legacy rows created before tenancy. PROTECT
+    # preserves both the tenant boundary and calendar ownership; operationally
+    # a club is deactivated instead of deleted.
     club = models.ForeignKey(
         'accounts.Club',
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name='training_sessions',
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    _TIME_PATTERN = re.compile(
+        r'^(?P<hour>0?[1-9]|1[0-2]):(?P<minute>[0-5][0-9])\s*'
+        r'(?P<period>AM|PM)$',
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def validate_time_window(cls, start_time, end_time):
+        """Validate and normalize the session's paired 12-hour clock values.
+
+        Both values may be blank for legacy/unscheduled records. Otherwise the
+        pair is required, each value must use the app's 12-hour wire format,
+        and the end must be later on the same day than the start.
+        """
+        start_text = str(start_time or '').strip()
+        end_text = str(end_time or '').strip()
+        errors = {}
+
+        if bool(start_text) != bool(end_text):
+            missing_field = 'start_time' if not start_text else 'end_time'
+            errors[missing_field] = (
+                'Start time and end time must be provided together.'
+            )
+        if errors:
+            raise ValidationError(errors)
+        if not start_text:
+            return '', ''
+
+        parsed = {}
+        normalized = {}
+        for field, value in (
+            ('start_time', start_text),
+            ('end_time', end_text),
+        ):
+            match = cls._TIME_PATTERN.fullmatch(value)
+            if match is None:
+                errors[field] = (
+                    'Use a 12-hour time such as 04:30 PM.'
+                )
+                continue
+            hour = int(match.group('hour'))
+            minute = int(match.group('minute'))
+            period = match.group('period').upper()
+            hour_24 = hour % 12 + (12 if period == 'PM' else 0)
+            parsed[field] = hour_24 * 60 + minute
+            normalized[field] = f'{hour:02d}:{minute:02d} {period}'
+
+        if errors:
+            raise ValidationError(errors)
+        if parsed['start_time'] >= parsed['end_time']:
+            raise ValidationError({
+                'end_time': 'End time must be later than start time.'
+            })
+        return normalized['start_time'], normalized['end_time']
+
+    def clean(self):
+        super().clean()
+        self.start_time, self.end_time = self.validate_time_window(
+            self.start_time, self.end_time
+        )
+
+    def save(self, *args, **kwargs):
+        # ModelForm/admin calls full_clean automatically, but ordinary ORM
+        # create/save does not. Enforce the same invariant on both paths.
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     class Meta:
         ordering = ['-date']
@@ -547,3 +617,36 @@ class DeviceToken(models.Model):
 
     def __str__(self):
         return f'{self.user.email} · {self.platform or "?"}'
+
+
+class NotificationRecord(models.Model):
+    """Server-authoritative notification inbox entry for one recipient.
+
+    FCM is only a best-effort delivery channel. Persisting the neutral message
+    first gives users history even when permission is denied, a token is
+    stale, or Firebase is temporarily unavailable.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notification_records',
+    )
+    event_type = models.CharField(max_length=40)
+    title = models.CharField(max_length=120)
+    body = models.CharField(max_length=300)
+    data = models.JSONField(default=dict, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(
+                fields=['user', 'read_at', '-created_at'],
+                name='notif_user_read_created_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.user.email} · {self.event_type} · {self.created_at:%Y-%m-%d}'

@@ -17,6 +17,7 @@ import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
@@ -26,6 +27,7 @@ class GuardianDashboardScreen extends ConsumerWidget {
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     ref.read(privacyUnlockedPlayersProvider.notifier).clear();
+    await ref.read(unregisterDeviceProvider)();
     await ref.read(signOutProvider)();
     if (!context.mounted) return;
     Navigator.of(
@@ -40,6 +42,7 @@ class GuardianDashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('My Players'),
         actions: [
+          const NotificationBell(),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',

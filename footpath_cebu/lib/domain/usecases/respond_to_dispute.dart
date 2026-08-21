@@ -12,10 +12,9 @@ class RespondToDispute {
     String disputeId,
     String body, {
     DisputeStatus? statusChangeTo,
-  }) =>
-      _repository.respondToDispute(
-        disputeId,
-        body,
-        statusChangeTo: statusChangeTo,
-      );
+  }) => _repository.respondToDispute(
+    disputeId,
+    body,
+    statusChangeTo: statusChangeTo,
+  );
 }

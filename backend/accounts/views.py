@@ -1,4 +1,6 @@
 from django.shortcuts import get_object_or_404
+from django.core.cache import cache
+from django.db import connection
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import ValidationError
@@ -42,6 +44,35 @@ class MeView(APIView):
 @permission_classes([AllowAny])
 def health(request):
     return Response({'status': 'ok'})
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def readiness(request):
+    """Dependency-aware probe for deployment health checks.
+
+    Liveness stays cheap at ``/api/health/``. Readiness proves that both the
+    relational database and the shared cache required by production can be
+    reached; it returns 503 without leaking connection details.
+    """
+    checks = {'database': False, 'cache': False}
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+            checks['database'] = cursor.fetchone()[0] == 1
+    except Exception:
+        pass
+    try:
+        probe_key = 'footpath-readiness-probe'
+        cache.set(probe_key, 'ok', timeout=10)
+        checks['cache'] = cache.get(probe_key) == 'ok'
+    except Exception:
+        pass
+    ready = all(checks.values())
+    return Response(
+        {'status': 'ready' if ready else 'unavailable', 'checks': checks},
+        status=200 if ready else 503,
+    )
 
 
 class AdminUserListCreateView(generics.ListCreateAPIView):

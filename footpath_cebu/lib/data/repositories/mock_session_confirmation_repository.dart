@@ -15,9 +15,8 @@ class MockSessionConfirmationRepository
   ) async {
     // Simulate network latency so loading states are exercised in the UI.
     await Future.delayed(const Duration(milliseconds: 300));
-    final records =
-        _records.where((c) => c.playerId == playerId).toList()
-          ..sort((a, b) => b.respondedAt.compareTo(a.respondedAt));
+    final records = _records.where((c) => c.playerId == playerId).toList()
+      ..sort((a, b) => b.respondedAt.compareTo(a.respondedAt));
     return List.unmodifiable(records);
   }
 

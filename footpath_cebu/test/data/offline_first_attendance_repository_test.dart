@@ -99,7 +99,10 @@ void main() {
     );
 
     test('validation failure: propagates and does NOT queue', () async {
-      inner.saveError = AttendanceRepositoryException('Request failed (400).');
+      inner.saveError = AttendanceRepositoryException(
+        'Request failed (400).',
+        statusCode: 400,
+      );
 
       await expectLater(
         repo.saveSessionAttendance('s1', [_record('p1')]),
@@ -124,6 +127,26 @@ void main() {
       await expectLater(
         repo.fetchAttendanceForSession('s1'),
         throwsA(isA<AttendanceNetworkException>()),
+      );
+    });
+
+    test('an HTTP error never falls back to queued attendance', () async {
+      inner.saveError = AttendanceNetworkException('offline');
+      await repo.saveSessionAttendance('s1', [_record('p1')]);
+
+      inner.fetchSessionError = AttendanceRepositoryException(
+        'Request failed (403).',
+        statusCode: 403,
+      );
+      await expectLater(
+        repo.fetchAttendanceForSession('s1'),
+        throwsA(
+          isA<AttendanceRepositoryException>().having(
+            (error) => error.message,
+            'message',
+            'Request failed (403).',
+          ),
+        ),
       );
     });
   });
@@ -169,6 +192,7 @@ void main() {
         await outbox.enqueue(ownerUid, 's1', [_record('p1')]);
         inner.saveError = AttendanceRepositoryException(
           'Request failed (400).',
+          statusCode: 400,
         );
 
         final service = AttendanceSyncService(
@@ -180,6 +204,47 @@ void main() {
         await service.drain();
 
         expect(await outbox.pendingBatches(ownerUid), isEmpty);
+      },
+    );
+
+    for (final status in [401, 403, 408, 429, 500, 503]) {
+      test('HTTP $status keeps the queued batch for a later retry', () async {
+        await outbox.enqueue(ownerUid, 's1', [_record('p1')]);
+        inner.saveError = AttendanceRepositoryException(
+          'Request failed ($status).',
+          statusCode: status,
+        );
+
+        final service = AttendanceSyncService(
+          outbox: outbox,
+          inner: inner,
+          ownerUid: () => ownerUid,
+        );
+        addTearDown(service.dispose);
+        await service.drain();
+
+        final pending = await outbox.pendingBatches(ownerUid);
+        expect(pending, hasLength(1));
+        expect(pending.single.retryCount, 1);
+        expect(pending.single.lastError, 'Request failed ($status).');
+      });
+    }
+
+    test(
+      'an unknown repository error is retained to avoid data loss',
+      () async {
+        await outbox.enqueue(ownerUid, 's1', [_record('p1')]);
+        inner.saveError = AttendanceRepositoryException('Unexpected failure.');
+
+        final service = AttendanceSyncService(
+          outbox: outbox,
+          inner: inner,
+          ownerUid: () => ownerUid,
+        );
+        addTearDown(service.dispose);
+        await service.drain();
+
+        expect(await outbox.pendingBatches(ownerUid), hasLength(1));
       },
     );
   });

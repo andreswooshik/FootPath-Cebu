@@ -99,13 +99,13 @@ class Attendance {
   }
 
   Map<String, dynamic> toJson() => {
-        'playerId': playerId,
-        'status': status.wire,
-        'updatedAt': updatedAt.toIso8601String(),
-        if (sessionId != null) 'sessionId': sessionId,
-        if (sessionName != null) 'sessionName': sessionName,
-        if (coachUid != null) 'coachUid': coachUid,
-        if (effort != null) 'effort': effort,
-        if (note != null) 'note': note,
-      };
+    'playerId': playerId,
+    'status': status.wire,
+    'updatedAt': updatedAt.toIso8601String(),
+    if (sessionId != null) 'sessionId': sessionId,
+    if (sessionName != null) 'sessionName': sessionName,
+    if (coachUid != null) 'coachUid': coachUid,
+    if (effort != null) 'effort': effort,
+    if (note != null) 'note': note,
+  };
 }

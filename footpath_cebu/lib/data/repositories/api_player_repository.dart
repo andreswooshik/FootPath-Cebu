@@ -1,19 +1,18 @@
 import 'dart:convert';
 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:footpath_cebu/core/config/api_config.dart';
+import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
-import 'package:http/http.dart' as http;
 
-/// Live implementation backed by the Django REST API, authenticated with the
-/// signed-in coach's Firebase ID token (same pattern as
-/// [FirebaseAuthRepository]).
-class ApiPlayerRepository implements PlayerRepository, PlayerDetailsReader {
-  ApiPlayerRepository({this.unlockTokenFor});
+/// Live player data backed by the authenticated Django REST API.
+class ApiPlayerRepository
+    implements PlayerRepository, PlayerDetailsReader, PlayerPhotoWriter {
+  ApiPlayerRepository({this.unlockTokenFor, AuthenticatedApiClient? api})
+    : _api = api ?? AuthenticatedApiClient.shared;
 
   final String? Function(String playerId)? unlockTokenFor;
+  final AuthenticatedApiClient _api;
 
   @override
   Future<List<Player>> fetchSquad() => _getList('/api/players/');
@@ -44,30 +43,16 @@ class ApiPlayerRepository implements PlayerRepository, PlayerDetailsReader {
 
   @override
   Future<Player> savePosition(String playerId, PlayerPosition position) async {
-    final idToken = await _requireIdToken();
-
-    final http.Response response;
     try {
-      response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/players/$playerId/position/'),
-        headers: {
-          'Authorization': 'Bearer $idToken',
-          'Content-Type': 'application/json',
-        },
+      final response = await _api.put(
+        '/api/players/$playerId/position/',
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'position': position.wire}),
       );
-    } catch (_) {
-      throw PlayerRepositoryException(
-        'Could not reach the server. Is it running?',
-      );
+      return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } on ApiException catch (error) {
+      throw PlayerRepositoryException(error.message);
     }
-
-    if (response.statusCode != 200) {
-      throw PlayerRepositoryException(
-        'Could not save the position (${response.statusCode}).',
-      );
-    }
-    return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
   @override
@@ -76,104 +61,71 @@ class ApiPlayerRepository implements PlayerRepository, PlayerDetailsReader {
     PlayerRatings ratings, {
     required String coachNotes,
   }) async {
-    final idToken = await _requireIdToken();
-
-    final http.Response response;
     try {
-      response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/players/$playerId/assessment/'),
-        headers: {
-          'Authorization': 'Bearer $idToken',
-          'Content-Type': 'application/json',
-        },
+      final response = await _api.put(
+        '/api/players/$playerId/assessment/',
+        headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'ratings': ratings.toJson(),
           'coachNotes': coachNotes,
         }),
       );
-    } catch (_) {
-      throw PlayerRepositoryException(
-        'Could not reach the server. Is it running?',
-      );
+      return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } on ApiException catch (error) {
+      throw PlayerRepositoryException(error.message);
     }
-
-    if (response.statusCode != 200) {
-      throw PlayerRepositoryException(
-        'Could not save the assessment (${response.statusCode}).',
-      );
-    }
-    return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
-  /// GETs a single JSON object from [path] with the coach/player's ID token.
+  @override
+  Future<Player> uploadPhoto(
+    String playerId, {
+    required List<int> bytes,
+    required String filename,
+    required String contentType,
+  }) async {
+    try {
+      final response = await _api.postMultipart(
+        '/api/players/$playerId/photo/',
+        fieldName: 'photo',
+        bytes: bytes,
+        filename: filename,
+        contentType: contentType,
+      );
+      return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } on ApiException catch (error) {
+      throw PlayerRepositoryException(error.message);
+    } on FormatException {
+      throw PlayerRepositoryException(
+        'The server returned an invalid player profile.',
+      );
+    }
+  }
+
   Future<Map<String, dynamic>> _get(
     String path, {
     Map<String, String> extraHeaders = const {},
   }) async {
-    final idToken = await _requireIdToken();
-
-    final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}$path'),
-        headers: {'Authorization': 'Bearer $idToken', ...extraHeaders},
-      );
-    } catch (_) {
-      throw PlayerRepositoryException(
-        'Could not reach the server. Is it running?',
-      );
+      final response = await _api.get(path, headers: extraHeaders);
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } on ApiException catch (error) {
+      throw PlayerRepositoryException(error.message);
     }
-
-    if (response.statusCode != 200) {
-      throw PlayerRepositoryException(
-        'Request failed (${response.statusCode}).',
-      );
-    }
-    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
-  /// GETs a JSON list (or paginated `results`) from [path].
   Future<List<Player>> _getList(String path) async {
-    final idToken = await _requireIdToken();
-
-    final http.Response response;
     try {
-      response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}$path'),
-        headers: {'Authorization': 'Bearer $idToken'},
-      );
-    } catch (_) {
-      throw PlayerRepositoryException(
-        'Could not reach the server. Is it running?',
-      );
+      final response = await _api.get(path);
+      final decoded = jsonDecode(response.body);
+      final list = decoded is Map<String, dynamic>
+          ? (decoded['results'] as List? ?? const [])
+          : (decoded as List? ?? const []);
+      return list
+          .cast<Map<String, dynamic>>()
+          .map(Player.fromJson)
+          .toList(growable: false);
+    } on ApiException catch (error) {
+      throw PlayerRepositoryException(error.message);
     }
-
-    if (response.statusCode != 200) {
-      throw PlayerRepositoryException(
-        'Request failed (${response.statusCode}).',
-      );
-    }
-
-    final decoded = jsonDecode(response.body);
-    final list = decoded is Map<String, dynamic>
-        ? (decoded['results'] as List? ?? const [])
-        : (decoded as List? ?? const []);
-
-    return list
-        .cast<Map<String, dynamic>>()
-        .map(Player.fromJson)
-        .toList(growable: false);
-  }
-
-  Future<String> _requireIdToken() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      throw PlayerRepositoryException('Not signed in.');
-    }
-    final token = await user.getIdToken();
-    if (token == null) {
-      throw PlayerRepositoryException('Not signed in.');
-    }
-    return token;
   }
 }

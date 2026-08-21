@@ -75,14 +75,19 @@ COACH / PLAYER / GUARDIAN / SCHOOL STAFF
 See [Account and Club Hierarchy](docs/ACCOUNT-AND-CLUB-HIERARCHY.md).
 
 ### B. Offline-to-Online Attendance
-Firestore local persistence is enabled, so the coach can mark attendance on the pitch with no internet:
+The live app uses a Firebase-user-scoped SQLite cache for successful API reads
+and a durable attendance outbox for writes made without a connection:
 
 ```
-Coach → Attendance Screen → AttendanceViewModel → IAttendanceRepository → Firestore local cache
+Coach → Attendance Screen → Riverpod controller → OfflineFirstAttendanceRepository
+      → Django API when online
+      → SQLite outbox on transport failure → replay service on reconnect
 ```
 
-On reconnect, Firestore's sync engine pushes to Cloud Firestore, a Cloud Function finds guardian links, and FCM notifies the guardian + player.
-**Conflict resolution:** last-write-wins; every record carries `updatedAt`, `deviceTimestamp`, `coachUid`.
+Only connection-level failures use cached data or queue a write. Authentication,
+authorization, validation, and server failures remain visible and are never
+masked as offline success. Replays are scoped to the signed-in Firebase UID and
+processed oldest first, so the latest complete session batch wins.
 
 ### C. Academic Eligibility Gating
 School Staff set an eligibility **status enum only** — never grades, GPA, or report cards:
@@ -91,34 +96,38 @@ School Staff set an eligibility **status enum only** — never grades, GPA, or r
   PlayerProfile.eligibility = ELIGIBLE | NOT_ELIGIBLE | PENDING | ACADEMIC_WARNING
 ```
 
-A Cloud Function notifies linked guardians on change. School Staff can access **only** the eligibility collection — not attendance, coach notes, or guardian accounts.
+Django records an inbox notification and sends a neutral FCM alert to the
+Player and linked Guardians after a committed status change. Authorized detail
+is loaded from Django; no grade value enters the notification payload.
 
 ### D. Dispute Lifecycle
 ```
-Coach creates dispute (status=OPEN) → School Staff responds (RESPONDED) → Admin reviews → Accept/Reject (CLOSED)
+Coach creates dispute (`OPEN`) → authorized reviewer responds
+→ `UNDER_REVIEW` → `RESOLVED` or `DISMISSED`
 ```
-Audit trail is **immutable** — every action is appended to `history/` with `actorUid`, `timestamp`, `action`, `comment`.
+The response thread and `AuditLog` provide an append-only history with actor and
+timestamp attribution.
 
 ---
 
-## 2. Day-by-Day Sprint Schedule
+## 2. Delivered Architecture Map
 
 | Day | Dev A (Backend) | Dev B (Coach/Admin) | Dev C (Player/Guardian) |
 |----|----|----|----|
-| **1** | Firebase setup, Firestore collections, Auth, custom claims, security-rules skeleton | MVVM setup, Admin Login UI, Coach Dashboard UI, repository interfaces | Login UI, Player & Guardian Dashboard UI, mock repositories |
-| **2** | User provisioning APIs, guardian linking, Age Tier CRUD | Admin account screens | Profile pages |
-| **3** | Attendance schema, Firestore offline config | Attendance UI | Attendance history screen |
-| **4** | Performance schema | Performance grading | Ratings viewer |
-| **5** | Eligibility backend | Coach player profile | School Staff eligibility UI |
-| **6** | Cloud Messaging, notification triggers | Schedule CRUD | Schedule viewer |
-| **7** | Dispute collections | Coach dispute UI | Staff dispute response UI |
-| **8** | Audit logs, Cloud Functions testing | Admin review UI | Guardian notifications |
-| **9** | **Entire team:** integration, bug fixing, security-rules validation, performance & offline testing |||
-| **10** | **Code freeze:** security audit, regression testing, final deployment, presentation prep |||
+| **1** | Django models, Firebase identity verification, RBAC | Riverpod/Clean Architecture foundation | Login and role routing |
+| **2** | Super Admin Club/Coordinator APIs and Guardian linking | Admin/Coordinator web workflows | Player and Guardian profiles |
+| **3** | Attendance API and user-scoped SQLite outbox | Attendance capture and sync state | Attendance history |
+| **4** | Performance profile API | Coach assessment workflow | Player performance display |
+| **5** | School-only eligibility status/history | Coordinator roster | School Staff eligibility portal |
+| **6** | Schedule and persistent notification inbox | Schedule CRUD and notification bell | Schedule/RSVP and notification inbox |
+| **7** | Disputes, responses, and authorization | Coach dispute workflow | Authorized review workflow |
+| **8** | Audit logs, privacy PINs, photo storage gateway | Photo upload and privacy UI | Guardian privacy gates |
+| **9** | **Entire team:** regression, security, offline, and failure-path testing |||
+| **10** | **Release preparation:** deployment/config checks, migration review, backup/restore scripts and runbook, and demo checklist |||
 
 ---
 
-## 3. Concrete MVVM Blueprint (example: Offline Attendance)
+## 3. Concrete Architecture Blueprint (Offline Attendance)
 
 ```dart
 // Model — plain data, no logic
@@ -128,81 +137,90 @@ class Attendance {
   final DateTime updatedAt;
 }
 
-// Repository interface — the ViewModel depends on THIS
-abstract class IAttendanceRepository {
-  Future<void> saveAttendance(Attendance attendance);
-  Stream<List<Attendance>> watchAttendance(String teamId);
+// Narrow domain interface — presentation depends on this abstraction.
+abstract class SessionAttendanceWriter {
+  Future<List<Attendance>> saveSessionAttendance(
+    String sessionId,
+    List<Attendance> records,
+  );
 }
 
-// Implementation — uses Firestore offline persistence automatically
-class FirestoreAttendanceRepository implements IAttendanceRepository { ... }
+// Data-layer decorator — queues only typed connection failures.
+class OfflineFirstAttendanceRepository implements AttendanceRepository {
+  final AttendanceRepository inner;
+  final AttendanceOutbox outbox;
+  // ...
+}
 
-// ViewModel — business logic only, NO Firebase code
-class AttendanceViewModel extends ChangeNotifier {
-  final IAttendanceRepository repository;
-  Future<void> markPresent() { ... }
-  Future<void> markAbsent() { ... }
+// Riverpod controller — owns UI state, not HTTP or SQLite details.
+class AttendanceLogController extends Notifier<AttendanceLogState> {
+  Future<bool> save(String sessionId, List<Attendance> records) { ... }
 }
 ```
 
 **SOLID application**
 - **SRP:** Repository = data access, ViewModel = business logic, View = rendering only.
-- **DIP:** ViewModel depends on `IAttendanceRepository`, **not** `FirestoreAttendanceRepository` — enabling mock repositories for testing.
-- View (`AttendanceScreen`) talks to the ViewModel via a provider; it never communicates directly with Firebase.
+- **DIP:** use cases/controllers depend on domain repository interfaces, not
+  `http`, SQLite, or Firebase implementations.
+- The view sends intent through Riverpod providers; the data layer owns API,
+  cache, and synchronization mechanics.
 
 ---
 
 ## 4. Deployment & Secure-Coding Audit Checklist
 
 **Authentication**
-- [ ] No public registration enabled
-- [ ] Super Admin creates Clubs and their Coordinators
-- [ ] Club Coordinators create normal Club member accounts
-- [ ] Temporary passwords enforced
-- [ ] Firebase ID tokens validated
-- [ ] Custom claims assigned correctly & refreshed after role changes
+- [x] No public registration enabled
+- [x] Super Admin creates Clubs and their Coordinators
+- [x] Club Coordinators create normal accounts in their own Club
+- [x] Player creation atomically creates its profile and non-null Club link
+- [x] Firebase ID tokens are verified and mapped to active Django users
 
 **Role-Based Access Control**
-- [ ] Firestore Rules validate `request.auth.token.role`
-- [ ] Frontend role checks used only for UX; backend is source of truth
-- [ ] Least privilege enforced; users cannot elevate privileges
+- [x] Django role, Club, object, and Guardian-link checks are authoritative
+- [x] Frontend role checks are UX routing only
+- [x] Cross-Club provisioning and data access have regression coverage
 
-**Firestore Security Rules**
-- [ ] Players read only their own documents
-- [ ] Guardians read only linked players
-- [ ] Coaches limited to assigned teams
-- [ ] School Staff limited to the eligibility collection
-- [ ] Admin has full administrative access; writes validated by role
+**Tenant and object security**
+- [x] Players read their own protected data
+- [x] Guardians require a same-Club link and privacy unlock
+- [x] Coaches are limited to their Club
+- [x] School Staff eligibility exists only for School Clubs
+- [x] Super Admin-only Club and Coordinator operations are server-enforced
 
 **Data Minimization**
-- [ ] No academic grades stored; eligibility uses ENUM only
-- [ ] No unnecessary personal information collected
-- [ ] Guardian relationship stored separately; audit logs exclude sensitive data
+- [x] No academic grades are stored; eligibility uses a status enum only
+- [x] Guardian relationships are stored separately
+- [x] Push payloads avoid grades and unnecessary academic detail
 
 **Offline Support**
-- [ ] Firestore persistence enabled; attendance tested offline
-- [ ] Automatic sync verified; conflict handling documented
+- [x] User-scoped SQLite API cache and attendance outbox implemented
+- [x] Automatic reconnect replay and typed failure handling tested
 
 **Notifications**
-- [ ] Cloud Functions trigger only on relevant document changes
-- [ ] FCM tokens stored securely; sent only to authorized recipients
-- [ ] Notification payload excludes sensitive information
+- [x] Django records notifications only for authorized recipients
+- [x] FCM registration, refresh, and account-scoped removal are implemented
+- [x] Persistent inbox, unread state, foreground handling, and tap routing exist
+- [ ] Verify delivery end-to-end on configured Android/iOS devices
 
 **Audit Logging**
-- [ ] All critical actions logged; history immutable
-- [ ] Actor UID + timestamp recorded; resolution workflow verified
+- [x] Critical actions are attributed in `AuditLog`
+- [x] Eligibility history and dispute responses are append-only
 
 **SOLID Compliance**
-- [ ] Views contain no business logic
-- [ ] ViewModels contain no Firebase SDK calls
-- [ ] Repositories abstract data access; DI used throughout
-- [ ] Interfaces enable mock implementations for testing
+- [x] Screens delegate operations to Riverpod controllers/use cases
+- [x] Domain entities and interfaces contain no Firebase/HTTP dependencies
+- [x] Repositories abstract data access and are wired through providers
+- [x] Mock implementations support deterministic Flutter testing
 
 **Final Release Validation**
-- [ ] Authentication & RBAC (custom claims) verified
-- [ ] Firestore Rules tested against unauthorized access
-- [ ] Offline attendance sync confirmed
-- [ ] Eligibility workflow validated without academic-grade storage
-- [ ] Push notifications verified end-to-end
-- [ ] Dispute lifecycle tested creation → resolution
-- [ ] Code review, security review, and production deployment approved
+- [x] Authentication, RBAC, Club boundaries, and Player invariants tested
+- [x] Offline attendance replay and cache isolation tested
+- [x] Eligibility workflow validated without grade storage
+- [x] Notification inbox/read state and role-aware routing covered locally
+- [ ] Real Firebase/APNs delivery verified on supported physical devices
+- [x] Dispute lifecycle covered by backend and Flutter tests
+- [ ] Production URL, device delivery, alerting, and restore drill verified
+
+See [Production Operations](docs/PRODUCTION-OPERATIONS.md) for the deploy,
+monitoring, backup, and evidence procedure.

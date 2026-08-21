@@ -258,6 +258,10 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     readonly_fields = ('created_at',)
     actions = ('approve_registrations', 'disapprove_registrations')
 
+    def has_delete_permission(self, request, obj=None):
+        """Clubs are durable tenant boundaries; deactivate them instead."""
+        return False
+
     @admin.action(description='Activate selected clubs and coordinators')
     def approve_registrations(self, request, queryset):
         """Approve clubs and activate their pending coordinator logins."""

@@ -9,9 +9,8 @@ class ChangePassword {
   Future<void> call({
     required String currentPassword,
     required String newPassword,
-  }) =>
-      _auth.changePassword(
-        currentPassword: currentPassword,
-        newPassword: newPassword,
-      );
+  }) => _auth.changePassword(
+    currentPassword: currentPassword,
+    newPassword: newPassword,
+  );
 }

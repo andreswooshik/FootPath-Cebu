@@ -24,7 +24,7 @@
 | CRUD | Create, read, update, delete | Implemented for sessions/injuries and selected domain records with role restrictions |
 | Django | Server framework | Python web framework supplying ORM, sessions, middleware, admin, forms, migrations |
 | DRF | Toolkit for Django APIs | Django REST Framework authentication, permissions, serializers, API views, responses |
-| SQLite | Small file-based relational database | Django default/test engine; separately sqflite stores only mobile outbox rows |
+| SQLite | Small file-based relational database | Django default/test engine; separately sqflite stores owner-scoped attendance outbox and eligible GET-cache rows |
 | PostgreSQL | Server-grade relational database | Optional Django engine, including a Supabase-hosted instance |
 | Supabase | Hosted infrastructure option | PostgreSQL and private object storage here; not client auth/RLS |
 | Primary key | Unique row identifier | Django-generated `id` or one-to-one key used in tables/endpoints |
@@ -52,10 +52,11 @@
 | API base URL | Configured Django origin used by live Flutter repositories |
 | Argon2 | Memory-hard password hashing algorithm configured first for Django/PIN hashes |
 | Attendance outbox | Local sqflite queue of unsent complete attendance batches |
+| Authenticated API client | Shared Flutter transport that injects Firebase Bearer tokens and centralizes timeout, typed errors, multipart upload, and safe cached GET policy |
 | Authentication | Proving who a user is; Firebase for mobile, Django sessions for portal/admin |
 | Authorization | Deciding what the identified user may access; enforced by Django roles, clubs, links, and objects |
 | Bearer token | Firebase ID token placed in the HTTP `Authorization` header |
-| Cache | Temporary server data store; production rate limiting requires shared Redis |
+| Cache | Server cache uses shared Redis in production; Flutter separately keeps a bounded owner-scoped cache of eligible successful authenticated GETs |
 | CASCADE | Foreign-key behavior deleting dependent rows when the parent is deleted |
 | CI | GitHub Actions automation for tests, analysis, and deployment checks |
 | Clean architecture | Dependency organization in which domain policy does not depend on UI or infrastructure |
@@ -66,7 +67,7 @@
 | CSP | Content Security Policy headers reducing browser script/style injection risk |
 | CSRF | Cross-site request forgery; Django middleware/tokens protect session forms |
 | Database constraint | Schema rule such as unique guardian/player or player/session pairs |
-| Deep link | A notification/URL route directly to an app screen; not implemented for pushes here |
+| Deep link | A notification/URL route into app content; known push types here resolve the current Django profile and enter authorized schedule/player/eligibility destinations, while unknown types fall back to the focused inbox |
 | Dependency injection | Supplying repositories/use cases externally through Riverpod providers |
 | Dependency inversion | Domain depends on repository abstractions, not HTTP/Firebase implementations |
 | Device token | FCM registration token associated with a Django user/device |
@@ -80,7 +81,7 @@
 | Firebase Auth | Managed mobile email/password identity provider |
 | Firebase UID | Stable identity key linking Firebase account to Django `User` |
 | Foreign key | Relational reference such as attendance → player/session |
-| Foreground listener | Mobile callback for pushes received while app is open; not found in current Flutter code |
+| Foreground listener | `FirebaseMessaging.onMessage` callback that shows visible feedback and offers a View action while the app is open |
 | GuardianLink | Relational authorization link from a guardian user to a player user |
 | Hash | One-way representation used for password/PIN verification |
 | HSTS | Browser policy requiring future HTTPS connections in production |
@@ -93,6 +94,7 @@
 | Migration | Versioned Django schema change under each app’s `migrations/` |
 | Mock repository | In-memory/deterministic adapter for development and tests |
 | Multi-tenancy | One deployment isolates multiple clubs using club relationships and filters |
+| NotificationRecord | Django row belonging to one user with event/title/body/data, creation time, and nullable read time for the persistent inbox |
 | Object permission | Access decision about a specific player/session/injury, beyond broad role |
 | `on_commit` | Django transaction callback used so notification occurs only after successful commit |
 | One-to-one | Unique relation, for example a player user to one `PlayerProfile` |
@@ -108,6 +110,8 @@
 | Reauthentication | Asking Firebase for credentials again to prove recent identity before sensitive reset |
 | Repository | Boundary exposing domain data operations and hiding the data source |
 | Revocation check | Firebase Admin validation that rejects explicitly revoked sessions/tokens |
+| Readiness probe | `/api/ready/` check that verifies database/cache dependencies before routing production traffic |
+| Restore drill | Controlled proof that a backup can recreate a usable database; scripts/runbook exist, but completed drill evidence is not supplied |
 | Riverpod | Flutter dependency and reactive state-management library |
 | RLS | Database row-level security; not used because clients do not query Supabase directly |
 | Serializer | DRF component validating input and converting model/domain data to JSON |
@@ -115,8 +119,8 @@
 | Signed URL | Time-limited URL for reading a private Supabase Storage object |
 | Signal | Django callback around model save; used for eligibility history/notifications |
 | Source of truth | Django’s local user authorization and ORM data, not client roles or Firebase claims |
-| `sqflite` | Flutter SQLite plugin used for the attendance outbox |
-| SQLite | Default local/test relational database for Django; also separate mobile outbox engine |
+| `sqflite` | Flutter SQLite plugin used for the attendance outbox and owner-scoped eligible GET cache |
+| SQLite | Default local/test relational database for Django; also a separate mobile resilience-store engine |
 | Status code | HTTP outcome such as 200/201, 400, 401, 403, or 5xx |
 | Supabase | Optional hosted PostgreSQL/private storage infrastructure in this project |
 | Tenant | A club whose data should be isolated from other clubs |
@@ -133,7 +137,8 @@
 - **Hashing ≠ encryption:** PIN hashes are not intended to be decrypted.
 - **Aggregate ≠ AI:** an average/count is deterministic analytics.
 - **Supabase host ≠ Supabase client backend:** Django still owns all queries/policies.
-- **Push send ≠ notification inbox:** FCM backend calls do not prove visible foreground/history UI.
+- **Push transport ≠ notification history:** this project implements both, but a persisted inbox row does not prove that APNs/FCM delivered to a physical device.
+- **Repository production artifacts ≠ live operations:** Docker/probes/scripts/runbook do not prove an active URL, alert exercise, scheduled backup, or successful restore drill.
 - **Mock success ≠ live integration:** run `USE_MOCK=false` and show server persistence.
 - **Eligibility ≠ grades:** only a status/history exists.
 - **Dispute ≠ scouting:** it is an internal concern thread.

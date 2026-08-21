@@ -1,11 +1,9 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:footpath_cebu/core/config/api_config.dart';
+import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/repositories/device_repository.dart';
-import 'package:http/http.dart' as http;
 
 /// Obtains the device's push token. Injected so the FCM plugin dependency stays
 /// out of this layer — see [ApiDeviceRepository] for why.
@@ -16,10 +14,9 @@ typedef PushTokenProvider = Future<String?> Function();
 /// Firebase ID token, so the server can fan out notifications to this device.
 ///
 /// The token source is injected rather than importing `firebase_messaging`
-/// directly, because the current `firebase_messaging` release is incompatible
-/// with the `firebase_core_platform_interface` that the pinned
-/// `firebase_auth 6.5.4` requires. To enable real push once a compatible
-/// `firebase_messaging` is pinned, pass a provider from the composition root:
+/// directly so plugin and permission concerns stay in the composition root and
+/// this adapter remains deterministic in unit tests. The live provider requests
+/// notification permission and reads the current FCM token:
 ///
 /// ```dart
 /// ApiDeviceRepository(() async {
@@ -28,13 +25,16 @@ typedef PushTokenProvider = Future<String?> Function();
 /// });
 /// ```
 ///
-/// With no provider (the default today) registration is a logged no-op — the
-/// app works fully, just without push, and the backend endpoint stays ready.
-/// Every failure is swallowed and logged; push must never break login.
+/// A null provider remains a supported no-op for isolated tests or alternate
+/// builds. Live wiring supplies it from `core/di/providers.dart`. Every failure
+/// is swallowed and logged; push must never break login or sign-out.
 class ApiDeviceRepository implements DeviceRepository {
-  ApiDeviceRepository([this._tokenProvider]);
+  ApiDeviceRepository([this._tokenProvider, AuthenticatedApiClient? api])
+    : _api = api ?? AuthenticatedApiClient.shared;
 
   final PushTokenProvider? _tokenProvider;
+  final AuthenticatedApiClient _api;
+  static const _tokenTimeout = Duration(seconds: 5);
 
   @override
   Future<void> registerCurrentDevice() async {
@@ -55,19 +55,30 @@ class ApiDeviceRepository implements DeviceRepository {
   }
 
   Future<void> _sendToken(String fcmToken) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-    final idToken = await user.getIdToken();
-    if (idToken == null) return;
-
-    await http.post(
-      Uri.parse('${ApiConfig.baseUrl}/api/devices/'),
-      headers: {
-        'Authorization': 'Bearer $idToken',
-        'Content-Type': 'application/json',
-      },
+    await _api.post(
+      '/api/devices/',
+      headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'token': fcmToken, 'platform': _platform()}),
+      expectedStatuses: const {200, 201, 204},
     );
+  }
+
+  @override
+  Future<void> unregisterCurrentDevice() async {
+    final provider = _tokenProvider;
+    if (provider == null) return;
+    try {
+      final fcmToken = await provider().timeout(_tokenTimeout);
+      if (fcmToken == null || fcmToken.isEmpty) return;
+      await _api.delete(
+        '/api/devices/',
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'token': fcmToken}),
+        expectedStatuses: const {200, 204},
+      );
+    } catch (error) {
+      debugPrint('Device unregister skipped: $error');
+    }
   }
 
   String _platform() {

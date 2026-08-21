@@ -19,7 +19,7 @@ Flutter domain (entities + use cases + repository contracts)
         |
 Flutter data adapters
   |             |                 |
-Firebase Auth   Django REST API   Local sqflite attendance outbox
+Firebase Auth   Django REST API   Owner-scoped sqflite outbox/GET cache
                       |
         FirebaseAuthentication + DRF role/object/club checks
                       |
@@ -42,14 +42,15 @@ The dependency direction in Flutter is presentation → domain abstractions ← 
 | Mobile UI | Flutter/Dart, Material, Riverpod | `footpath_cebu/pubspec.yaml`, `lib/presentation/` |
 | Mobile state/DI | `flutter_riverpod` | `lib/core/di/providers.dart`, `lib/presentation/providers/` |
 | Mobile identity | Firebase Auth | `firebase_auth_repository.dart` |
-| Mobile networking | Dart `http` | `lib/data/repositories/api_*.dart` |
-| Offline write storage | `sqflite`, connectivity | `attendance_outbox.dart`, `attendance_sync_service.dart` |
+| Mobile networking | shared Dart `http` client with token, timeout, typed errors, and safe-read caching | `authenticated_api_client.dart`, `lib/data/repositories/api_*.dart` |
+| Resilient local storage | `sqflite`, connectivity | `attendance_outbox.dart`, `attendance_sync_service.dart`, `api_get_cache.dart` |
 | Backend | Django 5.2, DRF 3.16 | `backend/requirements.txt`, `config/settings.py` |
 | Backend identity verification | Firebase Admin SDK | `accounts/authentication.py`, `accounts/firebase.py` |
 | Web authentication | Django sessions + Axes | `portal/`, `settings.py` |
 | Relational persistence | Django ORM; SQLite/PostgreSQL | `settings.py`, model/migration files |
-| Push | Firebase Cloud Messaging | `academy/notifications.py`, device token endpoints |
+| Push and inbox | Firebase Cloud Messaging plus relational notification/read state | `academy/notifications.py`, notification/device endpoints, Flutter inbox/bell/listeners |
 | Optional object storage | Supabase Storage REST | `academy/storage.py` |
+| Production runtime | Docker/Compose, Gunicorn, WhiteNoise, Redis, optional Sentry | `backend/Dockerfile`, `compose.production.yml`, `settings.py` |
 | CI | GitHub Actions | `.github/workflows/ci.yml` |
 
 ## Layer-by-layer defense map
@@ -59,11 +60,11 @@ The dependency direction in Flutter is presentation → domain abstractions ← 
 | Presentation/UI | collect input and render role state | screens/widgets; `_handleSignIn`, `_submit`, `_finalize`, `_save` | Riverpod controllers/providers and Navigator |
 | State/controller | loading/data/error and provider invalidation | `presentation/providers/`; `LoginController`, `ScheduleSessionController`, `AttendanceLogController` | domain use cases |
 | Business/domain | name actions and hold typed rules/data | `domain/entities`, `domain/usecases`; `SignIn`, `SavePlayerAssessment`, `LogSessionAttendance` | repository interfaces only |
-| Repository/data access | translate domain operations to infrastructure | `data/repositories/api_*`, `firebase_auth_repository.dart`, mocks, offline decorator | Firebase, HTTP, sqflite |
+| Repository/data access | translate domain operations to infrastructure | shared authenticated client, `data/repositories/api_*`, auth repository, mocks, offline decorator | Firebase, HTTP, owner-scoped sqflite |
 | Backend/API | authenticate, authorize, validate, orchestrate | `accounts/authentication.py`, `academy/views.py`, `academy/serializers.py` | services/models/FCM/storage and Flutter JSON |
 | Database | relational integrity/query/transactions | `accounts/models.py`, `academy/models.py`, migrations | Django ORM only |
 | Authentication | establish identity/session | Firebase Auth repository/Admin verifier; Django portal session views | local `User` mapping and authorization |
-| Storage | private player-photo object handling | `academy/storage.py`, portal/admin upload views | Supabase Storage REST and `PlayerProfile.photo_path` |
+| Storage | private player-photo object handling | `academy/storage.py`, portal/admin/API upload views, Flutter picker/controller | Supabase Storage REST and `PlayerProfile.photo_path` |
 | External APIs | managed identity/push/object service | Firebase Auth/Admin/FCM, optional Supabase Storage | adapters/helpers; no direct DB call from Flutter |
 | AI components | none | no model/service/dependency/endpoint found | not applicable |
 
@@ -78,6 +79,7 @@ Screens and widgets collect input and render Riverpod state. Controllers expose 
 - `home_screen.dart` maps the authenticated role to a portal.
 - `coach_dashboard_screen.dart`, `schedule_tab_screen.dart`, `progress_screen.dart`, and roster/profile screens form the coach experience.
 - `player_dashboard_screen.dart` and `guardian_dashboard_screen.dart` provide role-specific views.
+- `notification_bell.dart` and `notification_inbox_screen.dart` expose unread/read state; `main.dart` handles foreground and opened pushes.
 - provider files convert use cases into `AsyncValue`-based UI state.
 
 ### Domain
@@ -89,10 +91,12 @@ The domain layer contains entities (`Player`, `TrainingSession`, `Attendance`, `
 Concrete adapters translate domain calls into external operations:
 
 - `FirebaseAuthRepository` combines Firebase sign-in with the Django `/api/auth/me/` authorization/profile call.
-- API repositories create Bearer-authenticated HTTP requests and deserialize JSON.
+- `AuthenticatedApiClient` centralizes Firebase Bearer tokens, one timeout policy, typed authentication/network/HTTP/decode failures, and eligible GET caching.
+- API repositories call the shared client and deserialize domain JSON.
 - mock repositories supply deterministic local data when mocks are enabled.
-- `OfflineFirstAttendanceRepository` decorates the live attendance repository and queues only network-classified write failures.
+- `OfflineFirstAttendanceRepository` decorates the live attendance repository and queues/falls back only for network-classified failures; HTTP authorization and server errors remain visible.
 - `AttendanceOutbox` persists queued batches and `AttendanceSyncService` replays them.
+- `ApiGetCache` stores eligible successful reads by Firebase UID and request key; sign-out clears only that owner’s entries, and protected unlock responses are excluded.
 
 ### Composition and mock/live selection
 
@@ -115,13 +119,13 @@ DRF serializers validate JSON input and shape JSON output. Django forms validate
 - `portal/services.py` derives account creation from the authenticated coordinator’s club.
 - `academy/pin_service.py` provides PIN verification, failure counting, and lockout.
 - `academy/player_unlock.py` creates and verifies short-lived signed unlock tokens.
-- `academy/notifications.py` sends FCM messages.
+- `academy/notifications.py` persists current-user `NotificationRecord` rows before best-effort FCM fan-out.
 - `academy/signals.py` creates eligibility history/audit records and schedules notifications after commit.
 - `academy/storage.py` mediates private Supabase Storage access.
 
 ### Models and persistence
 
-`accounts/models.py` owns `Club`, the custom `User`, and `GuardianLink`. `academy/models.py` owns the football and safeguarding domain. Migrations are the executable schema history. Django is the source of truth regardless of whether its database engine is local SQLite or PostgreSQL hosted by Supabase.
+`accounts/models.py` owns `Club`, the custom `User`, and `GuardianLink`. `academy/models.py` owns the football and safeguarding domain, including current-user notification/read state. `TrainingSession` validates paired supported 12-hour time strings and requires start before end through model validation as well as the serializer. Migrations are the executable schema history. Django is the source of truth regardless of whether its database engine is local SQLite or PostgreSQL hosted by Supabase.
 
 ## Authentication versus authorization
 
@@ -153,6 +157,7 @@ SCHOOL_STAFF -> Django portal
 ```
 
 Flutter uses direct `Navigator`/`MaterialPageRoute` transitions and tab shells rather than a named-route package.
+Opened/initial pushes, foreground **View**, and inbox-row taps use that same navigation model through a trusted notification controller. Known `session_*`, `assessment_saved`, and `eligibility_changed` events route to the authorized role portal's Schedule, Player/linked-child Profile, or Eligibility destination while preserving role, linked-child, and privacy gates. Unknown events or current-profile resolution failures safely fall back to the focused current-user inbox; payload IDs never authorize an arbitrary domain screen.
 
 ## Data topology and trust boundaries
 
@@ -176,7 +181,7 @@ Relational foreign keys, one-to-one relations, unique constraints, and transacti
 | Clean/domain layers in Flutter | Testable use cases and replaceable adapters | More files/indirection for a capstone-sized app |
 | Server-only Supabase access | Credentials and rules remain centralized | Backend is a required hop and potential bottleneck |
 | Relational model/history | Constraints, joins, transactions, auditable change records | Schema migrations and careful deletion behavior are required |
-| Offline queue only for attendance writes | Protects the field’s most connectivity-sensitive operation | Other screens still depend on live reads/writes; conflict policy is simple last-write-wins |
+| Attendance is the only queued/replayed mutation; eligible GETs have a scoped cache | Protects the most connectivity-sensitive write and preserves recent safe reads | Other writes still require the network; cache is bounded/stale-tolerant and conflict policy is simple last-write-wins |
 | Riverpod DI with mocks | Fast isolated UI tests and demos | Debug defaults can accidentally show mock rather than live data |
 | Signals for eligibility history | Every model save can produce consistent history | Side effects are less visible than an explicit service and need transaction awareness |
 
@@ -186,17 +191,21 @@ Relational foreign keys, one-to-one relations, unique constraints, and transacti
 2. `footpath_cebu/lib/core/di/providers.dart` — Flutter composition root.
 3. `footpath_cebu/lib/data/repositories/firebase_auth_repository.dart` — identity/profile bridge.
 4. `footpath_cebu/lib/data/repositories/offline_first_attendance_repository.dart` — resilience decorator.
-5. `backend/config/settings.py` — security, database, middleware, REST configuration.
-6. `backend/accounts/authentication.py` — Firebase-to-Django authentication.
-7. `backend/accounts/models.py` — clubs, users, guardian links.
-8. `backend/accounts/services.py` — safe account provisioning.
-9. `backend/academy/models.py` — core domain schema.
-10. `backend/academy/views.py` — API role/object/workflow boundary.
-11. `backend/academy/serializers.py` — validation and API contracts.
-12. `backend/academy/pin_service.py` and `player_unlock.py` — household privacy control.
-13. `backend/academy/signals.py` — eligibility history/audit side effects.
-14. `backend/portal/services.py` and `views.py` — coordinator/staff workflows.
+5. `footpath_cebu/lib/data/network/authenticated_api_client.dart` and `data/local/api_get_cache.dart` — shared transport and owner-scoped read cache.
+6. `footpath_cebu/lib/presentation/screens/notification_inbox_screen.dart` and `widgets/notification_bell.dart` — persistent notification UX.
+7. `backend/config/settings.py` — security, database, middleware, REST, static, cache, logging, and optional observability configuration.
+8. `backend/accounts/authentication.py` — Firebase-to-Django authentication.
+9. `backend/accounts/models.py` — clubs, users, guardian links.
+10. `backend/accounts/services.py` — safe account provisioning.
+11. `backend/academy/models.py` — core domain schema.
+12. `backend/academy/views.py` — API role/object/workflow boundary.
+13. `backend/academy/serializers.py` — validation and API contracts.
+14. `backend/academy/pin_service.py` and `player_unlock.py` — household privacy control.
+15. `backend/academy/notifications.py` — durable inbox records and best-effort FCM.
+16. `backend/academy/signals.py` — eligibility history/audit side effects.
+17. `backend/portal/services.py` and `views.py` — coordinator/staff workflows.
+18. `backend/Dockerfile`, `compose.production.yml`, and `docs/PRODUCTION-OPERATIONS.md` — reproducible production artifacts and evidence checklist, not proof of a live deployment.
 
 ## Architectural answer to memorize
 
-> Flutter is a layered client: UI and Riverpod controllers call domain use cases, which depend on repository interfaces implemented by Firebase, Django API, mock, or local-outbox adapters. Firebase proves identity. Django verifies the token, enforces roles and club/object scope, and persists through its ORM. SQLite is the default database; production can use PostgreSQL, including Supabase-hosted PostgreSQL. Supabase is not an alternative authorization layer in this implementation.
+> Flutter is a layered client: UI and Riverpod controllers call domain use cases, which depend on repository interfaces implemented by Firebase, Django API, mock, or resilient local adapters. A shared authenticated client centralizes token, timeout, error, and safe-cache behavior. Firebase proves identity. Django verifies the token, enforces roles and club/object scope, and persists through its ORM. SQLite is the default database; production can use PostgreSQL, including Supabase-hosted PostgreSQL. Supabase is not an alternative authorization layer in this implementation.

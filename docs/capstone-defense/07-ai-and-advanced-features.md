@@ -16,6 +16,8 @@ If an earlier proposal claimed AI, describe it as future scope unless the team s
 
 The mobile app decorates the live attendance repository. On a network-specific failure, it queues the complete batch in user-scoped sqflite storage and later replays batches sequentially. This is distributed-state/resilience engineering, not AI.
 
+Eligible authenticated GETs use a separate Firebase-user-scoped cache through the shared API client. It can answer only network-classified failures, never HTTP authorization/server errors or protected unlock requests.
+
 ### 2. Dual-system identity provisioning
 
 The backend provisions Firebase identities and Django domain records with compensation. If database persistence fails after a new Firebase identity is created, it attempts to remove that identity. This reduces cross-system orphans.
@@ -26,15 +28,19 @@ Guardian access combines Firebase identity, local role, a current guardian-playe
 
 ### 4. Event-driven side effects
 
-Eligibility signals create history and audit records. Notifications are scheduled with `transaction.on_commit` so users are not notified about rolled-back writes.
+Eligibility signals create history and audit records. Notifications are scheduled with `transaction.on_commit` so users are not notified about rolled-back writes. Each active recipient receives a durable inbox record before best-effort FCM fan-out; Flutter exposes unread/read state, foreground feedback, and role-aware opened-push routing with a focused-inbox fallback.
 
-### 5. Role-aware dependency composition
+### 5. Role-aware dependency composition and shared transport
 
-Flutter’s domain interfaces allow mock and live adapters, while the attendance adapter adds local resilience through composition.
+Flutter’s domain interfaces allow mock and live adapters, while the attendance adapter adds local resilience through composition. `AuthenticatedApiClient` centralizes token, timeout, typed-error, safe-cache, and multipart behavior so repositories do not apply conflicting policies.
 
 ### 6. Relational aggregation
 
-The progress endpoint calculates deterministic attendance counts/averages and returns player progress summaries. An aggregate is analytics, not machine learning.
+The progress endpoint calculates deterministic attendance counts/averages and returns player progress summaries. Coach results are club-scoped; Super Admin results span Clubs. An aggregate is analytics, not machine learning.
+
+### 7. Server-mediated private media
+
+A same-Club Coach can pick a player photo in Flutter and upload it as authenticated multipart data. Django repeats role, tenant, MIME, signature, and size validation and alone holds optional Supabase Storage credentials. This is secure integration engineering, not computer vision; actual object persistence depends on configured Supabase credentials.
 
 ## Scouting finding
 
@@ -58,7 +64,7 @@ Do not promise this as current capability.
 
 **Question:** “Where is the AI in your system?”
 
-**Answer:** “There is none in the current executable repository. Our advanced features are offline synchronization, layered authorization, event-driven notification/history, and deterministic progress aggregation. We prefer an accurate boundary over calling averages or filters AI.”
+**Answer:** “There is none in the current executable repository. Our advanced features are owner-scoped resilience, layered authorization, durable event-driven notification/history, server-mediated private media, and deterministic progress aggregation. We prefer an accurate boundary over calling averages or filters AI.”
 
 ## Required AI defense answers
 

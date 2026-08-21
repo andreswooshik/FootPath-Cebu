@@ -4,6 +4,9 @@
 .dart_tool/
 .packages
 build/
+backend/staticfiles/
+backend/backups/
+*.dump
 # pubspec.lock is committed: this is an application, so builds stay reproducible
 
 # Directory created by dartdoc

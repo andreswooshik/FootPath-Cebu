@@ -75,6 +75,8 @@ import 'package:footpath_cebu/domain/usecases/change_password.dart';
 import 'package:footpath_cebu/domain/usecases/reauthenticate.dart';
 import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/update_training_session.dart';
+import 'package:footpath_cebu/domain/usecases/unregister_device.dart';
+import 'package:footpath_cebu/domain/usecases/upload_player_photo.dart';
 import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
 import 'package:footpath_cebu/domain/usecases/sign_in.dart';
 import 'package:footpath_cebu/domain/usecases/sign_out.dart';
@@ -113,6 +115,11 @@ final playerRepositoryProvider = Provider<PlayerRepository>(
       : ApiPlayerRepository(
           unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
         ),
+);
+
+/// Coach-only write capability exposed separately from the player read model.
+final playerPhotoWriterProvider = Provider<PlayerPhotoWriter>(
+  (ref) => ref.watch(playerRepositoryProvider) as PlayerPhotoWriter,
 );
 
 final playerUnlockTokenStoreProvider = Provider<PlayerUnlockTokenStore>(
@@ -295,6 +302,10 @@ final savePlayerPositionProvider = Provider<SavePlayerPosition>(
   (ref) => SavePlayerPosition(ref.watch(playerRepositoryProvider)),
 );
 
+final uploadPlayerPhotoProvider = Provider<UploadPlayerPhoto>(
+  (ref) => UploadPlayerPhoto(ref.watch(playerPhotoWriterProvider)),
+);
+
 final getPlayerAttendanceProvider = Provider<GetPlayerAttendance>(
   (ref) => GetPlayerAttendance(ref.watch(attendanceRepositoryProvider)),
 );
@@ -371,4 +382,8 @@ final cancelTrainingSessionProvider = Provider<CancelTrainingSession>(
 
 final registerDeviceProvider = Provider<RegisterDevice>(
   (ref) => RegisterDevice(ref.watch(deviceRepositoryProvider)),
+);
+
+final unregisterDeviceProvider = Provider<UnregisterDevice>(
+  (ref) => UnregisterDevice(ref.watch(deviceRepositoryProvider)),
 );

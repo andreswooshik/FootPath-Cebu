@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/card_tier.dart';
@@ -7,6 +8,7 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
+import 'package:footpath_cebu/presentation/providers/player_photo_controller.dart';
 import 'package:footpath_cebu/presentation/providers/player_position_controller.dart';
 import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
 import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
@@ -43,6 +45,74 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   late Player _player = widget.player;
 
   bool get _isGoalkeeper => _player.position?.group == PositionGroup.goalkeeper;
+
+  Future<void> _pickAndUploadPhoto() async {
+    XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 88,
+      );
+      if (picked == null || !mounted) return;
+
+      final contentType = _photoContentType(picked);
+      if (contentType == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only JPEG, PNG, and WebP photos are allowed.'),
+          ),
+        );
+        return;
+      }
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      final updated = await ref
+          .read(playerPhotoControllerProvider.notifier)
+          .submit(
+            _player.id,
+            bytes: bytes,
+            filename: picked.name,
+            contentType: contentType,
+          );
+      if (!mounted) return;
+      if (updated == null) {
+        final error = ref.read(playerPhotoControllerProvider).error;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(error, 'Could not upload the photo.'),
+            ),
+          ),
+        );
+        return;
+      }
+      setState(() => _player = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_player.name}\'s photo was updated.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the selected photo.')),
+      );
+    }
+  }
+
+  String? _photoContentType(XFile file) {
+    final declared = file.mimeType?.split(';').first.trim().toLowerCase();
+    if (declared == 'image/jpeg' ||
+        declared == 'image/png' ||
+        declared == 'image/webp') {
+      return declared;
+    }
+    final name = file.name.toLowerCase();
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.webp')) return 'image/webp';
+    return null;
+  }
 
   Future<void> _openEditor() async {
     // The editor returns the whole saved Player, not just the ratings: the
@@ -161,6 +231,28 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           ),
           const SizedBox(height: 12),
           Center(child: TierBadge(tier: CardTier.forPlayer(_player))),
+          if (widget.profile.isCoach) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: OutlinedButton.icon(
+                key: const Key('upload-player-photo'),
+                onPressed: ref.watch(playerPhotoControllerProvider).isLoading
+                    ? null
+                    : _pickAndUploadPhoto,
+                icon: ref.watch(playerPhotoControllerProvider).isLoading
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.add_a_photo_outlined),
+                label: Text(
+                  ref.watch(playerPhotoControllerProvider).isLoading
+                      ? 'Uploading photo...'
+                      : 'Update player photo',
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           Text(
             'Attribute Web',

@@ -23,15 +23,18 @@ class ProfileTabScreen extends ConsumerWidget {
     super.key,
     required this.player,
     this.isGuardian = false,
+    this.showGuardianPlayerDetails = false,
   });
 
   final Player player;
   final bool isGuardian;
+  final bool showGuardianPlayerDetails;
 
   bool get _isGoalkeeper => player.position?.group == PositionGroup.goalkeeper;
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     ref.read(privacyUnlockedPlayersProvider.notifier).clear();
+    await ref.read(unregisterDeviceProvider)();
     await ref.read(signOutProvider)();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
@@ -92,7 +95,7 @@ class ProfileTabScreen extends ConsumerWidget {
         automaticallyImplyLeading: false,
         title: const Text('Profile'),
       ),
-      body: isGuardian
+      body: isGuardian && !showGuardianPlayerDetails
           ? _guardianBody(context, ref)
           : PlayerPrivacyGate(
               player: player,
@@ -103,10 +106,7 @@ class ProfileTabScreen extends ConsumerWidget {
                   Center(
                     child: Column(
                       children: [
-                        const CircleAvatar(
-                          radius: 40,
-                          child: Icon(Icons.person, size: 40),
-                        ),
+                        _PlayerAvatar(player: player),
                         const SizedBox(height: 12),
                         Text(
                           player.name,
@@ -235,6 +235,34 @@ class ProfileTabScreen extends ConsumerWidget {
           const SizedBox(width: 8),
           SizedBox(width: 28, child: Text('$value', textAlign: TextAlign.end)),
         ],
+      ),
+    );
+  }
+}
+
+class _PlayerAvatar extends StatelessWidget {
+  const _PlayerAvatar({required this.player});
+
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = player.photoUrl;
+    if (url == null || url.isEmpty) {
+      return const CircleAvatar(
+        radius: 40,
+        child: Icon(Icons.person, size: 40),
+      );
+    }
+    return ClipOval(
+      child: Image.network(
+        url,
+        width: 80,
+        height: 80,
+        fit: BoxFit.cover,
+        cacheWidth: 240,
+        errorBuilder: (_, _, _) =>
+            const CircleAvatar(radius: 40, child: Icon(Icons.person, size: 40)),
       ),
     );
   }

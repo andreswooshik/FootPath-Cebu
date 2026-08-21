@@ -41,12 +41,14 @@ dependencies:
   # both packages now target firebase_core_platform_interface ^8.x.
   firebase_messaging: ^16.4.3
   http: ^1.6.0
+  http_parser: ^4.1.2
   flutter_svg: ^2.0.10
   google_fonts: ^6.2.1
   flutter_riverpod: ^3.3.2
   sqflite: ^2.4.3
   connectivity_plus: ^7.3.0
   flutter_animate: ^4.5.2
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
