@@ -311,7 +311,12 @@ class CreateAccountTests(TestCase):
         self.assertTrue(PlayerProfile.objects.filter(user=user).exists())
         self.assertContains(resp, 'Temporary password')
 
-    def test_create_player_may_be_created_without_guardian_link(self):
+    @_fb_patches
+    def test_create_player_may_be_created_without_guardian_link(
+        self, mock_get, mock_create, _init,
+    ):
+        mock_get.side_effect = firebase_auth.UserNotFoundError('nf')
+        mock_create.return_value = Mock(uid='no-parent-player-uid')
         response = self.client.post(reverse('portal:create-account'), {
             'account_type': 'player', 'first_name': 'No', 'last_name': 'Parent',
             'email': 'no-parent@club.test', 'date_of_birth': '2010-05-01',
@@ -319,6 +324,7 @@ class CreateAccountTests(TestCase):
         self.assertEqual(response.status_code, 200)
         player = User.objects.get(email='no-parent@club.test')
         self.assertEqual(player.club, self.club)
+        self.assertEqual(player.firebase_uid, 'no-parent-player-uid')
         self.assertTrue(PlayerProfile.objects.filter(user=player).exists())
         self.assertFalse(GuardianLink.objects.filter(player=player).exists())
 
