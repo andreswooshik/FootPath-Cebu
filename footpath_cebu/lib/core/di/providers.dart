@@ -14,6 +14,7 @@ import 'package:footpath_cebu/data/repositories/api_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_progress_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_profile_photo_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/firebase_auth_repository.dart';
@@ -27,6 +28,7 @@ import 'package:footpath_cebu/data/repositories/mock_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_progress_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_profile_photo_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/offline_first_attendance_repository.dart';
@@ -41,6 +43,7 @@ import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/domain/repositories/progress_repository.dart';
+import 'package:footpath_cebu/domain/repositories/profile_photo_repository.dart';
 import 'package:footpath_cebu/domain/repositories/session_confirmation_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/domain/usecases/confirm_session.dart';
@@ -77,6 +80,7 @@ import 'package:footpath_cebu/domain/usecases/schedule_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/update_training_session.dart';
 import 'package:footpath_cebu/domain/usecases/unregister_device.dart';
 import 'package:footpath_cebu/domain/usecases/upload_player_photo.dart';
+import 'package:footpath_cebu/domain/usecases/upload_profile_photo.dart';
 import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
 import 'package:footpath_cebu/domain/usecases/sign_in.dart';
 import 'package:footpath_cebu/domain/usecases/sign_out.dart';
@@ -120,6 +124,11 @@ final playerRepositoryProvider = Provider<PlayerRepository>(
 /// Coach-only write capability exposed separately from the player read model.
 final playerPhotoWriterProvider = Provider<PlayerPhotoWriter>(
   (ref) => ref.watch(playerRepositoryProvider) as PlayerPhotoWriter,
+);
+
+final profilePhotoRepositoryProvider = Provider<ProfilePhotoRepository>(
+  (ref) =>
+      useMockData ? MockProfilePhotoRepository() : ApiProfilePhotoRepository(),
 );
 
 final playerUnlockTokenStoreProvider = Provider<PlayerUnlockTokenStore>(
@@ -304,6 +313,10 @@ final savePlayerPositionProvider = Provider<SavePlayerPosition>(
 
 final uploadPlayerPhotoProvider = Provider<UploadPlayerPhoto>(
   (ref) => UploadPlayerPhoto(ref.watch(playerPhotoWriterProvider)),
+);
+
+final uploadProfilePhotoProvider = Provider<UploadProfilePhoto>(
+  (ref) => UploadProfilePhoto(ref.watch(profilePhotoRepositoryProvider)),
 );
 
 final getPlayerAttendanceProvider = Provider<GetPlayerAttendance>(

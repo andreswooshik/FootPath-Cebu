@@ -29,6 +29,7 @@ void main() {
               'last_name': 'One',
               'role': 'COACH',
               'role_display': 'Coach',
+              'photo_url': 'https://storage.example/coach.jpg',
             }),
             200,
           );
@@ -42,6 +43,7 @@ void main() {
       expect(profile.id, '7');
       expect(profile.email, 'coach@example.com');
       expect(profile.role, 'COACH');
+      expect(profile.photoUrl, 'https://storage.example/coach.jpg');
     },
   );
 

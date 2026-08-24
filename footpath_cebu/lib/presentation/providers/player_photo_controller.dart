@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
+import 'package:footpath_cebu/presentation/providers/player_dashboard_providers.dart';
 
 /// Owns the loading/error state for a Coach roster-photo upload.
 class PlayerPhotoController extends AsyncNotifier<void> {
@@ -25,6 +26,7 @@ class PlayerPhotoController extends AsyncNotifier<void> {
       );
       state = const AsyncData(null);
       ref.invalidate(squadProvider);
+      ref.invalidate(myProfileProvider);
       return updated;
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);

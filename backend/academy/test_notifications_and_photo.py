@@ -273,9 +273,25 @@ class MobilePlayerPhotoTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         upload.assert_not_called()
 
-    @patch('academy.views.upload_photo')
-    def test_player_cannot_replace_their_own_roster_photo(self, upload):
+    @patch(
+        'academy.views.upload_photo',
+        return_value='player-photos/player.jpg',
+    )
+    def test_player_can_replace_their_own_roster_photo(self, upload):
         self.client.force_authenticate(self.player)
+        response = self.client.post(
+            reverse('player-photo-upload-mobile', args=[self.player.pk]),
+            {'photo': self._photo()},
+            format='multipart',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.photo_path, 'player-photos/player.jpg')
+        upload.assert_called_once()
+
+    @patch('academy.views.upload_photo')
+    def test_player_cannot_replace_another_players_photo(self, upload):
+        self.client.force_authenticate(self.outsider)
         response = self.client.post(
             reverse('player-photo-upload-mobile', args=[self.player.pk]),
             {'photo': self._photo()},

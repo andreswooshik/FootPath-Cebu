@@ -12,6 +12,7 @@ class UserProfile {
     required this.lastName,
     required this.role,
     required this.roleDisplay,
+    this.photoUrl,
   });
 
   final String id;
@@ -24,6 +25,9 @@ class UserProfile {
 
   /// Human-friendly label, e.g. `Coach`, `School Staff`.
   final String roleDisplay;
+
+  /// Short-lived signed Supabase URL for the user's private profile photo.
+  final String? photoUrl;
 
   /// Full name, falling back to the email's local part when no name is set.
   String get name {
@@ -47,6 +51,7 @@ class UserProfile {
       lastName: json['last_name'] as String? ?? '',
       role: (json['role'] as String? ?? '').toUpperCase(),
       roleDisplay: json['role_display'] as String? ?? '',
+      photoUrl: json['photo_url'] as String?,
     );
   }
 
@@ -57,5 +62,6 @@ class UserProfile {
     'last_name': lastName,
     'role': role,
     'role_display': roleDisplay,
+    'photo_url': photoUrl,
   };
 }

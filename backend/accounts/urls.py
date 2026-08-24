@@ -4,6 +4,11 @@ from . import views
 
 urlpatterns = [
     path('auth/me/', views.MeView.as_view(), name='auth-me'),
+    path(
+        'auth/me/photo/',
+        views.MyProfilePhotoUploadView.as_view(),
+        name='auth-me-photo',
+    ),
     path('health/', views.health, name='health'),
     path('ready/', views.readiness, name='readiness'),
     path(

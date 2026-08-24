@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/core/theme/app_motion.dart';
@@ -11,6 +12,8 @@ import 'package:footpath_cebu/presentation/screens/guardian_privacy_pin_selectio
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_privacy_pin_screen.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
+import 'package:footpath_cebu/presentation/providers/player_photo_controller.dart';
+import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 
@@ -31,6 +34,74 @@ class ProfileTabScreen extends ConsumerWidget {
   final bool showGuardianPlayerDetails;
 
   bool get _isGoalkeeper => player.position?.group == PositionGroup.goalkeeper;
+
+  Future<void> _pickAndUploadOwnPhoto(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 88,
+      );
+      if (picked == null || !context.mounted) return;
+      final contentType = _photoContentType(picked);
+      if (contentType == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only JPEG, PNG, and WebP photos are allowed.'),
+          ),
+        );
+        return;
+      }
+      final bytes = await picked.readAsBytes();
+      if (!context.mounted) return;
+      final updated = await ref
+          .read(playerPhotoControllerProvider.notifier)
+          .submit(
+            player.id,
+            bytes: bytes,
+            filename: picked.name,
+            contentType: contentType,
+          );
+      if (!context.mounted) return;
+      if (updated == null) {
+        final error = ref.read(playerPhotoControllerProvider).error;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(error, 'Could not upload the photo.'),
+            ),
+          ),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your profile photo was updated.')),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the selected photo.')),
+      );
+    }
+  }
+
+  String? _photoContentType(XFile file) {
+    final declared = file.mimeType?.split(';').first.trim().toLowerCase();
+    if (declared == 'image/jpeg' ||
+        declared == 'image/png' ||
+        declared == 'image/webp') {
+      return declared;
+    }
+    final name = file.name.toLowerCase();
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.webp')) return 'image/webp';
+    return null;
+  }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     ref.read(privacyUnlockedPlayersProvider.notifier).clear();
@@ -107,6 +178,34 @@ class ProfileTabScreen extends ConsumerWidget {
                     child: Column(
                       children: [
                         _PlayerAvatar(player: player),
+                        if (!isGuardian) ...[
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            key: const Key('upload-own-player-photo'),
+                            onPressed:
+                                ref
+                                    .watch(playerPhotoControllerProvider)
+                                    .isLoading
+                                ? null
+                                : () => _pickAndUploadOwnPhoto(context, ref),
+                            icon:
+                                ref
+                                    .watch(playerPhotoControllerProvider)
+                                    .isLoading
+                                ? const SizedBox.square(
+                                    dimension: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.add_a_photo_outlined),
+                            label: Text(
+                              ref.watch(playerPhotoControllerProvider).isLoading
+                                  ? 'Uploading photo...'
+                                  : 'Update profile photo',
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         Text(
                           player.name,

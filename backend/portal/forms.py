@@ -4,36 +4,17 @@ Each account-creation form is scoped to the coordinator's club: the guardian /
 player pickers only ever offer members of `club`, and the club is never taken
 from form input (it is derived from `request.user.club` server-side).
 """
-import os
-
 from django import forms
 from django.contrib.auth.password_validation import validate_password
 
 from academy.models import Eligibility, PlayerProfile
 from accounts.models import Club, Roles, User
-
-# Coach-license upload guardrails (public, unauthenticated form — keep tight).
-COACH_LICENSE_MAX_BYTES = 50 * 1024 * 1024  # 50 MB
-_COACH_LICENSE_EXTS = {'.jpg', '.jpeg', '.png', '.pdf'}
-_COACH_LICENSE_TYPES = {'image/jpeg', 'image/png', 'application/pdf'}
-# First-bytes signatures for the allowed types. The extension and the
-# browser-supplied content-type are both attacker-controlled, so we also verify
-# what the file actually *is* — a .pdf-named script or an HTML/JS polyglot would
-# otherwise sail through the two checks above (audit finding S3).
-_COACH_LICENSE_SIGNATURES = (
-    b'\xff\xd8\xff',          # JPEG
-    b'\x89PNG\r\n\x1a\n',     # PNG
-    b'%PDF-',                 # PDF
+from accounts.validators import (
+    COACH_LICENSE_MAX_BYTES,
+    validate_coach_license_upload,
 )
 
-
-def _has_allowed_signature(upload):
-    """True if the upload's leading bytes match a JPG/PNG/PDF signature. Seeks
-    back to 0 so the later save reads the whole file."""
-    upload.seek(0)
-    header = upload.read(8)
-    upload.seek(0)
-    return any(header.startswith(sig) for sig in _COACH_LICENSE_SIGNATURES)
+# Coach-license upload guardrails (public, unauthenticated form — keep tight).
 
 
 class CoordinatorSignupForm(forms.Form):
@@ -47,6 +28,7 @@ class CoordinatorSignupForm(forms.Form):
     coach_license = forms.FileField(
         label='Coach license',
         help_text='JPG, PNG or PDF, max 50 MB.',
+        validators=[validate_coach_license_upload],
     )
     cvfa_membership = forms.CharField(
         max_length=80, label='CVFA membership number'
@@ -76,25 +58,6 @@ class CoordinatorSignupForm(forms.Form):
         if Club.objects.filter(name__iexact=name).exists():
             raise forms.ValidationError('A club with this name already exists.')
         return name
-
-    def clean_coach_license(self):
-        upload = self.cleaned_data['coach_license']
-        ext = os.path.splitext(upload.name)[1].lower()
-        content_type = getattr(upload, 'content_type', None)
-        # Allowlist by BOTH extension and declared content-type, and cap size.
-        if ext not in _COACH_LICENSE_EXTS:
-            raise forms.ValidationError('Upload a JPG, PNG or PDF file.')
-        if content_type and content_type not in _COACH_LICENSE_TYPES:
-            raise forms.ValidationError('Unsupported file type. Use JPG, PNG or PDF.')
-        if upload.size > COACH_LICENSE_MAX_BYTES:
-            raise forms.ValidationError('The file must be 50 MB or smaller.')
-        # Last line of defence: the bytes must actually be a JPG/PNG/PDF, not
-        # just named like one.
-        if not _has_allowed_signature(upload):
-            raise forms.ValidationError(
-                'That file does not look like a real JPG, PNG or PDF.'
-            )
-        return upload
 
     def clean_password1(self):
         password = self.cleaned_data['password1']

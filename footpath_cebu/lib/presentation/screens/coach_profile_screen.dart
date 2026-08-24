@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
+import 'package:footpath_cebu/presentation/providers/profile_photo_controller.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 import 'package:footpath_cebu/presentation/screens/change_password_screen.dart';
 import 'package:footpath_cebu/presentation/screens/dispute_list_screen.dart';
@@ -29,6 +31,86 @@ class CoachProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
+  late UserProfile _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    _profile = widget.profile;
+  }
+
+  @override
+  void didUpdateWidget(covariant CoachProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile != widget.profile) _profile = widget.profile;
+  }
+
+  Future<void> _pickAndUploadPhoto() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 88,
+      );
+      if (picked == null || !mounted) return;
+      final contentType = _photoContentType(picked);
+      if (contentType == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only JPEG, PNG, and WebP photos are allowed.'),
+          ),
+        );
+        return;
+      }
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      final updated = await ref
+          .read(profilePhotoControllerProvider.notifier)
+          .submit(
+            _profile,
+            bytes: bytes,
+            filename: picked.name,
+            contentType: contentType,
+          );
+      if (!mounted) return;
+      if (updated == null) {
+        final error = ref.read(profilePhotoControllerProvider).error;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(error, 'Could not upload the photo.'),
+            ),
+          ),
+        );
+        return;
+      }
+      setState(() => _profile = updated);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your profile photo was updated.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open the selected photo.')),
+      );
+    }
+  }
+
+  String? _photoContentType(XFile file) {
+    final declared = file.mimeType?.split(';').first.trim().toLowerCase();
+    if (declared == 'image/jpeg' ||
+        declared == 'image/png' ||
+        declared == 'image/webp') {
+      return declared;
+    }
+    final name = file.name.toLowerCase();
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.webp')) return 'image/webp';
+    return null;
+  }
+
   Future<void> _signOut() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -71,7 +153,11 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            _IdentityHeader(profile: widget.profile),
+            _IdentityHeader(
+              profile: _profile,
+              uploading: ref.watch(profilePhotoControllerProvider).isLoading,
+              onUpload: _pickAndUploadPhoto,
+            ),
             const SizedBox(height: 24),
             _SectionTitle(title: 'Squad Snapshot'),
             const SizedBox(height: 8),
@@ -101,8 +187,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) =>
-                        ChangePasswordScreen(email: widget.profile.email),
+                    builder: (_) => ChangePasswordScreen(email: _profile.email),
                   ),
                 ),
               ),
@@ -189,9 +274,15 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
 
 /// The coach's avatar, name, email and role.
 class _IdentityHeader extends StatelessWidget {
-  const _IdentityHeader({required this.profile});
+  const _IdentityHeader({
+    required this.profile,
+    required this.uploading,
+    required this.onUpload,
+  });
 
   final UserProfile profile;
+  final bool uploading;
+  final VoidCallback onUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -201,15 +292,19 @@ class _IdentityHeader extends StatelessWidget {
         : '?';
     return Column(
       children: [
-        CircleAvatar(
-          radius: 44,
-          backgroundColor: theme.colorScheme.primaryContainer,
-          child: Text(
-            initial,
-            style: theme.textTheme.headlineLarge?.copyWith(
-              color: theme.colorScheme.onPrimaryContainer,
-              fontWeight: FontWeight.bold,
-            ),
+        _CoachAvatar(profile: profile, initial: initial),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          key: const Key('upload-coach-photo'),
+          onPressed: uploading ? null : onUpload,
+          icon: uploading
+              ? const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add_a_photo_outlined),
+          label: Text(
+            uploading ? 'Uploading photo...' : 'Update profile photo',
           ),
         ),
         const SizedBox(height: 12),
@@ -235,6 +330,41 @@ class _IdentityHeader extends StatelessWidget {
           visualDensity: VisualDensity.compact,
         ),
       ],
+    );
+  }
+}
+
+class _CoachAvatar extends StatelessWidget {
+  const _CoachAvatar({required this.profile, required this.initial});
+
+  final UserProfile profile;
+  final String initial;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fallback = CircleAvatar(
+      radius: 44,
+      backgroundColor: theme.colorScheme.primaryContainer,
+      child: Text(
+        initial,
+        style: theme.textTheme.headlineLarge?.copyWith(
+          color: theme.colorScheme.onPrimaryContainer,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+    final url = profile.photoUrl;
+    if (url == null || url.isEmpty) return fallback;
+    return ClipOval(
+      child: Image.network(
+        url,
+        width: 88,
+        height: 88,
+        fit: BoxFit.cover,
+        cacheWidth: 264,
+        errorBuilder: (_, _, _) => fallback,
+      ),
     );
   }
 }

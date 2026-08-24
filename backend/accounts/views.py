@@ -3,12 +3,18 @@ from django.core.cache import cache
 from django.db import connection
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from academy.models import AuditLog
+from academy.storage import (
+    delete_photo,
+    invalidate_signed_photo_url,
+    upload_photo,
+    validate_photo_upload,
+)
 
 from .models import Club, GuardianLink, Roles, User
 from .permissions import IsAdmin
@@ -37,6 +43,42 @@ class MeView(APIView):
     """
 
     def get(self, request):
+        return Response(UserSerializer(request.user).data)
+
+
+class MyProfilePhotoUploadView(APIView):
+    """Upload the signed-in Coach's profile photo to private Supabase Storage."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role != Roles.COACH:
+            raise PermissionDenied('Only Coach accounts have a coach profile photo.')
+        upload = request.FILES.get('photo')
+        if upload is None:
+            raise ValidationError('A photo file is required (field "photo").')
+        try:
+            content_type = validate_photo_upload(upload)
+            path = upload_photo(
+                request.user.pk,
+                upload.read(),
+                content_type=content_type,
+            )
+        except (RuntimeError, ValueError) as exc:
+            raise ValidationError(str(exc))
+
+        previous_path = request.user.profile_photo_path
+        request.user.profile_photo_path = path
+        request.user.save(update_fields=['profile_photo_path'])
+        invalidate_signed_photo_url(previous_path)
+        invalidate_signed_photo_url(path)
+        if previous_path and previous_path != path:
+            delete_photo(previous_path)
+        AuditLog.record(
+            request.user,
+            'coach.photo_updated',
+            target=request.user.email,
+        )
         return Response(UserSerializer(request.user).data)
 
 

@@ -1,4 +1,4 @@
-"""Supabase Storage helper for player photos.
+"""Supabase Storage helper for player and coach profile photos.
 
 The Flutter app never talks to Supabase — Django uploads with the service key
 (server-only) and hands the client a short-lived signed URL. We call the
@@ -73,7 +73,7 @@ def validate_photo_upload(upload):
 def upload_photo(user_id, content, content_type='image/jpeg'):
     """Upload photo bytes for a user; return the storage object path.
 
-    Overwrites any existing object at the same path (one photo per player).
+    Overwrites any existing object at the same path (one photo per user).
     """
     url, key, bucket = _config()
     if not (url and key):
@@ -100,9 +100,33 @@ def upload_photo(user_id, content, content_type='image/jpeg'):
         resp.raise_for_status()
     except httpx.HTTPError as exc:
         raise RuntimeError(
-            'Player photo storage is temporarily unavailable.'
+            'Profile photo storage is temporarily unavailable.'
         ) from exc
     return f'{bucket}/{path}'
+
+
+def delete_photo(photo_path):
+    """Best-effort deletion for an obsolete object after its extension changes."""
+    if not photo_path:
+        return False
+    url, key, _ = _config()
+    if not (url and key):
+        return False
+    bucket, separator, obj = photo_path.partition('/')
+    if not separator or not bucket or not obj:
+        return False
+    try:
+        response = httpx.request(
+            'DELETE',
+            f'{url}/storage/v1/object/{bucket}',
+            json={'prefixes': [obj]},
+            headers=_auth_headers(key),
+            timeout=_TIMEOUT,
+        )
+        response.raise_for_status()
+        return True
+    except httpx.HTTPError:
+        return False
 
 
 def signed_photo_url(photo_path, expires=3600):

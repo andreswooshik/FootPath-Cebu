@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from .storage import SupabaseCoachLicenseStorage
+from .validators import validate_coach_license_upload
 
 
 class Roles(models.TextChoices):
@@ -65,6 +66,7 @@ class Club(models.Model):
     coach_license = models.FileField(
         upload_to=coach_license_upload_to,
         storage=SupabaseCoachLicenseStorage(),
+        validators=[validate_coach_license_upload],
         null=True,
         blank=True,
     )
@@ -121,6 +123,14 @@ class User(AbstractUser):
         null=True,
         blank=True,
         related_name='members',
+    )
+    # Supabase Storage object path for mobile-account profile photos. Player
+    # roster photos remain on PlayerProfile because that model owns the player
+    # card; this field supplies the signed-in Coach profile header.
+    profile_photo_path = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
     )
 
     class Meta:

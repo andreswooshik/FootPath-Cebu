@@ -79,6 +79,7 @@ from .serializers import (
 )
 from .player_unlock import issue_player_unlock, require_player_unlock
 from .storage import (
+    delete_photo,
     invalidate_signed_photo_url,
     upload_photo,
     validate_photo_upload,
@@ -1044,7 +1045,7 @@ class NotificationReadAllView(APIView):
 
 
 class PlayerPhotoUploadView(APIView):
-    """Upload a roster photo as Super Admin or a same-Club Coach."""
+    """Upload a player photo as self, Super Admin, or a same-Club Coach."""
 
     permission_classes = [IsAuthenticated]
 
@@ -1052,7 +1053,10 @@ class PlayerPhotoUploadView(APIView):
         profile = get_object_or_404(
             PlayerProfile.objects.select_related('user'), user_id=player_id,
         )
-        if request.user.role == Roles.COACH:
+        if request.user.role == Roles.PLAYER:
+            if request.user.pk != player_id:
+                raise PermissionDenied('Players can update only their own photo.')
+        elif request.user.role == Roles.COACH:
             if (
                 request.user.club_id is None
                 or profile.user.club_id != request.user.club_id
@@ -1060,7 +1064,8 @@ class PlayerPhotoUploadView(APIView):
                 raise PermissionDenied('That player is not in your club.')
         elif request.user.role != Roles.ADMIN:
             raise PermissionDenied(
-                'Only a same-Club Coach or the Super Admin can upload photos.'
+                'Only the Player, a same-Club Coach, or the Super Admin can '
+                'upload photos.'
             )
         upload = request.FILES.get('photo')
         if upload is None:
@@ -1074,9 +1079,13 @@ class PlayerPhotoUploadView(APIView):
             )
         except (RuntimeError, ValueError) as exc:
             raise ValidationError(str(exc))
+        previous_path = profile.photo_path
         profile.photo_path = path
         profile.save(update_fields=['photo_path'])
+        invalidate_signed_photo_url(previous_path)
         invalidate_signed_photo_url(path)
+        if previous_path and previous_path != path:
+            delete_photo(previous_path)
         AuditLog.record(
             request.user,
             'player.photo_updated',

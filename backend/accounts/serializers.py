@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from django.utils.text import slugify
 
+from academy.storage import signed_photo_url
+
 from .models import Club, ClubTypes, GuardianLink, Roles, User
 
 CREATABLE_ROLES = [
@@ -17,6 +19,7 @@ class UserSerializer(serializers.ModelSerializer):
     club_id = serializers.IntegerField(read_only=True)
     club_name = serializers.CharField(source='club.name', read_only=True)
     club_type = serializers.CharField(source='club.club_type', read_only=True)
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -31,8 +34,15 @@ class UserSerializer(serializers.ModelSerializer):
             'club_id',
             'club_name',
             'club_type',
+            'photo_url',
             'is_active',
         ]
+
+    def get_photo_url(self, obj):
+        return (
+            signed_photo_url(obj.profile_photo_path)
+            if obj.profile_photo_path else None
+        )
 
 
 class AdminUpdateUserSerializer(serializers.Serializer):
