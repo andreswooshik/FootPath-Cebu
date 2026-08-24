@@ -5,15 +5,59 @@ No caller may supply an arbitrary club identifier.
 """
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.utils.text import slugify
 
 from academy.models import Eligibility
-from accounts.models import GuardianLink, Roles
+from accounts.models import Club, GuardianLink, Roles
 from accounts.services import (
     ProvisioningError,
+    provision_club_coordinator,
     provision_player,
     provision_user,
     provision_web_user,
 )
+
+
+def _unique_club_slug(name):
+    """Return a stable URL slug without colliding with an existing club."""
+    base = slugify(name) or 'club'
+    slug = base
+    counter = 2
+    while Club.objects.filter(slug=slug).exists():
+        slug = f'{base}-{counter}'
+        counter += 1
+    return slug
+
+
+@transaction.atomic
+def register_coordinator(
+    *, first_name, last_name, email, club_name, password,
+    is_school_affiliated=False, school_name='', head_coach_name='',
+    coach_license=None, cvfa_membership='',
+):
+    """Create a club application and an inactive coordinator login.
+
+    A Super Admin must approve the application before Django permits the
+    coordinator to sign in. No Firebase/mobile identity is created here.
+    """
+    club = Club.objects.create(
+        name=club_name,
+        slug=_unique_club_slug(club_name),
+        is_school_affiliated=is_school_affiliated,
+        school_name=school_name,
+        head_coach_name=head_coach_name,
+        coach_license=coach_license,
+        cvfa_membership=cvfa_membership,
+    )
+    user, _password = provision_club_coordinator(
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        club=club,
+        password=password,
+        is_active=False,
+    )
+    return user, club
 
 
 @transaction.atomic

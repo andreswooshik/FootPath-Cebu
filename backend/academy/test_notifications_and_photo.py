@@ -12,7 +12,30 @@ from accounts.models import Club, Roles, User
 
 from .models import DeviceToken, NotificationRecord, PlayerProfile
 from .notifications import _send_to_users
-from .storage import signed_photo_url, upload_photo
+from .storage import (
+    MAX_PHOTO_BYTES,
+    signed_photo_url,
+    upload_photo,
+    validate_photo_upload,
+)
+
+
+class StoragePhotoValidationTests(TestCase):
+    def _photo(self, size):
+        upload = SimpleUploadedFile(
+            'player.jpg', b'\xff\xd8\xffphoto', content_type='image/jpeg',
+        )
+        upload.size = size
+        return upload
+
+    def test_photo_size_limit_is_25_mb(self):
+        self.assertEqual(MAX_PHOTO_BYTES, 25 * 1024 * 1024)
+        self.assertEqual(
+            validate_photo_upload(self._photo(MAX_PHOTO_BYTES)),
+            'image/jpeg',
+        )
+        with self.assertRaisesMessage(ValueError, '25 MB or smaller'):
+            validate_photo_upload(self._photo(MAX_PHOTO_BYTES + 1))
 
 
 class StorageAuthenticationHeaderTests(TestCase):

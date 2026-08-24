@@ -5,6 +5,8 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from .storage import SupabaseCoachLicenseStorage
+
 
 class Roles(models.TextChoices):
     # The wire/database value remains ADMIN for backward compatibility; the
@@ -61,7 +63,10 @@ class Club(models.Model):
     school_name = models.CharField(max_length=150, blank=True)
     head_coach_name = models.CharField(max_length=150, blank=True)
     coach_license = models.FileField(
-        upload_to=coach_license_upload_to, null=True, blank=True
+        upload_to=coach_license_upload_to,
+        storage=SupabaseCoachLicenseStorage(),
+        null=True,
+        blank=True,
     )
     cvfa_membership = models.CharField(max_length=80, blank=True)
 

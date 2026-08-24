@@ -5,7 +5,7 @@ import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 class UploadPlayerPhoto {
   const UploadPlayerPhoto(this._writer);
 
-  static const maxBytes = 5 * 1024 * 1024;
+  static const maxBytes = 25 * 1024 * 1024;
   static const supportedContentTypes = {
     'image/jpeg',
     'image/png',
@@ -24,7 +24,7 @@ class UploadPlayerPhoto {
       throw PlayerRepositoryException('Choose a non-empty photo.');
     }
     if (bytes.length > maxBytes) {
-      throw PlayerRepositoryException('Photo must be 5 MB or smaller.');
+      throw PlayerRepositoryException('Photo must be 25 MB or smaller.');
     }
     if (!supportedContentTypes.contains(contentType.toLowerCase())) {
       throw PlayerRepositoryException(

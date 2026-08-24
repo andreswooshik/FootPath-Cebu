@@ -93,18 +93,30 @@ class CoordinatorSignupTests(TestCase):
             coordinator_name='Jane Doe', email='Jane@Club.Test',  # normalised
             club_name='Cebu United',
         ))
-        self.assertEqual(resp.status_code, 200)
-        self.assertContains(resp, 'Super Admin creates the club')
-        self.assertFalse(Club.objects.filter(name='Cebu United').exists())
-        self.assertFalse(User.objects.filter(email='jane@club.test').exists())
+        self.assertRedirects(resp, reverse('portal:signup-done'))
+
+        club = Club.objects.get(name='Cebu United')
+        user = User.objects.get(email='jane@club.test')
+        self.assertEqual(user.role, Roles.COORDINATOR)
+        self.assertEqual((user.first_name, user.last_name), ('Jane', 'Doe'))
+        self.assertEqual(user.club, club)
+        self.assertFalse(user.is_active)
+        self.assertTrue(user.has_usable_password())
+        self.assertIsNone(user.firebase_uid)
+        self.assertFalse(club.is_school_affiliated)
+        self.assertEqual(club.head_coach_name, 'Coach Carter')
+        self.assertEqual(club.cvfa_membership, 'CVFA-12345')
+        self.assertTrue(club.coach_license.name.startswith('coach-licenses/'))
 
     def test_school_affiliated_signup_sets_flag(self):
         resp = self.client.post(reverse('portal:signup'), _signup_data(
             email='sa@club.test', club_name='Academy FC',
             is_school_affiliated='on', school_name='Cebu High',
         ))
-        self.assertEqual(resp.status_code, 200)
-        self.assertFalse(Club.objects.filter(name='Academy FC').exists())
+        self.assertRedirects(resp, reverse('portal:signup-done'))
+        club = Club.objects.get(name='Academy FC')
+        self.assertTrue(club.is_school_affiliated)
+        self.assertEqual(club.school_name, 'Cebu High')
 
     def test_affiliated_without_school_name_rejected(self):
         resp = self.client.post(reverse('portal:signup'), _signup_data(
@@ -197,13 +209,15 @@ class SignupHardeningTests(TestCase):
         self.assertFalse(Club.objects.filter(name='Forge FC').exists())
 
     def test_signup_is_rate_limited_per_ip(self):
-        # Signup is now an informational, non-mutating page; repeated POSTs
-        # cannot create clubs and therefore need no creation throttle.
-        for _ in range(6):
+        # The limiter runs before validation, so five requests are accepted
+        # and the sixth is throttled even when their form data is invalid.
+        for _ in range(5):
             self.assertEqual(
                 self.client.post(reverse('portal:signup'), {}).status_code, 200
             )
-        self.assertEqual(Club.objects.count(), 0)
+        self.assertEqual(
+            self.client.post(reverse('portal:signup'), {}).status_code, 429
+        )
 
 
 class SchoolStaffGatingTests(TestCase):

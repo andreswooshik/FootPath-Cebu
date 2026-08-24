@@ -8,8 +8,8 @@ final playerPrivacyPinStatusProvider = FutureProvider.autoDispose
       (ref, playerId) => ref.watch(getPlayerPrivacyPinStatusProvider)(playerId),
     );
 
-/// Session-only unlock state. It stores player IDs, never PIN values, and is
-/// cleared when the signed-in session ends.
+/// In-memory unlock state. It stores player IDs, never PIN values, and is
+/// cleared when the guardian changes players or the signed-in session ends.
 class PrivacyUnlockedPlayersNotifier extends Notifier<Set<String>> {
   @override
   Set<String> build() => <String>{};

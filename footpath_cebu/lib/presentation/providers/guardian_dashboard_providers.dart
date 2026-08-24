@@ -17,7 +17,15 @@ class SelectedChildIdNotifier extends Notifier<String?> {
   @override
   String? build() => null;
 
-  void select(String childId) => state = childId;
+  void select(String childId) {
+    if (state == childId) return;
+
+    // An unlock grant belongs to one deliberate profile-viewing action. When
+    // the guardian changes players, discard every cached grant before showing
+    // the new profile so selecting it again always requires a fresh PIN.
+    ref.read(privacyUnlockedPlayersProvider.notifier).clear();
+    state = childId;
+  }
 }
 
 final selectedChildIdProvider =

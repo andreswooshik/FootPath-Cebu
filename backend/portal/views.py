@@ -21,6 +21,7 @@ from accounts.services import ProvisioningError
 
 from .decorators import portal_role_required
 from .forms import (
+    CoordinatorSignupForm,
     CreateCoachForm,
     CreateGuardianForm,
     CreatePlayerForm,
@@ -28,9 +29,11 @@ from .forms import (
     EligibilityUpdateForm,
     GuardianLinkForm,
 )
+from .ratelimit import is_rate_limited
 from .services import (
     create_club_account,
     link_guardian,
+    register_coordinator,
     set_player_eligibility,
     unlink_guardian,
 )
@@ -43,15 +46,56 @@ _ACCOUNT_FORMS = {
 }
 
 
+def _split_name(full_name):
+    """Split a full name into the User model's first and last name fields."""
+    parts = full_name.strip().split(None, 1)
+    return parts[0], (parts[1] if len(parts) > 1 else '')
+
+
 def signup(request):
-    """Public information page; account creation is Super Admin-controlled."""
+    """Accept a club application and create an inactive coordinator login."""
     if request.user.is_authenticated:
         return redirect('portal:dashboard')
-    return render(request, 'portal/signup.html')
+    if request.method == 'POST':
+        if is_rate_limited(
+            request, scope='signup', limit=5, window_seconds=3600
+        ):
+            messages.error(
+                request,
+                'Too many registration attempts from your network. Please try '
+                'again later.',
+            )
+            return render(
+                request,
+                'portal/signup.html',
+                {'form': CoordinatorSignupForm()},
+                status=429,
+            )
+
+        form = CoordinatorSignupForm(request.POST, request.FILES)
+        if form.is_valid():
+            data = form.cleaned_data
+            first_name, last_name = _split_name(data['coordinator_name'])
+            register_coordinator(
+                first_name=first_name,
+                last_name=last_name,
+                email=data['email'],
+                club_name=data['club_name'],
+                password=data['password1'],
+                is_school_affiliated=data['is_school_affiliated'],
+                school_name=data.get('school_name', ''),
+                head_coach_name=data['head_coach_name'],
+                coach_license=data['coach_license'],
+                cvfa_membership=data['cvfa_membership'],
+            )
+            return redirect('portal:signup-done')
+    else:
+        form = CoordinatorSignupForm()
+    return render(request, 'portal/signup.html', {'form': form})
 
 
 def signup_done(request):
-    return redirect('portal:signup')
+    return render(request, 'portal/signup_done.html')
 
 
 @login_required

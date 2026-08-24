@@ -1009,7 +1009,7 @@ After storage success, update `academy_playerprofile.photo_path` with the privat
 
 ### Step 6 — Backend Response
 
-Portal redirects/messages; API returns HTTP 200 serialized player. Missing file, invalid signature/MIME, over 5 MB, unconfigured Supabase credentials, or upload failure becomes a visible validation/controller error. Signed-read failure may return no URL so UI can use a fallback.
+Portal redirects/messages; API returns HTTP 200 serialized player. Missing file, invalid signature/MIME, over 25 MB, unconfigured Supabase credentials, or upload failure becomes a visible validation/controller error. Signed-read failure may return no URL so UI can use a fallback.
 
 ### Step 7 — Model Conversion
 

@@ -37,7 +37,7 @@ def _has_allowed_signature(upload):
 
 
 class CoordinatorSignupForm(forms.Form):
-    """Legacy validation form retained for compatibility; public signup is disabled."""
+    """Public club application form for a pending coordinator account."""
 
     club_name = forms.CharField(max_length=120, label='Club name')
     coordinator_name = forms.CharField(

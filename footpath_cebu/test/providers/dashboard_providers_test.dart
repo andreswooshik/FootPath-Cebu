@@ -10,6 +10,7 @@ import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/providers/player_dashboard_providers.dart';
+import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 
 Player _player(String id, String name) => Player(
   id: id,
@@ -146,6 +147,63 @@ void main() {
       container.read(selectedChildIdProvider.notifier).select('3');
 
       expect(selected.read()?.name, 'B');
+    });
+
+    test('changing children requires a fresh privacy PIN unlock', () async {
+      final container = _container(
+        _FakeRepo(children: [_player('2', 'A'), _player('3', 'B')]),
+      );
+      final selected = container.listen(selectedChildProvider, (_, _) {});
+      final unlocked = container.listen(
+        privacyUnlockedPlayersProvider,
+        (_, _) {},
+      );
+      await container.read(linkedPlayersProvider.future);
+
+      container.read(selectedChildIdProvider.notifier).select('2');
+      container
+          .read(privacyUnlockedPlayersProvider.notifier)
+          .unlock('2', 'player-2-token');
+      container
+          .read(privacyUnlockedPlayersProvider.notifier)
+          .unlock('3', 'player-3-token');
+
+      container.read(selectedChildIdProvider.notifier).select('3');
+
+      expect(selected.read()?.name, 'B');
+      expect(unlocked.read(), isEmpty);
+      expect(
+        container.read(playerUnlockTokenStoreProvider).tokenFor('2'),
+        isNull,
+      );
+      expect(
+        container.read(playerUnlockTokenStoreProvider).tokenFor('3'),
+        isNull,
+      );
+    });
+
+    test('reselecting the current child keeps the active unlock', () async {
+      final container = _container(_FakeRepo(children: [_player('2', 'A')]));
+      final selected = container.listen(selectedChildProvider, (_, _) {});
+      final unlocked = container.listen(
+        privacyUnlockedPlayersProvider,
+        (_, _) {},
+      );
+      await container.read(linkedPlayersProvider.future);
+
+      container.read(selectedChildIdProvider.notifier).select('2');
+      container
+          .read(privacyUnlockedPlayersProvider.notifier)
+          .unlock('2', 'player-2-token');
+
+      container.read(selectedChildIdProvider.notifier).select('2');
+
+      expect(selected.read()?.name, 'A');
+      expect(unlocked.read(), {'2'});
+      expect(
+        container.read(playerUnlockTokenStoreProvider).tokenFor('2'),
+        'player-2-token',
+      );
     });
 
     test('an empty roster yields no selected child', () async {

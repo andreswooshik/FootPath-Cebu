@@ -15,7 +15,7 @@ from django.core.cache import cache
 import httpx
 
 _TIMEOUT = 10.0
-MAX_PHOTO_BYTES = 5 * 1024 * 1024
+MAX_PHOTO_BYTES = 25 * 1024 * 1024
 ALLOWED_PHOTO_TYPES = frozenset({'image/jpeg', 'image/png', 'image/webp'})
 
 
@@ -57,7 +57,7 @@ def validate_photo_upload(upload):
         raise ValueError('Only JPEG, PNG, and WebP photos are allowed.')
     size = getattr(upload, 'size', None)
     if size is not None and size > MAX_PHOTO_BYTES:
-        raise ValueError('Photo must be 5 MB or smaller.')
+        raise ValueError('Photo must be 25 MB or smaller.')
     header = upload.read(16)
     upload.seek(0)
     signatures = {
