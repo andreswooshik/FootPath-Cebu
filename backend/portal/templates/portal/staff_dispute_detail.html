@@ -1,7 +1,7 @@
 {% extends 'portal/base.html' %}
 {% block title %}{{ dispute.summary }} · FootPath{% endblock %}
-{% block page_title %}<span class="text-xl font-bold text-gray-900">Dispute Details</span>{% endblock %}
-{% block breadcrumb %}<span class="text-sm text-gray-500">Home / Disputes / #{{ dispute.pk }}</span>{% endblock %}
+{% block page_title %}<h1 class="text-xl font-bold text-gray-900">Dispute Details</h1>{% endblock %}
+{% block breadcrumb %}<a href="{% url 'portal:dashboard' %}" class="hover:text-gray-900">Home</a> <span aria-hidden="true">/</span> <a href="{% url 'portal:staff-disputes' %}" class="hover:text-gray-900">Disputes</a> <span aria-hidden="true">/</span> <span>#{{ dispute.pk }}</span>{% endblock %}
 
 {% block content %}
 <a href="{% url 'portal:staff-disputes' %}" class="inline-block mb-5 text-sm font-medium text-green-600 hover:underline">← Back to disputes</a>
@@ -74,7 +74,7 @@
       {{ form.status_change_to }}
       {% for error in form.status_change_to.errors %}<p class="errorlist">{{ error }}</p>{% endfor %}
     </div>
-    <button type="submit" class="bg-[#16C172] text-white rounded-lg px-5 py-2.5 font-medium hover:bg-[#059669] transition-colors">
+    <button type="submit" class="portal-button-primary">
       Submit Response
     </button>
   </form>

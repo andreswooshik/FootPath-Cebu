@@ -87,6 +87,7 @@ body {
 input[type="text"],
 input[type="email"],
 input[type="password"],
+input[type="search"],
 input[type="date"],
 input[type="number"],
 input[type="file"],
@@ -163,7 +164,162 @@ label {
   font-weight: 600;
   cursor: pointer;
 }
+.error {
+  display: block;
+  color: #B42318;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
 .btn:hover { background: var(--fp-green-dark-hover); }
+
+.portal-button-primary,
+.portal-button-secondary,
+.portal-button-danger {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.625rem;
+  padding: 0.625rem 1.125rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+  transition: background-color 150ms ease, border-color 150ms ease,
+    color 150ms ease, box-shadow 150ms ease;
+}
+
+.portal-button-primary {
+  background: var(--fp-green-dark);
+  color: #fff;
+}
+
+.portal-button-primary:hover {
+  background: var(--fp-green-dark-hover);
+}
+
+.portal-button-secondary {
+  border-color: #D1D5DB;
+  background: #fff;
+  color: #1F2937;
+}
+
+.portal-button-secondary:hover {
+  background: #F3F4F6;
+}
+
+.portal-button-danger {
+  background: #B42318;
+  color: #fff;
+}
+
+.portal-button-danger:hover {
+  background: #912018;
+}
+
+.portal-button-compact {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.75rem;
+}
+
+.portal-toolbar {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 0.875rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.portal-toolbar label {
+  margin-bottom: 0;
+}
+
+.responsive-table {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  border: 1px solid #E5E7EB;
+  border-radius: 0.75rem;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.portal-table {
+  width: 100%;
+  min-width: 44rem;
+  border-collapse: collapse;
+}
+
+.portal-table-wide {
+  min-width: 72rem;
+}
+
+.portal-table caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.portal-table th {
+  white-space: nowrap;
+}
+
+.portal-filter-empty {
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  color: #6B7280;
+}
+
+.confirmation-dialog {
+  width: min(92vw, 30rem);
+  max-width: 30rem;
+  border: 0;
+  border-radius: 1rem;
+  padding: 0;
+  box-shadow: 0 24px 48px rgba(17, 24, 39, 0.24);
+}
+
+.confirmation-dialog::backdrop {
+  background: rgba(17, 24, 39, 0.58);
+  backdrop-filter: blur(2px);
+}
+
+.confirmation-dialog-card {
+  padding: 1.5rem;
+}
+
+.confirmation-dialog-icon {
+  display: flex;
+  width: 3rem;
+  height: 3rem;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  border-radius: 999px;
+  background: #FEE4E2;
+  color: #B42318;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+@media (min-width: 640px) {
+  .portal-toolbar {
+    grid-template-columns: minmax(16rem, 1fr) repeat(2, minmax(10rem, 14rem));
+    align-items: end;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

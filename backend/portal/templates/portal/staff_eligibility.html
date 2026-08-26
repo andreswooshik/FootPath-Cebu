@@ -1,7 +1,7 @@
 {% extends 'portal/base.html' %}
 {% block title %}Academic eligibility · FootPath{% endblock %}
-{% block page_title %}<span class="text-xl font-bold text-gray-900">Academic Eligibility</span>{% endblock %}
-{% block breadcrumb %}<span class="text-sm text-gray-500">Home / Academic Eligibility</span>{% endblock %}
+{% block page_title %}<h1 class="text-xl font-bold text-gray-900">Academic Eligibility</h1>{% endblock %}
+{% block breadcrumb %}<a href="{% url 'portal:dashboard' %}" class="hover:text-gray-900">Home</a> <span aria-hidden="true">/</span> <span>Academic Eligibility</span>{% endblock %}
 
 {% block content %}
 <p class="mb-6 text-sm text-gray-500">
@@ -24,26 +24,45 @@
       {{ form.eligibility }}
       {% for e in form.eligibility.errors %}<p class="errorlist">{{ e }}</p>{% endfor %}
     </div>
-    <button type="submit"
-            class="bg-[#16C172] text-white rounded-lg px-5 py-2.5 font-medium hover:bg-[#059669] transition-colors">
+    <button type="submit" class="portal-button-primary">
       Update
     </button>
   </form>
 </div>
 
 {% if roster %}
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-  <table class="w-full">
+<div class="portal-toolbar" aria-label="Eligibility filters">
+  <div>
+    <label for="eligibility-player-search">Search players</label>
+    <input id="eligibility-player-search" type="search" placeholder="Name or email" data-table-search="eligibility-table">
+  </div>
+  <div>
+    <label for="eligibility-status-filter">Status</label>
+    <select id="eligibility-status-filter" data-table-filter="eligibility-table" data-filter-key="eligibility">
+      <option value="">All statuses</option>
+      <option value="ELIGIBLE">Eligible</option>
+      <option value="ACADEMIC_WARNING">Academic warning</option>
+      <option value="NOT_ELIGIBLE">Not eligible</option>
+      <option value="PENDING">Pending</option>
+    </select>
+  </div>
+</div>
+<div class="responsive-table">
+  <table id="eligibility-table" class="portal-table">
+    <caption>Current academic eligibility for players in {{ request.user.club.name }}</caption>
     <thead>
       <tr class="bg-gray-50 border-b border-gray-200">
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Eligibility</th>
+        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Eligibility</th>
       </tr>
     </thead>
     <tbody>
       {% for profile in roster %}
-      <tr class="hover:bg-green-50 transition-colors border-b border-gray-100">
+      <tr class="hover:bg-green-50 transition-colors border-b border-gray-100"
+          data-filter-row
+          data-search="{{ profile.user.get_full_name|lower }} {{ profile.user.email|lower }}"
+          data-eligibility="{{ profile.eligibility }}">
         <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ profile.user.get_full_name }}</td>
         <td class="px-6 py-4 text-sm text-gray-500">{{ profile.user.email }}</td>
         <td class="px-6 py-4 text-sm">
@@ -61,21 +80,23 @@
       {% endfor %}
     </tbody>
   </table>
+  <div class="portal-filter-empty" data-filter-empty="eligibility-table" hidden>No players match the selected filters.</div>
 </div>
 {% else %}
 <p class="text-sm text-gray-500">No players in your club yet.</p>
 {% endif %}
 
-<div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-6">
+<div class="responsive-table mt-6">
   <h2 class="text-base font-semibold text-gray-900 px-6 pt-5 pb-3">Status History</h2>
   {% if history %}
-  <table class="w-full">
+  <table class="portal-table">
+    <caption>Academic eligibility change history</caption>
     <thead>
       <tr class="bg-gray-50 border-b border-gray-200">
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">When</th>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Changed by</th>
+        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">When</th>
+        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
+        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Changed by</th>
       </tr>
     </thead>
     <tbody>

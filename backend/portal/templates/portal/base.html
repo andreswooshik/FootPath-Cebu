@@ -153,6 +153,18 @@
   </div>
 </div>
 
+<dialog class="confirmation-dialog" data-confirm-dialog aria-labelledby="confirmation-title" aria-describedby="confirmation-message">
+  <form method="dialog" class="confirmation-dialog-card">
+    <div class="confirmation-dialog-icon" data-confirm-icon aria-hidden="true">!</div>
+    <h2 id="confirmation-title" class="text-xl font-bold text-gray-900" data-confirm-title>Confirm action</h2>
+    <p id="confirmation-message" class="mt-2 text-sm leading-6 text-gray-600" data-confirm-message></p>
+    <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <button type="submit" value="cancel" class="portal-button-secondary">Cancel</button>
+      <button type="submit" value="confirm" class="portal-button-danger" data-confirm-button>Confirm</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="{% static 'portal/portal.js' %}"></script>
 {% block extra_scripts %}{% endblock %}
 </body>
