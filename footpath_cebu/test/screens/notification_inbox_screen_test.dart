@@ -154,6 +154,10 @@ void main() {
     await tester.enterText(pinFields.at(1), '1234');
     await tester.tap(find.text('Create PIN and continue'));
     await tester.pumpAndSettle();
+    // Opening the portal also starts the dashboard's mocked attendance read.
+    // Drain that bounded delay so the route cannot leave a timer at teardown.
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
 
     expect(
       tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,

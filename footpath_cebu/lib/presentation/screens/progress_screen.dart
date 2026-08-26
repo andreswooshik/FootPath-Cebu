@@ -7,6 +7,7 @@ import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
+import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
@@ -28,51 +29,84 @@ class ProgressScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final attendanceAsync = ref.watch(childAttendanceProvider(player.id));
-    return Scaffold(
+    final content = PlayerPrivacyGate(
+      player: player,
+      isGuardian: isGuardian,
+      child: isGuardian
+          ? _TrainingFeedbackView(playerId: player.id)
+          : TabBarView(
+              children: [
+                PlayerMatchStatisticsView(playerId: player.id),
+                _TrainingFeedbackView(playerId: player.id),
+              ],
+            ),
+    );
+    final scaffold = Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('Progress'),
-      ),
-      body: PlayerPrivacyGate(
-        player: player,
-        isGuardian: isGuardian,
-        child: attendanceAsync.when(
-          loading: () => const DashboardLoadingState(),
-          error: (e, _) => DashboardErrorState(
-            message: friendlyErrorMessage(
-              e,
-              'Something went wrong loading progress.',
-            ),
-            onRetry: () => ref.invalidate(childAttendanceProvider(player.id)),
-          ),
-          data: (records) {
-            final feedback =
-                records.where((a) => (a.note ?? '').trim().isNotEmpty).toList()
-                  ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-            if (feedback.isEmpty) {
-              return const Center(child: Text('No coach feedback yet.'));
-            }
-            return RefreshIndicator(
-              onRefresh: () =>
-                  ref.refresh(childAttendanceProvider(player.id).future),
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: feedback.length,
-                itemBuilder: (context, index) =>
-                    _ProgressEntry(
-                      record: feedback[index],
-                      isLast: index == feedback.length - 1,
-                    ).animateListItem(
-                      key: ValueKey(feedback[index].updatedAt),
-                      index: index,
-                    ),
+        bottom: isGuardian
+            ? null
+            : const TabBar(
+                tabs: [
+                  Tab(text: 'Matches'),
+                  Tab(text: 'Training Feedback'),
+                ],
               ),
-            );
-          },
-        ),
       ),
-    ).animateScreenEntrance();
+      body: content,
+    );
+    return isGuardian
+        ? scaffold.animateScreenEntrance()
+        : DefaultTabController(
+            length: 2,
+            child: scaffold,
+          ).animateScreenEntrance();
+  }
+}
+
+class _TrainingFeedbackView extends ConsumerWidget {
+  const _TrainingFeedbackView({required this.playerId});
+
+  final String playerId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final attendanceAsync = ref.watch(childAttendanceProvider(playerId));
+    return attendanceAsync.when(
+      loading: () => const DashboardLoadingState(),
+      error: (e, _) => DashboardErrorState(
+        message: friendlyErrorMessage(
+          e,
+          'Something went wrong loading progress.',
+        ),
+        onRetry: () => ref.invalidate(childAttendanceProvider(playerId)),
+      ),
+      data: (records) {
+        final feedback =
+            records.where((a) => (a.note ?? '').trim().isNotEmpty).toList()
+              ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        if (feedback.isEmpty) {
+          return const Center(child: Text('No coach feedback yet.'));
+        }
+        return RefreshIndicator(
+          onRefresh: () =>
+              ref.refresh(childAttendanceProvider(playerId).future),
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: feedback.length,
+            itemBuilder: (context, index) =>
+                _ProgressEntry(
+                  record: feedback[index],
+                  isLast: index == feedback.length - 1,
+                ).animateListItem(
+                  key: ValueKey(feedback[index].updatedAt),
+                  index: index,
+                ),
+          ),
+        );
+      },
+    );
   }
 }
 

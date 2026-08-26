@@ -15,6 +15,8 @@ from .models import (
     AgeTier,
     Attendance,
     AttendanceStatus,
+    FootballMatch,
+    PlayerMatchPerformance,
     PlayerProfile,
     SessionFocus,
     TrainingSession,
@@ -92,6 +94,11 @@ class SeedCommandPlayerInvariantTests(TestCase):
         self.assertTrue(GuardianLink.objects.filter(
             guardian=guardian, player=login_player,
         ).exists())
+        self.assertEqual(FootballMatch.objects.count(), 2)
+        self.assertEqual(
+            PlayerMatchPerformance.objects.filter(player=login_player).count(),
+            2,
+        )
 
 
 class SquadProgressScopeTests(APITestCase):

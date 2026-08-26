@@ -70,7 +70,7 @@ python manage.py seed_users
 
 ### Seed Academy Data
 
-Populate the database with player profiles, training sessions, and attendance:
+Populate the database with player profiles, training sessions, attendance, and match statistics:
 
 ```bash
 cd backend
@@ -81,6 +81,7 @@ python manage.py seed_academy
 - Creates 10 player profiles with ratings and eligibility status
 - Creates 3 training sessions with age-tier targeting
 - Creates attendance records linking players to sessions
+- Creates completed matches and player performance history for the demo player
 - Creates guardian links (guardian → players)
 
 **Prerequisite:** Run `seed_users` first (creates the players and coaches)

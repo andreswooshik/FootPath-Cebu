@@ -8,6 +8,7 @@ roster players created here are local-only (no Firebase login) — they exist to
 fill the coach's roster; the login demos use the seed_users accounts.
 """
 from datetime import date, timedelta
+from decimal import Decimal
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -18,6 +19,8 @@ from academy.models import (
     Attendance,
     AttendanceStatus,
     Eligibility,
+    FootballMatch,
+    PlayerMatchPerformance,
     PlayerProfile,
     SessionFocus,
     TrainingSession,
@@ -46,7 +49,10 @@ DEMO_CLUB_SLUG = 'footpath-cebu-demo'
 
 
 class Command(BaseCommand):
-    help = 'Seed player profiles, training sessions, attendance, and a guardian link.'
+    help = (
+        'Seed player profiles, training, attendance, match statistics, and '
+        'a guardian link.'
+    )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -116,7 +122,10 @@ class Command(BaseCommand):
                     },
                 )
 
-        # 5. Link the seeded guardian to the login-player for the guardian demo.
+        # 5. Completed matches and history for the login-player's Progress tab.
+        self._seed_matches(coach, club, login_player)
+
+        # 6. Link the seeded guardian to the login-player for the guardian demo.
         guardian = User.objects.filter(email='guardian@footpathcebu.test').first()
         if guardian and login_player:
             guardian.role = Roles.GUARDIAN
@@ -130,7 +139,9 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'Seeded {PlayerProfile.objects.count()} player profiles, '
             f'{TrainingSession.objects.count()} sessions, '
-            f'{Attendance.objects.count()} attendance records.'
+            f'{Attendance.objects.count()} attendance records, '
+            f'{FootballMatch.objects.count()} matches, and '
+            f'{PlayerMatchPerformance.objects.count()} match performances.'
         ))
 
     def _ensure_profile(self, user, age, cls, tier, pos, ratings, elig):
@@ -170,3 +181,43 @@ class Command(BaseCommand):
             )
             sessions.append(session)
         return sessions
+
+    def _seed_matches(self, coach, club, login_player):
+        specs = [
+            ('Cebu United', 7, 'HOME', 3, 1, Decimal('8.7'), 2, 1),
+            ('Mandaue FC', 21, 'AWAY', 1, 1, Decimal('7.4'), 0, 1),
+        ]
+        for opponent, days_ago, venue, ours, theirs, rating, goals, assists in specs:
+            match, _ = FootballMatch.objects.update_or_create(
+                club=club,
+                opponent=opponent,
+                played_on=date.today() - timedelta(days=days_ago),
+                defaults={
+                    'competition': 'Cebu Youth League',
+                    'venue': venue,
+                    'our_score': ours,
+                    'opponent_score': theirs,
+                    'created_by': coach,
+                },
+            )
+            if login_player is not None:
+                PlayerMatchPerformance.objects.update_or_create(
+                    match=match,
+                    player=login_player,
+                    defaults={
+                        'position': 'CAM',
+                        'starter': True,
+                        'minutes_played': 80,
+                        'goals': goals,
+                        'assists': assists,
+                        'shots': 5,
+                        'shots_on_target': 3,
+                        'passes_attempted': 36,
+                        'passes_completed': 29,
+                        'tackles': 2,
+                        'interceptions': 1,
+                        'coach_rating': rating,
+                        'notes': 'Strong movement and decision-making.',
+                        'recorded_by': coach,
+                    },
+                )

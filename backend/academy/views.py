@@ -7,9 +7,10 @@ Authorization is enforced two ways, both server-side (never trust the client):
     a player they are linked to — audit finding F3).
 """
 from django.db import transaction
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import IsAuthenticated
@@ -34,8 +35,10 @@ from .models import (
     Dispute,
     DisputeResponse,
     EligibilityHistory,
+    FootballMatch,
     InjuryRecord,
     NotificationRecord,
+    PlayerMatchPerformance,
     PlayerProfile,
     PlayerPrivacyPin,
     SessionConfirmation,
@@ -68,8 +71,11 @@ from .serializers import (
     DisputeResponseCreateSerializer,
     DisputeSerializer,
     EligibilityHistorySerializer,
+    FootballMatchSerializer,
     InjuryRecordSerializer,
     NotificationRecordSerializer,
+    PlayerMatchPerformanceSerializer,
+    PlayerMatchPerformanceWriteSerializer,
     PlayerPositionSerializer,
     PlayerSerializer,
     PlayerSelectorSerializer,
@@ -77,6 +83,7 @@ from .serializers import (
     SessionConfirmationSerializer,
     TrainingSessionSerializer,
 )
+from .match_statistics import build_performance_summary
 from .player_unlock import issue_player_unlock, require_player_unlock
 from .storage import (
     delete_photo,
@@ -116,6 +123,21 @@ def _guardian_may_read(user, player_id):
         return GuardianLink.objects.filter(
             guardian=user, player_id=player_id
         ).exists()
+    return False
+
+
+def _may_read_match_statistics(user, player_id):
+    """Match statistics are visible to the player, own-club Coach, and Admin.
+
+    Guardian access is deliberately not inherited from generic profile reads:
+    this feature's approved audience is the Player and their coaching staff.
+    """
+    if user.role == Roles.ADMIN:
+        return True
+    if user.role == Roles.COACH:
+        return _in_same_club(user, player_id)
+    if user.role == Roles.PLAYER:
+        return str(user.id) == str(player_id)
     return False
 
 
@@ -162,6 +184,29 @@ def _session_in_user_scope(user, session):
     if user.role == Roles.ADMIN:
         return True
     return user.club_id is not None and session.club_id == user.club_id
+
+
+def _matches_for(user):
+    """Club-scoped match queryset; Admin can inspect every club."""
+    qs = FootballMatch.objects.select_related('club', 'created_by')
+    if user.role == Roles.ADMIN:
+        return qs
+    if user.club_id is None:
+        return qs.none()
+    return qs.filter(club_id=user.club_id)
+
+
+def _coach_match(request, match_id):
+    """Return a coach-owned match, failing closed across tenant boundaries."""
+    if request.user.role != Roles.COACH:
+        raise PermissionDenied('Only coaches can manage match data.')
+    if request.user.club_id is None:
+        raise PermissionDenied('Coach account must belong to a club.')
+    return get_object_or_404(
+        FootballMatch.objects.select_related('club'),
+        pk=match_id,
+        club_id=request.user.club_id,
+    )
 
 
 class SquadListView(APIView):
@@ -554,6 +599,202 @@ class TrainingSessionListCreateView(APIView):
         return Response(
             TrainingSessionSerializer(session).data, status=status.HTTP_201_CREATED
         )
+
+
+class FootballMatchListCreateView(APIView):
+    """List completed matches or let a coach create one for their own club."""
+
+    def get(self, request):
+        if request.user.role not in (Roles.COACH, Roles.ADMIN):
+            raise PermissionDenied('Only coaches can view club match records.')
+        return Response(
+            FootballMatchSerializer(_matches_for(request.user), many=True).data
+        )
+
+    def post(self, request):
+        if request.user.role != Roles.COACH:
+            raise PermissionDenied('Only coaches can create match records.')
+        if request.user.club_id is None:
+            raise PermissionDenied('Coach account must belong to a club.')
+        serializer = FootballMatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        match = serializer.save(
+            club=request.user.club,
+            created_by=request.user,
+        )
+        AuditLog.record(
+            request.user,
+            'match.created',
+            target=str(match.pk),
+            detail=f'{match.opponent} | {match.played_on}',
+        )
+        return Response(
+            FootballMatchSerializer(match).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class FootballMatchDetailView(APIView):
+    """Read or correct match metadata without changing tenant ownership."""
+
+    def get(self, request, match_id):
+        if request.user.role not in (Roles.COACH, Roles.ADMIN):
+            raise PermissionDenied('Only coaches can view club match records.')
+        match = get_object_or_404(_matches_for(request.user), pk=match_id)
+        return Response(FootballMatchSerializer(match).data)
+
+    def put(self, request, match_id):
+        match = _coach_match(request, match_id)
+        serializer = FootballMatchSerializer(
+            match, data=request.data, partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        AuditLog.record(
+            request.user,
+            'match.updated',
+            target=str(match.pk),
+            detail=f'{match.opponent} | {match.played_on}',
+        )
+        return Response(FootballMatchSerializer(match).data)
+
+
+class MatchPerformanceListView(APIView):
+    """Coach/Admin read view for all recorded players in one match."""
+
+    def get(self, request, match_id):
+        if request.user.role not in (Roles.COACH, Roles.ADMIN):
+            raise PermissionDenied('Only coaches can view match performances.')
+        match = get_object_or_404(_matches_for(request.user), pk=match_id)
+        rows = PlayerMatchPerformance.objects.select_related(
+            'match', 'player', 'match__club',
+        ).filter(match=match)
+        return Response(PlayerMatchPerformanceSerializer(rows, many=True).data)
+
+
+class MatchPerformanceDetailView(APIView):
+    """Upsert or remove one club player's statistics for one match."""
+
+    def put(self, request, match_id, player_id):
+        match = _coach_match(request, match_id)
+        player = get_object_or_404(
+            User.objects.select_related('player_profile'),
+            pk=player_id,
+            role=Roles.PLAYER,
+            club_id=request.user.club_id,
+        )
+        with transaction.atomic():
+            # Lock the parent to serialize two submissions for the same match;
+            # the unique DB constraint is the final duplicate-write guard.
+            FootballMatch.objects.select_for_update().get(pk=match.pk)
+            existing = PlayerMatchPerformance.objects.select_for_update().filter(
+                match=match, player=player,
+            ).first()
+            serializer = PlayerMatchPerformanceWriteSerializer(
+                existing, data=request.data,
+            )
+            serializer.is_valid(raise_exception=True)
+            proposed_goals = serializer.validated_data.get(
+                'goals', existing.goals if existing else 0,
+            )
+            other_goals = PlayerMatchPerformance.objects.filter(
+                match=match,
+            ).exclude(player=player).aggregate(total=Sum('goals'))['total'] or 0
+            if other_goals + proposed_goals > match.our_score:
+                raise ValidationError({
+                    'goals': 'Recorded player goals exceed the team score.'
+                })
+            proposed_conceded = serializer.validated_data.get(
+                'goals_conceded', existing.goals_conceded if existing else 0,
+            )
+            if proposed_conceded > match.opponent_score:
+                raise ValidationError({
+                    'goalsConceded': (
+                        'Goals conceded cannot exceed the opponent score.'
+                    )
+                })
+            performance = serializer.save(
+                match=match,
+                player=player,
+                recorded_by=request.user,
+            )
+        AuditLog.record(
+            request.user,
+            'match.performance_saved',
+            target=f'{match.pk}:{player.pk}',
+        )
+        return Response(
+            PlayerMatchPerformanceSerializer(performance).data,
+            status=status.HTTP_200_OK if existing else status.HTTP_201_CREATED,
+        )
+
+    def delete(self, request, match_id, player_id):
+        match = _coach_match(request, match_id)
+        performance = get_object_or_404(
+            PlayerMatchPerformance,
+            match=match,
+            player_id=player_id,
+        )
+        performance.delete()
+        AuditLog.record(
+            request.user,
+            'match.performance_deleted',
+            target=f'{match.pk}:{player_id}',
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PlayerMatchStatisticsView(APIView):
+    """Historical match totals and trend rows for one authorized player."""
+
+    _MAX_ROWS = 100
+
+    def get(self, request, player_id):
+        if not _may_read_match_statistics(request.user, player_id):
+            raise PermissionDenied('You may not view this player.')
+        player = get_object_or_404(
+            User.objects.select_related('player_profile'),
+            pk=player_id,
+            role=Roles.PLAYER,
+        )
+
+        rows = PlayerMatchPerformance.objects.select_related(
+            'match', 'match__club', 'player',
+        ).filter(player=player)
+        from_text = request.query_params.get('from')
+        to_text = request.query_params.get('to')
+        if from_text:
+            from_date = parse_date(from_text)
+            if from_date is None:
+                raise ValidationError({'from': 'Use YYYY-MM-DD.'})
+            rows = rows.filter(match__played_on__gte=from_date)
+        if to_text:
+            to_date = parse_date(to_text)
+            if to_date is None:
+                raise ValidationError({'to': 'Use YYYY-MM-DD.'})
+            rows = rows.filter(match__played_on__lte=to_date)
+        if from_text and to_text and from_date > to_date:
+            raise ValidationError({'to': 'End date must not precede start date.'})
+
+        try:
+            limit = int(request.query_params.get('limit', self._MAX_ROWS))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError({'limit': 'Use a whole number.'}) from exc
+        if not 1 <= limit <= self._MAX_ROWS:
+            raise ValidationError({
+                'limit': f'Choose a value from 1 to {self._MAX_ROWS}.'
+            })
+
+        records = list(rows[:limit])
+        name = f'{player.first_name} {player.last_name}'.strip()
+        return Response({
+            'playerId': str(player.id),
+            'playerName': name or player.email.split('@')[0],
+            'summary': build_performance_summary(records),
+            'performances': PlayerMatchPerformanceSerializer(
+                records, many=True,
+            ).data,
+        })
 
 
 class SquadProgressView(APIView):

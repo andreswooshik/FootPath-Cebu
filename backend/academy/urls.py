@@ -32,6 +32,11 @@ urlpatterns = [
         name='player-assessment',
     ),
     path(
+        'players/<int:player_id>/match-statistics/',
+        views.PlayerMatchStatisticsView.as_view(),
+        name='player-match-statistics',
+    ),
+    path(
         'players/<int:player_id>/position/',
         views.PlayerPositionView.as_view(),
         name='player-position',
@@ -46,6 +51,26 @@ urlpatterns = [
         'progress/squad/',
         views.SquadProgressView.as_view(),
         name='progress-squad',
+    ),
+    path(
+        'matches/',
+        views.FootballMatchListCreateView.as_view(),
+        name='football-matches',
+    ),
+    path(
+        'matches/<int:match_id>/',
+        views.FootballMatchDetailView.as_view(),
+        name='football-match-detail',
+    ),
+    path(
+        'matches/<int:match_id>/performances/',
+        views.MatchPerformanceListView.as_view(),
+        name='match-performances',
+    ),
+    path(
+        'matches/<int:match_id>/performances/<int:player_id>/',
+        views.MatchPerformanceDetailView.as_view(),
+        name='match-performance-detail',
     ),
     path('attendance/', views.AttendanceListView.as_view(), name='attendance-list'),
     path(

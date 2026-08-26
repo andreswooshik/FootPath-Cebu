@@ -8,6 +8,8 @@ import 'package:footpath_cebu/domain/entities/player_progress.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/progress_providers.dart';
+import 'package:footpath_cebu/presentation/screens/coach_matches_screen.dart';
+import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
 /// Coach Portal — the Progress tab: per-player attendance and effort
@@ -31,6 +33,15 @@ class CoachProgressScreen extends ConsumerWidget {
             Text('FootPath Cebu'),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Manage match records',
+            icon: const Icon(Icons.sports_score_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CoachMatchesScreen()),
+            ),
+          ),
+        ],
       ),
       body: progress.when(
         loading: () => const DashboardLoadingState(),
@@ -67,6 +78,14 @@ class CoachProgressScreen extends ConsumerWidget {
                 for (var i = 0; i < players.length; i++)
                   _PlayerProgressCard(
                     progress: players[i],
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => PlayerMatchStatisticsScreen(
+                          playerId: players[i].id,
+                          playerName: players[i].name,
+                        ),
+                      ),
+                    ),
                   ).animateListItem(key: ValueKey(players[i].id), index: i),
             ],
           ),
@@ -130,9 +149,10 @@ class _SquadSummary extends StatelessWidget {
 }
 
 class _PlayerProgressCard extends StatelessWidget {
-  const _PlayerProgressCard({required this.progress});
+  const _PlayerProgressCard({required this.progress, required this.onTap});
 
   final PlayerProgress progress;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -145,76 +165,80 @@ class _PlayerProgressCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        progress.name,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        subtitle,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          progress.name,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          subtitle,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (progress.avgEffort != null)
+                    Column(
+                      children: [
+                        Text(
+                          '${progress.avgEffort}',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: cs.primary,
+                              ),
+                        ),
+                        Text(
+                          'EFFORT',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelSmall?.copyWith(letterSpacing: 0.6),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (rate == null)
+                Text(
+                  'No attendance recorded yet.',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                )
+              else ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: rate,
+                    minHeight: 8,
+                    backgroundColor: cs.surfaceContainerHighest,
                   ),
                 ),
-                if (progress.avgEffort != null)
-                  Column(
-                    children: [
-                      Text(
-                        '${progress.avgEffort}',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: cs.primary,
-                            ),
-                      ),
-                      Text(
-                        'EFFORT',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.labelSmall?.copyWith(letterSpacing: 0.6),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 6),
+                Text(
+                  '${(rate * 100).round()}% attendance — '
+                  '${progress.present} present · ${progress.absent} absent · '
+                  '${progress.excused} excused',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ],
-            ),
-            const SizedBox(height: 12),
-            if (rate == null)
-              Text(
-                'No attendance recorded yet.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-              )
-            else ...[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: rate,
-                  minHeight: 8,
-                  backgroundColor: cs.surfaceContainerHighest,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '${(rate * 100).round()}% attendance — '
-                '${progress.present} present · ${progress.absent} absent · '
-                '${progress.excused} excused',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );

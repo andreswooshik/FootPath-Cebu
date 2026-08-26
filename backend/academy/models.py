@@ -11,7 +11,9 @@ from datetime import date
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 from accounts.models import Roles
 
@@ -92,6 +94,17 @@ class AttendanceStatus(models.TextChoices):
 class ConfirmationStatus(models.TextChoices):
     CONFIRMED = 'CONFIRMED', 'Confirmed'
     DECLINED = 'DECLINED', 'Declined'
+
+
+class MatchVenue(models.TextChoices):
+    HOME = 'HOME', 'Home'
+    AWAY = 'AWAY', 'Away'
+    NEUTRAL = 'NEUTRAL', 'Neutral'
+
+
+PLAYER_POSITION_CODES = {
+    'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST',
+}
 
 
 class PlayerProfile(models.Model):
@@ -348,6 +361,203 @@ class TrainingSession(models.Model):
 
     def __str__(self):
         return f'{self.title} ({self.date})'
+
+
+class FootballMatch(models.Model):
+    """One completed match owned by a club.
+
+    Ownership is stamped from the authenticated coach by the API. Keeping the
+    match separate from its per-player rows lets one result serve the whole
+    squad without duplicating opponent and score data for every player.
+    """
+
+    club = models.ForeignKey(
+        'accounts.Club',
+        on_delete=models.PROTECT,
+        related_name='football_matches',
+    )
+    opponent = models.CharField(max_length=120)
+    competition = models.CharField(max_length=120, blank=True)
+    played_on = models.DateField()
+    venue = models.CharField(
+        max_length=10,
+        choices=MatchVenue.choices,
+        default=MatchVenue.HOME,
+    )
+    our_score = models.PositiveSmallIntegerField(
+        validators=[MaxValueValidator(99)]
+    )
+    opponent_score = models.PositiveSmallIntegerField(
+        validators=[MaxValueValidator(99)]
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_football_matches',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        self.opponent = self.opponent.strip()
+        self.competition = self.competition.strip()
+        if not self.opponent:
+            raise ValidationError({'opponent': 'Opponent is required.'})
+        if self.played_on and self.played_on > timezone.localdate():
+            raise ValidationError({
+                'played_on': 'Match statistics can only be recorded after play.'
+            })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['-played_on', '-id']
+        indexes = [
+            models.Index(
+                fields=['club', '-played_on'],
+                name='academy_match_club_date_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.club.name} vs {self.opponent} ({self.played_on})'
+
+
+class PlayerMatchPerformance(models.Model):
+    """A coach-recorded performance for one player in one match.
+
+    Rows are historical and match-scoped. Updating a player's standing profile
+    ratings never changes this evidence, which makes genuine trends possible.
+    """
+
+    match = models.ForeignKey(
+        FootballMatch,
+        on_delete=models.CASCADE,
+        related_name='performances',
+    )
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='match_performances',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    position = models.CharField(max_length=8, blank=True)
+    starter = models.BooleanField(default=False)
+    minutes_played = models.PositiveSmallIntegerField(
+        default=0,
+        validators=[MaxValueValidator(180)],
+    )
+    goals = models.PositiveSmallIntegerField(default=0)
+    assists = models.PositiveSmallIntegerField(default=0)
+    shots = models.PositiveSmallIntegerField(default=0)
+    shots_on_target = models.PositiveSmallIntegerField(default=0)
+    passes_attempted = models.PositiveSmallIntegerField(default=0)
+    passes_completed = models.PositiveSmallIntegerField(default=0)
+    tackles = models.PositiveSmallIntegerField(default=0)
+    interceptions = models.PositiveSmallIntegerField(default=0)
+    yellow_cards = models.PositiveSmallIntegerField(
+        default=0,
+        validators=[MaxValueValidator(2)],
+    )
+    red_cards = models.PositiveSmallIntegerField(
+        default=0,
+        validators=[MaxValueValidator(1)],
+    )
+    saves = models.PositiveSmallIntegerField(default=0)
+    goals_conceded = models.PositiveSmallIntegerField(default=0)
+    clean_sheet = models.BooleanField(default=False)
+    coach_rating = models.DecimalField(
+        max_digits=3,
+        decimal_places=1,
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+    )
+    notes = models.CharField(max_length=1000, blank=True)
+    recorded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recorded_match_performances',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        self.position = self.position.strip().upper()
+        self.notes = self.notes.strip()
+        if self.position and self.position not in PLAYER_POSITION_CODES:
+            errors['position'] = 'Unknown player position.'
+        if self.player_id and self.player.role != Roles.PLAYER:
+            errors['player'] = 'Match performances belong to player accounts.'
+        if (
+            self.player_id
+            and self.match_id
+            and self.player.club_id != self.match.club_id
+        ):
+            errors['player'] = 'Player must belong to the match club.'
+        if self.shots_on_target > self.shots:
+            errors['shots_on_target'] = (
+                'Shots on target cannot exceed total shots.'
+            )
+        if self.goals > self.shots_on_target:
+            errors['goals'] = 'Goals cannot exceed shots on target.'
+        if self.passes_completed > self.passes_attempted:
+            errors['passes_completed'] = (
+                'Completed passes cannot exceed attempted passes.'
+            )
+        if self.clean_sheet and self.goals_conceded:
+            errors['clean_sheet'] = (
+                'A clean sheet cannot include goals conceded.'
+            )
+        if self.position != 'GK' and (
+            self.saves or self.goals_conceded or self.clean_sheet
+        ):
+            errors['position'] = 'Goalkeeper statistics require the GK position.'
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['-match__played_on', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['match', 'player'],
+                name='unique_player_match_performance',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(shots_on_target__lte=models.F('shots')),
+                name='shots_on_target_lte_shots',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(goals__lte=models.F('shots_on_target')),
+                name='goals_lte_shots_on_target',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    passes_completed__lte=models.F('passes_attempted')
+                ),
+                name='passes_completed_lte_attempted',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['player', 'match'],
+                name='academy_perf_player_match_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.player.email} vs {self.match.opponent}'
 
 
 class Attendance(models.Model):

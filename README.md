@@ -21,7 +21,7 @@ The app is organized into **Clean Architecture** layers with the Dependency Rule
 ```
 lib/
   domain/          Pure business core — no Flutter, no I/O
-    entities/        Immutable data classes (Player, UserProfile, Attendance)
+    entities/        Immutable data classes (Player, Attendance, MatchPerformance)
     repositories/    Abstract interfaces (AuthRepository, SquadRepository, ...)
     usecases/        One class per operation (SignIn, GetSquad, GetMyProfile, ...)
   data/            Implements the domain interfaces
@@ -39,6 +39,9 @@ SOLID shows up concretely: use cases depend on **narrow** repository interfaces 
 
 **Feature trace — Coach dashboard "Active Squad Roster":**
 `CoachDashboardScreen` (View) → `filteredSquadProvider`/`squadProvider` → `GetSquad` (use case) → `SquadRepository` → `MockPlayerRepository` / `ApiPlayerRepository`. Mock is the debug default; run against the live backend with `--dart-define=USE_MOCK=false` (release builds are always live).
+
+**Feature trace — Match performance:**
+`CoachMatchesScreen` / `PlayerMatchStatisticsView` → match providers → narrow match use cases → `MatchManager` / `MatchStatisticsReader` → `MockMatchRepository` / `ApiMatchRepository`. Django stamps match ownership from the authenticated Coach, validates same-Club players, and exposes read-only self/Coach/Admin trend data.
 
 Tests live in `footpath_cebu/test/` (entity round-trips, provider filtering/error paths via `ProviderContainer` overrides, dashboard widget tests inside `ProviderScope`). Run with `flutter test`.
 
@@ -183,6 +186,8 @@ class AttendanceLogController extends Notifier<AttendanceLogState> {
 
 **Tenant and object security**
 - [x] Players read their own protected data
+- [x] Coaches record same-Club match statistics and view player trends
+- [x] Players view their own match summaries, history, and rating trends
 - [x] Guardians require a same-Club link and privacy unlock
 - [x] Coaches are limited to their Club
 - [x] School Staff eligibility exists only for School Clubs

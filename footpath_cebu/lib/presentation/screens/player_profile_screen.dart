@@ -13,6 +13,7 @@ import 'package:footpath_cebu/presentation/providers/player_position_controller.
 import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
 import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
+import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/attribute_radar_chart.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/position_picker_sheet.dart';
@@ -341,14 +342,29 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: _openEditor,
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('Update Performance Data'),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PlayerMatchStatisticsScreen(
+                  playerId: _player.id,
+                  playerName: _player.name,
+                ),
+              ),
             ),
+            icon: const Icon(Icons.show_chart),
+            label: const Text('View Match Performance Trends'),
           ),
+          if (widget.profile.isCoach) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _openEditor,
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Update Performance Data'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ],
         ],
       ),
     ).animateScreenEntrance();

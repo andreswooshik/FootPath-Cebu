@@ -6,8 +6,10 @@ from .models import (
     Dispute,
     DisputeResponse,
     EligibilityHistory,
+    FootballMatch,
     InjuryRecord,
     NotificationRecord,
+    PlayerMatchPerformance,
     PlayerEligibility,
 )
 
@@ -153,3 +155,64 @@ class InjuryRecordAdmin(admin.ModelAdmin):
     list_filter = ('status',)
     search_fields = ('player__email', 'description', 'body_part')
     autocomplete_fields = ('player',)
+
+
+@admin.register(FootballMatch)
+class FootballMatchAdmin(admin.ModelAdmin):
+    """Correction-only match surface; coaches create records in the app."""
+
+    list_display = (
+        'played_on', 'club', 'opponent', 'competition',
+        'our_score', 'opponent_score', 'created_by',
+    )
+    list_filter = ('club', 'venue', 'competition')
+    search_fields = ('opponent', 'competition', 'club__name')
+    readonly_fields = ('club', 'created_by', 'created_at', 'updated_at')
+    date_hierarchy = 'played_on'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        AuditLog.record(
+            request.user,
+            'match.admin_corrected',
+            target=str(obj.pk),
+            detail=f'{obj.opponent} | {obj.played_on}',
+        )
+
+
+@admin.register(PlayerMatchPerformance)
+class PlayerMatchPerformanceAdmin(admin.ModelAdmin):
+    """Correction-only player statistics with immutable ownership fields."""
+
+    list_display = (
+        'match', 'player', 'position', 'minutes_played',
+        'goals', 'assists', 'coach_rating', 'updated_at',
+    )
+    list_filter = ('match__club', 'position', 'starter', 'clean_sheet')
+    search_fields = (
+        'player__email', 'player__first_name', 'player__last_name',
+        'match__opponent',
+    )
+    readonly_fields = (
+        'match', 'player', 'recorded_by', 'created_at', 'updated_at',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        AuditLog.record(
+            request.user,
+            'match.performance_admin_corrected',
+            target=f'{obj.match_id}:{obj.player_id}',
+        )

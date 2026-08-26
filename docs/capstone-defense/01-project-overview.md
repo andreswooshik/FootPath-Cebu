@@ -22,7 +22,7 @@ FootPath Cebu is a role-based youth football academy management system that cent
 
 > Youth academies can fragment player ratings, attendance, schedules, injury notes, and eligibility decisions across paper or separate files. FootPath Cebu centralizes those records and gives six roles only the operations they need. Coaches manage development and training in Flutter. Players see their own records and confirm sessions. Linked guardians unlock a child’s private information with an additional household PIN. Coordinators provision club accounts, school staff maintain eligibility, and administrators manage the system through Django.
 >
-> The mobile app uses Riverpod and domain/repository layers. Firebase handles identity and push; Django REST verifies every token, enforces role, club, ownership, and family links, and persists through the ORM. Attendance writes can be queued locally during network failure, and safe authenticated GET responses have a Firebase-user-scoped cache. Notifications are stored in a current-user inbox, shown through unread bells, and handled while the app is foregrounded or opened from a push. AI, scouting, and match statistics are not current features.
+> The mobile app uses Riverpod and domain/repository layers. Firebase handles identity and push; Django REST verifies every token, enforces role, club, ownership, and family links, and persists through the ORM. Attendance writes can be queued locally during network failure, and safe authenticated GET responses have a Firebase-user-scoped cache. Notifications are stored in a current-user inbox, shown through unread bells, and handled while the app is foregrounded or opened from a push. Coaches also record same-club match results and per-player statistics, which players view as summaries, history, and rating trends. AI and scouting are not current features.
 
 ## Three-minute technical explanation
 
@@ -32,7 +32,7 @@ FootPath Cebu is a role-based youth football academy management system that cent
 >
 > A representative coach write is assessment saving: the editor calls a Riverpod controller, `SavePlayerAssessment`, and `ApiPlayerRepository`; Django checks coach and same-club access, validates twelve ratings in the implemented 0–99 scale, updates `PlayerProfile`, audits, schedules FCM after commit, and returns the updated player for provider refresh. Attendance adds resilience: a complete batch is atomically upserted/pruned on Django, but a transport failure stores it in a Firebase-user-scoped sqflite outbox and replays it oldest first.
 >
-> Security is server-authoritative. Firebase proves identity; Django decides role, tenant, ownership, and guardian links. Guardian detail adds a hashed 4–6 digit PIN, five-attempt lockout, and a ten-minute signed user/player unlock token. Player provisioning now enforces the Player/Club/PlayerProfile aggregate across admin, portal, API, and seed paths. The project has strong implemented operations but does not currently contain AI, scouting, match statistics, grades, chat, or maps.
+> Security is server-authoritative. Firebase proves identity; Django decides role, tenant, ownership, and guardian links. Guardian detail adds a hashed 4–6 digit PIN, five-attempt lockout, and a ten-minute signed user/player unlock token. Player provisioning now enforces the Player/Club/PlayerProfile aggregate across admin, portal, API, and seed paths. Match ownership and participating players are also enforced against the authenticated Coach's club. The project does not currently contain AI, scouting, grades, chat, or maps.
 
 ## Repository technical inventory
 
@@ -84,8 +84,8 @@ The implemented system addresses fragmented academy operations. Without a shared
 |---|---|---|
 | Super Admin (`ADMIN`) | Django admin and admin API | Create/classify Clubs, assign the single Coordinator, control lifecycle, inspect platform data |
 | Club Coordinator | Django web portal | Maintain one club; normally create Coach/Player/Guardian and School Staff only for a School Club |
-| Coach | Flutter mobile app | View squad, schedule sessions, record attendance, assess performance, set positions, view progress/injuries, raise disputes |
-| Player | Flutter mobile app | View own profile, development data, attendance, eligibility, injuries, and confirm today's session |
+| Coach | Flutter mobile app | View squad, schedule sessions, record attendance and match statistics, assess performance, view trends/injuries, raise disputes |
+| Player | Flutter mobile app | View own profile, development and match statistics, attendance, eligibility, injuries, and confirm today's session |
 | Guardian | Flutter mobile app | Select a linked player and, after a player privacy PIN unlock, view permitted player information |
 | School Staff | Django web portal | Review and change player eligibility for the same club; participate in dispute handling through authorized backend flows |
 
@@ -106,7 +106,8 @@ The implemented system addresses fragmented academy operations. Without a shared
 11. Player household privacy PIN with hashing, throttling, temporary signed unlock tokens, and guardian access headers.
 12. Device-token lifecycle, persistent notification inbox/read state, selected FCM fan-out, foreground display, and role-aware push-open routing.
 13. Private player-photo upload through Django from authorized web/admin and same-Club Coach mobile workflows, when Supabase credentials are configured.
-14. Coordinator and school-staff web workflows.
+14. Club-owned completed matches with per-player statistics, summaries, history, and coach-rating trends.
+15. Coordinator and school-staff web workflows.
 
 ## Formal objectives: repository finding
 
@@ -124,7 +125,8 @@ To design and implement a secure, role-based academy information system that cen
 4. Record eligibility changes and disputes in traceable histories with actor and timestamp evidence.
 5. Maintain role and club isolation using server-side authentication, authorization, object checks, and relational constraints.
 6. Improve field reliability by queueing attendance writes during temporary network failures and synchronizing them later.
-7. Centralize club account provisioning while preventing public creation of active academy accounts.
+7. Give Coaches a historical match-performance workflow and Players a read-only view of their own statistics and trends.
+8. Centralize club account provisioning while preventing public creation of active academy accounts.
 
 ## Objective-to-implementation mapping
 
@@ -136,6 +138,7 @@ To design and implement a secure, role-based academy information system that cen
 | Preserve accountability | Eligibility history, disputes, audit | `academy/signals.py`, dispute views, `AuditLog` calls | eligibility history, disputes/responses, audit table | Actor/time/status records are created by verified workflows |
 | Enforce role/club isolation | Firebase-to-Django auth and endpoint checks | `accounts/authentication.py`, `permissions.py`, `academy/views.py` | `accounts_user.role/club_id`, related FKs | Server rejects wrong role/cross-club/unauthorized object requests |
 | Improve field reliability | Offline attendance queue and safe-read cache | offline decorator, outbox, sync service, shared authenticated client, GET cache | mobile owner-scoped SQLite data then backend APIs | Transport-failed attendance batches replay; eligible GETs use scoped cache only for network failures, never HTTP errors |
+| Track match performance | Coach match/performance entry and Player trend views | match use cases/repositories/screens; match API views | `academy_footballmatch`, `academy_playermatchperformance` | Same-club Coaches write bounded statistics; Players read only their own history and trends |
 | Centralize trusted provisioning | Coordinator/admin account workflows | `accounts/services.py`, `portal/services.py` | users, profiles, guardian links, Firebase identity | Coordinator path creates linked domain records with Firebase compensation |
 
 ## Scope boundary

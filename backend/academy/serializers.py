@@ -19,9 +19,13 @@ from .models import (
     DisputeStatus,
     Eligibility,
     EligibilityHistory,
+    FootballMatch,
     InjuryRecord,
     InjuryStatus,
+    MatchVenue,
     NotificationRecord,
+    PLAYER_POSITION_CODES,
+    PlayerMatchPerformance,
     PlayerProfile,
     SessionConfirmation,
     SessionFocus,
@@ -162,10 +166,184 @@ class PlayerPositionSerializer(serializers.ModelSerializer):
 
     def validate_position(self, value):
         v = str(value).upper()
-        valid = {'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'}
-        if v not in valid:
+        if v not in PLAYER_POSITION_CODES:
             raise serializers.ValidationError(f'Unknown position: {value}')
         return v
+
+
+class FootballMatchSerializer(serializers.ModelSerializer):
+    """Read/write contract for a completed club match.
+
+    Club and creator are intentionally absent from writable fields; views stamp
+    both from the authenticated coach so a request cannot cross tenant bounds.
+    """
+
+    id = serializers.CharField(read_only=True)
+    playedOn = serializers.DateField(source='played_on')
+    ourScore = serializers.IntegerField(
+        source='our_score', min_value=0, max_value=99,
+    )
+    opponentScore = serializers.IntegerField(
+        source='opponent_score', min_value=0, max_value=99,
+    )
+
+    class Meta:
+        model = FootballMatch
+        fields = [
+            'id', 'opponent', 'competition', 'playedOn', 'venue',
+            'ourScore', 'opponentScore',
+        ]
+
+    def validate_opponent(self, value):
+        cleaned = value.strip()
+        if not cleaned:
+            raise serializers.ValidationError('Opponent is required.')
+        return cleaned
+
+    def validate_competition(self, value):
+        return value.strip()
+
+    def validate_playedOn(self, value):
+        if value > timezone.localdate():
+            raise serializers.ValidationError(
+                'Match statistics can only be recorded after play.'
+            )
+        return value
+
+    def validate_venue(self, value):
+        cleaned = str(value).upper()
+        if cleaned not in set(MatchVenue.values):
+            raise serializers.ValidationError(f'Unknown venue: {value}')
+        return cleaned
+
+
+class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
+    """Read contract for one player's statistics in one match."""
+
+    id = serializers.CharField(read_only=True)
+    playerId = serializers.CharField(source='player.id', read_only=True)
+    playerName = serializers.SerializerMethodField()
+    match = FootballMatchSerializer(read_only=True)
+    minutesPlayed = serializers.IntegerField(source='minutes_played')
+    shotsOnTarget = serializers.IntegerField(source='shots_on_target')
+    passesAttempted = serializers.IntegerField(source='passes_attempted')
+    passesCompleted = serializers.IntegerField(source='passes_completed')
+    yellowCards = serializers.IntegerField(source='yellow_cards')
+    redCards = serializers.IntegerField(source='red_cards')
+    goalsConceded = serializers.IntegerField(source='goals_conceded')
+    cleanSheet = serializers.BooleanField(source='clean_sheet')
+    coachRating = serializers.DecimalField(
+        source='coach_rating', max_digits=3, decimal_places=1,
+        coerce_to_string=False,
+    )
+
+    class Meta:
+        model = PlayerMatchPerformance
+        fields = [
+            'id', 'playerId', 'playerName', 'match', 'position', 'starter',
+            'minutesPlayed', 'goals', 'assists', 'shots', 'shotsOnTarget',
+            'passesAttempted', 'passesCompleted', 'tackles', 'interceptions',
+            'yellowCards', 'redCards', 'saves', 'goalsConceded', 'cleanSheet',
+            'coachRating', 'notes',
+        ]
+
+    def get_playerName(self, obj):
+        return _display_name(obj.player)
+
+
+class PlayerMatchPerformanceWriteSerializer(serializers.ModelSerializer):
+    """Coach-owned write contract; match and player come from the URL."""
+
+    minutesPlayed = serializers.IntegerField(
+        source='minutes_played', min_value=0, max_value=180,
+    )
+    shotsOnTarget = serializers.IntegerField(
+        source='shots_on_target', min_value=0,
+    )
+    passesAttempted = serializers.IntegerField(
+        source='passes_attempted', min_value=0,
+    )
+    passesCompleted = serializers.IntegerField(
+        source='passes_completed', min_value=0,
+    )
+    yellowCards = serializers.IntegerField(
+        source='yellow_cards', min_value=0, max_value=2,
+    )
+    redCards = serializers.IntegerField(
+        source='red_cards', min_value=0, max_value=1,
+    )
+    goalsConceded = serializers.IntegerField(
+        source='goals_conceded', min_value=0,
+    )
+    cleanSheet = serializers.BooleanField(source='clean_sheet')
+    coachRating = serializers.DecimalField(
+        source='coach_rating', max_digits=3, decimal_places=1,
+        min_value=0, max_value=10, coerce_to_string=False,
+    )
+
+    class Meta:
+        model = PlayerMatchPerformance
+        fields = [
+            'position', 'starter', 'minutesPlayed', 'goals', 'assists',
+            'shots', 'shotsOnTarget', 'passesAttempted', 'passesCompleted',
+            'tackles', 'interceptions', 'yellowCards', 'redCards', 'saves',
+            'goalsConceded', 'cleanSheet', 'coachRating', 'notes',
+        ]
+        extra_kwargs = {
+            'position': {'allow_blank': True, 'required': False},
+            'goals': {'min_value': 0},
+            'assists': {'min_value': 0},
+            'shots': {'min_value': 0},
+            'tackles': {'min_value': 0},
+            'interceptions': {'min_value': 0},
+            'saves': {'min_value': 0},
+            'notes': {'allow_blank': True, 'required': False},
+        }
+
+    def validate_position(self, value):
+        cleaned = str(value).strip().upper()
+        if cleaned and cleaned not in PLAYER_POSITION_CODES:
+            raise serializers.ValidationError(f'Unknown position: {value}')
+        return cleaned
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        def current(field, default=0):
+            if field in attrs:
+                return attrs[field]
+            if self.instance is not None:
+                return getattr(self.instance, field)
+            return default
+
+        if current('shots_on_target') > current('shots'):
+            raise serializers.ValidationError({
+                'shotsOnTarget': 'Shots on target cannot exceed total shots.'
+            })
+        if current('goals') > current('shots_on_target'):
+            raise serializers.ValidationError({
+                'goals': 'Goals cannot exceed shots on target.'
+            })
+        if current('passes_completed') > current('passes_attempted'):
+            raise serializers.ValidationError({
+                'passesCompleted': (
+                    'Completed passes cannot exceed attempted passes.'
+                )
+            })
+        if current('clean_sheet', False) and current('goals_conceded'):
+            raise serializers.ValidationError({
+                'cleanSheet': 'A clean sheet cannot include goals conceded.'
+            })
+        position = current('position', '')
+        if position != 'GK' and (
+            current('saves')
+            or current('goals_conceded')
+            or current('clean_sheet', False)
+        ):
+            raise serializers.ValidationError({
+                'position': 'Goalkeeper statistics require the GK position.'
+            })
+        return attrs
 
 
 class TrainingSessionSerializer(serializers.ModelSerializer):
