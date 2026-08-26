@@ -1,11 +1,10 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- Load Django's static tag library inside an HTML comment so raw HTML
-       analyzers do not mistake template syntax for body content. -->
-  <!-- {% load static %} -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0F6B4E">
   <title>{% block title %}FootPath — Club Portal{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,92 +19,141 @@
       },
     };
   </script>
-  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <link rel="stylesheet" href="{% static 'portal/portal.css' %}">
 </head>
-<body class="font-sans">
-<div class="flex flex-row h-screen overflow-hidden">
+<body class="font-sans bg-gray-50 text-gray-900">
+<a class="skip-link" href="#main-content">Skip to main content</a>
 
-  <!-- Sidebar -->
-  <aside class="w-64 flex-shrink-0 bg-[#16C172] h-screen flex flex-col overflow-y-auto">
-    <div class="p-6 border-b border-white/20">
-      <div class="text-2xl font-bold text-white">⚽ FootPath</div>
-      <div class="text-xs text-white/70 mt-0.5">Club Portal</div>
-      {% if request.user.club %}
-        <p class="mt-3 text-sm font-semibold text-white/90 truncate">{{ request.user.club.name }}</p>
-      {% endif %}
+<div class="min-h-screen lg:h-screen lg:overflow-hidden lg:flex">
+  <header class="sticky top-0 z-30 flex items-center justify-between gap-4 bg-[var(--fp-green-dark)] px-4 py-3 text-white shadow-sm lg:hidden">
+    <a href="{% url 'portal:dashboard' %}" class="flex min-w-0 items-center gap-2 rounded-md font-bold">
+      <span aria-hidden="true">⚽</span>
+      <span class="truncate">FootPath</span>
+    </a>
+    <button type="button"
+            class="icon-button border-white/30 text-white hover:bg-white/10"
+            data-mobile-menu-toggle
+            aria-controls="portal-sidebar"
+            aria-expanded="false">
+      <span class="sr-only">Open navigation</span>
+      <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 7h16M4 12h16M4 17h16"></path>
+      </svg>
+    </button>
+  </header>
+
+  <div class="fixed inset-0 z-40 hidden bg-gray-950/50 lg:hidden"
+       data-mobile-menu-overlay
+       aria-hidden="true"></div>
+
+  <aside id="portal-sidebar"
+         class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col overflow-y-auto bg-[var(--fp-green-dark)] text-white shadow-xl transition-transform duration-200 lg:static lg:z-auto lg:h-screen lg:w-64 lg:translate-x-0 lg:flex-shrink-0 lg:shadow-none"
+         data-mobile-sidebar>
+    <div class="flex items-start justify-between gap-3 border-b border-white/20 p-5 lg:p-6">
+      <div class="min-w-0">
+        <a href="{% url 'portal:dashboard' %}" class="inline-flex items-center gap-2 rounded-md text-2xl font-bold text-white">
+          <span aria-hidden="true">⚽</span>
+          <span>FootPath</span>
+        </a>
+        <div class="mt-0.5 text-xs text-white/80">Club Portal</div>
+        {% if request.user.club %}
+          <p class="mt-3 truncate text-sm font-semibold text-white">{{ request.user.club.name }}</p>
+        {% endif %}
+      </div>
+      <button type="button"
+              class="icon-button border-white/30 text-white hover:bg-white/10 lg:hidden"
+              data-mobile-menu-close>
+        <span class="sr-only">Close navigation</span>
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6L6 18"></path>
+        </svg>
+      </button>
     </div>
 
-    <nav class="flex-1 px-3 py-4 space-y-1">
+    <nav class="flex-1 space-y-1 px-3 py-4" aria-label="Primary navigation">
       <a href="{% url 'portal:dashboard' %}"
-         class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'dashboard' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
+         {% if request.resolver_match.url_name == 'dashboard' %}aria-current="page"{% endif %}
+         class="portal-nav-link {% if request.resolver_match.url_name == 'dashboard' %}portal-nav-link-active{% endif %}">
         Dashboard
       </a>
 
       {% if user.role == 'COORDINATOR' %}
         <a href="{% url 'portal:create-account' %}"
-           class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'create-account' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
+           {% if request.resolver_match.url_name == 'create-account' %}aria-current="page"{% endif %}
+           class="portal-nav-link {% if request.resolver_match.url_name == 'create-account' %}portal-nav-link-active{% endif %}">
           Create Accounts
         </a>
         <a href="{% url 'portal:players' %}"
-           class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'players' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
+           {% if request.resolver_match.url_name == 'players' %}aria-current="page"{% endif %}
+           class="portal-nav-link {% if request.resolver_match.url_name == 'players' %}portal-nav-link-active{% endif %}">
           Players
         </a>
         <a href="{% url 'portal:coaches' %}"
-           class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'coaches' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
+           {% if request.resolver_match.url_name == 'coaches' %}aria-current="page"{% endif %}
+           class="portal-nav-link {% if request.resolver_match.url_name == 'coaches' %}portal-nav-link-active{% endif %}">
           Coaches
         </a>
         <a href="{% url 'portal:guardians' %}"
-           class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'guardians' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
+           {% if request.resolver_match.url_name == 'guardians' %}aria-current="page"{% endif %}
+           class="portal-nav-link {% if request.resolver_match.url_name == 'guardians' %}portal-nav-link-active{% endif %}">
           Guardians
         </a>
       {% elif user.role == 'SCHOOL_STAFF' %}
         {% if request.user.club.is_school_affiliated %}
           <a href="{% url 'portal:staff-eligibility' %}"
-             class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'staff-eligibility' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
+             {% if request.resolver_match.url_name == 'staff-eligibility' %}aria-current="page"{% endif %}
+             class="portal-nav-link {% if request.resolver_match.url_name == 'staff-eligibility' %}portal-nav-link-active{% endif %}">
             Academic Eligibility
           </a>
         {% endif %}
         <a href="{% url 'portal:staff-disputes' %}"
-           class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors {% if request.resolver_match.url_name == 'staff-disputes' or request.resolver_match.url_name == 'staff-dispute-detail' %}bg-black/20 text-white font-semibold{% else %}text-white/80 hover:bg-black/10 hover:text-white{% endif %}">
+           {% if request.resolver_match.url_name == 'staff-disputes' or request.resolver_match.url_name == 'staff-dispute-detail' %}aria-current="page"{% endif %}
+           class="portal-nav-link {% if request.resolver_match.url_name == 'staff-disputes' or request.resolver_match.url_name == 'staff-dispute-detail' %}portal-nav-link-active{% endif %}">
           Disputes
         </a>
       {% endif %}
     </nav>
 
-    <div class="p-4 border-t border-white/20">
-      <div class="text-xs text-white/70 truncate mb-3">{{ request.user.email }}</div>
-      <a href="{% url 'portal:password-change' %}"
-         class="block text-white/80 hover:text-white text-sm underline mb-2">Change password</a>
+    <div class="border-t border-white/20 p-4">
+      <div class="mb-3 truncate text-xs text-white/80">{{ request.user.email }}</div>
+      <a href="{% url 'portal:password-change' %}" class="portal-account-link">Change password</a>
       <form method="post" action="{% url 'portal:logout' %}">
         {% csrf_token %}
-        <button type="submit" class="text-white/80 hover:text-white text-sm underline">Log out</button>
+        <button type="submit" class="portal-account-link mt-1 text-left">Log out</button>
       </form>
     </div>
   </aside>
 
-  <!-- Main area -->
-  <div class="flex-1 flex flex-col overflow-hidden">
-    <header class="bg-white border-b border-gray-200 px-8 py-4 flex-shrink-0 flex items-center justify-between">
-      {% block page_title %}<span class="text-xl font-bold text-gray-900">Dashboard</span>{% endblock %}
-      {% block breadcrumb %}<span class="text-sm text-gray-500">Home</span>{% endblock %}
+  <div class="min-w-0 flex-1 lg:flex lg:h-screen lg:flex-col lg:overflow-hidden">
+    <header class="flex min-h-[73px] flex-shrink-0 items-center justify-between gap-4 border-b border-gray-200 bg-white px-4 py-3 sm:px-6 lg:px-8 lg:py-4">
+      {% block page_title %}<h1 class="text-xl font-bold text-gray-900">Dashboard</h1>{% endblock %}
+      <nav class="hidden text-sm text-gray-500 sm:block" aria-label="Breadcrumb">
+        {% block breadcrumb %}<span>Home</span>{% endblock %}
+      </nav>
     </header>
 
-    <main class="flex-1 overflow-y-auto bg-gray-50 p-8">
+    <main id="main-content" tabindex="-1" class="min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-gray-50 p-4 sm:p-6 lg:p-8">
       {% if messages %}
-        {% for message in messages %}
-        <div class="mb-4 px-4 py-3 rounded-lg text-sm font-medium border
-          {% if message.tags == 'success' %}bg-green-50 text-green-800 border-green-200
-          {% elif message.tags == 'error' %}bg-red-50 text-red-800 border-red-200
-          {% else %}bg-blue-50 text-blue-800 border-blue-200{% endif %}">
-          {{ message }}
+        <div aria-live="polite" aria-atomic="true">
+          {% for message in messages %}
+          <div class="mb-4 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm font-medium
+            {% if message.tags == 'success' %}bg-green-50 text-green-900 border-green-200
+            {% elif message.tags == 'error' %}bg-red-50 text-red-900 border-red-200
+            {% else %}bg-blue-50 text-blue-900 border-blue-200{% endif %}"
+            {% if message.tags == 'error' %}role="alert"{% endif %}>
+            <span aria-hidden="true">{% if message.tags == 'success' %}✓{% elif message.tags == 'error' %}!{% else %}i{% endif %}</span>
+            <span>{{ message }}</span>
+          </div>
+          {% endfor %}
         </div>
-        {% endfor %}
       {% endif %}
 
       {% block content %}{% endblock %}
     </main>
   </div>
 </div>
+
+<script src="{% static 'portal/portal.js' %}"></script>
+{% block extra_scripts %}{% endblock %}
 </body>
 </html>

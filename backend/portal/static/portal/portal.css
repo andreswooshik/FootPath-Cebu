@@ -1,3 +1,89 @@
+:root {
+  --fp-green-dark: #0F6B4E;
+  --fp-green-dark-hover: #0B573F;
+  --fp-green-accent: #16C172;
+  --fp-focus: #0B63CE;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  min-width: 320px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(-160%);
+  border-radius: 0.5rem;
+  background: #111827;
+  color: #fff;
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  transition: transform 150ms ease;
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--fp-focus);
+  outline-offset: 3px;
+}
+
+.icon-button {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid;
+  border-radius: 0.75rem;
+}
+
+.portal-nav-link {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  border-radius: 0.625rem;
+  padding: 0.625rem 1rem;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.portal-nav-link:hover {
+  background: rgba(0, 0, 0, 0.14);
+  color: #fff;
+}
+
+.portal-nav-link-active {
+  background: rgba(0, 0, 0, 0.24);
+  color: #fff;
+}
+
+.portal-account-link {
+  display: block;
+  min-height: 2.25rem;
+  border-radius: 0.375rem;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.875rem;
+  line-height: 2.25rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.portal-account-link:hover {
+  color: #fff;
+}
+
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -68,7 +154,7 @@ label {
   user-select: all;
 }
 .btn {
-  background: #16C172;
+  background: var(--fp-green-dark);
   color: #fff;
   border: none;
   padding: 0.625rem 1.25rem;
@@ -77,4 +163,15 @@ label {
   font-weight: 600;
   cursor: pointer;
 }
-.btn:hover { background: #059669; }
+.btn:hover { background: var(--fp-green-dark-hover); }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
