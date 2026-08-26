@@ -92,6 +92,50 @@ Suggested requirement wording:
 | Testing effort | Moderate | High; every permission combination needs coverage |
 | Recommended for current capstone scope | Yes | Only if explicitly required |
 
+## Incomplete or Unresolved Items for Project Planning
+
+The following items should be discussed before the next development plan is approved. This list is based on the current implementation, not the superseded historical audit documents.
+
+### A. Decisions Required Before Development
+
+| ID | Item | Current situation | What must be decided |
+|---|---|---|---|
+| D1 | Meaning of “manage permissions” | Fixed roles, selected role changes, and account activation/deactivation are implemented. Individual permission switches are not implemented. | Approve fixed-role management or request configurable per-user permissions. |
+| D2 | Official number of roles | The requirement says five roles, but the system has six: Super Admin, Club Coordinator, Coach, Player, School Staff, and Guardian. | Approve Club Coordinator as the sixth role or remove/merge that responsibility. |
+| D3 | Who may create accounts | The requirement says account creation is restricted to Admin. The implemented hierarchy lets the Super Admin create the Club Coordinator, while the Coordinator provisions users within their own Club. | Approve the delegated Coordinator model or require all accounts to be created by Super Admin. |
+| D4 | Authentication method for every role | Coach, Player, and Guardian use Firebase. Super Admin uses the Firebase-backed console. Club Coordinator and School Staff use Django web-session credentials. | Approve mixed authentication by interface or require Firebase authentication literally for all six roles. |
+| D5 | Meaning of “performance trends” | Match-statistic trends and squad attendance/effort progress are implemented. Historical snapshots of the Player's editable profile attributes are not stored; a new assessment replaces the previous values. | Confirm whether current trends are enough or whether assessment-history charts are required. |
+
+### B. Implementation or Verification Still Incomplete
+
+| Priority | Item | What exists now | Remaining work |
+|---|---|---|---|
+| High | School Staff participation in disputes | The backend contains School Staff authorization rules for dispute viewing and responses. | Add a School Staff portal page and session-authenticated workflow. Without it, a normal School Staff user has no usable dispute interface. |
+| High if selected | Configurable individual permissions | Fixed server-enforced roles are implemented. | Only required if consultation selects Option B: add permission data, Admin controls, enforcement, audit events, migrations, and security tests. |
+| Medium | Live push-notification proof | Notification records, read state, device tokens, FCM sending, foreground handling, and navigation are implemented and locally tested. | Demonstrate and record delivery on supported physical devices with the real Firebase/APNs configuration. |
+| Medium if required | Historical assessment trends | Current profile ratings and notes are saved, while match trends are historical. | Add append-only assessment snapshots, an API, charts, and migration/tests only if D5 requires this meaning of performance trends. |
+
+### C. Recently Completed and Not Part of the Remaining Plan
+
+The following should not be listed as unfinished:
+
+- Coach creation and management of match records and Player match statistics.
+- Player access to their own match-performance statistics and trends.
+- Read-only match-statistics access for a Guardian who is linked to the Player and passes the existing privacy gate.
+- Admin-configurable age-tier settings and the three default age tiers.
+- Attendance offline queueing and automatic replay.
+- Eligibility status/history without storing grades.
+- General audit logging and Admin dispute review.
+
+### Suggested Planning Order
+
+1. Resolve D1–D5 during consultation and record the approved wording.
+2. Build the School Staff dispute portal workflow.
+3. Implement only the optional features selected during consultation.
+4. Run the full automated regression suites.
+5. Perform and record the physical-device notification test.
+6. Update the requirements, user manual, diagrams, and defense documents so they all describe the approved behavior.
+
 ## Questions for Consultation
 
 The adviser, client, or project owner should answer the following:
