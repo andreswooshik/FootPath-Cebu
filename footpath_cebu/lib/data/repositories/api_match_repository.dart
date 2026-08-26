@@ -6,9 +6,10 @@ import 'package:footpath_cebu/domain/entities/match_performance.dart';
 import 'package:footpath_cebu/domain/repositories/match_repository.dart';
 
 class ApiMatchRepository implements MatchRepository {
-  ApiMatchRepository({AuthenticatedApiClient? api})
+  ApiMatchRepository({this.unlockTokenFor, AuthenticatedApiClient? api})
     : _api = api ?? AuthenticatedApiClient.shared;
 
+  final String? Function(String playerId)? unlockTokenFor;
   final AuthenticatedApiClient _api;
 
   @override
@@ -105,9 +106,14 @@ class ApiMatchRepository implements MatchRepository {
 
   @override
   Future<PlayerMatchStatistics> fetchPlayerStatistics(String playerId) async {
+    final unlockToken = unlockTokenFor?.call(playerId);
     try {
       final response = await _api.get(
         '/api/players/$playerId/match-statistics/',
+        headers: {
+          if (unlockToken != null && unlockToken.isNotEmpty)
+            'X-Player-Unlock': unlockToken,
+        },
       );
       return PlayerMatchStatistics.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,

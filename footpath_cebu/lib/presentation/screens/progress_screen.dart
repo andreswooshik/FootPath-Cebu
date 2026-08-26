@@ -32,36 +32,30 @@ class ProgressScreen extends ConsumerWidget {
     final content = PlayerPrivacyGate(
       player: player,
       isGuardian: isGuardian,
-      child: isGuardian
-          ? _TrainingFeedbackView(playerId: player.id)
-          : TabBarView(
-              children: [
-                PlayerMatchStatisticsView(playerId: player.id),
-                _TrainingFeedbackView(playerId: player.id),
-              ],
-            ),
+      child: TabBarView(
+        children: [
+          PlayerMatchStatisticsView(playerId: player.id),
+          _TrainingFeedbackView(playerId: player.id),
+        ],
+      ),
     );
     final scaffold = Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('Progress'),
-        bottom: isGuardian
-            ? null
-            : const TabBar(
-                tabs: [
-                  Tab(text: 'Matches'),
-                  Tab(text: 'Training Feedback'),
-                ],
-              ),
+        bottom: const TabBar(
+          tabs: [
+            Tab(text: 'Matches'),
+            Tab(text: 'Training Feedback'),
+          ],
+        ),
       ),
       body: content,
     );
-    return isGuardian
-        ? scaffold.animateScreenEntrance()
-        : DefaultTabController(
-            length: 2,
-            child: scaffold,
-          ).animateScreenEntrance();
+    return DefaultTabController(
+      length: 2,
+      child: scaffold,
+    ).animateScreenEntrance();
   }
 }
 

@@ -87,4 +87,34 @@ void main() {
       expect(saved.coachRating, 8);
     },
   );
+
+  test('guardian statistics read sends the player unlock token', () async {
+    late http.Request captured;
+    final api = AuthenticatedApiClient(
+      identityProvider: () =>
+          ApiIdentity(uid: 'guardian-1', getIdToken: (_) async => 'id-token'),
+      httpClient: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'playerId': 'p1',
+            'playerName': 'Ana Santos',
+            'summary': <String, dynamic>{},
+            'performances': <Map<String, dynamic>>[],
+          }),
+          200,
+        );
+      }),
+    );
+    final repository = ApiMatchRepository(
+      api: api,
+      unlockTokenFor: (playerId) => 'unlock-$playerId',
+    );
+
+    await repository.fetchPlayerStatistics('p1');
+
+    expect(captured.method, 'GET');
+    expect(captured.url.path, '/api/players/p1/match-statistics/');
+    expect(captured.headers['X-Player-Unlock'], 'unlock-p1');
+  });
 }

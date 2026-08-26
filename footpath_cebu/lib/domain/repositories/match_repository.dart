@@ -1,7 +1,7 @@
 import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/domain/entities/match_performance.dart';
 
-/// Read capability shared by players and authorized coaching staff.
+/// Read capability shared by players and authorized family/coaching staff.
 abstract interface class MatchStatisticsReader {
   Future<PlayerMatchStatistics> fetchPlayerStatistics(String playerId);
 }

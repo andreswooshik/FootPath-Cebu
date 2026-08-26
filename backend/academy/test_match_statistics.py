@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from accounts.models import Club, Roles, User
+from accounts.models import Club, GuardianLink, Roles, User
 
 from .models import (
     AgeTier,
@@ -13,6 +13,8 @@ from .models import (
     PlayerMatchPerformance,
     PlayerProfile,
 )
+from .pin_service import set_pin
+from .player_unlock import issue_player_unlock
 
 
 def _club(name):
@@ -298,8 +300,29 @@ class MatchPerformanceApiTests(APITestCase):
         self.client.force_authenticate(self.coach_b)
         self.assertEqual(self.client.get(url).status_code, 403)
 
-    def test_guardian_cannot_read_match_statistics(self):
+    def test_linked_guardian_reads_statistics_when_no_pin_exists(self):
         guardian = _user('guardian@match.test', Roles.GUARDIAN, self.club_a)
+        GuardianLink.objects.create(guardian=guardian, player=self.player_a)
         url = reverse('player-match-statistics', args=[self.player_a.id])
         self.client.force_authenticate(guardian)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_linked_guardian_requires_player_unlock_when_pin_exists(self):
+        guardian = _user('guardian@match.test', Roles.GUARDIAN, self.club_a)
+        GuardianLink.objects.create(guardian=guardian, player=self.player_a)
+        set_pin(self.player_a, '1234')
+        url = reverse('player-match-statistics', args=[self.player_a.id])
+        self.client.force_authenticate(guardian)
+
         self.assertEqual(self.client.get(url).status_code, 403)
+        token = issue_player_unlock(guardian.id, self.player_a.id)
+        response = self.client.get(url, HTTP_X_PLAYER_UNLOCK=token)
+        self.assertEqual(response.status_code, 200)
+
+    def test_unlinked_guardian_cannot_use_a_player_unlock(self):
+        guardian = _user('guardian@match.test', Roles.GUARDIAN, self.club_a)
+        url = reverse('player-match-statistics', args=[self.player_a.id])
+        token = issue_player_unlock(guardian.id, self.player_a.id)
+        self.client.force_authenticate(guardian)
+        response = self.client.get(url, HTTP_X_PLAYER_UNLOCK=token)
+        self.assertEqual(response.status_code, 403)

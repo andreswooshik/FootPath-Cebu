@@ -41,7 +41,7 @@ SOLID shows up concretely: use cases depend on **narrow** repository interfaces 
 `CoachDashboardScreen` (View) → `filteredSquadProvider`/`squadProvider` → `GetSquad` (use case) → `SquadRepository` → `MockPlayerRepository` / `ApiPlayerRepository`. Mock is the debug default; run against the live backend with `--dart-define=USE_MOCK=false` (release builds are always live).
 
 **Feature trace — Match performance:**
-`CoachMatchesScreen` / `PlayerMatchStatisticsView` → match providers → narrow match use cases → `MatchManager` / `MatchStatisticsReader` → `MockMatchRepository` / `ApiMatchRepository`. Django stamps match ownership from the authenticated Coach, validates same-Club players, and exposes read-only self/Coach/Admin trend data.
+`CoachMatchesScreen` / `PlayerMatchStatisticsView` → match providers → narrow match use cases → `MatchManager` / `MatchStatisticsReader` → `MockMatchRepository` / `ApiMatchRepository`. Django stamps match ownership from the authenticated Coach, validates same-Club players, and exposes read-only trends to the Player, same-Club Coach, Admin, and linked Guardians through the existing privacy-PIN unlock.
 
 Tests live in `footpath_cebu/test/` (entity round-trips, provider filtering/error paths via `ProviderContainer` overrides, dashboard widget tests inside `ProviderScope`). Run with `flutter test`.
 
@@ -188,6 +188,7 @@ class AttendanceLogController extends Notifier<AttendanceLogState> {
 - [x] Players read their own protected data
 - [x] Coaches record same-Club match statistics and view player trends
 - [x] Players view their own match summaries, history, and rating trends
+- [x] Linked Guardians view player match trends through the privacy-PIN gate
 - [x] Guardians require a same-Club link and privacy unlock
 - [x] Coaches are limited to their Club
 - [x] School Staff eligibility exists only for School Clubs

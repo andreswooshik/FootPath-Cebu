@@ -207,7 +207,11 @@ final progressRepositoryProvider = Provider<ProgressRepository>(
 );
 
 final matchRepositoryProvider = Provider<MatchRepository>(
-  (ref) => useMockData ? MockMatchRepository() : ApiMatchRepository(),
+  (ref) => useMockData
+      ? MockMatchRepository()
+      : ApiMatchRepository(
+          unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
+        ),
 );
 
 final ageTierRepositoryProvider = Provider<AgeTierRepository>(

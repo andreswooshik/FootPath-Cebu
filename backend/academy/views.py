@@ -127,17 +127,18 @@ def _guardian_may_read(user, player_id):
 
 
 def _may_read_match_statistics(user, player_id):
-    """Match statistics are visible to the player, own-club Coach, and Admin.
-
-    Guardian access is deliberately not inherited from generic profile reads:
-    this feature's approved audience is the Player and their coaching staff.
-    """
+    """Authorize the player and the adults responsible for their development."""
     if user.role == Roles.ADMIN:
         return True
     if user.role == Roles.COACH:
         return _in_same_club(user, player_id)
     if user.role == Roles.PLAYER:
         return str(user.id) == str(player_id)
+    if user.role == Roles.GUARDIAN:
+        return GuardianLink.objects.filter(
+            guardian=user,
+            player_id=player_id,
+        ).exists()
     return False
 
 
@@ -752,6 +753,7 @@ class PlayerMatchStatisticsView(APIView):
     def get(self, request, player_id):
         if not _may_read_match_statistics(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
+        _require_unlock_when_pin_exists(request, player_id)
         player = get_object_or_404(
             User.objects.select_related('player_profile'),
             pk=player_id,
