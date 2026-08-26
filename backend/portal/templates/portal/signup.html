@@ -1,74 +1,62 @@
-{% load static %}
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Club application · FootPath</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
-        },
-      },
-    };
-  </script>
-  <link rel="stylesheet" href="{% static 'portal/portal.css' %}">
-</head>
-<body class="font-sans bg-gray-50 min-h-screen flex flex-col">
-  <div class="bg-[#16C172] px-8 py-4">
-    <span class="text-white font-bold text-lg">⚽ FootPath</span>
+{% extends 'portal/public_base.html' %}
+{% block title %}Club application · FootPath{% endblock %}
+{% block header_action %}
+  <a href="{% url 'portal:login' %}" class="rounded-md px-2 py-1 text-sm font-semibold text-white underline decoration-white/50 underline-offset-4 hover:decoration-white">Log in</a>
+{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white p-6 shadow-md sm:p-10">
+  <div class="mb-7">
+    <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-bold uppercase tracking-wide text-green-900">Club registration</span>
+    <h1 class="mt-3 text-2xl font-bold text-gray-900">Apply to join FootPath</h1>
+    <p class="mt-2 text-sm leading-6 text-gray-600">
+      Register your club and proposed Club Coordinator. A FootPath administrator will review the application before portal access is enabled.
+    </p>
   </div>
-  <main class="flex-1 flex items-center justify-center p-4 sm:p-8">
-    <div class="bg-white rounded-2xl shadow-md border border-gray-100 max-w-lg w-full p-6 sm:p-10">
-      <h1 class="text-2xl font-bold text-gray-900">Apply to join FootPath</h1>
-      <p class="text-sm text-gray-500 mt-2 mb-6">
-        Register your club and proposed Club Coordinator. A FootPath Super Admin
-        will review the application before the coordinator can log in.
-      </p>
 
-      {% if messages %}
-        {% for message in messages %}
-          <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
-            {{ message }}
-          </div>
-        {% endfor %}
-      {% endif %}
+  {% if messages %}
+    {% for message in messages %}
+      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">{{ message }}</div>
+    {% endfor %}
+  {% endif %}
 
-      {% if form.non_field_errors %}
-        <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
-          {{ form.non_field_errors }}
-        </div>
-      {% endif %}
+  {% if form.non_field_errors %}
+    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">{{ form.non_field_errors }}</div>
+  {% endif %}
 
-      <form method="post" enctype="multipart/form-data" novalidate>
-        {% csrf_token %}
-        {% for field in form %}
-          <div class="mb-4">
+  <form method="post" enctype="multipart/form-data" novalidate data-submit-once>
+    {% csrf_token %}
+    <div class="grid gap-x-5 sm:grid-cols-2">
+      {% for field in form %}
+        <div class="mb-4 {% if field.name == 'coach_license' or field.name == 'is_school_affiliated' or field.name == 'school_name' or field.name == 'password1' or field.name == 'password2' %}sm:col-span-2{% endif %}"
+             {% if field.name == 'school_name' %}data-school-name-field{% endif %}>
+          {% if field.name == 'is_school_affiliated' %}
+            <label class="checkbox-field" for="{{ field.id_for_label }}">
+              {{ field }}
+              <span>{{ field.label }}</span>
+            </label>
+          {% else %}
             {{ field.label_tag }}
-            {{ field }}
-            {% if field.help_text %}<p class="text-xs text-gray-500 mt-1">{{ field.help_text }}</p>{% endif %}
-            {% if field.errors %}
-              <ul class="errorlist">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% if field.name == 'password1' or field.name == 'password2' %}
+              <div class="password-control">
+                {{ field }}
+                <button type="button" class="password-toggle" data-password-toggle aria-label="Show {{ field.label|lower }}">Show</button>
+              </div>
+            {% else %}
+              {{ field }}
             {% endif %}
-          </div>
-        {% endfor %}
-        <button type="submit"
-                class="w-full bg-[#16C172] hover:bg-[#059669] text-white rounded-lg py-2.5 font-semibold text-sm transition-colors mt-2">
-          Submit application
-        </button>
-      </form>
-
-      <p class="text-center text-sm text-gray-500 mt-5">
-        Already approved?
-        <a href="{% url 'portal:login' %}" class="text-green-600 hover:underline font-medium">Log in</a>
-      </p>
+          {% endif %}
+          {% if field.help_text %}<div class="field-help">{{ field.help_text|safe }}</div>{% endif %}
+          {% if field.errors %}<ul class="errorlist">{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+      {% endfor %}
     </div>
-  </main>
-</body>
-</html>
+    <button type="submit" class="portal-button-primary mt-2 w-full" data-loading-label="Submitting application…">Submit application</button>
+  </form>
+
+  <p class="mt-6 text-center text-sm text-gray-500">
+    Already approved?
+    <a href="{% url 'portal:login' %}" class="font-semibold text-[var(--fp-green-dark)] underline-offset-4 hover:underline">Log in</a>
+  </p>
+</div>
+{% endblock %}

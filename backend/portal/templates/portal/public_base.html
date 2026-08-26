@@ -1,0 +1,41 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0F6B4E">
+  <title>{% block title %}FootPath{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="{% static 'portal/portal.css' %}">
+</head>
+<body class="min-h-screen bg-gray-50 font-sans text-gray-900">
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <header class="bg-[var(--fp-green-dark)] px-4 py-3 text-white sm:px-8 sm:py-4">
+    <div class="mx-auto flex max-w-6xl items-center justify-between gap-4">
+      <a href="{% url 'portal:login' %}" class="inline-flex items-center gap-2 rounded-md text-lg font-bold text-white">
+        <span aria-hidden="true">⚽</span>
+        <span>FootPath</span>
+      </a>
+      {% block header_action %}{% endblock %}
+    </div>
+  </header>
+  <main id="main-content" tabindex="-1" class="flex min-h-[calc(100vh-60px)] items-center justify-center p-4 sm:p-8">
+    {% block content %}{% endblock %}
+  </main>
+  <script src="{% static 'portal/portal.js' %}"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

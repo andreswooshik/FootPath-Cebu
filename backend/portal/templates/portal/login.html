@@ -1,70 +1,50 @@
-{% load static %}
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Log in · FootPath</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
-        },
-      },
-    };
-  </script>
-  <link rel="stylesheet" href="{% static 'portal/portal.css' %}">
-</head>
-<body class="font-sans bg-gray-50 min-h-screen flex flex-col">
+{% extends 'portal/public_base.html' %}
+{% block title %}Log in · FootPath{% endblock %}
+{% block header_action %}
+  <a href="{% url 'portal:signup' %}" class="rounded-md px-2 py-1 text-sm font-semibold text-white underline decoration-white/50 underline-offset-4 hover:decoration-white">Register a club</a>
+{% endblock %}
 
-  <div class="bg-[#16C172] px-8 py-4">
-    <span class="text-white font-bold text-lg">⚽ FootPath</span>
+{% block content %}
+<div class="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-md sm:p-10">
+  <div class="mb-7 text-center">
+    <div class="mb-2 text-4xl" aria-hidden="true">⚽</div>
+    <div class="text-2xl font-bold text-[var(--fp-green-dark)]">FootPath</div>
+    <p class="mt-1 text-sm text-gray-500">Club management portal</p>
   </div>
 
-  <main class="flex-1 flex items-center justify-center p-8">
-    <div class="bg-white rounded-2xl shadow-md border border-gray-100 max-w-md w-full p-10">
-      <div class="text-center mb-8">
-        <div class="text-4xl mb-2">⚽</div>
-        <div class="text-2xl font-bold text-green-500">FootPath</div>
-        <p class="text-sm text-gray-500 mt-1">Club Coordinator Portal</p>
-      </div>
+  <h1 class="text-xl font-bold text-gray-900">Welcome back</h1>
+  <p class="mb-6 mt-1 text-sm text-gray-500">Sign in as a Club Coordinator or School Staff member.</p>
 
-      <h1 class="text-xl font-semibold text-gray-900">Portal login</h1>
-      <p class="text-sm text-gray-500 mb-6">For club coordinators and school staff.</p>
-
-      {% if form.non_field_errors %}
-        <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
-          {{ form.non_field_errors }}
-        </div>
-      {% endif %}
-
-      <form method="post" novalidate>
-        {% csrf_token %}
-        <div class="mb-4">
-          <label for="{{ form.username.id_for_label }}">Email</label>
-          {{ form.username }}
-        </div>
-        <div class="mb-4">
-          <label for="{{ form.password.id_for_label }}">Password</label>
-          {{ form.password }}
-        </div>
-        <button type="submit"
-                class="w-full bg-[#16C172] hover:bg-[#059669] text-white rounded-lg py-2.5 font-medium text-sm transition-colors">
-          Log in
-        </button>
-      </form>
-
-      <p class="text-center text-sm text-gray-500 mt-4">
-        New club?
-        <a href="{% url 'portal:signup' %}" class="text-green-600 hover:underline">Sign up as a coordinator</a>.
-      </p>
+  {% if form.non_field_errors %}
+    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">
+      {{ form.non_field_errors }}
     </div>
-  </main>
+  {% endif %}
 
-</body>
-</html>
+  <form method="post" novalidate data-submit-once>
+    {% csrf_token %}
+    <div class="mb-4">
+      <label for="{{ form.username.id_for_label }}">Email</label>
+      {{ form.username }}
+      {% for error in form.username.errors %}<p class="errorlist">{{ error }}</p>{% endfor %}
+    </div>
+    <div class="mb-2">
+      <label for="{{ form.password.id_for_label }}">Password</label>
+      <div class="password-control">
+        {{ form.password }}
+        <button type="button" class="password-toggle" data-password-toggle aria-label="Show password">Show</button>
+      </div>
+      {% for error in form.password.errors %}<p class="errorlist">{{ error }}</p>{% endfor %}
+    </div>
+    <p class="mb-5 text-xs leading-5 text-gray-500">
+      Trouble signing in? Ask a FootPath administrator to verify that your portal account is active.
+    </p>
+    <button type="submit" class="portal-button-primary w-full" data-loading-label="Signing in…">Log in</button>
+  </form>
+
+  <div class="mt-6 border-t border-gray-200 pt-5 text-center text-sm text-gray-500">
+    New club?
+    <a href="{% url 'portal:signup' %}" class="font-semibold text-[var(--fp-green-dark)] underline-offset-4 hover:underline">Apply as a coordinator</a>.
+  </div>
+</div>
+{% endblock %}

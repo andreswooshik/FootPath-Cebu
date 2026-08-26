@@ -1,18 +1,33 @@
-{% comment %}One account-creation form section. Params: title, type, form.{% endcomment %}
-<section class="card" id="{{ type }}">
-  <h2>{{ title }}</h2>
-  <form method="post" action="{% url 'portal:create-account' %}#{{ type }}" novalidate>
+<section id="account-panel-{{ type }}"
+         class="account-panel"
+         role="tabpanel"
+         aria-labelledby="account-tab-{{ type }}"
+         data-account-panel="{{ type }}"
+         {% if active_tab != type %}hidden{% endif %}>
+  <div class="mb-6">
+    <h2 class="text-xl font-bold text-gray-900">Create {{ title }}</h2>
+    <p class="mt-1 text-sm text-gray-500">
+      {% if type == 'player' %}Add identity, birth date, and optional Guardian access for this player.
+      {% elif type == 'guardian' %}Create household access and optionally link an existing player now.
+      {% elif type == 'coach' %}Create mobile access for a coach in {{ request.user.club.name }}.
+      {% else %}Create web-portal access for school eligibility and dispute workflows.{% endif %}
+    </p>
+  </div>
+
+  <form method="post" action="{% url 'portal:create-account' %}#{{ type }}" novalidate data-submit-once>
     {% csrf_token %}
     <input type="hidden" name="account_type" value="{{ type }}">
-    {{ form.non_field_errors }}
-    {% for field in form %}
-      <label class="field">
-        <span>{{ field.label }}{% if field.field.required %} *{% endif %}</span>
-        {{ field }}
-        {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
-        {% for e in field.errors %}<small class="error">{{ e }}</small>{% endfor %}
-      </label>
-    {% endfor %}
-    <button class="btn" type="submit">Create {{ title|lower }}</button>
+    {% if form.non_field_errors %}<div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="grid gap-x-5 sm:grid-cols-2">
+      {% for field in form %}
+        <div class="mb-4 {% if field.name == 'email' or field.name == 'guardian' or field.name == 'player' %}sm:col-span-2{% endif %}">
+          {{ field.label_tag }}
+          {{ field }}
+          {% if field.help_text %}<div class="field-help">{{ field.help_text|safe }}</div>{% endif %}
+          {% for error in field.errors %}<p class="error">{{ error }}</p>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+    <button class="portal-button-primary mt-2 w-full sm:w-auto" type="submit" data-loading-label="Creating {{ title|lower }}…">Create {{ title|lower }}</button>
   </form>
 </section>

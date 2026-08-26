@@ -282,6 +282,142 @@ label {
   color: #6B7280;
 }
 
+.password-control {
+  position: relative;
+}
+
+.password-control input {
+  padding-right: 4.75rem;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.375rem;
+  min-width: 3.75rem;
+  min-height: 2.25rem;
+  transform: translateY(-50%);
+  border-radius: 0.5rem;
+  color: var(--fp-green-dark);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.password-toggle:hover {
+  background: #ECFDF5;
+}
+
+.checkbox-field {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 0.625rem;
+  background: #F9FAFB;
+  cursor: pointer;
+}
+
+.checkbox-field input[type="checkbox"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+}
+
+.field-help {
+  margin-top: 0.375rem;
+  color: #6B7280;
+  font-size: 0.75rem;
+  line-height: 1.35rem;
+}
+
+.field-help ul {
+  margin: 0.375rem 0 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.account-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.account-tabs [role="tab"] {
+  min-height: 5.25rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 0.875rem;
+  background: #fff;
+  padding: 0.875rem;
+  text-align: left;
+  transition: border-color 150ms ease, background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.account-tabs [role="tab"]:hover {
+  border-color: #6B7280;
+}
+
+.account-tabs [role="tab"][aria-selected="true"] {
+  border-color: var(--fp-green-dark);
+  background: #ECFDF5;
+  box-shadow: 0 0 0 1px var(--fp-green-dark);
+}
+
+.account-tab-title,
+.account-tab-description {
+  display: block;
+}
+
+.account-tab-title {
+  color: #111827;
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.account-tab-description {
+  margin-top: 0.25rem;
+  color: #6B7280;
+  font-size: 0.75rem;
+  line-height: 1.15rem;
+}
+
+.account-panel {
+  border: 1px solid #E5E7EB;
+  border-radius: 1rem;
+  background: #fff;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.credential-code {
+  display: block;
+  overflow-wrap: anywhere;
+  border: 1px dashed #86A99C;
+  border-radius: 0.625rem;
+  background: #F0FDF4;
+  padding: 0.75rem 1rem;
+  color: #0F5132;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+
+@media (min-width: 640px) {
+  .account-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .account-panel {
+    padding: 2rem;
+  }
+}
+
 .confirmation-dialog {
   width: min(92vw, 30rem);
   max-width: 30rem;

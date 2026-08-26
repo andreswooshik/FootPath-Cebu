@@ -41,6 +41,114 @@
 })();
 
 (() => {
+  document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+    const input = button.closest('.password-control')?.querySelector('input');
+    if (!input) return;
+
+    button.addEventListener('click', () => {
+      const revealing = input.type === 'password';
+      input.type = revealing ? 'text' : 'password';
+      button.textContent = revealing ? 'Hide' : 'Show';
+      button.setAttribute('aria-label', revealing ? 'Hide password' : 'Show password');
+      input.focus();
+    });
+  });
+})();
+
+(() => {
+  document.querySelectorAll('form[data-submit-once]').forEach((form) => {
+    form.addEventListener('submit', (event) => {
+      const button = event.submitter || form.querySelector('button[type="submit"]');
+      if (!button) return;
+      if (button.disabled) {
+        event.preventDefault();
+        return;
+      }
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.textContent = button.dataset.loadingLabel || 'Please wait…';
+    });
+  });
+})();
+
+(() => {
+  const affiliation = document.getElementById('id_is_school_affiliated');
+  const schoolName = document.querySelector('[data-school-name-field]');
+  if (!affiliation || !schoolName) return;
+
+  const updateSchoolField = () => {
+    schoolName.hidden = !affiliation.checked;
+    const input = schoolName.querySelector('input');
+    if (input) input.disabled = !affiliation.checked;
+  };
+
+  affiliation.addEventListener('change', updateSchoolField);
+  updateSchoolField();
+})();
+
+(() => {
+  const root = document.querySelector('[data-account-tabs]');
+  if (!root) return;
+
+  const tabs = [...root.querySelectorAll('[data-account-tab]')];
+  const panels = [...root.querySelectorAll('[data-account-panel]')];
+  const validTypes = new Set(tabs.map((tab) => tab.dataset.accountTab));
+
+  const activate = (type, updateHash = false) => {
+    if (!validTypes.has(type)) return;
+    tabs.forEach((tab) => {
+      const selected = tab.dataset.accountTab === type;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.accountPanel !== type;
+    });
+    if (updateHash) history.replaceState(null, '', `#${type}`);
+  };
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activate(tab.dataset.accountTab, true));
+    tab.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault();
+      const direction = event.key === 'ArrowRight' ? 1 : -1;
+      const next = tabs[(index + direction + tabs.length) % tabs.length];
+      activate(next.dataset.accountTab, true);
+      next.focus();
+    });
+  });
+
+  const hashType = window.location.hash.slice(1);
+  activate(validTypes.has(hashType) ? hashType : root.dataset.defaultAccountTab);
+})();
+
+(() => {
+  document.querySelectorAll('[data-copy-target]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const target = document.getElementById(button.dataset.copyTarget);
+      if (!target) return;
+      const originalLabel = button.dataset.copyLabel || button.textContent;
+      try {
+        await navigator.clipboard.writeText(target.textContent.trim());
+        button.textContent = 'Copied';
+        button.setAttribute('aria-live', 'polite');
+      } catch (_) {
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        button.textContent = 'Select and copy';
+      }
+      window.setTimeout(() => {
+        button.textContent = originalLabel;
+      }, 2500);
+    });
+  });
+})();
+
+(() => {
   const tables = new Map();
 
   const getTableState = (targetId) => {

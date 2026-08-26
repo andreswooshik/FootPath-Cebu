@@ -127,7 +127,10 @@ def create_account(request):
     available = dict(_ACCOUNT_FORMS)
     if not club.allows_school_staff:
         available.pop('staff', None)
-    forms = {key: cls(club=club) for key, cls in available.items()}
+    forms = {
+        key: cls(club=club, auto_id=f'id_{key}_%s')
+        for key, cls in available.items()
+    }
     active_tab = 'player'
     created = None
 
@@ -139,7 +142,11 @@ def create_account(request):
             return redirect('portal:create-account')
 
         active_tab = account_type
-        form = form_cls(request.POST, club=club)
+        form = form_cls(
+            request.POST,
+            club=club,
+            auto_id=f'id_{account_type}_%s',
+        )
         forms[account_type] = form
         if form.is_valid():
             try:
@@ -163,6 +170,7 @@ def create_account(request):
                     'credential': credential,
                     'is_web': account_type == 'staff',
                     'managed': account_type == 'player' and not user.email,
+                    'account_type': account_type,
                 }
                 messages.success(
                     request,
@@ -174,7 +182,10 @@ def create_account(request):
                     ),
                 )
                 # Reset the submitted tab's form so the fields clear.
-                forms[account_type] = form_cls(club=club)
+                forms[account_type] = form_cls(
+                    club=club,
+                    auto_id=f'id_{account_type}_%s',
+                )
 
     return render(
         request,

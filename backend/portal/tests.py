@@ -303,6 +303,21 @@ class CreateAccountTests(TestCase):
         self.coord, self.club = make_coordinator()
         self.client.force_login(self.coord)
 
+    def test_creation_page_has_role_tabs_and_unique_field_ids(self):
+        response = self.client.get(reverse('portal:create-account'))
+        self.assertContains(response, 'role="tablist"')
+        self.assertContains(response, 'data-account-tab="player"')
+        self.assertContains(response, 'data-account-tab="guardian"')
+        self.assertContains(response, 'id="id_player_first_name"')
+        self.assertContains(response, 'id="id_guardian_first_name"')
+
+    def test_login_form_has_password_visibility_and_loading_hooks(self):
+        self.client.logout()
+        response = self.client.get(reverse('portal:login'))
+        self.assertContains(response, 'data-password-toggle')
+        self.assertContains(response, 'data-submit-once')
+        self.assertContains(response, 'autocomplete="username"')
+
     @_fb_patches
     def test_create_player(self, mock_get, mock_create, _init):
         mock_get.side_effect = firebase_auth.UserNotFoundError('nf')

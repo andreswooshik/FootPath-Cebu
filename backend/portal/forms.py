@@ -5,6 +5,7 @@ player pickers only ever offer members of `club`, and the club is never taken
 from form input (it is derived from `request.user.club` server-side).
 """
 from django import forms
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.password_validation import validate_password
 
 from academy.models import DisputeStatus, Eligibility, PlayerProfile
@@ -15,6 +16,23 @@ from accounts.validators import (
 )
 
 # Coach-license upload guardrails (public, unauthenticated form — keep tight).
+
+
+class PortalAuthenticationForm(AuthenticationForm):
+    """Session-login form with browser-friendly identity metadata."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['username'].widget.attrs.update({
+            'autocomplete': 'username',
+            'autofocus': True,
+            'inputmode': 'email',
+            'placeholder': 'name@example.com',
+        })
+        self.fields['password'].widget.attrs.update({
+            'autocomplete': 'current-password',
+            'placeholder': 'Enter your password',
+        })
 
 
 class CoordinatorSignupForm(forms.Form):
@@ -44,6 +62,13 @@ class CoordinatorSignupForm(forms.Form):
     password2 = forms.CharField(
         widget=forms.PasswordInput, label='Confirm password'
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email'].widget.attrs['autocomplete'] = 'email'
+        self.fields['coordinator_name'].widget.attrs['autocomplete'] = 'name'
+        self.fields['password1'].widget.attrs['autocomplete'] = 'new-password'
+        self.fields['password2'].widget.attrs['autocomplete'] = 'new-password'
 
     def clean_email(self):
         email = self.cleaned_data['email'].strip().lower()
