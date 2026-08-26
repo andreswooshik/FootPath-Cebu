@@ -64,6 +64,31 @@ class _PinRepo implements PlayerPrivacyPinRepository {
       fetchStatus(playerId);
 }
 
+class _SetupPinRepo implements PlayerPrivacyPinRepository {
+  @override
+  Future<PlayerPrivacyPinStatus> fetchStatus(String playerId) async =>
+      const PlayerPrivacyPinStatus(hasPin: false, locked: false);
+
+  @override
+  Future<PlayerPrivacyPinStatus> setPin(
+    String playerId, {
+    required String pin,
+    String? currentPin,
+  }) async => const PlayerPrivacyPinStatus(
+    hasPin: true,
+    locked: false,
+    unlockToken: 'new-pin-unlock-token',
+  );
+
+  @override
+  Future<String> verifyPin(String playerId, String pin) async =>
+      'test-unlock-token';
+
+  @override
+  Future<PlayerPrivacyPinStatus> resetPin(String playerId) async =>
+      const PlayerPrivacyPinStatus(hasPin: false, locked: false);
+}
+
 class _Switcher extends StatefulWidget {
   const _Switcher();
 
@@ -126,5 +151,93 @@ void main() {
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       '',
     );
+  });
+
+  for (final size in <Size>[const Size(360, 640), const Size(800, 1180)]) {
+    testWidgets('first-time PIN setup fits ${size.width.toInt()}px layout', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            playerPrivacyPinRepositoryProvider.overrideWithValue(
+              _SetupPinRepo(),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: PlayerPrivacyGate(
+                player: _first,
+                requirePinSetup: true,
+                child: Text('Private dashboard'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create your privacy PIN'), findsOneWidget);
+      expect(find.text('Choose your PIN'), findsOneWidget);
+      expect(find.byType(TextField), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+
+      final cardWidth = tester.getSize(find.byType(Card)).width;
+      final expectedGutter = size.width >= 600 ? 64 : 32;
+      expect(cardWidth, lessThanOrEqualTo(size.width - expectedGutter));
+    });
+  }
+
+  testWidgets('first-time PIN setup validates and completes the flow', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playerPrivacyPinRepositoryProvider.overrideWithValue(_SetupPinRepo()),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: PlayerPrivacyGate(
+              player: _first,
+              requirePinSetup: true,
+              child: Text('Private dashboard'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), '12');
+    await tester.enterText(fields.at(1), '12');
+    await tester.ensureVisible(find.text('Create PIN and continue'));
+    await tester.tap(find.text('Create PIN and continue'));
+    await tester.pump();
+    expect(find.text('PIN must contain 4 to 6 digits.'), findsOneWidget);
+
+    await tester.enterText(fields.at(0), '1234');
+    await tester.enterText(fields.at(1), '4321');
+    await tester.ensureVisible(find.text('Create PIN and continue'));
+    await tester.tap(find.text('Create PIN and continue'));
+    await tester.pump();
+    expect(
+      find.text('PINs do not match. Try entering them again.'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(fields.at(1), '1234');
+    await tester.ensureVisible(find.text('Create PIN and continue'));
+    await tester.tap(find.text('Create PIN and continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Private dashboard'), findsOneWidget);
   });
 }

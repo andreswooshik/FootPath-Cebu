@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
-import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/screens/player_privacy_pin_screen.dart';
+import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/privacy_pin_ui.dart';
 
 /// Whether child-scoped navigation should be available right now.
 ///
@@ -53,6 +53,9 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
   final _pinController = TextEditingController();
   final _setupPinController = TextEditingController();
   final _setupConfirmController = TextEditingController();
+  final _pinFocus = FocusNode();
+  final _setupPinFocus = FocusNode();
+  final _setupConfirmFocus = FocusNode();
   String? _error;
   bool _busy = false;
 
@@ -76,13 +79,18 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
     _pinController.dispose();
     _setupPinController.dispose();
     _setupConfirmController.dispose();
+    _pinFocus.dispose();
+    _setupPinFocus.dispose();
+    _setupConfirmFocus.dispose();
     super.dispose();
   }
 
   Future<void> _verify() async {
+    if (_busy) return;
     final pin = _pinController.text;
-    if (pin.length < 4) {
+    if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
       setState(() => _error = 'Enter your 4 to 6 digit PIN.');
+      _pinFocus.requestFocus();
       return;
     }
     setState(() {
@@ -105,13 +113,16 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
   }
 
   Future<void> _createPin() async {
+    if (_busy) return;
     final pin = _setupPinController.text;
     if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
       setState(() => _error = 'PIN must contain 4 to 6 digits.');
+      _setupPinFocus.requestFocus();
       return;
     }
     if (pin != _setupConfirmController.text) {
-      setState(() => _error = 'PINs do not match.');
+      setState(() => _error = 'PINs do not match. Try entering them again.');
+      _setupConfirmFocus.requestFocus();
       return;
     }
     setState(() {
@@ -150,6 +161,10 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
     );
   }
 
+  void _clearError() {
+    if (_error != null) setState(() => _error = null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(playerPrivacyPinStatusProvider(widget.player.id));
@@ -172,20 +187,24 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
             player: widget.player,
             pinController: _setupPinController,
             confirmController: _setupConfirmController,
+            pinFocus: _setupPinFocus,
+            confirmFocus: _setupConfirmFocus,
             busy: _busy,
             error: _error,
             onCreate: _createPin,
+            onClearError: _clearError,
           );
         }
         if (!pinStatus.hasPin) return widget.child;
         return _PinPrompt(
           player: widget.player,
-          isGuardian: widget.isGuardian,
           controller: _pinController,
+          focusNode: _pinFocus,
           busy: _busy,
           error: _error,
           locked: pinStatus.locked,
           onVerify: _verify,
+          onClearError: _clearError,
           onOpenPrivacyPin: widget.isGuardian
               ? _openPrivacyPinManagement
               : null,
@@ -200,86 +219,126 @@ class _PinSetupPrompt extends StatelessWidget {
     required this.player,
     required this.pinController,
     required this.confirmController,
+    required this.pinFocus,
+    required this.confirmFocus,
     required this.busy,
     required this.error,
     required this.onCreate,
+    required this.onClearError,
   });
 
   final Player player;
   final TextEditingController pinController;
   final TextEditingController confirmController;
+  final FocusNode pinFocus;
+  final FocusNode confirmFocus;
   final bool busy;
   final String? error;
   final VoidCallback onCreate;
+  final VoidCallback onClearError;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+    final size = MediaQuery.sizeOf(context);
+    final useWideLayout = size.width >= 700 && size.height < 760;
+    return PrivacyPinPanel(
+      maxWidth: useWideLayout ? 760 : 560,
+      child: AutofillGroup(
+        child: useWideLayout
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.shield_outlined, size: 52),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Create your privacy PIN',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Before you continue, create a 4–6 digit PIN for ${player.name}’s private profile.',
-                    textAlign: TextAlign.center,
-                  ),
+                  Expanded(child: _buildHeader()),
+                  const SizedBox(width: 32),
+                  Expanded(child: _buildForm(context)),
+                ],
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildHeader(),
                   const SizedBox(height: 20),
-                  _setupField(pinController, 'Create PIN'),
-                  const SizedBox(height: 12),
-                  _setupField(confirmController, 'Confirm PIN'),
-                  if (error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(error!, style: TextStyle(color: Colors.red.shade700)),
-                  ],
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: busy ? null : onCreate,
-                      child: busy
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Create PIN and continue'),
-                    ),
-                  ),
+                  _buildForm(context),
                 ],
               ),
-            ),
-          ),
-        ),
       ),
     );
   }
 
-  Widget _setupField(TextEditingController controller, String label) {
-    return TextField(
-      controller: controller,
-      obscureText: true,
-      keyboardType: TextInputType.number,
-      maxLength: 6,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        counterText: '',
-      ),
+  Widget _buildHeader() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PrivacyPinHeader(
+          title: 'Create your privacy PIN',
+          description:
+              'Protect ${player.name}’s private profile before you continue.',
+          icon: Icons.shield_outlined,
+        ),
+        const SizedBox(height: 24),
+        const PrivacyPinGuidance(),
+      ],
+    );
+  }
+
+  Widget _buildForm(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Choose your PIN', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          'Enter it twice to make sure it is correct.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 14),
+        PrivacyPinField(
+          controller: pinController,
+          focusNode: pinFocus,
+          label: 'New privacy PIN',
+          enabled: !busy,
+          autofocus: true,
+          onChanged: (_) => onClearError(),
+          onSubmitted: (_) => confirmFocus.requestFocus(),
+        ),
+        const SizedBox(height: 14),
+        PrivacyPinField(
+          controller: confirmController,
+          focusNode: confirmFocus,
+          label: 'Confirm privacy PIN',
+          enabled: !busy,
+          textInputAction: TextInputAction.done,
+          onChanged: (_) => onClearError(),
+          onSubmitted: (_) {
+            if (!busy) onCreate();
+          },
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 14),
+          PrivacyPinErrorBanner(message: error!),
+        ],
+        const SizedBox(height: 22),
+        PrivacyPinPrimaryButton(
+          label: 'Create PIN and continue',
+          onPressed: onCreate,
+          busy: busy,
+          icon: Icons.lock_rounded,
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'You can change this later from Profile → Privacy PIN.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -287,98 +346,83 @@ class _PinSetupPrompt extends StatelessWidget {
 class _PinPrompt extends StatelessWidget {
   const _PinPrompt({
     required this.player,
-    required this.isGuardian,
     required this.controller,
+    required this.focusNode,
     required this.busy,
     required this.error,
     required this.locked,
     required this.onVerify,
+    required this.onClearError,
     required this.onOpenPrivacyPin,
   });
 
   final Player player;
-  final bool isGuardian;
   final TextEditingController controller;
+  final FocusNode focusNode;
   final bool busy;
   final String? error;
   final bool locked;
   final VoidCallback onVerify;
+  final VoidCallback onClearError;
   final VoidCallback? onOpenPrivacyPin;
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.lock_outline, size: 48),
-                  const SizedBox(height: 12),
-                  Text(
-                    '${player.name}\'s private profile',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    locked
-                        ? 'Too many attempts. Try again later.'
-                        : 'Enter the player PIN to continue.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: controller,
-                    enabled: !busy && !locked,
-                    obscureText: true,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: InputDecoration(
-                      labelText: 'Privacy PIN',
-                      errorText: error,
-                      border: const OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => onVerify(),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton(
-                      onPressed: busy || locked ? null : onVerify,
-                      child: busy
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Unlock profile'),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (onOpenPrivacyPin != null)
-                    TextButton.icon(
-                      onPressed: busy ? null : onOpenPrivacyPin,
-                      icon: const Icon(Icons.lock_reset_outlined, size: 18),
-                      label: const Text('Reset PIN in Player privacy PIN'),
-                    )
-                  else
-                    const Text(
-                      'Ask the linked guardian or coordinator to reset it.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12),
-                    ),
-                ],
+    final theme = Theme.of(context);
+    return PrivacyPinPanel(
+      maxWidth: 520,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          PrivacyPinHeader(
+            title: '${player.name}’s private profile',
+            description: locked
+                ? 'This PIN is temporarily locked after too many attempts. Please try again later.'
+                : 'Enter the household privacy PIN to securely continue.',
+            icon: locked ? Icons.lock_clock_outlined : Icons.lock_outline,
+            badgeLabel: locked ? 'TEMPORARILY LOCKED' : 'PIN REQUIRED',
+          ),
+          const SizedBox(height: 24),
+          PrivacyPinField(
+            controller: controller,
+            focusNode: focusNode,
+            label: 'Privacy PIN',
+            enabled: !busy && !locked,
+            autofocus: !locked,
+            textInputAction: TextInputAction.done,
+            onChanged: (_) => onClearError(),
+            onSubmitted: (_) {
+              if (!busy && !locked) onVerify();
+            },
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 14),
+            PrivacyPinErrorBanner(message: error!),
+          ],
+          const SizedBox(height: 20),
+          PrivacyPinPrimaryButton(
+            label: 'Unlock profile',
+            onPressed: locked ? null : onVerify,
+            busy: busy,
+            icon: Icons.lock_open_rounded,
+          ),
+          const SizedBox(height: 10),
+          if (onOpenPrivacyPin != null)
+            TextButton.icon(
+              onPressed: busy ? null : onOpenPrivacyPin,
+              icon: const Icon(Icons.lock_reset_outlined, size: 18),
+              label: const Text('Reset PIN in Player privacy PIN'),
+            )
+          else
+            Text(
+              'Need help? Ask the linked guardian or coordinator to reset the PIN.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ),
-        ),
+        ],
       ),
     );
   }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
@@ -9,6 +8,7 @@ import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/privacy_pin_ui.dart';
 
 class PlayerPrivacyPinScreen extends ConsumerStatefulWidget {
   const PlayerPrivacyPinScreen({
@@ -30,6 +30,9 @@ class _PlayerPrivacyPinScreenState
   final _currentController = TextEditingController();
   final _pinController = TextEditingController();
   final _confirmController = TextEditingController();
+  final _currentFocus = FocusNode();
+  final _pinFocus = FocusNode();
+  final _confirmFocus = FocusNode();
   bool _saving = false;
   String? _error;
 
@@ -38,19 +41,32 @@ class _PlayerPrivacyPinScreenState
     _currentController.dispose();
     _pinController.dispose();
     _confirmController.dispose();
+    _currentFocus.dispose();
+    _pinFocus.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 
   Future<void> _save(bool hasPin) async {
+    if (_saving) return;
+    if (hasPin && !RegExp(r'^\d{4,6}$').hasMatch(_currentController.text)) {
+      setState(() => _error = 'Enter your current 4 to 6 digit PIN.');
+      _currentFocus.requestFocus();
+      return;
+    }
+
     final pin = _pinController.text;
     if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
-      setState(() => _error = 'PIN must contain 4 to 6 digits.');
+      setState(() => _error = 'New PIN must contain 4 to 6 digits.');
+      _pinFocus.requestFocus();
       return;
     }
     if (pin != _confirmController.text) {
-      setState(() => _error = 'PINs do not match.');
+      setState(() => _error = 'PINs do not match. Try entering them again.');
+      _confirmFocus.requestFocus();
       return;
     }
+
     setState(() {
       _saving = true;
       _error = null;
@@ -73,6 +89,10 @@ class _PlayerPrivacyPinScreenState
     }
   }
 
+  void _clearError() {
+    if (_error != null) setState(() => _error = null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(playerPrivacyPinStatusProvider(widget.player.id));
@@ -80,66 +100,136 @@ class _PlayerPrivacyPinScreenState
       appBar: AppBar(title: const Text('Privacy PIN')),
       body: status.when(
         loading: () => const DashboardLoadingState(compact: true),
-        error: (error, _) => Center(child: Text(error.toString())),
-        data: (pinStatus) => ListView(
-          padding: const EdgeInsets.all(24),
+        error: (error, _) => _StatusError(
+          onRetry: () =>
+              ref.invalidate(playerPrivacyPinStatusProvider(widget.player.id)),
+        ),
+        data: (pinStatus) => _buildContent(pinStatus.hasPin),
+      ),
+    ).animateScreenEntrance();
+  }
+
+  Widget _buildContent(bool hasPin) {
+    if (hasPin && widget.isGuardian) {
+      return PrivacyPinPanel(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.lock_outline, size: 56),
-            const SizedBox(height: 16),
-            Text(
-              pinStatus.hasPin && widget.isGuardian
-                  ? 'Manage ${widget.player.name}’s PIN'
-                  : pinStatus.hasPin
-                  ? 'Change your player PIN'
-                  : 'Create your player PIN',
-              style: Theme.of(context).textTheme.headlineSmall,
-              textAlign: TextAlign.center,
+            PrivacyPinHeader(
+              title: 'Manage ${widget.player.name}’s PIN',
+              description:
+                  'A privacy PIN is active for this player’s private profile.',
+              icon: Icons.verified_user_outlined,
+              badgeLabel: 'PIN ACTIVE',
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Use 4 to 6 digits. This protects your player profile on shared household devices.',
-              textAlign: TextAlign.center,
-            ),
-            if (pinStatus.hasPin && widget.isGuardian) ...[
-              const SizedBox(height: 24),
-              const Text(
-                'The player already has a PIN. Reset it before creating a new one.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              FilledButton.tonal(
-                onPressed: _saving ? null : _resetAsGuardian,
-                child: const Text('Reset player PIN'),
-              ),
-            ] else ...[
-              if (pinStatus.hasPin) ...[
-                const SizedBox(height: 24),
-                _pinField(_currentController, 'Current PIN'),
-              ],
-              const SizedBox(height: 12),
-              _pinField(_pinController, 'New PIN'),
-              const SizedBox(height: 12),
-              _pinField(_confirmController, 'Confirm PIN'),
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!, style: TextStyle(color: Colors.red.shade700)),
-              ],
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _saving ? null : () => _save(pinStatus.hasPin),
-                child: _saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(pinStatus.hasPin ? 'Change PIN' : 'Create PIN'),
-              ),
+            const SizedBox(height: 24),
+            _ResetInformation(playerName: widget.player.name),
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              PrivacyPinErrorBanner(message: _error!),
             ],
+            const SizedBox(height: 22),
+            PrivacyPinPrimaryButton(
+              label: 'Verify and reset PIN',
+              onPressed: _resetAsGuardian,
+              busy: _saving,
+              icon: Icons.lock_reset_outlined,
+            ),
+          ],
+        ),
+      );
+    }
+
+    final theme = Theme.of(context);
+    final title = hasPin ? 'Change your privacy PIN' : 'Create a privacy PIN';
+    final description = hasPin
+        ? 'Update the PIN that protects ${widget.player.name}’s private profile.'
+        : 'Add a secure household PIN for ${widget.player.name}’s private profile.';
+
+    return PrivacyPinPanel(
+      child: AutofillGroup(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PrivacyPinHeader(
+              title: title,
+              description: description,
+              icon: hasPin ? Icons.lock_reset_outlined : Icons.shield_outlined,
+              badgeLabel: hasPin ? 'UPDATE SECURITY' : 'PROFILE SECURITY',
+            ),
+            const SizedBox(height: 24),
+            PrivacyPinGuidance(isChange: hasPin),
+            const SizedBox(height: 20),
+            Text(
+              hasPin ? 'Confirm and update' : 'Choose your PIN',
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              hasPin
+                  ? 'Enter your current PIN, then choose a new one.'
+                  : 'Enter it twice to make sure it is correct.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (hasPin) ...[
+              PrivacyPinField(
+                controller: _currentController,
+                focusNode: _currentFocus,
+                label: 'Current privacy PIN',
+                enabled: !_saving,
+                autofocus: true,
+                onChanged: (_) => _clearError(),
+                onSubmitted: (_) => _pinFocus.requestFocus(),
+              ),
+              const SizedBox(height: 14),
+            ],
+            PrivacyPinField(
+              controller: _pinController,
+              focusNode: _pinFocus,
+              label: 'New privacy PIN',
+              enabled: !_saving,
+              autofocus: !hasPin,
+              onChanged: (_) => _clearError(),
+              onSubmitted: (_) => _confirmFocus.requestFocus(),
+            ),
+            const SizedBox(height: 14),
+            PrivacyPinField(
+              controller: _confirmController,
+              focusNode: _confirmFocus,
+              label: 'Confirm privacy PIN',
+              enabled: !_saving,
+              textInputAction: TextInputAction.done,
+              onChanged: (_) => _clearError(),
+              onSubmitted: (_) => _save(hasPin),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 14),
+              PrivacyPinErrorBanner(message: _error!),
+            ],
+            const SizedBox(height: 22),
+            PrivacyPinPrimaryButton(
+              label: hasPin ? 'Save new PIN' : 'Create privacy PIN',
+              onPressed: () => _save(hasPin),
+              busy: _saving,
+              icon: hasPin ? Icons.check_rounded : Icons.lock_rounded,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Your PIN is stored securely and is never displayed in your profile.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),
-    ).animateScreenEntrance();
+    );
   }
 
   Future<void> _resetAsGuardian() async {
@@ -161,6 +251,11 @@ class _PlayerPrivacyPinScreenState
       );
       await ref.read(resetPlayerPrivacyPinProvider)(widget.player.id);
       ref.invalidate(playerPrivacyPinStatusProvider(widget.player.id));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Privacy PIN reset successfully.')),
+        );
+      }
     } on AuthException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } on PlayerPrivacyPinException catch (e) {
@@ -169,18 +264,87 @@ class _PlayerPrivacyPinScreenState
       if (mounted) setState(() => _saving = false);
     }
   }
+}
 
-  Widget _pinField(TextEditingController controller, String label) {
-    return TextField(
-      controller: controller,
-      obscureText: true,
-      keyboardType: TextInputType.number,
-      maxLength: 6,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        counterText: '',
+class _StatusError extends StatelessWidget {
+  const _StatusError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined, size: 44),
+            const SizedBox(height: 12),
+            Text(
+              'Could not check PIN status',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Check your connection and try again.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 18),
+            FilledButton.tonalIcon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ResetInformation extends StatelessWidget {
+  const _ResetInformation({required this.playerName});
+
+  final String playerName;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.admin_panel_settings_outlined, color: colors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Guardian verification required',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'For security, verify your guardian account before removing $playerName’s current PIN. You can create a new PIN after the reset.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -205,12 +369,15 @@ class _GuardianReauthenticationDialogState
     extends State<_GuardianReauthenticationDialog> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordFocus = FocusNode();
+  bool _obscurePassword = true;
   String? _error;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -218,48 +385,91 @@ class _GuardianReauthenticationDialogState
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     if (email.isEmpty || password.isEmpty) {
-      setState(() => _error = 'Enter the guardian email and password.');
+      setState(() => _error = 'Enter your guardian email and password.');
       return;
     }
     Navigator.of(context).pop(_GuardianCredentials(email, password));
   }
 
+  void _clearError(String _) {
+    if (_error != null) setState(() => _error = null);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      icon: const Icon(Icons.verified_user_outlined, size: 34),
       title: const Text('Verify guardian account'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'For security, verify the guardian account before resetting this player PIN.',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Guardian email',
-                border: OutlineInputBorder(),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Confirm your identity before resetting the player’s privacy PIN.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              onSubmitted: (_) => _continue(),
-              decoration: const InputDecoration(
-                labelText: 'Guardian password',
-                border: OutlineInputBorder(),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofocus: true,
+                autofillHints: const [AutofillHints.email],
+                onChanged: _clearError,
+                onSubmitted: (_) => _passwordFocus.requestFocus(),
+                decoration: InputDecoration(
+                  labelText: 'Guardian email',
+                  filled: true,
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
               ),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: TextStyle(color: Colors.red)),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _passwordController,
+                focusNode: _passwordFocus,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                onChanged: _clearError,
+                onSubmitted: (_) => _continue(),
+                decoration: InputDecoration(
+                  labelText: 'Guardian password',
+                  filled: true,
+                  prefixIcon: const Icon(Icons.password_outlined),
+                  suffixIcon: IconButton(
+                    tooltip: _obscurePassword
+                        ? 'Show password'
+                        : 'Hide password',
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 14),
+                PrivacyPinErrorBanner(message: _error!),
+              ],
             ],
-          ],
+          ),
         ),
       ),
       actions: [
@@ -267,7 +477,11 @@ class _GuardianReauthenticationDialogState
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        FilledButton(onPressed: _continue, child: const Text('Verify')),
+        FilledButton.icon(
+          onPressed: _continue,
+          icon: const Icon(Icons.verified_outlined),
+          label: const Text('Verify'),
+        ),
       ],
     );
   }
