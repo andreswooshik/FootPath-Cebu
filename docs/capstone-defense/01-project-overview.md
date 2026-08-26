@@ -87,7 +87,7 @@ The implemented system addresses fragmented academy operations. Without a shared
 | Coach | Flutter mobile app | View squad, schedule sessions, record attendance and match statistics, assess performance, view trends/injuries, raise disputes |
 | Player | Flutter mobile app | View own profile, development and match statistics, attendance, eligibility, injuries, and confirm today's session |
 | Guardian | Flutter mobile app | Select a linked player and, after a player privacy PIN unlock, view permitted player information including match trends |
-| School Staff | Django web portal | Review and change player eligibility for the same club; participate in dispute handling through authorized backend flows |
+| School Staff | Django web portal | Review and change player eligibility for the same club; review and respond to same-club dispute threads through the portal |
 
 `ADMIN`, `COORDINATOR`, and `SCHOOL_STAFF` are present in the backend role enum. The mobile `HomeScreen` has dedicated destinations only for `COACH`, `PLAYER`, and `GUARDIAN`; the other roles receive a generic signed-in placeholder if they authenticate in the app. Their intended interfaces are the admin or web portal.
 

@@ -7,7 +7,7 @@ from form input (it is derived from `request.user.club` server-side).
 from django import forms
 from django.contrib.auth.password_validation import validate_password
 
-from academy.models import Eligibility, PlayerProfile
+from academy.models import DisputeStatus, Eligibility, PlayerProfile
 from accounts.models import Club, Roles, User
 from accounts.validators import (
     COACH_LICENSE_MAX_BYTES,
@@ -167,6 +167,21 @@ class EligibilityUpdateForm(forms.Form):
             'user__last_name', 'user__first_name'
         )
         self.fields['player'].label_from_instance = lambda p: _user_label(p.user)
+
+
+class DisputeResponseForm(forms.Form):
+    """Append a School Staff response and optionally move the dispute."""
+
+    body = forms.CharField(
+        max_length=2000,
+        label='Response',
+        widget=forms.Textarea(attrs={'rows': 5}),
+    )
+    status_change_to = forms.ChoiceField(
+        required=False,
+        label='Update status',
+        choices=[('', 'Keep current status'), *DisputeStatus.choices],
+    )
 
 
 class GuardianLinkForm(forms.Form):

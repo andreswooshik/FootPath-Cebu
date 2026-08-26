@@ -17,7 +17,8 @@ from django.utils.text import slugify
 from firebase_admin import auth as firebase_auth
 
 from academy.models import (
-    AuditLog, Eligibility, EligibilityHistory, PlayerPrivacyPin, PlayerProfile,
+    AuditLog, Dispute, DisputeResponse, DisputeStatus, Eligibility,
+    EligibilityHistory, PlayerPrivacyPin, PlayerProfile,
 )
 from accounts.admin import ClubAdmin, CustomUserAdmin
 from accounts.models import Club, GuardianLink, Roles, User
@@ -510,6 +511,179 @@ class StaffEligibilityTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         other_profile.refresh_from_db()
         self.assertEqual(other_profile.eligibility, Eligibility.PENDING)
+
+
+class StaffDisputeTests(TestCase):
+    def setUp(self):
+        self.coord, self.club = make_coordinator()
+        self.staff, _ = provision_web_user(
+            email='disputes@club.test', first_name='School', last_name='Staff',
+            role=Roles.SCHOOL_STAFF, club=self.club,
+        )
+        self.coach = User.objects.create(
+            username='coach-disputes@club.test',
+            email='coach-disputes@club.test',
+            first_name='Casey',
+            last_name='Coach',
+            role=Roles.COACH,
+            club=self.club,
+            firebase_uid='coach-disputes-uid',
+        )
+        self.player, _profile = make_player(
+            self.club, 'subject@club.test'
+        )
+        self.dispute = Dispute.objects.create(
+            raised_by=self.coach,
+            subject_player=self.player,
+            category='ELIGIBILITY',
+            summary='Eligibility review requested',
+            detail='Please confirm the current status.',
+        )
+        self.client.force_login(self.staff)
+
+    def test_staff_list_is_scoped_to_own_club(self):
+        other_club = Club.objects.create(
+            name='Other Disputes FC', slug='other-disputes'
+        )
+        other_coach = User.objects.create(
+            username='other-coach@club.test',
+            email='other-coach@club.test',
+            role=Roles.COACH,
+            club=other_club,
+            firebase_uid='other-coach-uid',
+        )
+        Dispute.objects.create(
+            raised_by=other_coach,
+            category='OTHER',
+            summary='Private other-club concern',
+        )
+
+        response = self.client.get(reverse('portal:staff-disputes'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.dispute.summary)
+        self.assertNotContains(response, 'Private other-club concern')
+        self.assertContains(response, reverse(
+            'portal:staff-dispute-detail', args=[self.dispute.pk]
+        ))
+
+    def test_staff_can_read_thread_and_submit_response_with_status(self):
+        DisputeResponse.objects.create(
+            dispute=self.dispute,
+            author=self.coach,
+            body='Coach supplied supporting information.',
+        )
+        detail_url = reverse(
+            'portal:staff-dispute-detail', args=[self.dispute.pk]
+        )
+
+        response = self.client.get(detail_url)
+        self.assertContains(response, 'Coach supplied supporting information.')
+        self.assertContains(response, self.player.get_full_name())
+
+        response = self.client.post(detail_url, {
+            'body': 'School records confirm the status-only decision.',
+            'status_change_to': DisputeStatus.UNDER_REVIEW,
+        })
+
+        self.assertRedirects(response, detail_url)
+        self.dispute.refresh_from_db()
+        self.assertEqual(self.dispute.status, DisputeStatus.UNDER_REVIEW)
+        staff_response = self.dispute.responses.get(author=self.staff)
+        self.assertEqual(
+            staff_response.body,
+            'School records confirm the status-only decision.',
+        )
+        self.assertEqual(
+            staff_response.status_change_to, DisputeStatus.UNDER_REVIEW
+        )
+        self.assertTrue(AuditLog.objects.filter(
+            actor=self.staff,
+            action='dispute.responded',
+            target__contains=f'Dispute #{self.dispute.pk}',
+        ).exists())
+
+    def test_response_without_status_change_still_updates_activity_time(self):
+        original_updated_at = self.dispute.updated_at
+        detail_url = reverse(
+            'portal:staff-dispute-detail', args=[self.dispute.pk]
+        )
+
+        response = self.client.post(detail_url, {
+            'body': 'Acknowledged; no status change yet.',
+            'status_change_to': '',
+        })
+
+        self.assertRedirects(response, detail_url)
+        self.dispute.refresh_from_db()
+        self.assertEqual(self.dispute.status, DisputeStatus.OPEN)
+        self.assertGreater(self.dispute.updated_at, original_updated_at)
+
+    def test_invalid_response_does_not_write_or_change_status(self):
+        detail_url = reverse(
+            'portal:staff-dispute-detail', args=[self.dispute.pk]
+        )
+        response = self.client.post(detail_url, {
+            'body': '   ',
+            'status_change_to': 'NOT_A_STATUS',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'This field is required.')
+        self.assertContains(response, 'Select a valid choice.')
+        self.assertFalse(self.dispute.responses.exists())
+        self.dispute.refresh_from_db()
+        self.assertEqual(self.dispute.status, DisputeStatus.OPEN)
+
+    def test_other_club_dispute_is_not_disclosed(self):
+        other_club = Club.objects.create(name='Hidden FC', slug='hidden-fc')
+        other_coach = User.objects.create(
+            username='hidden-coach@club.test',
+            email='hidden-coach@club.test',
+            role=Roles.COACH,
+            club=other_club,
+            firebase_uid='hidden-coach-uid',
+        )
+        hidden = Dispute.objects.create(
+            raised_by=other_coach,
+            category='OTHER',
+            summary='Hidden concern',
+        )
+
+        response = self.client.get(reverse(
+            'portal:staff-dispute-detail', args=[hidden.pk]
+        ))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_non_staff_role_is_forbidden(self):
+        self.client.force_login(self.coord)
+
+        list_response = self.client.get(reverse('portal:staff-disputes'))
+        detail_response = self.client.post(
+            reverse('portal:staff-dispute-detail', args=[self.dispute.pk]),
+            {'body': 'Coordinator must not participate.'},
+        )
+
+        self.assertEqual(list_response.status_code, 403)
+        self.assertEqual(detail_response.status_code, 403)
+        self.assertFalse(self.dispute.responses.exists())
+
+    def test_response_text_is_escaped_when_rendered(self):
+        DisputeResponse.objects.create(
+            dispute=self.dispute,
+            author=self.staff,
+            body='<script>alert("unsafe")</script>',
+        )
+
+        response = self.client.get(reverse(
+            'portal:staff-dispute-detail', args=[self.dispute.pk]
+        ))
+
+        self.assertNotContains(response, '<script>alert("unsafe")</script>')
+        self.assertContains(
+            response, '&lt;script&gt;alert(&quot;unsafe&quot;)&lt;/script&gt;'
+        )
 
 
 class GuardianLinkManagementTests(TestCase):

@@ -51,6 +51,13 @@
       <p class="text-sm text-gray-500 mt-1">Update the academic eligibility of your club's players.</p>
       <span class="text-green-500 font-bold mt-4 block">→</span>
     </a>
+    <a href="{% url 'portal:staff-disputes' %}"
+       class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md hover:border-green-200 transition-all group">
+      <div class="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center text-2xl mb-4">⚑</div>
+      <div class="text-lg font-semibold text-gray-900 group-hover:text-green-600 transition-colors">Disputes</div>
+      <p class="text-sm text-gray-500 mt-1">Review and respond to Coach-raised concerns from your club.</p>
+      <span class="text-green-500 font-bold mt-4 block">→</span>
+    </a>
   </div>
   {% else %}
   <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 max-w-2xl">

@@ -110,7 +110,6 @@ The following items should be discussed before the next development plan is appr
 
 | Priority | Item | What exists now | Remaining work |
 |---|---|---|---|
-| High | School Staff participation in disputes | The backend contains School Staff authorization rules for dispute viewing and responses. | Add a School Staff portal page and session-authenticated workflow. Without it, a normal School Staff user has no usable dispute interface. |
 | High if selected | Configurable individual permissions | Fixed server-enforced roles are implemented. | Only required if consultation selects Option B: add permission data, Admin controls, enforcement, audit events, migrations, and security tests. |
 | Medium | Live push-notification proof | Notification records, read state, device tokens, FCM sending, foreground handling, and navigation are implemented and locally tested. | Demonstrate and record delivery on supported physical devices with the real Firebase/APNs configuration. |
 | Medium if required | Historical assessment trends | Current profile ratings and notes are saved, while match trends are historical. | Add append-only assessment snapshots, an API, charts, and migration/tests only if D5 requires this meaning of performance trends. |
@@ -126,15 +125,15 @@ The following should not be listed as unfinished:
 - Attendance offline queueing and automatic replay.
 - Eligibility status/history without storing grades.
 - General audit logging and Admin dispute review.
+- School Staff dispute list, thread view, responses, and status changes in the session-authenticated portal.
 
 ### Suggested Planning Order
 
 1. Resolve D1–D5 during consultation and record the approved wording.
-2. Build the School Staff dispute portal workflow.
-3. Implement only the optional features selected during consultation.
-4. Run the full automated regression suites.
-5. Perform and record the physical-device notification test.
-6. Update the requirements, user manual, diagrams, and defense documents so they all describe the approved behavior.
+2. Implement only the optional features selected during consultation.
+3. Run the full automated regression suites.
+4. Perform and record the physical-device notification test.
+5. Update the requirements, user manual, diagrams, and defense documents so they all describe the approved behavior.
 
 ## Questions for Consultation
 

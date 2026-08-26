@@ -47,4 +47,10 @@ urlpatterns = [
         name='player-photo',
     ),
     path('eligibility/', views.staff_eligibility, name='staff-eligibility'),
+    path('disputes/', views.staff_disputes, name='staff-disputes'),
+    path(
+        'disputes/<int:pk>/',
+        views.staff_dispute_detail,
+        name='staff-dispute-detail',
+    ),
 ]

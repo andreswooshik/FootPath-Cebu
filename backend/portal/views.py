@@ -26,6 +26,7 @@ from .forms import (
     CreateGuardianForm,
     CreatePlayerForm,
     CreateStaffForm,
+    DisputeResponseForm,
     EligibilityUpdateForm,
     GuardianLinkForm,
 )
@@ -34,7 +35,9 @@ from .services import (
     create_club_account,
     link_guardian,
     register_coordinator,
+    respond_to_dispute,
     set_player_eligibility,
+    staff_dispute_queryset,
     unlink_guardian,
 )
 
@@ -341,4 +344,40 @@ def staff_eligibility(request):
         request,
         'portal/staff_eligibility.html',
         {'form': form, 'roster': roster, 'history': history},
+    )
+
+
+@portal_role_required(Roles.SCHOOL_STAFF)
+def staff_disputes(request):
+    """List dispute threads raised by Coaches in the staff member's Club."""
+    disputes = staff_dispute_queryset(staff=request.user)
+    return render(
+        request,
+        'portal/staff_disputes.html',
+        {'disputes': disputes},
+    )
+
+
+@portal_role_required(Roles.SCHOOL_STAFF)
+def staff_dispute_detail(request, pk):
+    """Show and append to one same-Club dispute thread."""
+    dispute = get_object_or_404(
+        staff_dispute_queryset(staff=request.user),
+        pk=pk,
+    )
+    form = DisputeResponseForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        respond_to_dispute(
+            staff=request.user,
+            dispute_id=dispute.pk,
+            body=form.cleaned_data['body'],
+            status_change_to=form.cleaned_data['status_change_to'],
+        )
+        messages.success(request, 'Your response was added to the dispute.')
+        return redirect('portal:staff-dispute-detail', pk=dispute.pk)
+
+    return render(
+        request,
+        'portal/staff_dispute_detail.html',
+        {'dispute': dispute, 'form': form},
     )
