@@ -42,6 +42,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
   late SessionFocus _focus = widget.existing?.focus ?? SessionFocus.technical;
+  String? _formError;
 
   bool get _isEditing => widget.existing != null;
 
@@ -54,12 +55,14 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
 
   void _toggleTier(AgeTier tier) {
     setState(() {
+      _formError = null;
       if (!_tiers.remove(tier)) _tiers.add(tier);
     });
   }
 
   void _toggleAllTiers() {
     setState(() {
+      _formError = null;
       if (_allTiersSelected) {
         _tiers.clear();
       } else {
@@ -87,7 +90,12 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
       firstDate: first,
       lastDate: DateTime(now.year + 2),
     );
-    if (picked != null) setState(() => _date = picked);
+    if (picked != null) {
+      setState(() {
+        _date = picked;
+        _formError = null;
+      });
+    }
   }
 
   Future<void> _pickTime({required bool isStart}) async {
@@ -96,8 +104,15 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
       initialTime: (isStart ? _startTime : _endTime) ?? TimeOfDay.now(),
     );
     if (picked != null) {
-      setState(() => isStart ? _startTime = picked : _endTime = picked);
+      setState(() {
+        isStart ? _startTime = picked : _endTime = picked;
+        _formError = null;
+      });
     }
+  }
+
+  void _clearFormError() {
+    if (_formError != null) setState(() => _formError = null);
   }
 
   Future<void> _submit() async {
@@ -111,27 +126,22 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
         _date == null ||
         startLabel == null ||
         endLabel == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all the fields.')),
-      );
+      setState(() {
+        _formError =
+            'Complete the title, date, start time, end time, and location.';
+      });
       return;
     }
     if (_tiers.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Pick at least one age tier for this session.'),
-        ),
-      );
+      setState(() {
+        _formError = 'Pick at least one age tier for this session.';
+      });
       return;
     }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     if (_date!.isBefore(today) && !_isEditing) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('The session date cannot be in the past.'),
-        ),
-      );
+      setState(() => _formError = 'The session date cannot be in the past.');
       return;
     }
 
@@ -191,155 +201,166 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
           ],
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(
-            _isEditing ? 'Edit Session' : 'Schedule New Session',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            _isEditing
-                ? 'Change the details — players and guardians are notified.'
-                : 'Plan a new training session for your squad.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 20),
-
-          const _FieldLabel('Session Title'),
-          TextField(
-            controller: _titleController,
-            textCapitalization: TextCapitalization.words,
-            decoration: _fieldDecoration(
-              hint: 'e.g. Tactical Workshop',
-              suffix: const Icon(Icons.edit_outlined, size: 18),
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          const _FieldLabel('Date'),
-          _PickerField(
-            text: _date == null ? 'Select a date' : _formatDate(_date!),
-            placeholder: _date == null,
-            icon: Icons.calendar_today_outlined,
-            onTap: _pickDate,
-          ),
-          const SizedBox(height: 18),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(16),
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _FieldLabel('Start Time'),
-                    _PickerField(
-                      text:
-                          _startTime?.format(context) ??
-                          widget.existing?.startTime ??
-                          'Start',
-                      placeholder:
-                          _startTime == null && widget.existing == null,
-                      icon: Icons.schedule,
-                      onTap: () => _pickTime(isStart: true),
-                    ),
-                  ],
+              Text(
+                _isEditing ? 'Edit Session' : 'Schedule New Session',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _isEditing
+                    ? 'Change the details — players and guardians are notified.'
+                    : 'Plan a new training session for your squad.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 20),
+              if (_formError != null) ...[
+                _FormErrorBanner(message: _formError!),
+                const SizedBox(height: 16),
+              ],
+
+              const _FieldLabel('Session Title'),
+              TextField(
+                controller: _titleController,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.next,
+                onChanged: (_) => _clearFormError(),
+                decoration: _fieldDecoration(
+                  hint: 'e.g. Tactical Workshop',
+                  suffix: const Icon(Icons.edit_outlined, size: 18),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _FieldLabel('End Time'),
-                    _PickerField(
-                      text:
-                          _endTime?.format(context) ??
-                          widget.existing?.endTime ??
-                          'End',
-                      placeholder: _endTime == null && widget.existing == null,
-                      icon: Icons.schedule,
-                      onTap: () => _pickTime(isStart: false),
-                    ),
-                  ],
+              const SizedBox(height: 18),
+
+              const _FieldLabel('Date'),
+              _PickerField(
+                text: _date == null ? 'Select a date' : _formatDate(_date!),
+                placeholder: _date == null,
+                icon: Icons.calendar_today_outlined,
+                onTap: _pickDate,
+              ),
+              const SizedBox(height: 18),
+
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final start = _TimeField(
+                    label: 'Start Time',
+                    text:
+                        _startTime?.format(context) ??
+                        widget.existing?.startTime ??
+                        'Start',
+                    placeholder: _startTime == null && widget.existing == null,
+                    onTap: () => _pickTime(isStart: true),
+                  );
+                  final end = _TimeField(
+                    label: 'End Time',
+                    text:
+                        _endTime?.format(context) ??
+                        widget.existing?.endTime ??
+                        'End',
+                    placeholder: _endTime == null && widget.existing == null,
+                    onTap: () => _pickTime(isStart: false),
+                  );
+                  if (constraints.maxWidth < 520) {
+                    return Column(
+                      key: const Key('session-time-fields-stacked'),
+                      children: [start, const SizedBox(height: 18), end],
+                    );
+                  }
+                  return Row(
+                    key: const Key('session-time-fields-inline'),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: start),
+                      const SizedBox(width: 12),
+                      Expanded(child: end),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+
+              const _FieldLabel('Location'),
+              TextField(
+                controller: _locationController,
+                textCapitalization: TextCapitalization.words,
+                textInputAction: TextInputAction.done,
+                onChanged: (_) => _clearFormError(),
+                onSubmitted: (_) => isSaving ? null : _submit(),
+                decoration: _fieldDecoration(
+                  hint: 'e.g. USJ-R Basak Pitch',
+                  suffix: const Icon(Icons.location_on_outlined, size: 18),
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 18),
+              const SizedBox(height: 18),
 
-          const _FieldLabel('Location'),
-          TextField(
-            controller: _locationController,
-            textCapitalization: TextCapitalization.words,
-            decoration: _fieldDecoration(
-              hint: 'e.g. USJ-R Basak Pitch',
-              suffix: const Icon(Icons.location_on_outlined, size: 18),
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          const _FieldLabel('Age Tiers'),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilterChip(
-                label: const Text('All Tiers'),
-                selected: _allTiersSelected,
-                onSelected: (_) => _toggleAllTiers(),
-              ),
-              for (final tier in AgeTier.values)
-                FilterChip(
-                  label: Text(
-                    '${tier.label} · '
-                    '${tierAgeLabel(tier, ref.watch(ageTierBandsProvider).value)}',
+              const _FieldLabel('Age Tiers'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilterChip(
+                    label: const Text('All Tiers'),
+                    selected: _allTiersSelected,
+                    onSelected: (_) => _toggleAllTiers(),
                   ),
-                  selected: _tiers.contains(tier),
-                  onSelected: (_) => _toggleTier(tier),
+                  for (final tier in AgeTier.values)
+                    FilterChip(
+                      label: Text(
+                        '${tier.label} · '
+                        '${tierAgeLabel(tier, ref.watch(ageTierBandsProvider).value)}',
+                      ),
+                      selected: _tiers.contains(tier),
+                      onSelected: (_) => _toggleTier(tier),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _TierSelectionHint(tiers: _tiers),
+              const SizedBox(height: 18),
+
+              const _FieldLabel('Session Focus'),
+              Wrap(
+                spacing: 10,
+                children: [
+                  for (final focus in SessionFocus.values)
+                    ChoiceChip(
+                      label: Text(focus.label),
+                      selected: _focus == focus,
+                      onSelected: (_) => setState(() => _focus = focus),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              FilledButton.icon(
+                onPressed: isSaving ? null : _submit,
+                icon: isSaving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.event_available),
+                label: Text(
+                  isSaving
+                      ? 'Saving…'
+                      : (_isEditing ? 'Save Changes' : 'Create Schedule'),
                 ),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
-          const SizedBox(height: 8),
-          _TierSelectionHint(tiers: _tiers),
-          const SizedBox(height: 18),
-
-          const _FieldLabel('Session Focus'),
-          Wrap(
-            spacing: 10,
-            children: [
-              for (final focus in SessionFocus.values)
-                ChoiceChip(
-                  label: Text(focus.label),
-                  selected: _focus == focus,
-                  onSelected: (_) => setState(() => _focus = focus),
-                ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          FilledButton.icon(
-            onPressed: isSaving ? null : _submit,
-            icon: isSaving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.event_available),
-            label: Text(
-              isSaving
-                  ? 'Saving…'
-                  : (_isEditing ? 'Save Changes' : 'Create Schedule'),
-            ),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(50),
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
+        ),
       ),
     ).animateScreenEntrance();
   }
@@ -473,6 +494,73 @@ class _PickerField extends StatelessWidget {
           style: TextStyle(
             color: placeholder ? cs.onSurfaceVariant : cs.onSurface,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimeField extends StatelessWidget {
+  const _TimeField({
+    required this.label,
+    required this.text,
+    required this.placeholder,
+    required this.onTap,
+  });
+
+  final String label;
+  final String text;
+  final bool placeholder;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FieldLabel(label),
+        _PickerField(
+          text: text,
+          placeholder: placeholder,
+          icon: Icons.schedule,
+          onTap: onTap,
+        ),
+      ],
+    );
+  }
+}
+
+class _FormErrorBanner extends StatelessWidget {
+  const _FormErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.errorContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.error_outline, color: colors.onErrorContainer),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: colors.onErrorContainer,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

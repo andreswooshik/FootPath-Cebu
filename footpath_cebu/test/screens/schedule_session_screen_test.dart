@@ -43,10 +43,35 @@ void main() {
     );
   });
 
+  testWidgets('stacks time fields on a compact phone layout', (tester) async {
+    await pumpForm(tester);
+
+    expect(
+      find.byKey(const Key('session-time-fields-stacked')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('session-time-fields-inline')), findsNothing);
+  });
+
+  testWidgets('places time fields inline when enough width is available', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: ScheduleSessionScreen())),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('session-time-fields-inline')), findsOneWidget);
+  });
+
   testWidgets('tiers are multi-select, not one-of', (tester) async {
     await pumpForm(tester);
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Foundation · Ages 10–12'));
+    await tester.tap(
+      find.widgetWithText(FilterChip, 'Foundation · Ages 10–12'),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilterChip, 'Pathway · Ages 16–18'));
     await tester.pumpAndSettle();
@@ -73,13 +98,18 @@ void main() {
     );
   });
 
-  testWidgets('selecting every tier individually lights up All Tiers',
-      (tester) async {
+  testWidgets('selecting every tier individually lights up All Tiers', (
+    tester,
+  ) async {
     await pumpForm(tester);
 
-    await tester.tap(find.widgetWithText(FilterChip, 'Foundation · Ages 10–12'));
+    await tester.tap(
+      find.widgetWithText(FilterChip, 'Foundation · Ages 10–12'),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilterChip, 'Development · Ages 13–15'));
+    await tester.tap(
+      find.widgetWithText(FilterChip, 'Development · Ages 13–15'),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilterChip, 'Pathway · Ages 16–18'));
     await tester.pumpAndSettle();
@@ -105,8 +135,12 @@ void main() {
     await tester.tap(find.text('Create Schedule'));
     await tester.pump();
 
-    // The date/time fields are empty too, so the generic message wins first —
-    // what matters is that it refuses rather than silently picking a tier.
-    expect(find.byType(SnackBar), findsOneWidget);
+    expect(
+      find.text(
+        'Complete the title, date, start time, end time, and location.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(SnackBar), findsNothing);
   });
 }
