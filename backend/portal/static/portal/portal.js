@@ -4,7 +4,7 @@
   const openButton = document.querySelector('[data-mobile-menu-toggle]');
   const closeButton = document.querySelector('[data-mobile-menu-close]');
 
-  if (!sidebar || !overlay || !openButton || !closeButton) return;
+  if (!sidebar || !overlay || !openButton) return;
 
   const setOpen = (open) => {
     sidebar.classList.toggle('-translate-x-full', !open);
@@ -13,14 +13,14 @@
     document.body.classList.toggle('overflow-hidden', open);
 
     if (open) {
-      closeButton.focus();
+      sidebar.querySelector('a')?.focus();
     } else if (window.innerWidth < 1024) {
       openButton.focus();
     }
   };
 
   openButton.addEventListener('click', () => setOpen(true));
-  closeButton.addEventListener('click', () => setOpen(false));
+  closeButton?.addEventListener('click', () => setOpen(false));
   overlay.addEventListener('click', () => setOpen(false));
 
   document.addEventListener('keydown', (event) => {

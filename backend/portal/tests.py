@@ -268,6 +268,35 @@ class SchoolStaffGatingTests(TestCase):
         self.assertContains(resp, 'value="staff"')
 
 
+class IndependentClubRosterTests(TestCase):
+    def test_players_omit_academic_eligibility_controls(self):
+        coordinator, club = make_coordinator(
+            email='independent@club.test',
+            club_name='Independent FC',
+            is_school_affiliated=False,
+        )
+        make_player(club, 'player@independent.test')
+        self.client.force_login(coordinator)
+
+        response = self.client.get(reverse('portal:players'))
+
+        self.assertNotContains(response, '>Eligibility<')
+        self.assertNotContains(response, 'id="player-eligibility-filter"')
+        self.assertNotContains(response, 'data-eligibility=')
+        self.assertNotContains(response, 'Not Applicable')
+
+    def test_mobile_sidebar_has_no_close_button(self):
+        coordinator, _club = make_coordinator(
+            email='sidebar@club.test', club_name='Sidebar FC',
+            is_school_affiliated=False,
+        )
+        self.client.force_login(coordinator)
+
+        response = self.client.get(reverse('portal:dashboard'))
+
+        self.assertNotContains(response, 'data-mobile-menu-close')
+
+
 class AccessControlTests(TestCase):
     def setUp(self):
         self.coord, self.club = make_coordinator()
