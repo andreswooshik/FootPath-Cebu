@@ -308,4 +308,43 @@ void main() {
       1,
     );
   });
+
+  testWidgets('PortalShell Back returns a secondary tab to the first tab', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PortalShell(
+          initialIndex: 1,
+          pages: const [Text('dashboard'), Text('profile')],
+          navigationBarBuilder: (selected, onSelected) => NavigationBar(
+            selectedIndex: selected,
+            onDestinationSelected: onSelected,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.dashboard),
+                label: 'Dashboard',
+              ),
+              NavigationDestination(icon: Icon(Icons.person), label: 'Profile'),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      1,
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      0,
+    );
+  });
 }

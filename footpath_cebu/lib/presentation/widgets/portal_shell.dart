@@ -101,26 +101,32 @@ class _PortalShellState extends State<PortalShell> {
         widget.navigationRailBuilder != null &&
         width >= 720;
 
-    return Scaffold(
-      body: useRail
-          ? Row(
-              children: [
-                SafeArea(
-                  right: false,
-                  child: widget.navigationRailBuilder!(
-                    _selectedIndex,
-                    _selectTab,
-                    width >= 1100,
+    return PopScope(
+      canPop: _selectedIndex == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _selectedIndex != 0) setState(() => _selectedIndex = 0);
+      },
+      child: Scaffold(
+        body: useRail
+            ? Row(
+                children: [
+                  SafeArea(
+                    right: false,
+                    child: widget.navigationRailBuilder!(
+                      _selectedIndex,
+                      _selectTab,
+                      width >= 1100,
+                    ),
                   ),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(child: tabBody),
-              ],
-            )
-          : tabBody,
-      bottomNavigationBar: widget.showNavigation && !useRail
-          ? widget.navigationBarBuilder(_selectedIndex, _selectTab)
-          : null,
+                  const VerticalDivider(width: 1),
+                  Expanded(child: tabBody),
+                ],
+              )
+            : tabBody,
+        bottomNavigationBar: widget.showNavigation && !useRail
+            ? widget.navigationBarBuilder(_selectedIndex, _selectTab)
+            : null,
+      ),
     );
   }
 }
