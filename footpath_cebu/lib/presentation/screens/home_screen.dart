@@ -6,6 +6,7 @@ import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
+import 'package:footpath_cebu/presentation/widgets/sign_out_confirmation.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({
@@ -27,6 +28,7 @@ class HomeScreen extends ConsumerWidget {
   final bool openGuardianPlayerProfile;
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    if (!await confirmSignOut(context) || !context.mounted) return;
     await ref.read(unregisterDeviceProvider)();
     await ref.read(signOutProvider)();
     if (!context.mounted) return;

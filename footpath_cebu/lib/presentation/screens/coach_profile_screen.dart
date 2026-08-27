@@ -14,6 +14,7 @@ import 'package:footpath_cebu/presentation/screens/dispute_list_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/sign_out_confirmation.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 
 /// Coach Portal — the signed-in coach's own profile.
@@ -112,24 +113,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
   }
 
   Future<void> _signOut() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: const Text('You will need to sign in again to continue.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Sign out'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    if (!await confirmSignOut(context)) return;
 
     await ref.read(unregisterDeviceProvider)();
     await ref.read(signOutProvider)();

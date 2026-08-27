@@ -19,6 +19,7 @@ import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
+import 'package:footpath_cebu/presentation/widgets/sign_out_confirmation.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/streak_counter.dart';
@@ -32,6 +33,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
   const PlayerDashboardScreen({super.key});
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    if (!await confirmSignOut(context) || !context.mounted) return;
     ref.read(privacyUnlockedPlayersProvider.notifier).clear();
     await ref.read(unregisterDeviceProvider)();
     await ref.read(signOutProvider)();

@@ -16,6 +16,7 @@ import 'package:footpath_cebu/presentation/providers/player_photo_controller.dar
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
+import 'package:footpath_cebu/presentation/widgets/sign_out_confirmation.dart';
 
 /// Profile tab — one player's avatar, attributes, and a log-out action.
 /// Shared by the Player portal (viewing themselves) and the Guardian portal
@@ -104,6 +105,7 @@ class ProfileTabScreen extends ConsumerWidget {
   }
 
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    if (!await confirmSignOut(context) || !context.mounted) return;
     ref.read(privacyUnlockedPlayersProvider.notifier).clear();
     await ref.read(unregisterDeviceProvider)();
     await ref.read(signOutProvider)();
