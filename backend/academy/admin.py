@@ -8,6 +8,7 @@ from .models import (
     EligibilityHistory,
     FootballMatch,
     InjuryRecord,
+    InjuryStatusUpdateRequest,
     NotificationRecord,
     PlayerMatchPerformance,
     PlayerEligibility,
@@ -151,12 +152,43 @@ class DisputeAdmin(admin.ModelAdmin):
 @admin.register(InjuryRecord)
 class InjuryRecordAdmin(admin.ModelAdmin):
     list_display = (
-        'player', 'description', 'body_part', 'status',
+        'player', 'description', 'review_status', 'status',
         'occurred_on', 'resolved_on',
     )
-    list_filter = ('status',)
+    list_filter = ('review_status', 'status')
     search_fields = ('player__email', 'description', 'body_part')
-    autocomplete_fields = ('player',)
+    readonly_fields = (
+        'player', 'description', 'body_part', 'status', 'occurred_on',
+        'resolved_on', 'notes', 'reported_by', 'review_status', 'reviewed_by',
+        'reviewed_at', 'rejection_reason', 'archived_at', 'created_at',
+        'updated_at',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(InjuryStatusUpdateRequest)
+class InjuryStatusUpdateRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        'injury', 'proposed_status', 'review_status', 'submitted_by',
+        'created_at',
+    )
+    list_filter = ('review_status', 'proposed_status')
+    readonly_fields = (
+        'injury', 'proposed_status', 'proposed_resolved_on', 'notes',
+        'submitted_by', 'review_status', 'reviewed_by', 'reviewed_at',
+        'rejection_reason', 'created_at', 'updated_at',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(FootballMatch)

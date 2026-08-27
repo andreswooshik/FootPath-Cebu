@@ -26,6 +26,21 @@ void main() {
         'occurredOn': '2026-07-01',
         'resolvedOn': null,
         'notes': 'Twisted on landing.',
+        'reviewStatus': 'PENDING',
+        'reporterName': 'Rhobert Ronaldo',
+        'reporterRole': 'PLAYER',
+        'canEditPending': true,
+        'pendingStatusUpdate': {
+          'id': '4',
+          'proposedStatus': 'RECOVERING',
+          'proposedResolvedOn': null,
+          'notes': 'Starting light training.',
+          'reviewStatus': 'PENDING',
+          'submittedByName': 'Rhobert Ronaldo',
+          'submittedByRole': 'PLAYER',
+          'rejectionReason': null,
+          'createdAt': '2026-07-02T09:00:00Z',
+        },
         'createdAt': '2026-07-01T10:00:00Z',
         'updatedAt': '2026-07-02T10:00:00Z',
       });
@@ -38,6 +53,13 @@ void main() {
       expect(record.occurredOn, DateTime(2026, 7, 1));
       expect(record.resolvedOn, isNull);
       expect(record.notes, 'Twisted on landing.');
+      expect(record.reviewStatus, InjuryReportStatus.pending);
+      expect(record.reporterName, 'Rhobert Ronaldo');
+      expect(record.canEditPending, isTrue);
+      expect(
+        record.pendingStatusUpdate?.proposedStatus,
+        InjuryStatus.recovering,
+      );
     });
 
     test('blank optional text from the backend becomes null', () {
@@ -56,7 +78,7 @@ void main() {
       expect(record.resolvedOn, DateTime(2026, 5, 16));
     });
 
-    test('toJson emits date-only dates and omits server-owned fields', () {
+    test('toJson emits date-only dates and the report target', () {
       final record = InjuryRecord(
         id: '7',
         playerId: '12',
@@ -73,7 +95,7 @@ void main() {
       expect(json['bodyPart'], '');
       expect(json['notes'], '');
       expect(json.containsKey('id'), isFalse);
-      expect(json.containsKey('playerId'), isFalse);
+      expect(json['playerId'], '12');
     });
   });
 

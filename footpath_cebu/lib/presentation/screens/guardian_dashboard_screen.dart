@@ -340,7 +340,7 @@ class _InjuryHistoryCard extends StatelessWidget {
           leading: const Icon(Icons.healing_outlined),
           title: const Text('Injury History'),
           subtitle: Text(
-            'View ${child.name.split(' ').first}\'s reported injuries',
+            'Report and track ${child.name.split(' ').first}\'s injuries',
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(
@@ -348,7 +348,6 @@ class _InjuryHistoryCard extends StatelessWidget {
               builder: (_) => InjuryHistoryScreen(
                 playerId: child.id,
                 playerName: child.name,
-                readOnly: true,
               ),
             ),
           ),

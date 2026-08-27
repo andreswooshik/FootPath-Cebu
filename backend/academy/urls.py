@@ -119,11 +119,40 @@ urlpatterns = [
         views.DisputeResponseCreateView.as_view(),
         name='dispute-responses',
     ),
-    path('injuries/', views.InjuryRecordListCreateView.as_view(), name='injuries'),
+    path(
+        'injuries/',
+        views.InjuryWorkflowListCreateView.as_view(),
+        name='injuries',
+    ),
+    path(
+        'injuries/reportable-players/',
+        views.InjuryReportablePlayersView.as_view(),
+        name='injury-reportable-players',
+    ),
     path(
         'injuries/<int:pk>/',
-        views.InjuryRecordDetailView.as_view(),
+        views.InjuryWorkflowDetailView.as_view(),
         name='injury-detail',
+    ),
+    path(
+        'injuries/<int:pk>/review/',
+        views.InjuryReviewView.as_view(),
+        name='injury-review',
+    ),
+    path(
+        'injuries/<int:pk>/archive/',
+        views.InjuryArchiveView.as_view(),
+        name='injury-archive',
+    ),
+    path(
+        'injuries/<int:pk>/status-updates/',
+        views.InjuryStatusUpdateListCreateView.as_view(),
+        name='injury-status-updates',
+    ),
+    path(
+        'injuries/<int:pk>/status-updates/<int:update_id>/review/',
+        views.InjuryStatusUpdateReviewView.as_view(),
+        name='injury-status-update-review',
     ),
     path('devices/', views.DeviceRegisterView.as_view(), name='devices'),
     path(

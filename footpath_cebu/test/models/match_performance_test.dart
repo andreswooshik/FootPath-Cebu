@@ -1,7 +1,21 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:footpath_cebu/domain/entities/injury_record.dart';
 import 'package:footpath_cebu/domain/entities/match_performance.dart';
 
 void main() {
+  test('match roster parses the confirmed injury warning', () {
+    final player = MatchRosterPlayer.fromJson(const {
+      'id': 'p1',
+      'name': 'Ana Santos',
+      'registeredPosition': 'CM',
+      'performance': null,
+      'ratingStatus': 'AWAITING_STATISTICS',
+      'activeInjuryStatus': 'RECOVERING',
+    });
+
+    expect(player.activeInjuryStatus, InjuryStatus.recovering);
+  });
+
   test('parses the match statistics wire contract', () {
     final statistics = PlayerMatchStatistics.fromJson({
       'playerId': 'p1',

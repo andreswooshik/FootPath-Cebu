@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/domain/entities/injury_record.dart';
 import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
 
 /// Use case: remove one injury record from the player's history.
@@ -6,5 +7,5 @@ class DeleteInjury {
 
   final InjuryWriter _repository;
 
-  Future<void> call(String injuryId) => _repository.deleteInjury(injuryId);
+  Future<void> call(InjuryRecord record) => _repository.deleteInjury(record);
 }

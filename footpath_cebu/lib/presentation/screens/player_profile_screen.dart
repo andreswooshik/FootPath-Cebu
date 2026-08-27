@@ -321,21 +321,20 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             applicable: _player.academicEligibilityApplicable,
           ),
           const SizedBox(height: 16),
-          // Medical context for training decisions. Read-only for the coach —
-          // the player owns their records (and the server enforces it).
+          // Private care-team context. Coaches may report injuries and request
+          // recovery updates; the Coordinator confirms posted changes.
           Card(
             margin: EdgeInsets.zero,
             child: ListTile(
               leading: const Icon(Icons.healing_outlined),
               title: const Text('Injury History'),
-              subtitle: const Text('View reported injuries'),
+              subtitle: const Text('Report and track care-team updates'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => InjuryHistoryScreen(
                     playerId: _player.id,
                     playerName: _player.name,
-                    readOnly: true,
                   ),
                 ),
               ),

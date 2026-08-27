@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/domain/entities/match_performance.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/domain/repositories/match_repository.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/match_providers.dart';
 
@@ -13,11 +14,13 @@ class EditMatchPerformanceScreen extends ConsumerStatefulWidget {
     required this.match,
     required this.player,
     this.existing,
+    this.injuryOverrideAcknowledged = false,
   });
 
   final FootballMatch match;
   final MatchRosterPlayer player;
   final MatchPerformance? existing;
+  final bool injuryOverrideAcknowledged;
 
   @override
   ConsumerState<EditMatchPerformanceScreen> createState() =>
@@ -73,7 +76,9 @@ class _EditMatchPerformanceScreenState
 
   int _value(String key) => int.parse(_numbers[key]!.text);
 
-  Future<void> _save() async {
+  Future<void> _save({bool? injuryOverrideAcknowledged}) async {
+    final acknowledged =
+        injuryOverrideAcknowledged ?? widget.injuryOverrideAcknowledged;
     if (!_formKey.currentState!.validate()) return;
     if (_position == null) {
       _showMessage('Select the player’s match position.');
@@ -112,6 +117,7 @@ class _EditMatchPerformanceScreenState
       saves: _value('saves'),
       goalsConceded: _value('goalsConceded'),
       cleanSheet: _cleanSheet,
+      injuryOverrideAcknowledged: acknowledged,
     );
     final saved = await ref
         .read(matchManagementControllerProvider.notifier)
@@ -121,11 +127,36 @@ class _EditMatchPerformanceScreenState
       Navigator.of(context).pop(saved);
       return;
     }
+    final error = ref.read(matchManagementControllerProvider).error;
+    if (!acknowledged &&
+        error is MatchRepositoryException &&
+        error.statusCode == 409) {
+      final continueAnyway = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Active injury warning'),
+          content: const Text(
+            'This player has a confirmed Active or Recovering injury. Only continue if the player participated and you accept responsibility for this override.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Go back'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Acknowledge and continue'),
+            ),
+          ],
+        ),
+      );
+      if (continueAnyway == true && mounted) {
+        await _save(injuryOverrideAcknowledged: true);
+      }
+      return;
+    }
     _showMessage(
-      friendlyErrorMessage(
-        ref.read(matchManagementControllerProvider).error,
-        'Could not save match statistics.',
-      ),
+      friendlyErrorMessage(error, 'Could not save match statistics.'),
     );
   }
 
@@ -253,7 +284,8 @@ class _EditMatchPerformanceScreenState
               ]),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: saving ? null : _save,
+              key: const Key('save-match-statistics'),
+              onPressed: saving ? null : () => _save(),
               icon: saving
                   ? const SizedBox.square(
                       dimension: 18,

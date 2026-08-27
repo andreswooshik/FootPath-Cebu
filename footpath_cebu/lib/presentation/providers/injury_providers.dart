@@ -10,7 +10,16 @@ final injuriesProvider = FutureProvider.autoDispose
       (ref, playerId) => ref.watch(getInjuriesProvider)(playerId),
     );
 
-/// Drives the injury add/edit form and the delete action.
+final clubInjuriesProvider = FutureProvider.autoDispose<List<InjuryRecord>>(
+  (ref) => ref.watch(injuryRepositoryProvider).fetchClubInjuries(),
+);
+
+final injuryReportablePlayersProvider =
+    FutureProvider.autoDispose<List<InjuryPlayerOption>>(
+      (ref) => ref.watch(injuryRepositoryProvider).fetchReportablePlayers(),
+    );
+
+/// Drives injury reporting, Pending-report management, and review actions.
 ///
 /// Owns only the submit state ([AsyncValue] loading/error); the field values
 /// live in the form and are handed over as an [InjuryRecord] draft — same
@@ -29,6 +38,7 @@ class InjuryFormController extends AsyncNotifier<void> {
       final saved = await ref.read(saveInjuryProvider)(record);
       state = const AsyncData(null);
       ref.invalidate(injuriesProvider(record.playerId));
+      ref.invalidate(clubInjuriesProvider);
       return saved;
     } catch (e, st) {
       state = AsyncError(e, st);
@@ -42,12 +52,85 @@ class InjuryFormController extends AsyncNotifier<void> {
     if (id == null) return false; // never saved — nothing to delete
     state = const AsyncLoading();
     try {
-      await ref.read(deleteInjuryProvider)(id);
+      await ref.read(deleteInjuryProvider)(record);
       state = const AsyncData(null);
       ref.invalidate(injuriesProvider(record.playerId));
+      ref.invalidate(clubInjuriesProvider);
       return true;
     } catch (e, st) {
       state = AsyncError(e, st);
+      return false;
+    }
+  }
+
+  Future<bool> reviewReport(
+    InjuryRecord record, {
+    required bool confirm,
+    String rejectionReason = '',
+  }) async {
+    final id = record.id;
+    if (id == null) return false;
+    return _workflowAction(() {
+      return ref
+          .read(injuryRepositoryProvider)
+          .reviewInjury(id, confirm: confirm, rejectionReason: rejectionReason);
+    }, playerId: record.playerId);
+  }
+
+  Future<bool> archive(InjuryRecord record) async {
+    final id = record.id;
+    if (id == null) return false;
+    return _workflowAction(
+      () => ref.read(injuryRepositoryProvider).archiveInjury(id),
+      playerId: record.playerId,
+    );
+  }
+
+  Future<bool> requestStatus(
+    InjuryRecord record,
+    InjuryStatusUpdateDraft draft,
+  ) async {
+    return _workflowAction(
+      () =>
+          ref.read(injuryRepositoryProvider).requestStatusUpdate(record, draft),
+      playerId: record.playerId,
+    );
+  }
+
+  Future<bool> reviewStatus(
+    InjuryRecord record, {
+    required bool approve,
+    String rejectionReason = '',
+  }) async {
+    final injuryId = record.id;
+    final updateId = record.pendingStatusUpdate?.id;
+    if (injuryId == null || updateId == null) return false;
+    return _workflowAction(
+      () => ref
+          .read(injuryRepositoryProvider)
+          .reviewStatusUpdate(
+            injuryId,
+            updateId,
+            approve: approve,
+            rejectionReason: rejectionReason,
+          ),
+      playerId: record.playerId,
+    );
+  }
+
+  Future<bool> _workflowAction(
+    Future<Object?> Function() action, {
+    required String playerId,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await action();
+      state = const AsyncData(null);
+      ref.invalidate(injuriesProvider(playerId));
+      ref.invalidate(clubInjuriesProvider);
+      return true;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
       return false;
     }
   }

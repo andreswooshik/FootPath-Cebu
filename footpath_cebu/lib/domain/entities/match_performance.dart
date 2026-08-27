@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/football_match.dart';
+import 'package:footpath_cebu/domain/entities/injury_record.dart';
 
 enum MatchRatingStatus { awaitingStatistics, awaitingRating, rated }
 
@@ -122,6 +123,7 @@ class MatchPerformanceDraft {
     required this.saves,
     required this.goalsConceded,
     required this.cleanSheet,
+    this.injuryOverrideAcknowledged = false,
   });
 
   final String position;
@@ -140,6 +142,7 @@ class MatchPerformanceDraft {
   final int saves;
   final int goalsConceded;
   final bool cleanSheet;
+  final bool injuryOverrideAcknowledged;
 
   Map<String, dynamic> toJson() => {
     'position': position.trim().toUpperCase(),
@@ -158,6 +161,7 @@ class MatchPerformanceDraft {
     'saves': saves,
     'goalsConceded': goalsConceded,
     'cleanSheet': cleanSheet,
+    if (injuryOverrideAcknowledged) 'injuryOverrideAcknowledged': true,
   };
 }
 
@@ -180,6 +184,7 @@ class MatchRosterPlayer {
     required this.registeredPosition,
     required this.performance,
     required this.ratingStatus,
+    this.activeInjuryStatus,
   });
 
   final String id;
@@ -187,6 +192,7 @@ class MatchRosterPlayer {
   final String registeredPosition;
   final MatchPerformance? performance;
   final MatchRatingStatus ratingStatus;
+  final InjuryStatus? activeInjuryStatus;
 
   factory MatchRosterPlayer.fromJson(Map<String, dynamic> json) =>
       MatchRosterPlayer(
@@ -201,6 +207,9 @@ class MatchRosterPlayer {
         ratingStatus: MatchRatingStatusWire.fromWire(
           json['ratingStatus'] as String?,
         ),
+        activeInjuryStatus: json['activeInjuryStatus'] == null
+            ? null
+            : InjuryStatusWire.fromWire(json['activeInjuryStatus'] as String),
       );
 }
 

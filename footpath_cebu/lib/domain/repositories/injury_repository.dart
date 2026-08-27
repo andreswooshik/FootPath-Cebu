@@ -8,6 +8,10 @@ abstract class InjuryReader {
     String playerId, {
     String? unlockToken,
   });
+
+  Future<List<InjuryRecord>> fetchClubInjuries({bool includeArchived = false});
+
+  Future<List<InjuryPlayerOption>> fetchReportablePlayers();
 }
 
 /// Writes injury records. Kept separate from the reader so the coach's
@@ -18,7 +22,27 @@ abstract class InjuryWriter {
   /// record as the server stored it.
   Future<InjuryRecord> saveInjury(InjuryRecord record);
 
-  Future<void> deleteInjury(String injuryId);
+  Future<void> deleteInjury(InjuryRecord record);
+
+  Future<InjuryRecord> reviewInjury(
+    String injuryId, {
+    required bool confirm,
+    String rejectionReason = '',
+  });
+
+  Future<InjuryRecord> archiveInjury(String injuryId);
+
+  Future<InjuryStatusUpdate> requestStatusUpdate(
+    InjuryRecord injury,
+    InjuryStatusUpdateDraft draft,
+  );
+
+  Future<InjuryRecord> reviewStatusUpdate(
+    String injuryId,
+    String updateId, {
+    required bool approve,
+    String rejectionReason = '',
+  });
 }
 
 /// Aggregate of the injury reads and writes. Concrete data sources implement

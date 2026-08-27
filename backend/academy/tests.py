@@ -1072,9 +1072,7 @@ class DisputeTests(APITestCase):
 
 
 class InjuryRecordTests(APITestCase):
-    """Injury CRUD — the player owns their records; coach/admin read-only;
-    a guardian reads a linked child's records only (never writes, never an
-    unlinked child): medical data, least-privilege."""
+    """Regression coverage for the Coordinator-confirmed injury workflow."""
 
     def setUp(self):
         self.player = make_player('p1@footpathcebu.test')
@@ -1086,6 +1084,7 @@ class InjuryRecordTests(APITestCase):
             player=self.player, description='Sprained ankle',
             body_part='Left ankle', status=InjuryStatus.RECOVERING,
             occurred_on=date(2026, 7, 1), notes='Twisted landing from a header.',
+            reported_by=self.player, review_status='CONFIRMED',
         )
 
     def _detail(self, pk=None):
@@ -1118,20 +1117,15 @@ class InjuryRecordTests(APITestCase):
         self.assertEqual(len(resp.data), 1)
         self.assertEqual(resp.data[0]['playerId'], str(self.player.id))
 
-    def test_player_updates_and_deletes_own_record(self):
+    def test_player_cannot_update_or_delete_confirmed_record(self):
         self.client.force_authenticate(self.player)
         resp = self.client.put(
             self._detail(), {'status': 'RECOVERED', 'resolvedOn': '2026-07-15'},
             format='json',
         )
-        self.assertEqual(resp.status_code, 200)
-        self.record.refresh_from_db()
-        self.assertEqual(self.record.status, InjuryStatus.RECOVERED)
-        self.assertEqual(self.record.resolved_on, date(2026, 7, 15))
-
-        resp = self.client.delete(self._detail())
-        self.assertEqual(resp.status_code, 204)
-        self.assertFalse(InjuryRecord.objects.filter(pk=self.record.pk).exists())
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(self.client.delete(self._detail()).status_code, 403)
+        self.assertTrue(InjuryRecord.objects.filter(pk=self.record.pk).exists())
 
     def test_player_cannot_touch_another_players_record(self):
         self.client.force_authenticate(self.other_player)
@@ -1141,7 +1135,7 @@ class InjuryRecordTests(APITestCase):
         )
         self.assertEqual(self.client.delete(self._detail()).status_code, 403)
 
-    def test_coach_reads_all_but_cannot_write(self):
+    def test_coach_reads_and_can_submit_but_cannot_edit_confirmed(self):
         self.client.force_authenticate(self.coach)
         resp = self.client.get(reverse('injuries'))
         self.assertEqual(resp.status_code, 200)
@@ -1154,8 +1148,10 @@ class InjuryRecordTests(APITestCase):
 
         self.assertEqual(
             self.client.post(
-                reverse('injuries'), self._payload(), format='json'
-            ).status_code, 403,
+                reverse('injuries'),
+                self._payload() | {'playerId': str(self.player.id)},
+                format='json',
+            ).status_code, 201,
         )
         self.assertEqual(
             self.client.put(
@@ -1164,7 +1160,7 @@ class InjuryRecordTests(APITestCase):
         )
         self.assertEqual(self.client.delete(self._detail()).status_code, 403)
 
-    def test_guardian_reads_linked_child_only_and_never_writes(self):
+    def test_guardian_reads_and_reports_for_linked_child_only(self):
         self.client.force_authenticate(self.guardian)
         # Must name a linked child — no blanket listing, no unlinked child.
         self.assertEqual(self.client.get(reverse('injuries')).status_code, 403)
@@ -1192,12 +1188,15 @@ class InjuryRecordTests(APITestCase):
             ).status_code,
             200,
         )
-        # Writes stay player-only.
+        # A linked Guardian may submit a new Pending report.
         self.assertEqual(
             self.client.post(
-                reverse('injuries'), self._payload(), format='json'
-            ).status_code, 403,
+                reverse('injuries'),
+                self._payload() | {'playerId': str(self.player.id)},
+                format='json',
+            ).status_code, 201,
         )
+        # Confirmed records remain Coordinator-owned.
         self.assertEqual(
             self.client.put(
                 self._detail(), {'status': 'RECOVERED'}, format='json'
@@ -1210,16 +1209,23 @@ class InjuryRecordTests(APITestCase):
         row = self.client.get(reverse('injuries')).data[0]
         self.assertEqual(
             set(row.keys()),
-            {'id', 'playerId', 'description', 'bodyPart', 'status',
-             'occurredOn', 'resolvedOn', 'notes', 'createdAt', 'updatedAt'},
+            {
+                'id', 'playerId', 'playerName', 'description', 'bodyPart',
+                'status', 'occurredOn', 'resolvedOn', 'notes', 'reviewStatus',
+                'reporterName', 'reporterRole', 'rejectionReason',
+                'reviewedAt', 'archivedAt', 'pendingStatusUpdate',
+                'canEditPending', 'canReview', 'canEditConfirmed', 'canArchive',
+                'canRequestStatusUpdate', 'createdAt', 'updatedAt',
+            },
         )
         self.assertIsInstance(row['id'], str)
 
-    def test_invalid_status_rejected(self):
+    def test_new_report_status_is_forced_active(self):
         self.client.force_authenticate(self.player)
         payload = self._payload() | {'status': 'BROKEN'}
         resp = self.client.post(reverse('injuries'), payload, format='json')
-        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['status'], 'ACTIVE')
 
 
 class DeviceRegistrationTests(APITestCase):

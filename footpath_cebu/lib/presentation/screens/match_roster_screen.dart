@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/football_match.dart';
+import 'package:footpath_cebu/domain/entities/injury_record.dart';
 import 'package:footpath_cebu/domain/entities/match_performance.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/match_providers.dart';
@@ -184,6 +185,32 @@ class _PlayerPerformanceTile extends StatelessWidget {
 
   Future<void> _open(BuildContext context) async {
     if (mode == MatchRosterMode.coach && player.performance == null) return;
+    var injuryOverrideAcknowledged = false;
+    if (mode == MatchRosterMode.coordinator &&
+        player.activeInjuryStatus != null) {
+      final acknowledged = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Active injury warning'),
+          content: Text(
+            '${player.name} has a confirmed ${player.activeInjuryStatus!.label} injury. Continue only if the player participated; saving statistics will record this override in the audit log.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Continue to statistics'),
+            ),
+          ],
+        ),
+      );
+      if (acknowledged != true || !context.mounted) return;
+      injuryOverrideAcknowledged = true;
+    }
+    if (!context.mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => mode == MatchRosterMode.coordinator
@@ -191,6 +218,7 @@ class _PlayerPerformanceTile extends StatelessWidget {
                 match: match,
                 player: player,
                 existing: player.performance,
+                injuryOverrideAcknowledged: injuryOverrideAcknowledged,
               )
             : EditMatchRatingScreen(match: match, player: player),
       ),
@@ -209,6 +237,7 @@ class _PlayerPerformanceTile extends StatelessWidget {
         : player.registeredPosition;
     final status = player.ratingStatus.label;
     final rating = player.performance?.coachRating;
+    final injury = player.activeInjuryStatus;
     return Card(
       child: ListTile(
         onTap: coordinator || saved ? () => _open(context) : null,
@@ -217,10 +246,10 @@ class _PlayerPerformanceTile extends StatelessWidget {
         ),
         title: Text(player.name),
         subtitle: Text(
-          coordinator
-              ? '$position - ${saved ? status : 'Not recorded'}'
-              : '$position - $status${rating == null ? '' : ' (${rating.toStringAsFixed(1)})'}',
+          '${coordinator ? '$position - ${saved ? status : 'Not recorded'}' : '$position - $status${rating == null ? '' : ' (${rating.toStringAsFixed(1)})'}'}'
+          '${injury == null || !coordinator ? '' : '\nConfirmed ${injury.label} injury - review before entry'}',
         ),
+        isThreeLine: coordinator && injury != null,
         trailing: Icon(
           coordinator
               ? saved

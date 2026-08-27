@@ -10,7 +10,7 @@ import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coach_profile_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coach_progress_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_account_screen.dart';
-import 'package:footpath_cebu/presentation/screens/coordinator_injuries_placeholder_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_injuries_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_matches_screen.dart';
 import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
@@ -43,7 +43,7 @@ class CoordinatorPortalScreen extends StatelessWidget {
     pages: [
       const TournamentScheduleScreen(asTab: true, canRecordResults: true),
       const CoordinatorMatchesScreen(),
-      const CoordinatorInjuriesPlaceholderScreen(),
+      const CoordinatorInjuriesScreen(),
       CoordinatorAccountScreen(profile: profile),
     ],
     navigationBarBuilder: (selectedIndex, onSelected) => CoordinatorBottomNav(

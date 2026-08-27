@@ -10,6 +10,15 @@ import 'package:footpath_cebu/presentation/providers/injury_providers.dart';
 /// are exercised without a backend.
 class _FailingInjuryRepo implements InjuryRepository {
   @override
+  Future<List<InjuryRecord>> fetchClubInjuries({
+    bool includeArchived = false,
+  }) async => throw InjuryRepositoryException('boom');
+
+  @override
+  Future<List<InjuryPlayerOption>> fetchReportablePlayers() async =>
+      throw InjuryRepositoryException('boom');
+
+  @override
   Future<List<InjuryRecord>> fetchInjuriesForPlayer(
     String playerId, {
     String? unlockToken,
@@ -20,8 +29,33 @@ class _FailingInjuryRepo implements InjuryRepository {
       throw InjuryRepositoryException('boom');
 
   @override
-  Future<void> deleteInjury(String injuryId) async =>
+  Future<void> deleteInjury(InjuryRecord record) async =>
       throw InjuryRepositoryException('boom');
+
+  @override
+  Future<InjuryRecord> reviewInjury(
+    String injuryId, {
+    required bool confirm,
+    String rejectionReason = '',
+  }) async => throw InjuryRepositoryException('boom');
+
+  @override
+  Future<InjuryRecord> archiveInjury(String injuryId) async =>
+      throw InjuryRepositoryException('boom');
+
+  @override
+  Future<InjuryStatusUpdate> requestStatusUpdate(
+    InjuryRecord injury,
+    InjuryStatusUpdateDraft draft,
+  ) async => throw InjuryRepositoryException('boom');
+
+  @override
+  Future<InjuryRecord> reviewStatusUpdate(
+    String injuryId,
+    String updateId, {
+    required bool approve,
+    String rejectionReason = '',
+  }) async => throw InjuryRepositoryException('boom');
 }
 
 InjuryRecord _draft({String? id}) => InjuryRecord(

@@ -780,10 +780,26 @@ class InjuryStatus(models.TextChoices):
     RECOVERED = 'RECOVERED', 'Recovered'
 
 
+class InjuryReportStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending confirmation'
+    CONFIRMED = 'CONFIRMED', 'Confirmed'
+    REJECTED = 'REJECTED', 'Rejected'
+    ARCHIVED = 'ARCHIVED', 'Archived'
+
+
+class InjuryUpdateReviewStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    APPROVED = 'APPROVED', 'Approved'
+    REJECTED = 'REJECTED', 'Rejected'
+
+
 class InjuryRecord(models.Model):
-    """A player's self-reported injury. Medical data: the player owns the
-    record (full CRUD); coach/admin read, and a guardian may read a linked
-    child's records — least-privilege, enforced in the views."""
+    """A private care-team injury report with Coordinator confirmation.
+
+    Players, linked Guardians, Coaches, and Coordinators may report an injury.
+    Pending reports remain editable by their reporter; confirmed clinical
+    state and archival are controlled by the club Coordinator.
+    """
 
     player = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -799,6 +815,28 @@ class InjuryRecord(models.Model):
     occurred_on = models.DateField()
     resolved_on = models.DateField(null=True, blank=True)
     notes = models.CharField(max_length=1000, blank=True)
+    reported_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reported_injuries',
+    )
+    review_status = models.CharField(
+        max_length=20,
+        choices=InjuryReportStatus.choices,
+        default=InjuryReportStatus.PENDING,
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_injuries',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.CharField(max_length=500, blank=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -813,6 +851,56 @@ class InjuryRecord(models.Model):
 
     def __str__(self):
         return f'{self.player.email} · {self.description} · {self.status}'
+
+
+class InjuryStatusUpdateRequest(models.Model):
+    """A care-team recovery update awaiting Coordinator approval."""
+
+    injury = models.ForeignKey(
+        InjuryRecord,
+        on_delete=models.CASCADE,
+        related_name='status_update_requests',
+    )
+    proposed_status = models.CharField(
+        max_length=20,
+        choices=InjuryStatus.choices,
+    )
+    proposed_resolved_on = models.DateField(null=True, blank=True)
+    notes = models.CharField(max_length=500, blank=True)
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='submitted_injury_status_updates',
+    )
+    review_status = models.CharField(
+        max_length=20,
+        choices=InjuryUpdateReviewStatus.choices,
+        default=InjuryUpdateReviewStatus.PENDING,
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_injury_status_updates',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['injury'],
+                condition=models.Q(
+                    review_status=InjuryUpdateReviewStatus.PENDING,
+                ),
+                name='academy_one_pending_injury_update',
+            ),
+        ]
 
 
 class DisputeCategory(models.TextChoices):
