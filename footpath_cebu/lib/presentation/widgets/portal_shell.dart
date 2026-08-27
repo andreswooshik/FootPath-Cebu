@@ -14,6 +14,7 @@ class PortalShell extends StatefulWidget {
     super.key,
     required this.pages,
     required this.navigationBarBuilder,
+    this.navigationRailBuilder,
     this.showNavigation = true,
     this.initialIndex = 0,
   });
@@ -21,6 +22,12 @@ class PortalShell extends StatefulWidget {
   final List<Widget> pages;
   final Widget Function(int selectedIndex, ValueChanged<int> onSelected)
   navigationBarBuilder;
+  final Widget Function(
+    int selectedIndex,
+    ValueChanged<int> onSelected,
+    bool extended,
+  )?
+  navigationRailBuilder;
   final bool showNavigation;
   final int initialIndex;
 
@@ -88,9 +95,30 @@ class _PortalShellState extends State<PortalShell> {
           );
     }
 
+    final width = MediaQuery.sizeOf(context).width;
+    final useRail =
+        widget.showNavigation &&
+        widget.navigationRailBuilder != null &&
+        width >= 720;
+
     return Scaffold(
-      body: tabBody,
-      bottomNavigationBar: widget.showNavigation
+      body: useRail
+          ? Row(
+              children: [
+                SafeArea(
+                  right: false,
+                  child: widget.navigationRailBuilder!(
+                    _selectedIndex,
+                    _selectTab,
+                    width >= 1100,
+                  ),
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: tabBody),
+              ],
+            )
+          : tabBody,
+      bottomNavigationBar: widget.showNavigation && !useRail
           ? widget.navigationBarBuilder(_selectedIndex, _selectTab)
           : null,
     );

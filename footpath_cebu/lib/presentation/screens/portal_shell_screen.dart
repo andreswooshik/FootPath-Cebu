@@ -47,6 +47,12 @@ class CoachPortalScreen extends StatelessWidget {
         selectedIndex: selectedIndex,
         onDestinationSelected: onSelected,
       ),
+      navigationRailBuilder: (selectedIndex, onSelected, extended) =>
+          CoachNavigationRail(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: onSelected,
+            extended: extended,
+          ),
     );
   }
 }
@@ -92,6 +98,12 @@ class PlayerPortalScreen extends ConsumerWidget {
             selectedIndex: selectedIndex,
             onDestinationSelected: onSelected,
           ),
+          navigationRailBuilder: (selectedIndex, onSelected, extended) =>
+              PortalNavigationRail(
+                selectedIndex: selectedIndex,
+                onDestinationSelected: onSelected,
+                extended: extended,
+              ),
         );
       },
       orElse: () => const PlayerDashboardScreen(),
@@ -190,6 +202,12 @@ class _GuardianPortalScreenState extends ConsumerState<GuardianPortalScreen> {
         selectedIndex: selectedIndex,
         onDestinationSelected: onSelected,
       ),
+      navigationRailBuilder: (selectedIndex, onSelected, extended) =>
+          PortalNavigationRail(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: onSelected,
+            extended: extended,
+          ),
     );
   }
 }

@@ -257,4 +257,55 @@ void main() {
       1,
     );
   });
+
+  testWidgets('PortalShell adapts bottom navigation to a tablet rail', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1100));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PortalShell(
+          pages: const [Text('zero'), Text('one')],
+          navigationBarBuilder: (selected, onSelected) => NavigationBar(
+            selectedIndex: selected,
+            onDestinationSelected: onSelected,
+            destinations: const [
+              NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+              NavigationDestination(icon: Icon(Icons.person), label: 'Profile'),
+            ],
+          ),
+          navigationRailBuilder: (selected, onSelected, extended) =>
+              NavigationRail(
+                selectedIndex: selected,
+                onDestinationSelected: onSelected,
+                destinations: const [
+                  NavigationRailDestination(
+                    icon: Icon(Icons.home),
+                    label: Text('Home'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(Icons.person),
+                    label: Text('Profile'),
+                  ),
+                ],
+              ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+
+    tester
+        .widget<NavigationRail>(find.byType(NavigationRail))
+        .onDestinationSelected!(1);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
+      1,
+    );
+  });
 }
