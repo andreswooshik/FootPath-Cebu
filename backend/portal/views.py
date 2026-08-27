@@ -8,12 +8,19 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordChangeView
 from django.contrib.messages.views import SuccessMessageMixin
+from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
 
 from django.shortcuts import get_object_or_404
 
-from academy.models import AuditLog, EligibilityHistory, PlayerProfile
+from academy.models import (
+    AuditLog,
+    DisputeStatus,
+    Eligibility,
+    EligibilityHistory,
+    PlayerProfile,
+)
 from academy.pin_service import reset_pin
 from academy.storage import upload_photo, validate_photo_upload
 from accounts.models import GuardianLink, Roles, User
@@ -103,7 +110,46 @@ def signup_done(request):
 
 @login_required
 def dashboard(request):
-    return render(request, 'portal/dashboard.html')
+    context = {}
+    club = request.user.club
+
+    if request.user.role == Roles.COORDINATOR and club:
+        members = User.objects.filter(club=club)
+        profiles = PlayerProfile.objects.filter(user__club=club)
+        context['dashboard_stats'] = {
+            'players': members.filter(role=Roles.PLAYER).count(),
+            'coaches': members.filter(role=Roles.COACH).count(),
+            'guardians': members.filter(role=Roles.GUARDIAN).count(),
+            'unlinked_players': members.filter(
+                role=Roles.PLAYER,
+                player_links__isnull=True,
+            ).count(),
+            'missing_photos': profiles.filter(
+                Q(photo_path='') | Q(photo_path__isnull=True)
+            ).count(),
+        }
+    elif request.user.role == Roles.SCHOOL_STAFF and club:
+        profiles = PlayerProfile.objects.filter(user__club=club)
+        disputes = staff_dispute_queryset(staff=request.user)
+        context['dashboard_stats'] = {
+            'players': profiles.count(),
+            'warnings': profiles.filter(
+                eligibility=Eligibility.ACADEMIC_WARNING,
+            ).count(),
+            'not_eligible': profiles.filter(
+                eligibility=Eligibility.NOT_ELIGIBLE,
+            ).count(),
+            'active_disputes': disputes.exclude(
+                status__in=[DisputeStatus.RESOLVED, DisputeStatus.DISMISSED],
+            ).count(),
+        }
+        context['recent_eligibility_changes'] = (
+            EligibilityHistory.objects.select_related('player', 'changed_by')
+            .filter(player__club=club)
+            .order_by('-changed_at')[:5]
+        )
+
+    return render(request, 'portal/dashboard.html', context)
 
 
 class PortalPasswordChangeView(SuccessMessageMixin, PasswordChangeView):

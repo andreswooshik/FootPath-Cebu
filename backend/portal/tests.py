@@ -470,6 +470,91 @@ class ClubIsolationTests(TestCase):
         self.assertNotContains(resp, 'in-b@club.test')
 
 
+class DashboardUxTests(TestCase):
+    def test_coordinator_dashboard_surfaces_membership_and_roster_tasks(self):
+        coordinator, club = make_coordinator()
+        player, profile = make_player(club, 'dashboard-player@club.test')
+        User.objects.create(
+            username='dashboard-coach@club.test',
+            email='dashboard-coach@club.test',
+            role=Roles.COACH,
+            club=club,
+            firebase_uid='dashboard-coach-uid',
+        )
+        User.objects.create(
+            username='dashboard-guardian@club.test',
+            email='dashboard-guardian@club.test',
+            role=Roles.GUARDIAN,
+            club=club,
+            firebase_uid='dashboard-guardian-uid',
+        )
+        self.assertIsNone(profile.photo_path)
+        self.client.force_login(coordinator)
+
+        response = self.client.get(reverse('portal:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['dashboard_stats'], {
+            'players': 1,
+            'coaches': 1,
+            'guardians': 1,
+            'unlinked_players': 1,
+            'missing_photos': 1,
+        })
+        self.assertContains(response, 'Club overview')
+        self.assertContains(response, 'Players without guardian')
+        self.assertContains(response, 'Roster items needing attention')
+
+    def test_staff_dashboard_prioritizes_eligibility_and_disputes(self):
+        _coordinator, club = make_coordinator()
+        staff, _password = provision_web_user(
+            email='dashboard-staff@club.test',
+            first_name='School',
+            last_name='Reviewer',
+            role=Roles.SCHOOL_STAFF,
+            club=club,
+        )
+        coach = User.objects.create(
+            username='dashboard-dispute-coach@club.test',
+            email='dashboard-dispute-coach@club.test',
+            role=Roles.COACH,
+            club=club,
+            firebase_uid='dashboard-dispute-coach-uid',
+        )
+        player_one, profile_one = make_player(
+            club, 'dashboard-warning@club.test'
+        )
+        _player_two, profile_two = make_player(
+            club, 'dashboard-ineligible@club.test'
+        )
+        profile_one.eligibility = Eligibility.ACADEMIC_WARNING
+        profile_one._changed_by = staff
+        profile_one.save(update_fields=['eligibility'])
+        profile_two.eligibility = Eligibility.NOT_ELIGIBLE
+        profile_two._changed_by = staff
+        profile_two.save(update_fields=['eligibility'])
+        Dispute.objects.create(
+            raised_by=coach,
+            subject_player=player_one,
+            category='ELIGIBILITY',
+            summary='Dashboard review requested',
+        )
+        self.client.force_login(staff)
+
+        response = self.client.get(reverse('portal:dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['dashboard_stats'], {
+            'players': 2,
+            'warnings': 1,
+            'not_eligible': 1,
+            'active_disputes': 1,
+        })
+        self.assertContains(response, 'School overview')
+        self.assertContains(response, 'Recent eligibility changes')
+        self.assertContains(response, 'dashboard-warning@club.test')
+
+
 class StaffEligibilityTests(TestCase):
     def setUp(self):
         self.coord, self.club = make_coordinator()
