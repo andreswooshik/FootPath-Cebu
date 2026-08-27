@@ -79,6 +79,8 @@ class _ReadyGauge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return SizedBox(
       width: 92,
       height: 92,
@@ -87,7 +89,9 @@ class _ReadyGauge extends StatelessWidget {
         children: [
           SizedBox.expand(
             child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 700),
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 700),
               curve: Curves.easeOutCubic,
               tween: Tween(begin: 0, end: percent / 100),
               builder: (context, v, _) => CircularProgressIndicator(

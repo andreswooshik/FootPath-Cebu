@@ -66,8 +66,12 @@ class AttributeRadarChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final accent = fillColor ?? cs.primary;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 650),
+      duration: reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 650),
       curve: Curves.easeOutCubic,
       tween: Tween(begin: 0, end: 1),
       builder: (context, t, _) => SizedBox(

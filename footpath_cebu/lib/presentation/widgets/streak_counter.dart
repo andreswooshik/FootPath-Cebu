@@ -44,6 +44,8 @@ class StreakCounter extends StatelessWidget {
     final theme = Theme.of(context);
     final ring = _onFire ? AppColors.gold : AppColors.coral;
     final progress = goal == 0 ? 0.0 : (streak / goal).clamp(0.0, 1.0);
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
     return Card(
       child: Padding(
@@ -57,7 +59,9 @@ class StreakCounter extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   TweenAnimationBuilder<double>(
-                    duration: const Duration(milliseconds: 700),
+                    duration: reduceMotion
+                        ? Duration.zero
+                        : const Duration(milliseconds: 700),
                     curve: Curves.easeOutCubic,
                     tween: Tween(begin: 0, end: progress),
                     builder: (context, value, _) => SizedBox.expand(
