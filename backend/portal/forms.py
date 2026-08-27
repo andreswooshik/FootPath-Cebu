@@ -8,7 +8,14 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.password_validation import validate_password
 
-from academy.models import DisputeStatus, Eligibility, PlayerProfile
+from academy.models import (
+    DisputeStatus,
+    Eligibility,
+    FixtureStatus,
+    PlayerProfile,
+    TournamentFixture,
+)
+from academy.storage import validate_tournament_document
 from accounts.models import Club, Roles, User
 from accounts.validators import (
     COACH_LICENSE_MAX_BYTES,
@@ -227,6 +234,61 @@ class GuardianLinkForm(forms.Form):
             ).order_by('last_name', 'first_name')
         self.fields['guardian'].label_from_instance = _user_label
         self.fields['player'].label_from_instance = _user_label
+
+
+class TournamentScheduleForm(forms.Form):
+    title = forms.CharField(
+        max_length=120,
+        label='Tournament name',
+        widget=forms.TextInput(attrs={'placeholder': 'e.g. Cebu Youth Cup 2026'}),
+    )
+    document = forms.FileField(
+        label='Official schedule document',
+        help_text='PDF, JPG, or PNG, up to 5 MB.',
+        validators=[validate_tournament_document],
+    )
+
+    def clean_title(self):
+        return self.cleaned_data['title'].strip()
+
+
+class TournamentDocumentForm(forms.Form):
+    document = forms.FileField(
+        label='Replacement schedule document',
+        help_text='PDF, JPG, or PNG, up to 5 MB.',
+        validators=[validate_tournament_document],
+    )
+
+
+class TournamentFixtureForm(forms.ModelForm):
+    kickoff_at = forms.DateTimeField(
+        label='Kickoff',
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(
+            format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}
+        ),
+    )
+    status = forms.ChoiceField(choices=[
+        (FixtureStatus.SCHEDULED, FixtureStatus.SCHEDULED.label),
+        (FixtureStatus.POSTPONED, FixtureStatus.POSTPONED.label),
+        (FixtureStatus.CANCELLED, FixtureStatus.CANCELLED.label),
+    ])
+
+    class Meta:
+        model = TournamentFixture
+        fields = ['stage', 'opponent', 'kickoff_at', 'venue', 'location', 'status']
+        labels = {
+            'stage': 'Stage or round',
+            'opponent': 'Opponent',
+            'venue': 'Home, away, or neutral',
+        }
+        help_texts = {
+            'opponent': 'Use TBD when the knockout opponent is not known.',
+            'location': 'Pitch, stadium, or meeting location.',
+        }
+
+    def clean_opponent(self):
+        return self.cleaned_data['opponent'].strip() or 'TBD'
 
 
 def _user_label(user):

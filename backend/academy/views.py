@@ -43,6 +43,7 @@ from .models import (
     PlayerPrivacyPin,
     SessionConfirmation,
     TrainingSession,
+    TournamentSchedule,
 )
 from .notifications import (
     _recipients_for_session,
@@ -82,6 +83,7 @@ from .serializers import (
     SessionAttendanceRecordSerializer,
     SessionConfirmationSerializer,
     TrainingSessionSerializer,
+    TournamentScheduleSerializer,
 )
 from .match_statistics import build_performance_summary
 from .player_unlock import issue_player_unlock, require_player_unlock
@@ -599,6 +601,37 @@ class TrainingSessionListCreateView(APIView):
         transaction.on_commit(lambda: notify_session_scheduled(session))
         return Response(
             TrainingSessionSerializer(session).data, status=status.HTTP_201_CREATED
+        )
+
+
+class TournamentScheduleListView(APIView):
+    """Read-only published tournament schedules for authenticated club roles."""
+
+    _roles = (
+        Roles.COORDINATOR,
+        Roles.COACH,
+        Roles.PLAYER,
+        Roles.GUARDIAN,
+        Roles.ADMIN,
+    )
+
+    def get(self, request):
+        if request.user.role not in self._roles:
+            raise PermissionDenied(
+                'Your role cannot view mobile tournament schedules.'
+            )
+        schedules = (
+            TournamentSchedule.objects.filter(is_published=True)
+            .select_related('club')
+            .prefetch_related('fixtures')
+        )
+        if request.user.role != Roles.ADMIN:
+            if request.user.club_id is None:
+                schedules = schedules.none()
+            else:
+                schedules = schedules.filter(club_id=request.user.club_id)
+        return Response(
+            TournamentScheduleSerializer(schedules, many=True).data
         )
 
 

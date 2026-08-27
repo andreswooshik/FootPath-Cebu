@@ -38,6 +38,27 @@ urlpatterns = [
     ),
     path('coaches/', views.coaches, name='coaches'),
     path('guardians/', views.guardians, name='guardians'),
+    path('tournaments/', views.tournament_schedules, name='tournaments'),
+    path(
+        'tournaments/<int:schedule_id>/',
+        views.tournament_schedule_detail,
+        name='tournament-detail',
+    ),
+    path(
+        'tournaments/<int:schedule_id>/delete/',
+        views.tournament_schedule_delete,
+        name='tournament-delete',
+    ),
+    path(
+        'fixtures/<int:fixture_id>/edit/',
+        views.tournament_fixture_edit,
+        name='tournament-fixture-edit',
+    ),
+    path(
+        'fixtures/<int:fixture_id>/delete/',
+        views.tournament_fixture_delete,
+        name='tournament-fixture-delete',
+    ),
     path(
         'guardians/links/<int:pk>/remove/',
         views.guardian_unlink,

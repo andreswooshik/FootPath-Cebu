@@ -8,6 +8,8 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import PasswordChangeView
 from django.contrib.messages.views import SuccessMessageMixin
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.urls import reverse_lazy
@@ -20,9 +22,18 @@ from academy.models import (
     Eligibility,
     EligibilityHistory,
     PlayerProfile,
+    TournamentFixture,
+    TournamentSchedule,
 )
 from academy.pin_service import reset_pin
-from academy.storage import upload_photo, validate_photo_upload
+from academy.storage import (
+    delete_tournament_document,
+    signed_tournament_document_url,
+    upload_photo,
+    upload_tournament_document,
+    validate_photo_upload,
+    validate_tournament_document,
+)
 from accounts.models import GuardianLink, Roles, User
 from accounts.services import ProvisioningError
 
@@ -36,6 +47,9 @@ from .forms import (
     DisputeResponseForm,
     EligibilityUpdateForm,
     GuardianLinkForm,
+    TournamentDocumentForm,
+    TournamentFixtureForm,
+    TournamentScheduleForm,
 )
 from .ratelimit import is_rate_limited
 from .services import (
@@ -438,3 +452,197 @@ def staff_dispute_detail(request, pk):
         'portal/staff_dispute_detail.html',
         {'dispute': dispute, 'form': form},
     )
+
+
+def _coordinator_schedule(request, schedule_id):
+    return get_object_or_404(
+        TournamentSchedule.objects.select_related('club', 'uploaded_by'),
+        pk=schedule_id,
+        club_id=request.user.club_id,
+    )
+
+
+@portal_role_required(Roles.COORDINATOR)
+def tournament_schedules(request):
+    """List published schedules and create a new tournament programme."""
+    form = TournamentScheduleForm(request.POST or None, request.FILES or None)
+    if request.method == 'POST' and form.is_valid():
+        document = form.cleaned_data['document']
+        content_type = validate_tournament_document(document)
+        schedule = None
+        document_path = ''
+        try:
+            with transaction.atomic():
+                schedule = TournamentSchedule.objects.create(
+                    club=request.user.club,
+                    title=form.cleaned_data['title'],
+                    uploaded_by=request.user,
+                )
+                document_path = upload_tournament_document(
+                    request.user.club_id,
+                    schedule.id,
+                    document.read(),
+                    content_type,
+                )
+                schedule.document_path = document_path
+                schedule.save(update_fields=['document_path', 'updated_at'])
+                AuditLog.record(
+                    request.user,
+                    'tournament.created',
+                    target=schedule.title,
+                    detail='Official schedule uploaded.',
+                )
+        except RuntimeError as exc:
+            if document_path:
+                delete_tournament_document(document_path)
+            form.add_error('document', str(exc))
+        else:
+            messages.success(request, f'{schedule.title} has been published.')
+            return redirect('portal:tournament-detail', schedule_id=schedule.id)
+
+    schedules = (
+        TournamentSchedule.objects.filter(club_id=request.user.club_id)
+        .prefetch_related('fixtures')
+    )
+    return render(request, 'portal/tournament_schedules.html', {
+        'form': form,
+        'schedules': schedules,
+    })
+
+
+@portal_role_required(Roles.COORDINATOR)
+def tournament_schedule_detail(request, schedule_id):
+    schedule = _coordinator_schedule(request, schedule_id)
+    document_form = TournamentDocumentForm()
+    fixture_form = TournamentFixtureForm(prefix='fixture')
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'replace-document':
+            document_form = TournamentDocumentForm(request.POST, request.FILES)
+            if document_form.is_valid():
+                document = document_form.cleaned_data['document']
+                content_type = validate_tournament_document(document)
+                old_path = schedule.document_path
+                try:
+                    new_path = upload_tournament_document(
+                        request.user.club_id,
+                        schedule.id,
+                        document.read(),
+                        content_type,
+                    )
+                except RuntimeError as exc:
+                    document_form.add_error('document', str(exc))
+                else:
+                    schedule.document_path = new_path
+                    schedule.uploaded_by = request.user
+                    schedule.save(update_fields=[
+                        'document_path', 'uploaded_by', 'updated_at',
+                    ])
+                    if old_path and old_path != new_path:
+                        delete_tournament_document(old_path)
+                    AuditLog.record(
+                        request.user,
+                        'tournament.document_updated',
+                        target=schedule.title,
+                    )
+                    messages.success(request, 'Schedule document replaced.')
+                    return redirect(
+                        'portal:tournament-detail', schedule_id=schedule.id
+                    )
+        elif action == 'add-fixture':
+            fixture_form = TournamentFixtureForm(request.POST, prefix='fixture')
+            if fixture_form.is_valid():
+                fixture = fixture_form.save(commit=False)
+                fixture.schedule = schedule
+                fixture.save()
+                AuditLog.record(
+                    request.user,
+                    'fixture.created',
+                    target=fixture.opponent,
+                    detail=f'{schedule.title} · {fixture.kickoff_at.isoformat()}',
+                )
+                messages.success(request, 'Fixture added to the tournament.')
+                return redirect(
+                    'portal:tournament-detail', schedule_id=schedule.id
+                )
+
+    return render(request, 'portal/tournament_schedule_detail.html', {
+        'schedule': schedule,
+        'document_url': signed_tournament_document_url(schedule.document_path),
+        'document_form': document_form,
+        'fixture_form': fixture_form,
+        'fixtures': schedule.fixtures.select_related('completed_match'),
+    })
+
+
+@portal_role_required(Roles.COORDINATOR)
+def tournament_fixture_edit(request, fixture_id):
+    fixture = get_object_or_404(
+        TournamentFixture.objects.select_related('schedule'),
+        pk=fixture_id,
+        schedule__club_id=request.user.club_id,
+    )
+    if fixture.completed_match_id:
+        messages.error(request, 'A completed fixture can no longer be edited.')
+        return redirect(
+            'portal:tournament-detail', schedule_id=fixture.schedule_id
+        )
+    form = TournamentFixtureForm(request.POST or None, instance=fixture)
+    if request.method == 'POST' and form.is_valid():
+        fixture = form.save()
+        AuditLog.record(
+            request.user,
+            'fixture.updated',
+            target=fixture.opponent,
+            detail=fixture.schedule.title,
+        )
+        messages.success(request, 'Fixture updated.')
+        return redirect('portal:tournament-detail', schedule_id=fixture.schedule_id)
+    return render(request, 'portal/tournament_fixture_form.html', {
+        'form': form,
+        'fixture': fixture,
+    })
+
+
+@portal_role_required(Roles.COORDINATOR)
+def tournament_fixture_delete(request, fixture_id):
+    fixture = get_object_or_404(
+        TournamentFixture.objects.select_related('schedule'),
+        pk=fixture_id,
+        schedule__club_id=request.user.club_id,
+    )
+    if request.method != 'POST':
+        raise PermissionDenied('Fixture deletion requires confirmation.')
+    schedule_id = fixture.schedule_id
+    if fixture.completed_match_id:
+        messages.error(request, 'A completed fixture cannot be deleted.')
+    else:
+        AuditLog.record(
+            request.user,
+            'fixture.deleted',
+            target=fixture.opponent,
+            detail=fixture.schedule.title,
+        )
+        fixture.delete()
+        messages.success(request, 'Fixture deleted.')
+    return redirect('portal:tournament-detail', schedule_id=schedule_id)
+
+
+@portal_role_required(Roles.COORDINATOR)
+def tournament_schedule_delete(request, schedule_id):
+    schedule = _coordinator_schedule(request, schedule_id)
+    if request.method != 'POST':
+        raise PermissionDenied('Tournament deletion requires confirmation.')
+    if schedule.fixtures.filter(completed_match__isnull=False).exists():
+        messages.error(
+            request,
+            'This tournament has completed matches and cannot be deleted.',
+        )
+        return redirect('portal:tournament-detail', schedule_id=schedule.id)
+    document_path = schedule.document_path
+    AuditLog.record(request.user, 'tournament.deleted', target=schedule.title)
+    schedule.delete()
+    delete_tournament_document(document_path)
+    messages.success(request, 'Tournament schedule deleted.')
+    return redirect('portal:tournaments')

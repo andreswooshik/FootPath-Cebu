@@ -86,6 +86,11 @@
            class="portal-nav-link {% if request.resolver_match.url_name == 'guardians' %}portal-nav-link-active{% endif %}">
           Guardians
         </a>
+        <a href="{% url 'portal:tournaments' %}"
+           {% if request.resolver_match.url_name == 'tournaments' or request.resolver_match.url_name == 'tournament-detail' or request.resolver_match.url_name == 'tournament-fixture-edit' %}aria-current="page"{% endif %}
+           class="portal-nav-link {% if request.resolver_match.url_name == 'tournaments' or request.resolver_match.url_name == 'tournament-detail' or request.resolver_match.url_name == 'tournament-fixture-edit' %}portal-nav-link-active{% endif %}">
+          Tournaments
+        </a>
       {% elif user.role == 'SCHOOL_STAFF' %}
         {% if request.user.club.is_school_affiliated %}
           <a href="{% url 'portal:staff-eligibility' %}"

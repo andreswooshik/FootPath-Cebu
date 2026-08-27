@@ -12,11 +12,17 @@ so `photoUrl` is simply null and the client shows its avatar fallback.
 import os
 
 from django.core.cache import cache
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 import httpx
 
 _TIMEOUT = 10.0
 MAX_PHOTO_BYTES = 25 * 1024 * 1024
 ALLOWED_PHOTO_TYPES = frozenset({'image/jpeg', 'image/png', 'image/webp'})
+MAX_TOURNAMENT_DOCUMENT_BYTES = 5 * 1024 * 1024
+ALLOWED_TOURNAMENT_DOCUMENT_TYPES = frozenset({
+    'application/pdf', 'image/jpeg', 'image/png',
+})
 
 
 def _config():
@@ -165,3 +171,133 @@ def invalidate_signed_photo_url(photo_path, expires=3600):
     """Discard a cached signed URL after replacing its storage object."""
     if photo_path:
         cache.delete(f'photo-signed-url:{expires}:{photo_path}')
+
+
+def _tournament_config():
+    return (
+        os.environ.get('SUPABASE_URL'),
+        os.environ.get('SUPABASE_SERVICE_KEY'),
+        os.environ.get('SUPABASE_SCHEDULE_BUCKET', 'tournament-schedules'),
+    )
+
+
+def validate_tournament_document(upload):
+    """Validate a tournament PDF/image using both MIME type and signature."""
+    content_type = (getattr(upload, 'content_type', '') or '').lower()
+    if content_type not in ALLOWED_TOURNAMENT_DOCUMENT_TYPES:
+        raise ValueError('Only PDF, JPEG, and PNG schedules are allowed.')
+    size = getattr(upload, 'size', None)
+    if size is not None and size > MAX_TOURNAMENT_DOCUMENT_BYTES:
+        raise ValueError('Tournament schedule must be 5 MB or smaller.')
+    header = upload.read(16)
+    upload.seek(0)
+    signatures = {
+        'application/pdf': header.startswith(b'%PDF-'),
+        'image/jpeg': header.startswith(b'\xff\xd8\xff'),
+        'image/png': header.startswith(b'\x89PNG\r\n\x1a\n'),
+    }
+    if not signatures[content_type]:
+        raise ValueError('The uploaded schedule does not match its file type.')
+    return content_type
+
+
+def upload_tournament_document(club_id, schedule_id, content, content_type):
+    """Store one schedule document, using Supabase or the local fallback."""
+    extension = {
+        'application/pdf': 'pdf',
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+    }[content_type]
+    object_name = f'{club_id}/{schedule_id}.{extension}'
+    url, key, bucket = _tournament_config()
+    if not (url and key):
+        local_name = f'tournament-schedules/{object_name}'
+        if default_storage.exists(local_name):
+            default_storage.delete(local_name)
+        saved = default_storage.save(local_name, ContentFile(content))
+        return f'local/{saved}'
+
+    endpoint = f'{url}/storage/v1/object/{bucket}/{object_name}'
+    try:
+        headers = _auth_headers(key)
+        headers.update({
+            'Content-Type': content_type,
+            'x-upsert': 'true',
+        })
+        response = httpx.post(
+            endpoint,
+            content=content,
+            headers=headers,
+            timeout=_TIMEOUT,
+        )
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise RuntimeError(
+            'Tournament schedule storage is temporarily unavailable.'
+        ) from exc
+    return f'{bucket}/{object_name}'
+
+
+def delete_tournament_document(document_path):
+    if not document_path:
+        return False
+    if document_path.startswith('local/'):
+        local_name = document_path.removeprefix('local/')
+        if default_storage.exists(local_name):
+            default_storage.delete(local_name)
+            return True
+        return False
+    url, key, _ = _tournament_config()
+    if not (url and key):
+        return False
+    bucket, separator, obj = document_path.partition('/')
+    if not separator or not bucket or not obj:
+        return False
+    try:
+        response = httpx.request(
+            'DELETE',
+            f'{url}/storage/v1/object/{bucket}',
+            json={'prefixes': [obj]},
+            headers=_auth_headers(key),
+            timeout=_TIMEOUT,
+        )
+        response.raise_for_status()
+        return True
+    except httpx.HTTPError:
+        return False
+
+
+def signed_tournament_document_url(document_path, expires=900):
+    """Return an authorized short-lived URL without exposing service keys."""
+    if not document_path:
+        return None
+    if document_path.startswith('local/'):
+        return default_storage.url(document_path.removeprefix('local/'))
+    cache_key = f'tournament-signed-url:{expires}:{document_path}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    url, key, _ = _tournament_config()
+    if not (url and key):
+        return None
+    try:
+        bucket, _, obj = document_path.partition('/')
+        response = httpx.post(
+            f'{url}/storage/v1/object/sign/{bucket}/{obj}',
+            json={'expiresIn': expires},
+            headers=_auth_headers(key),
+            timeout=_TIMEOUT,
+        )
+        response.raise_for_status()
+        signed = response.json().get('signedURL') or response.json().get('signedUrl')
+        result = f'{url}/storage/v1{signed}' if signed else None
+        if result:
+            cache.set(cache_key, result, timeout=max(1, expires - 60))
+        return result
+    except Exception:
+        return None
+
+
+def invalidate_signed_tournament_document_url(document_path, expires=900):
+    if document_path:
+        cache.delete(f'tournament-signed-url:{expires}:{document_path}')

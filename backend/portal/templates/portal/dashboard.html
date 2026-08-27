@@ -65,7 +65,7 @@
 
   <section class="mt-8" aria-labelledby="quick-actions-heading">
     <h2 id="quick-actions-heading" class="mb-4 text-lg font-bold text-gray-900">Quick actions</h2>
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <a href="{% url 'portal:create-account' %}#player" class="dashboard-action-card">
         <span class="dashboard-action-icon" aria-hidden="true">＋</span>
         <span><strong>Create player</strong><small>Add a new roster profile</small></span>
@@ -81,6 +81,10 @@
       <a href="{% url 'portal:guardians' %}" class="dashboard-action-card">
         <span class="dashboard-action-icon" aria-hidden="true">↔</span>
         <span><strong>Link guardian</strong><small>Connect household profiles</small></span>
+      </a>
+      <a href="{% url 'portal:tournaments' %}" class="dashboard-action-card">
+        <span class="dashboard-action-icon" aria-hidden="true">▦</span>
+        <span><strong>Publish schedule</strong><small>Add tournament fixtures</small></span>
       </a>
     </div>
   </section>

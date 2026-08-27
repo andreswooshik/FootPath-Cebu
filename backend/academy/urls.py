@@ -53,6 +53,11 @@ urlpatterns = [
         name='progress-squad',
     ),
     path(
+        'tournament-schedules/',
+        views.TournamentScheduleListView.as_view(),
+        name='tournament-schedules',
+    ),
+    path(
         'matches/',
         views.FootballMatchListCreateView.as_view(),
         name='football-matches',

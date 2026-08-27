@@ -102,6 +102,13 @@ class MatchVenue(models.TextChoices):
     NEUTRAL = 'NEUTRAL', 'Neutral'
 
 
+class FixtureStatus(models.TextChoices):
+    SCHEDULED = 'SCHEDULED', 'Scheduled'
+    POSTPONED = 'POSTPONED', 'Postponed'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+    COMPLETED = 'COMPLETED', 'Completed'
+
+
 PLAYER_POSITION_CODES = {
     'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST',
 }
@@ -426,6 +433,118 @@ class FootballMatch(models.Model):
 
     def __str__(self):
         return f'{self.club.name} vs {self.opponent} ({self.played_on})'
+
+
+class TournamentSchedule(models.Model):
+    """A published tournament programme owned by one club.
+
+    ``document_path`` is an opaque server-side storage reference. Clients only
+    receive short-lived signed URLs after the API verifies role and tenancy.
+    Structured fixtures, rather than the uploaded document, drive the mobile
+    schedule and completed-match workflow.
+    """
+
+    club = models.ForeignKey(
+        'accounts.Club',
+        on_delete=models.PROTECT,
+        related_name='tournament_schedules',
+    )
+    title = models.CharField(max_length=120)
+    document_path = models.CharField(max_length=500, blank=True)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='uploaded_tournament_schedules',
+    )
+    is_published = models.BooleanField(default=True)
+    published_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        self.title = self.title.strip()
+        if not self.title:
+            raise ValidationError({'title': 'Tournament title is required.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['-published_at', '-id']
+        indexes = [
+            models.Index(
+                fields=['club', '-published_at'],
+                name='academy_tourn_club_pub_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.club.name} · {self.title}'
+
+
+class TournamentFixture(models.Model):
+    """One structured fixture within a published tournament schedule."""
+
+    schedule = models.ForeignKey(
+        TournamentSchedule,
+        on_delete=models.CASCADE,
+        related_name='fixtures',
+    )
+    stage = models.CharField(max_length=80, blank=True)
+    opponent = models.CharField(max_length=120, default='TBD')
+    kickoff_at = models.DateTimeField()
+    venue = models.CharField(
+        max_length=10,
+        choices=MatchVenue.choices,
+        default=MatchVenue.NEUTRAL,
+    )
+    location = models.CharField(max_length=160, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=FixtureStatus.choices,
+        default=FixtureStatus.SCHEDULED,
+    )
+    completed_match = models.OneToOneField(
+        FootballMatch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='source_fixture',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        self.stage = self.stage.strip()
+        self.opponent = self.opponent.strip() or 'TBD'
+        self.location = self.location.strip()
+        if self.completed_match_id:
+            if self.completed_match.club_id != self.schedule.club_id:
+                raise ValidationError(
+                    {'completed_match': 'Fixture and match must belong to the same club.'}
+                )
+            self.status = FixtureStatus.COMPLETED
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['kickoff_at', 'id']
+        indexes = [
+            models.Index(
+                fields=['schedule', 'kickoff_at'],
+                name='academy_fixture_sched_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.schedule.title} · {self.opponent}'
 
 
 class PlayerMatchPerformance(models.Model):

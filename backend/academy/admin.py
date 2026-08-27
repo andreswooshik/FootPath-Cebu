@@ -11,6 +11,8 @@ from .models import (
     NotificationRecord,
     PlayerMatchPerformance,
     PlayerEligibility,
+    TournamentFixture,
+    TournamentSchedule,
 )
 
 
@@ -184,6 +186,40 @@ class FootballMatchAdmin(admin.ModelAdmin):
             target=str(obj.pk),
             detail=f'{obj.opponent} | {obj.played_on}',
         )
+
+
+class TournamentFixtureInline(admin.TabularInline):
+    model = TournamentFixture
+    extra = 0
+    readonly_fields = (
+        'stage', 'opponent', 'kickoff_at', 'venue', 'location', 'status',
+        'completed_match', 'created_at', 'updated_at',
+    )
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(TournamentSchedule)
+class TournamentScheduleAdmin(admin.ModelAdmin):
+    list_display = ('title', 'club', 'is_published', 'published_at', 'uploaded_by')
+    list_filter = ('is_published', 'club')
+    search_fields = ('title', 'club__name')
+    readonly_fields = (
+        'club', 'title', 'document_path', 'uploaded_by', 'is_published',
+        'published_at', 'created_at', 'updated_at',
+    )
+    inlines = [TournamentFixtureInline]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(PlayerMatchPerformance)

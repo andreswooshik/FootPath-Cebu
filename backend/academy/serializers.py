@@ -30,8 +30,10 @@ from .models import (
     SessionConfirmation,
     SessionFocus,
     TrainingSession,
+    TournamentFixture,
+    TournamentSchedule,
 )
-from .storage import signed_photo_url
+from .storage import signed_photo_url, signed_tournament_document_url
 
 
 def _display_name(user):
@@ -215,6 +217,38 @@ class FootballMatchSerializer(serializers.ModelSerializer):
         if cleaned not in set(MatchVenue.values):
             raise serializers.ValidationError(f'Unknown venue: {value}')
         return cleaned
+
+
+class TournamentFixtureSerializer(serializers.ModelSerializer):
+    scheduleId = serializers.CharField(source='schedule_id', read_only=True)
+    tournament = serializers.CharField(source='schedule.title', read_only=True)
+    kickoffAt = serializers.DateTimeField(source='kickoff_at', read_only=True)
+    matchId = serializers.CharField(
+        source='completed_match_id', read_only=True, allow_null=True,
+    )
+
+    class Meta:
+        model = TournamentFixture
+        fields = [
+            'id', 'scheduleId', 'tournament', 'stage', 'opponent',
+            'kickoffAt', 'venue', 'location', 'status', 'matchId',
+        ]
+
+
+class TournamentScheduleSerializer(serializers.ModelSerializer):
+    documentUrl = serializers.SerializerMethodField()
+    publishedAt = serializers.DateTimeField(source='published_at', read_only=True)
+    updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
+    fixtures = TournamentFixtureSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = TournamentSchedule
+        fields = [
+            'id', 'title', 'documentUrl', 'publishedAt', 'updatedAt', 'fixtures',
+        ]
+
+    def get_documentUrl(self, obj):
+        return signed_tournament_document_url(obj.document_path)
 
 
 class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
