@@ -18,7 +18,11 @@ from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 from .models import Club, GuardianLink, Roles, User
-from .services import link_or_create_firebase_user, provision_club_coordinator
+from .services import (
+    link_or_create_firebase_user,
+    provision_club_coordinator,
+    set_coordinator_mobile_disabled,
+)
 
 # This project authorizes by the custom User.role field (see accounts.permissions),
 # not Django's Groups/Permissions. Hide Groups so the admin isn't cluttered with an
@@ -239,9 +243,19 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
         developer runs this action they cannot log in (Django's ModelBackend
         rejects inactive users). Only pending COORDINATOR rows are touched.
         """
-        pending = queryset.filter(role=Roles.COORDINATOR, is_active=False)
-        approved = pending.count()
-        pending.update(is_active=True)
+        pending = list(queryset.filter(role=Roles.COORDINATOR, is_active=False))
+        approved = len(pending)
+        for coordinator in pending:
+            coordinator.is_active = True
+            coordinator.save(update_fields=['is_active'])
+            try:
+                set_coordinator_mobile_disabled(coordinator, disabled=False)
+            except Exception as exc:
+                self.message_user(
+                    request,
+                    f'{coordinator.email}: mobile identity could not be enabled: {exc}',
+                    level=messages.WARNING,
+                )
         if approved:
             self.message_user(
                 request,
@@ -591,6 +605,17 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                     coordinator.save(update_fields=['is_active'])
                     changed = True
                 if changed:
+                    try:
+                        set_coordinator_mobile_disabled(
+                            coordinator, disabled=False
+                        )
+                    except Exception as exc:
+                        self.message_user(
+                            request,
+                            f'{coordinator.email}: mobile identity could not be enabled: {exc}',
+                            level=messages.WARNING,
+                        )
+                if changed:
                     approved += 1
         self.message_user(
             request,
@@ -612,6 +637,14 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                 club.save(update_fields=['is_active'])
                 coordinator.is_active = False
                 coordinator.save(update_fields=['is_active'])
+                try:
+                    set_coordinator_mobile_disabled(coordinator, disabled=True)
+                except Exception as exc:
+                    self.message_user(
+                        request,
+                        f'{coordinator.email}: mobile sessions could not be revoked: {exc}',
+                        level=messages.WARNING,
+                    )
                 if changed:
                     disapproved += 1
         self.message_user(

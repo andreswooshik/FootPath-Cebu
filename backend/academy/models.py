@@ -373,7 +373,7 @@ class TrainingSession(models.Model):
 class FootballMatch(models.Model):
     """One completed match owned by a club.
 
-    Ownership is stamped from the authenticated coach by the API. Keeping the
+    Ownership is stamped from the authenticated Coordinator by the API. Keeping the
     match separate from its per-player rows lets one result serve the whole
     squad without duplicating opponent and score data for every player.
     """
@@ -548,7 +548,7 @@ class TournamentFixture(models.Model):
 
 
 class PlayerMatchPerformance(models.Model):
-    """A coach-recorded performance for one player in one match.
+    """Role-separated statistics and evaluation for one player/match.
 
     Rows are historical and match-scoped. Updating a player's standing profile
     ratings never changes this evidence, which makes genuine trends possible.
@@ -593,6 +593,8 @@ class PlayerMatchPerformance(models.Model):
     coach_rating = models.DecimalField(
         max_digits=3,
         decimal_places=1,
+        null=True,
+        blank=True,
         validators=[MinValueValidator(0), MaxValueValidator(10)],
     )
     notes = models.CharField(max_length=1000, blank=True)
@@ -603,6 +605,14 @@ class PlayerMatchPerformance(models.Model):
         blank=True,
         related_name='recorded_match_performances',
     )
+    rated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rated_match_performances',
+    )
+    rated_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

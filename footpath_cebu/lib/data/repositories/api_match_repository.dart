@@ -75,6 +75,19 @@ class ApiMatchRepository implements MatchRepository {
   }
 
   @override
+  Future<List<MatchRosterPlayer>> fetchMatchRoster(String matchId) async {
+    try {
+      final response = await _api.get('/api/matches/$matchId/roster/');
+      return (jsonDecode(response.body) as List)
+          .cast<Map<String, dynamic>>()
+          .map(MatchRosterPlayer.fromJson)
+          .toList(growable: false);
+    } on ApiException catch (error) {
+      throw _translate(error);
+    }
+  }
+
+  @override
   Future<MatchPerformance> savePerformance(
     String matchId,
     String playerId,
@@ -98,7 +111,38 @@ class ApiMatchRepository implements MatchRepository {
   @override
   Future<void> deletePerformance(String matchId, String playerId) async {
     try {
-      await _api.delete('/api/matches/$matchId/performances/$playerId/');
+      await _api.delete(
+        '/api/matches/$matchId/performances/$playerId/?confirmRated=true',
+      );
+    } on ApiException catch (error) {
+      throw _translate(error);
+    }
+  }
+
+  @override
+  Future<MatchPerformance> saveRating(
+    String matchId,
+    String playerId,
+    MatchRatingDraft draft,
+  ) async {
+    try {
+      final response = await _api.put(
+        '/api/matches/$matchId/performances/$playerId/rating/',
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(draft.toJson()),
+      );
+      return MatchPerformance.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    } on ApiException catch (error) {
+      throw _translate(error);
+    }
+  }
+
+  @override
+  Future<void> deleteRating(String matchId, String playerId) async {
+    try {
+      await _api.delete('/api/matches/$matchId/performances/$playerId/rating/');
     } on ApiException catch (error) {
       throw _translate(error);
     }

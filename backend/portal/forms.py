@@ -291,6 +291,14 @@ class TournamentFixtureForm(forms.ModelForm):
         return self.cleaned_data['opponent'].strip() or 'TBD'
 
 
+class CoordinatorMobileAccessForm(forms.Form):
+    current_password = forms.CharField(
+        label='Current portal password',
+        widget=forms.PasswordInput(attrs={'autocomplete': 'current-password'}),
+        help_text='This same password will be used for the mobile app.',
+    )
+
+
 def _user_label(user):
     name = f'{user.first_name} {user.last_name}'.strip()
     if name and user.email:

@@ -18,6 +18,7 @@ import 'package:footpath_cebu/data/repositories/api_progress_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_profile_photo_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_tournament_schedule_repository.dart';
 import 'package:footpath_cebu/data/repositories/firebase_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_age_tier_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_attendance_repository.dart';
@@ -33,6 +34,7 @@ import 'package:footpath_cebu/data/repositories/mock_progress_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_profile_photo_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_tournament_schedule_repository.dart';
 import 'package:footpath_cebu/data/repositories/offline_first_attendance_repository.dart';
 import 'package:footpath_cebu/core/security/player_unlock_token_store.dart';
 import 'package:footpath_cebu/domain/repositories/age_tier_repository.dart';
@@ -49,9 +51,11 @@ import 'package:footpath_cebu/domain/repositories/progress_repository.dart';
 import 'package:footpath_cebu/domain/repositories/profile_photo_repository.dart';
 import 'package:footpath_cebu/domain/repositories/session_confirmation_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
+import 'package:footpath_cebu/domain/repositories/tournament_schedule_repository.dart';
 import 'package:footpath_cebu/domain/usecases/confirm_session.dart';
 import 'package:footpath_cebu/domain/usecases/create_football_match.dart';
 import 'package:footpath_cebu/domain/usecases/delete_match_performance.dart';
+import 'package:footpath_cebu/domain/usecases/delete_match_rating.dart';
 import 'package:footpath_cebu/domain/usecases/get_age_tier_bands.dart';
 import 'package:footpath_cebu/domain/usecases/delete_injury.dart';
 import 'package:footpath_cebu/domain/usecases/get_disputes.dart';
@@ -60,6 +64,7 @@ import 'package:footpath_cebu/domain/usecases/get_injuries.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
 import 'package:footpath_cebu/domain/usecases/get_football_matches.dart';
 import 'package:footpath_cebu/domain/usecases/get_match_performances.dart';
+import 'package:footpath_cebu/domain/usecases/get_match_roster.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_details.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
@@ -77,6 +82,7 @@ import 'package:footpath_cebu/domain/usecases/restore_session.dart';
 import 'package:footpath_cebu/domain/usecases/respond_to_dispute.dart';
 import 'package:footpath_cebu/domain/usecases/save_injury.dart';
 import 'package:footpath_cebu/domain/usecases/save_match_performance.dart';
+import 'package:footpath_cebu/domain/usecases/save_match_rating.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_position.dart';
 import 'package:footpath_cebu/domain/usecases/set_player_privacy_pin.dart';
@@ -415,6 +421,17 @@ final getMatchPerformancesProvider = Provider<GetMatchPerformances>(
   (ref) => GetMatchPerformances(ref.watch(matchRepositoryProvider)),
 );
 
+final tournamentScheduleRepositoryProvider =
+    Provider<TournamentScheduleRepository>(
+      (ref) => useMockData
+          ? MockTournamentScheduleRepository()
+          : ApiTournamentScheduleRepository(),
+    );
+
+final getMatchRosterProvider = Provider<GetMatchRoster>(
+  (ref) => GetMatchRoster(ref.watch(matchRepositoryProvider)),
+);
+
 final getPlayerMatchStatisticsProvider = Provider<GetPlayerMatchStatistics>(
   (ref) => GetPlayerMatchStatistics(ref.watch(matchRepositoryProvider)),
 );
@@ -425,6 +442,14 @@ final saveMatchPerformanceProvider = Provider<SaveMatchPerformance>(
 
 final deleteMatchPerformanceProvider = Provider<DeleteMatchPerformance>(
   (ref) => DeleteMatchPerformance(ref.watch(matchRepositoryProvider)),
+);
+
+final saveMatchRatingProvider = Provider<SaveMatchRating>(
+  (ref) => SaveMatchRating(ref.watch(matchRepositoryProvider)),
+);
+
+final deleteMatchRatingProvider = Provider<DeleteMatchRating>(
+  (ref) => DeleteMatchRating(ref.watch(matchRepositoryProvider)),
 );
 
 final getAgeTierBandsProvider = Provider<GetAgeTierBands>(

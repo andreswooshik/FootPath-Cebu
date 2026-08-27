@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/football_match.dart';
+import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/match_providers.dart';
+import 'package:footpath_cebu/presentation/providers/tournament_schedule_providers.dart';
 
 class EditFootballMatchScreen extends ConsumerStatefulWidget {
-  const EditFootballMatchScreen({super.key, this.existing});
+  const EditFootballMatchScreen({super.key, this.existing, this.fixture});
 
   final FootballMatch? existing;
+  final TournamentFixture? fixture;
 
   @override
   ConsumerState<EditFootballMatchScreen> createState() =>
@@ -26,19 +29,28 @@ class _EditFootballMatchScreenState
   late MatchVenue _venue;
 
   bool get _editing => widget.existing != null;
+  bool get _scheduled =>
+      widget.fixture != null || widget.existing?.fixtureId != null;
 
   @override
   void initState() {
     super.initState();
     final match = widget.existing;
-    _opponent = TextEditingController(text: match?.opponent ?? '');
-    _competition = TextEditingController(text: match?.competition ?? '');
+    _opponent = TextEditingController(
+      text: match?.opponent ?? widget.fixture?.opponent ?? '',
+    );
+    _competition = TextEditingController(
+      text: match?.competition ?? widget.fixture?.tournament ?? '',
+    );
     _ourScore = TextEditingController(text: '${match?.ourScore ?? 0}');
     _opponentScore = TextEditingController(
       text: '${match?.opponentScore ?? 0}',
     );
-    _playedOn = match?.playedOn ?? DateTime.now();
-    _venue = match?.venue ?? MatchVenue.home;
+    _playedOn =
+        match?.playedOn ??
+        widget.fixture?.kickoffAt.toLocal() ??
+        DateTime.now();
+    _venue = match?.venue ?? widget.fixture?.venue ?? MatchVenue.home;
   }
 
   @override
@@ -69,6 +81,7 @@ class _EditFootballMatchScreenState
       venue: _venue,
       ourScore: int.parse(_ourScore.text),
       opponentScore: int.parse(_opponentScore.text),
+      fixtureId: widget.fixture?.id,
     );
     final controller = ref.read(matchManagementControllerProvider.notifier);
     final saved = _editing
@@ -76,6 +89,9 @@ class _EditFootballMatchScreenState
         : await controller.create(draft);
     if (!mounted) return;
     if (saved != null) {
+      if (widget.fixture != null) {
+        ref.invalidate(tournamentSchedulesProvider);
+      }
       Navigator.of(context).pop(saved);
       return;
     }
@@ -92,7 +108,15 @@ class _EditFootballMatchScreenState
     final saving = ref.watch(matchManagementControllerProvider).isLoading;
     final date = MaterialLocalizations.of(context).formatMediumDate(_playedOn);
     return Scaffold(
-      appBar: AppBar(title: Text(_editing ? 'Edit Match' : 'Record Match')),
+      appBar: AppBar(
+        title: Text(
+          _editing
+              ? 'Edit Match'
+              : _scheduled
+              ? 'Record Scheduled Result'
+              : 'Record Ad-hoc Match',
+        ),
+      ),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -100,6 +124,7 @@ class _EditFootballMatchScreenState
           children: [
             TextFormField(
               controller: _opponent,
+              readOnly: _scheduled,
               textCapitalization: TextCapitalization.words,
               maxLength: 120,
               decoration: const InputDecoration(
@@ -113,6 +138,7 @@ class _EditFootballMatchScreenState
             const SizedBox(height: 12),
             TextFormField(
               controller: _competition,
+              readOnly: _scheduled,
               textCapitalization: TextCapitalization.words,
               maxLength: 120,
               decoration: const InputDecoration(
@@ -127,7 +153,7 @@ class _EditFootballMatchScreenState
               title: const Text('Date played'),
               subtitle: Text(date),
               trailing: const Icon(Icons.edit_calendar_outlined),
-              onTap: saving ? null : _pickDate,
+              onTap: saving || _scheduled ? null : _pickDate,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<MatchVenue>(
@@ -144,7 +170,7 @@ class _EditFootballMatchScreenState
                     ),
                   )
                   .toList(growable: false),
-              onChanged: saving
+              onChanged: saving || _scheduled
                   ? null
                   : (value) {
                       if (value != null) setState(() => _venue = value);

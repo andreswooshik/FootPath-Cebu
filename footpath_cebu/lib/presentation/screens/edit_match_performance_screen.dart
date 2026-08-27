@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/domain/entities/match_performance.dart';
-import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/match_providers.dart';
@@ -17,7 +16,7 @@ class EditMatchPerformanceScreen extends ConsumerStatefulWidget {
   });
 
   final FootballMatch match;
-  final Player player;
+  final MatchRosterPlayer player;
   final MatchPerformance? existing;
 
   @override
@@ -29,8 +28,6 @@ class _EditMatchPerformanceScreenState
     extends ConsumerState<EditMatchPerformanceScreen> {
   final _formKey = GlobalKey<FormState>();
   late final Map<String, TextEditingController> _numbers;
-  late final TextEditingController _rating;
-  late final TextEditingController _notes;
   late PlayerPosition? _position;
   late bool _starter;
   late bool _cleanSheet;
@@ -42,7 +39,7 @@ class _EditMatchPerformanceScreenState
     super.initState();
     final row = _existing;
     _position = PlayerPositionInfo.fromWire(
-      row?.position ?? widget.player.position?.wire,
+      row?.position ?? widget.player.registeredPosition,
     );
     _starter = row?.starter ?? false;
     _cleanSheet = row?.cleanSheet ?? false;
@@ -61,10 +58,6 @@ class _EditMatchPerformanceScreenState
       'saves': _controller(row?.saves ?? 0),
       'goalsConceded': _controller(row?.goalsConceded ?? 0),
     };
-    _rating = TextEditingController(
-      text: row?.coachRating.toStringAsFixed(1) ?? '5.0',
-    );
-    _notes = TextEditingController(text: row?.notes ?? '');
   }
 
   TextEditingController _controller(int value) =>
@@ -75,8 +68,6 @@ class _EditMatchPerformanceScreenState
     for (final controller in _numbers.values) {
       controller.dispose();
     }
-    _rating.dispose();
-    _notes.dispose();
     super.dispose();
   }
 
@@ -121,8 +112,6 @@ class _EditMatchPerformanceScreenState
       saves: _value('saves'),
       goalsConceded: _value('goalsConceded'),
       cleanSheet: _cleanSheet,
-      coachRating: double.parse(_rating.text),
-      notes: _notes.text,
     );
     final saved = await ref
         .read(matchManagementControllerProvider.notifier)
@@ -145,8 +134,10 @@ class _EditMatchPerformanceScreenState
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remove statistics?'),
-        content: const Text(
-          'This removes this player’s statistics from the match.',
+        content: Text(
+          _existing?.ratingStatus == MatchRatingStatus.rated
+              ? 'This also removes the completed Coach rating. This action cannot be undone.'
+              : 'This removes this player’s statistics from the match.',
         ),
         actions: [
           TextButton(
@@ -228,23 +219,8 @@ class _EditMatchPerformanceScreenState
                   ? null
                   : (value) => setState(() => _starter = value),
             ),
-            _section(context, 'Playing Time & Rating', [
+            _section(context, 'Playing Time', [
               _field('minutes', 'Minutes played', max: 180),
-              TextFormField(
-                controller: _rating,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Coach rating (0–10)',
-                ),
-                validator: (value) {
-                  final rating = double.tryParse(value ?? '');
-                  return rating == null || rating < 0 || rating > 10
-                      ? 'Use a rating from 0 to 10.'
-                      : null;
-                },
-              ),
             ]),
             _section(context, 'Attacking', [
               _field('goals', 'Goals'),
@@ -275,17 +251,6 @@ class _EditMatchPerformanceScreenState
                       : (value) => setState(() => _cleanSheet = value),
                 ),
               ]),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _notes,
-              minLines: 3,
-              maxLines: 5,
-              maxLength: 1000,
-              decoration: const InputDecoration(
-                labelText: 'Coach notes (optional)',
-                alignLabelWithHint: true,
-              ),
-            ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: saving ? null : _save,

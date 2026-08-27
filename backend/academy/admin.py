@@ -236,7 +236,8 @@ class PlayerMatchPerformanceAdmin(admin.ModelAdmin):
         'match__opponent',
     )
     readonly_fields = (
-        'match', 'player', 'recorded_by', 'created_at', 'updated_at',
+        'match', 'player', 'recorded_by', 'rated_by', 'rated_at',
+        'created_at', 'updated_at',
     )
 
     def has_add_permission(self, request):

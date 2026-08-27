@@ -11,7 +11,7 @@ def build_performance_summary(performances):
     rows = list(performances)
     attempted = sum(row.passes_attempted for row in rows)
     completed = sum(row.passes_completed for row in rows)
-    ratings = [row.coach_rating for row in rows]
+    ratings = [row.coach_rating for row in rows if row.coach_rating is not None]
 
     pass_completion = None
     if attempted:

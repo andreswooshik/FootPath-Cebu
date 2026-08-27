@@ -9,6 +9,9 @@ import 'package:footpath_cebu/presentation/providers/player_dashboard_providers.
 import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coach_profile_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coach_progress_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_account_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_injuries_placeholder_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_matches_screen.dart';
 import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_dashboard_screen.dart';
@@ -16,11 +19,45 @@ import 'package:footpath_cebu/presentation/screens/profile_tab_screen.dart';
 import 'package:footpath_cebu/presentation/screens/progress_screen.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_tab_screen.dart';
 import 'package:footpath_cebu/presentation/screens/training_schedule_screen.dart';
+import 'package:footpath_cebu/presentation/screens/tournament_schedule_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/coach_bottom_nav.dart';
+import 'package:footpath_cebu/presentation/widgets/coordinator_navigation.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_bottom_nav.dart';
 import 'package:footpath_cebu/presentation/widgets/portal_shell.dart';
+
+class CoordinatorPortalScreen extends StatelessWidget {
+  const CoordinatorPortalScreen({
+    super.key,
+    required this.profile,
+    this.initialTabIndex = 0,
+  });
+
+  final UserProfile profile;
+  final int initialTabIndex;
+
+  @override
+  Widget build(BuildContext context) => PortalShell(
+    initialIndex: initialTabIndex,
+    pages: [
+      const TournamentScheduleScreen(asTab: true, canRecordResults: true),
+      const CoordinatorMatchesScreen(),
+      const CoordinatorInjuriesPlaceholderScreen(),
+      CoordinatorAccountScreen(profile: profile),
+    ],
+    navigationBarBuilder: (selectedIndex, onSelected) => CoordinatorBottomNav(
+      selectedIndex: selectedIndex,
+      onDestinationSelected: onSelected,
+    ),
+    navigationRailBuilder: (selectedIndex, onSelected, extended) =>
+        CoordinatorNavigationRail(
+          selectedIndex: selectedIndex,
+          onDestinationSelected: onSelected,
+          extended: extended,
+        ),
+  );
+}
 
 /// The coach's persistent tab shell.
 class CoachPortalScreen extends StatelessWidget {

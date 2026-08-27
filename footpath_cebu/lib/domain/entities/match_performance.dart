@@ -1,6 +1,22 @@
 import 'package:footpath_cebu/domain/entities/football_match.dart';
 
-/// One historical, coach-recorded player performance.
+enum MatchRatingStatus { awaitingStatistics, awaitingRating, rated }
+
+extension MatchRatingStatusWire on MatchRatingStatus {
+  String get label => switch (this) {
+    MatchRatingStatus.awaitingStatistics => 'Awaiting Coordinator statistics',
+    MatchRatingStatus.awaitingRating => 'Awaiting Coach rating',
+    MatchRatingStatus.rated => 'Rated',
+  };
+
+  static MatchRatingStatus fromWire(String? value) => switch (value) {
+    'RATED' => MatchRatingStatus.rated,
+    'AWAITING_RATING' => MatchRatingStatus.awaitingRating,
+    _ => MatchRatingStatus.awaitingStatistics,
+  };
+}
+
+/// One historical player's objective statistics and optional Coach rating.
 class MatchPerformance {
   const MatchPerformance({
     required this.id,
@@ -25,6 +41,7 @@ class MatchPerformance {
     required this.cleanSheet,
     required this.coachRating,
     required this.notes,
+    required this.ratingStatus,
   });
 
   final String id;
@@ -47,8 +64,9 @@ class MatchPerformance {
   final int saves;
   final int goalsConceded;
   final bool cleanSheet;
-  final double coachRating;
+  final double? coachRating;
   final String notes;
+  final MatchRatingStatus ratingStatus;
 
   double? get passCompletionRate =>
       passesAttempted == 0 ? null : passesCompleted * 100 / passesAttempted;
@@ -77,12 +95,15 @@ class MatchPerformance {
         saves: _asInt(json['saves']),
         goalsConceded: _asInt(json['goalsConceded']),
         cleanSheet: json['cleanSheet'] as bool? ?? false,
-        coachRating: _asDouble(json['coachRating']),
+        coachRating: _asNullableDouble(json['coachRating']),
         notes: json['notes'] as String? ?? '',
+        ratingStatus: MatchRatingStatusWire.fromWire(
+          json['ratingStatus'] as String?,
+        ),
       );
 }
 
-/// Validated form data sent by a coach for one player and match.
+/// Validated objective statistics sent by a Coordinator for one player.
 class MatchPerformanceDraft {
   const MatchPerformanceDraft({
     required this.position,
@@ -101,8 +122,6 @@ class MatchPerformanceDraft {
     required this.saves,
     required this.goalsConceded,
     required this.cleanSheet,
-    required this.coachRating,
-    required this.notes,
   });
 
   final String position;
@@ -121,8 +140,6 @@ class MatchPerformanceDraft {
   final int saves;
   final int goalsConceded;
   final bool cleanSheet;
-  final double coachRating;
-  final String notes;
 
   Map<String, dynamic> toJson() => {
     'position': position.trim().toUpperCase(),
@@ -141,9 +158,50 @@ class MatchPerformanceDraft {
     'saves': saves,
     'goalsConceded': goalsConceded,
     'cleanSheet': cleanSheet,
+  };
+}
+
+class MatchRatingDraft {
+  const MatchRatingDraft({required this.coachRating, required this.notes});
+
+  final double coachRating;
+  final String notes;
+
+  Map<String, dynamic> toJson() => {
     'coachRating': coachRating,
     'notes': notes.trim(),
   };
+}
+
+class MatchRosterPlayer {
+  const MatchRosterPlayer({
+    required this.id,
+    required this.name,
+    required this.registeredPosition,
+    required this.performance,
+    required this.ratingStatus,
+  });
+
+  final String id;
+  final String name;
+  final String registeredPosition;
+  final MatchPerformance? performance;
+  final MatchRatingStatus ratingStatus;
+
+  factory MatchRosterPlayer.fromJson(Map<String, dynamic> json) =>
+      MatchRosterPlayer(
+        id: json['id'].toString(),
+        name: json['name'] as String? ?? '',
+        registeredPosition: json['registeredPosition'] as String? ?? '',
+        performance: json['performance'] is Map<String, dynamic>
+            ? MatchPerformance.fromJson(
+                json['performance'] as Map<String, dynamic>,
+              )
+            : null,
+        ratingStatus: MatchRatingStatusWire.fromWire(
+          json['ratingStatus'] as String?,
+        ),
+      );
 }
 
 class MatchPerformanceSummary {
@@ -243,8 +301,6 @@ int _asInt(dynamic value) => switch (value) {
   String text => int.tryParse(text) ?? 0,
   _ => 0,
 };
-
-double _asDouble(dynamic value) => _asNullableDouble(value) ?? 0;
 
 double? _asNullableDouble(dynamic value) => switch (value) {
   num number => number.toDouble(),

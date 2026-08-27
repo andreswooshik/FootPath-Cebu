@@ -13,12 +13,17 @@ final matchPerformancesProvider = FutureProvider.autoDispose
       (ref, matchId) => ref.watch(getMatchPerformancesProvider)(matchId),
     );
 
+final matchRosterProvider = FutureProvider.autoDispose
+    .family<List<MatchRosterPlayer>, String>(
+      (ref, matchId) => ref.watch(getMatchRosterProvider)(matchId),
+    );
+
 final playerMatchStatisticsProvider = FutureProvider.autoDispose
     .family<PlayerMatchStatistics, String>(
       (ref, playerId) => ref.watch(getPlayerMatchStatisticsProvider)(playerId),
     );
 
-/// Coordinates coach writes and refreshes every affected read model.
+/// Coordinates role-owned writes and refreshes every affected read model.
 class MatchManagementController extends AsyncNotifier<void> {
   @override
   Future<void> build() async {}
@@ -52,6 +57,7 @@ class MatchManagementController extends AsyncNotifier<void> {
       () => ref.read(saveMatchPerformanceProvider)(matchId, playerId, draft),
       onSuccess: (_) {
         ref.invalidate(matchPerformancesProvider(matchId));
+        ref.invalidate(matchRosterProvider(matchId));
         ref.invalidate(playerMatchStatisticsProvider(playerId));
       },
     );
@@ -63,6 +69,37 @@ class MatchManagementController extends AsyncNotifier<void> {
       await ref.read(deleteMatchPerformanceProvider)(matchId, playerId);
       state = const AsyncData(null);
       ref.invalidate(matchPerformancesProvider(matchId));
+      ref.invalidate(matchRosterProvider(matchId));
+      ref.invalidate(playerMatchStatisticsProvider(playerId));
+      return true;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+      return false;
+    }
+  }
+
+  Future<MatchPerformance?> saveRating(
+    String matchId,
+    String playerId,
+    MatchRatingDraft draft,
+  ) async {
+    return _run(
+      () => ref.read(saveMatchRatingProvider)(matchId, playerId, draft),
+      onSuccess: (_) {
+        ref.invalidate(matchPerformancesProvider(matchId));
+        ref.invalidate(matchRosterProvider(matchId));
+        ref.invalidate(playerMatchStatisticsProvider(playerId));
+      },
+    );
+  }
+
+  Future<bool> deleteRating(String matchId, String playerId) async {
+    state = const AsyncLoading();
+    try {
+      await ref.read(deleteMatchRatingProvider)(matchId, playerId);
+      state = const AsyncData(null);
+      ref.invalidate(matchPerformancesProvider(matchId));
+      ref.invalidate(matchRosterProvider(matchId));
       ref.invalidate(playerMatchStatisticsProvider(playerId));
       return true;
     } catch (error, stackTrace) {

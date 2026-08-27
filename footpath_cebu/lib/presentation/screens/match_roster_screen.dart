@@ -3,19 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/domain/entities/match_performance.dart';
-import 'package:footpath_cebu/domain/entities/player.dart';
-import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/match_providers.dart';
-import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 import 'package:footpath_cebu/presentation/screens/edit_football_match_screen.dart';
 import 'package:footpath_cebu/presentation/screens/edit_match_performance_screen.dart';
+import 'package:footpath_cebu/presentation/screens/edit_match_rating_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
+enum MatchRosterMode { coordinator, coach }
+
 class MatchRosterScreen extends ConsumerStatefulWidget {
-  const MatchRosterScreen({super.key, required this.match});
+  const MatchRosterScreen({super.key, required this.match, required this.mode});
 
   final FootballMatch match;
+  final MatchRosterMode mode;
 
   @override
   ConsumerState<MatchRosterScreen> createState() => _MatchRosterScreenState();
@@ -23,6 +24,8 @@ class MatchRosterScreen extends ConsumerStatefulWidget {
 
 class _MatchRosterScreenState extends ConsumerState<MatchRosterScreen> {
   late FootballMatch _match;
+
+  bool get _isCoordinator => widget.mode == MatchRosterMode.coordinator;
 
   @override
   void initState() {
@@ -40,46 +43,35 @@ class _MatchRosterScreenState extends ConsumerState<MatchRosterScreen> {
   }
 
   Future<void> _refresh() async {
-    ref.invalidate(squadProvider);
-    final _ = await ref.refresh(matchPerformancesProvider(_match.id).future);
+    final _ = await ref.refresh(matchRosterProvider(_match.id).future);
   }
 
   @override
   Widget build(BuildContext context) {
-    final squad = ref.watch(squadProvider);
-    final performances = ref.watch(matchPerformancesProvider(_match.id));
+    final roster = ref.watch(matchRosterProvider(_match.id));
     return Scaffold(
       appBar: AppBar(
         title: Text('vs ${_match.opponent}'),
         actions: [
-          IconButton(
-            onPressed: _editMatch,
-            tooltip: 'Edit match',
-            icon: const Icon(Icons.edit_outlined),
-          ),
+          if (_isCoordinator)
+            IconButton(
+              onPressed: _editMatch,
+              tooltip: 'Edit match result',
+              icon: const Icon(Icons.edit_outlined),
+            ),
         ],
       ),
-      body: squad.when(
+      body: roster.when(
         loading: () => const DashboardLoadingState(),
         error: (error, _) => DashboardErrorState(
-          message: friendlyErrorMessage(error, 'Could not load the squad.'),
-          onRetry: () => ref.invalidate(squadProvider),
+          message: friendlyErrorMessage(error, 'Could not load the roster.'),
+          onRetry: () => ref.invalidate(matchRosterProvider(_match.id)),
         ),
-        data: (players) => performances.when(
-          loading: () => const DashboardLoadingState(),
-          error: (error, _) => DashboardErrorState(
-            message: friendlyErrorMessage(
-              error,
-              'Could not load match statistics.',
-            ),
-            onRetry: () => ref.invalidate(matchPerformancesProvider(_match.id)),
-          ),
-          data: (rows) => _RosterBody(
-            match: _match,
-            players: players,
-            performances: rows,
-            onRefresh: _refresh,
-          ),
+        data: (players) => _RosterBody(
+          match: _match,
+          mode: widget.mode,
+          players: players,
+          onRefresh: _refresh,
         ),
       ),
     );
@@ -89,22 +81,27 @@ class _MatchRosterScreenState extends ConsumerState<MatchRosterScreen> {
 class _RosterBody extends StatelessWidget {
   const _RosterBody({
     required this.match,
+    required this.mode,
     required this.players,
-    required this.performances,
     required this.onRefresh,
   });
 
   final FootballMatch match;
-  final List<Player> players;
-  final List<MatchPerformance> performances;
+  final MatchRosterMode mode;
+  final List<MatchRosterPlayer> players;
   final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    final byPlayer = {for (final row in performances) row.playerId: row};
+    final recorded = players.where((row) => row.performance != null).length;
+    final rated = players
+        .where((row) => row.ratingStatus == MatchRatingStatus.rated)
+        .length;
+    final coordinator = mode == MatchRosterMode.coordinator;
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           Card(
@@ -117,12 +114,14 @@ class _RosterBody extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${match.venue.label} · '
+                          '${match.venue.label} - '
                           '${match.competition.isEmpty ? 'Match' : match.competition}',
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${performances.length} of ${players.length} players recorded',
+                          coordinator
+                              ? '$recorded of ${players.length} players recorded'
+                              : '$rated of $recorded recorded players rated',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -140,12 +139,14 @@ class _RosterBody extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Player Statistics',
+            coordinator ? 'Player Statistics' : 'Coach Ratings',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 4),
           Text(
-            'Tap a player to add or correct their match data.',
+            coordinator
+                ? 'Record objective match data. Coach ratings stay private and appear only as a status.'
+                : 'Rate a player after the Coordinator records their match statistics.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
@@ -158,8 +159,9 @@ class _RosterBody extends StatelessWidget {
             for (final player in players)
               _PlayerPerformanceTile(
                 match: match,
+                mode: mode,
                 player: player,
-                performance: byPlayer[player.id],
+                onChanged: onRefresh,
               ),
         ],
       ),
@@ -170,41 +172,66 @@ class _RosterBody extends StatelessWidget {
 class _PlayerPerformanceTile extends StatelessWidget {
   const _PlayerPerformanceTile({
     required this.match,
+    required this.mode,
     required this.player,
-    required this.performance,
+    required this.onChanged,
   });
 
   final FootballMatch match;
-  final Player player;
-  final MatchPerformance? performance;
+  final MatchRosterMode mode;
+  final MatchRosterPlayer player;
+  final Future<void> Function() onChanged;
+
+  Future<void> _open(BuildContext context) async {
+    if (mode == MatchRosterMode.coach && player.performance == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => mode == MatchRosterMode.coordinator
+            ? EditMatchPerformanceScreen(
+                match: match,
+                player: player,
+                existing: player.performance,
+              )
+            : EditMatchRatingScreen(match: match, player: player),
+      ),
+    );
+    await onChanged();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final saved = performance != null;
+    final saved = player.performance != null;
+    final coordinator = mode == MatchRosterMode.coordinator;
+    final position = saved
+        ? player.performance!.position
+        : player.registeredPosition.isEmpty
+        ? 'No position'
+        : player.registeredPosition;
+    final status = player.ratingStatus.label;
+    final rating = player.performance?.coachRating;
     return Card(
       child: ListTile(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => EditMatchPerformanceScreen(
-              match: match,
-              player: player,
-              existing: performance,
-            ),
-          ),
-        ),
+        onTap: coordinator || saved ? () => _open(context) : null,
         leading: CircleAvatar(
           child: Text(player.name.isEmpty ? '?' : player.name[0]),
         ),
         title: Text(player.name),
         subtitle: Text(
-          saved
-              ? '${performance!.position} · Rating '
-                    '${performance!.coachRating.toStringAsFixed(1)}'
-              : '${player.position?.code ?? 'No position'} · Not recorded',
+          coordinator
+              ? '$position - ${saved ? status : 'Not recorded'}'
+              : '$position - $status${rating == null ? '' : ' (${rating.toStringAsFixed(1)})'}',
         ),
         trailing: Icon(
-          saved ? Icons.check_circle : Icons.add_circle_outline,
-          color: saved ? Colors.green : null,
+          coordinator
+              ? saved
+                    ? Icons.edit_outlined
+                    : Icons.add_circle_outline
+              : !saved
+              ? Icons.hourglass_empty
+              : player.ratingStatus == MatchRatingStatus.rated
+              ? Icons.edit_outlined
+              : Icons.star_outline,
+          color: saved ? Theme.of(context).colorScheme.primary : null,
         ),
       ),
     );

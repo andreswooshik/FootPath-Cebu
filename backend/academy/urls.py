@@ -73,9 +73,19 @@ urlpatterns = [
         name='match-performances',
     ),
     path(
+        'matches/<int:match_id>/roster/',
+        views.MatchRosterView.as_view(),
+        name='match-roster',
+    ),
+    path(
         'matches/<int:match_id>/performances/<int:player_id>/',
         views.MatchPerformanceDetailView.as_view(),
         name='match-performance-detail',
+    ),
+    path(
+        'matches/<int:match_id>/performances/<int:player_id>/rating/',
+        views.MatchPerformanceRatingView.as_view(),
+        name='match-performance-rating',
     ),
     path('attendance/', views.AttendanceListView.as_view(), name='attendance-list'),
     path(

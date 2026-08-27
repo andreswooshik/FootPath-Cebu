@@ -5,29 +5,17 @@ import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/match_providers.dart';
-import 'package:footpath_cebu/presentation/screens/edit_football_match_screen.dart';
 import 'package:footpath_cebu/presentation/screens/match_roster_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
 class CoachMatchesScreen extends ConsumerWidget {
   const CoachMatchesScreen({super.key});
 
-  Future<void> _createMatch(BuildContext context) async {
-    await Navigator.of(context).push<FootballMatch>(
-      MaterialPageRoute(builder: (_) => const EditFootballMatchScreen()),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final matches = ref.watch(footballMatchesProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Match Records')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _createMatch(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Record Match'),
-      ),
+      appBar: AppBar(title: const Text('Match Ratings')),
       body: matches.when(
         loading: () => const DashboardLoadingState(),
         error: (error, _) => DashboardErrorState(
@@ -50,19 +38,22 @@ class CoachMatchesScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Record a completed match, then add each player’s statistics.',
+                      'The Coordinator records match results and player statistics first.',
                       textAlign: TextAlign.center,
                     ),
                   ],
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                  padding: const EdgeInsets.all(16),
                   itemCount: rows.length,
                   itemBuilder: (context, index) => _MatchCard(
                     match: rows[index],
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => MatchRosterScreen(match: rows[index]),
+                        builder: (_) => MatchRosterScreen(
+                          match: rows[index],
+                          mode: MatchRosterMode.coach,
+                        ),
                       ),
                     ),
                   ),
@@ -96,7 +87,7 @@ class _MatchCard extends StatelessWidget {
         ),
         title: Text('vs ${match.opponent}'),
         subtitle: Text(
-          '${formatShortDate(match.playedOn)} · '
+          '${formatShortDate(match.playedOn)} - '
           '${match.competition.isEmpty ? match.venue.label : match.competition}',
         ),
         trailing: Row(

@@ -35,10 +35,15 @@ from academy.storage import (
     validate_tournament_document,
 )
 from accounts.models import GuardianLink, Roles, User
-from accounts.services import ProvisioningError
+from accounts.services import (
+    ProvisioningError,
+    enable_coordinator_mobile_access,
+    sync_coordinator_mobile_password,
+)
 
 from .decorators import portal_role_required
 from .forms import (
+    CoordinatorMobileAccessForm,
     CoordinatorSignupForm,
     CreateCoachForm,
     CreateGuardianForm,
@@ -170,13 +175,64 @@ class PortalPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
     """Change the signed-in portal user's password.
 
     Coordinators and School Staff arrive with a password provisioned by an
-    authorized account creator. Session auth only; app roles change theirs
-    through Firebase.
+    authorized account creator. A linked Coordinator's Firebase password is
+    updated before the local password so both login surfaces stay aligned.
     """
 
     template_name = 'portal/password_change.html'
     success_url = reverse_lazy('portal:dashboard')
     success_message = 'Your password has been changed.'
+
+    def form_valid(self, form):
+        try:
+            sync_coordinator_mobile_password(
+                self.request.user,
+                password=form.cleaned_data['new_password1'],
+            )
+        except Exception:
+            form.add_error(
+                None,
+                'The mobile password could not be updated. No password was changed.',
+            )
+            return self.form_invalid(form)
+        return super().form_valid(form)
+
+
+@portal_role_required(Roles.COORDINATOR)
+def coordinator_mobile_access(request):
+    form = CoordinatorMobileAccessForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            created = enable_coordinator_mobile_access(
+                request.user,
+                password=form.cleaned_data['current_password'],
+            )
+        except ProvisioningError as exc:
+            form.add_error('current_password', str(exc))
+        except Exception:
+            form.add_error(
+                None,
+                'Mobile access is temporarily unavailable. Please try again.',
+            )
+        else:
+            AuditLog.record(
+                request.user,
+                'coordinator.mobile_enabled',
+                target=request.user.email,
+                detail=(
+                    'Firebase identity created.'
+                    if created else 'Firebase identity linked.'
+                ),
+            )
+            messages.success(
+                request,
+                'Mobile access is enabled. Use the same email and password in the app.',
+            )
+            return redirect('portal:mobile-access')
+    return render(request, 'portal/coordinator_mobile_access.html', {
+        'form': form,
+        'mobile_enabled': bool(request.user.firebase_uid),
+    })
 
 
 @portal_role_required(Roles.COORDINATOR)

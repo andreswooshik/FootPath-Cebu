@@ -29,6 +29,11 @@ urlpatterns = [
         views.PortalPasswordChangeView.as_view(),
         name='password-change',
     ),
+    path(
+        'mobile-access/',
+        views.coordinator_mobile_access,
+        name='mobile-access',
+    ),
     path('accounts/new/', views.create_account, name='create-account'),
     path('players/', views.players, name='players'),
     path(

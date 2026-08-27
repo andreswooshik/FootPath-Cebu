@@ -63,6 +63,70 @@ def link_or_create_firebase_user(user, *, password=None):
     return temp_password
 
 
+def enable_coordinator_mobile_access(user, *, password):
+    """Link a Coordinator to Firebase without changing their Django password.
+
+    The Coordinator proves the current portal password before this service is
+    called. Firebase receives that same password so web and mobile credentials
+    remain aligned. Existing Firebase identities are adopted only when their
+    UID is not linked to another local account.
+    """
+    if user.role != Roles.COORDINATOR or not user.is_active:
+        raise ProvisioningError('Only an active Coordinator can enable mobile access.')
+    if user.club_id is None or not user.club.is_active:
+        raise ProvisioningError('The Coordinator must belong to an active club.')
+    if not user.check_password(password):
+        raise ProvisioningError('The current password is incorrect.')
+
+    ensure_initialized()
+    created = False
+    try:
+        firebase_user = firebase_auth.get_user_by_email(user.email)
+    except firebase_auth.UserNotFoundError:
+        firebase_user = firebase_auth.create_user(
+            email=user.email,
+            password=password,
+            disabled=False,
+        )
+        created = True
+    else:
+        if User.objects.exclude(pk=user.pk).filter(
+            firebase_uid=firebase_user.uid
+        ).exists():
+            raise ProvisioningError(
+                'That mobile identity is already linked to another account.'
+            )
+        firebase_user = firebase_auth.update_user(
+            firebase_user.uid,
+            password=password,
+            disabled=False,
+        )
+
+    user.firebase_uid = firebase_user.uid
+    user.save(update_fields=['firebase_uid'])
+    return created
+
+
+def sync_coordinator_mobile_password(user, *, password):
+    """Keep an already-linked Coordinator's Firebase password in sync."""
+    if user.role != Roles.COORDINATOR or not user.firebase_uid:
+        return False
+    ensure_initialized()
+    firebase_auth.update_user(user.firebase_uid, password=password)
+    return True
+
+
+def set_coordinator_mobile_disabled(user, *, disabled):
+    """Disable/re-enable a linked mobile identity with the club lifecycle."""
+    if user.role != Roles.COORDINATOR or not user.firebase_uid:
+        return False
+    ensure_initialized()
+    firebase_auth.update_user(user.firebase_uid, disabled=disabled)
+    if disabled:
+        firebase_auth.revoke_refresh_tokens(user.firebase_uid)
+    return True
+
+
 def provision_user(
     *, email, first_name, last_name, role, club=None, _allow_player=False
 ):

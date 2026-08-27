@@ -6,7 +6,7 @@ abstract interface class MatchStatisticsReader {
   Future<PlayerMatchStatistics> fetchPlayerStatistics(String playerId);
 }
 
-/// Coach-only match management capability.
+/// Role-separated match management capability.
 abstract interface class MatchManager {
   Future<List<FootballMatch>> fetchMatches();
 
@@ -16,6 +16,8 @@ abstract interface class MatchManager {
 
   Future<List<MatchPerformance>> fetchMatchPerformances(String matchId);
 
+  Future<List<MatchRosterPlayer>> fetchMatchRoster(String matchId);
+
   Future<MatchPerformance> savePerformance(
     String matchId,
     String playerId,
@@ -23,6 +25,14 @@ abstract interface class MatchManager {
   );
 
   Future<void> deletePerformance(String matchId, String playerId);
+
+  Future<MatchPerformance> saveRating(
+    String matchId,
+    String playerId,
+    MatchRatingDraft draft,
+  );
+
+  Future<void> deleteRating(String matchId, String playerId);
 }
 
 abstract interface class MatchRepository

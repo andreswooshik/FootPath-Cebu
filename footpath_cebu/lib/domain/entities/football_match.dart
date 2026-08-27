@@ -1,6 +1,8 @@
 /// Where a completed football match was played.
 enum MatchVenue { home, away, neutral }
 
+enum MatchRecordSource { scheduled, adHoc }
+
 extension MatchVenueInfo on MatchVenue {
   String get wire => name.toUpperCase();
 
@@ -26,6 +28,8 @@ class FootballMatch {
     required this.venue,
     required this.ourScore,
     required this.opponentScore,
+    this.fixtureId,
+    this.recordSource = MatchRecordSource.adHoc,
   });
 
   final String id;
@@ -35,6 +39,8 @@ class FootballMatch {
   final MatchVenue venue;
   final int ourScore;
   final int opponentScore;
+  final String? fixtureId;
+  final MatchRecordSource recordSource;
 
   String get scoreLabel => '$ourScore–$opponentScore';
 
@@ -52,10 +58,14 @@ class FootballMatch {
     venue: MatchVenueInfo.fromWire(json['venue'] as String?),
     ourScore: _asInt(json['ourScore']),
     opponentScore: _asInt(json['opponentScore']),
+    fixtureId: json['fixtureId']?.toString(),
+    recordSource: json['recordSource'] == 'SCHEDULED'
+        ? MatchRecordSource.scheduled
+        : MatchRecordSource.adHoc,
   );
 }
 
-/// Coach-entered match metadata before server ownership is applied.
+/// Coordinator-entered match metadata before server ownership is applied.
 class FootballMatchDraft {
   const FootballMatchDraft({
     required this.opponent,
@@ -64,6 +74,7 @@ class FootballMatchDraft {
     required this.venue,
     required this.ourScore,
     required this.opponentScore,
+    this.fixtureId,
   });
 
   final String opponent;
@@ -72,6 +83,7 @@ class FootballMatchDraft {
   final MatchVenue venue;
   final int ourScore;
   final int opponentScore;
+  final String? fixtureId;
 
   Map<String, dynamic> toJson() => {
     'opponent': opponent.trim(),
@@ -80,6 +92,7 @@ class FootballMatchDraft {
     'venue': venue.wire,
     'ourScore': ourScore,
     'opponentScore': opponentScore,
+    if (fixtureId != null) 'fixtureId': fixtureId,
   };
 }
 

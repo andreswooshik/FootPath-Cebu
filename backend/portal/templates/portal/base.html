@@ -109,6 +109,9 @@
 
     <div class="border-t border-white/20 p-4">
       <div class="mb-3 truncate text-xs text-white/80">{{ request.user.email }}</div>
+      {% if user.role == 'COORDINATOR' %}
+        <a href="{% url 'portal:mobile-access' %}" class="portal-account-link">Mobile access</a>
+      {% endif %}
       <a href="{% url 'portal:password-change' %}" class="portal-account-link">Change password</a>
       <form method="post" action="{% url 'portal:logout' %}">
         {% csrf_token %}

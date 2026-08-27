@@ -9,7 +9,7 @@ import 'package:http/testing.dart';
 
 void main() {
   test(
-    'coach performance write uses URL ownership and camelCase body',
+    'coordinator statistics write uses URL ownership and camelCase body',
     () async {
       late http.Request captured;
       final api = AuthenticatedApiClient(
@@ -49,6 +49,7 @@ void main() {
               'cleanSheet': false,
               'coachRating': 8.0,
               'notes': '',
+              'ratingStatus': 'RATED',
             }),
             201,
           );
@@ -72,8 +73,6 @@ void main() {
         saves: 0,
         goalsConceded: 0,
         cleanSheet: false,
-        coachRating: 8,
-        notes: '',
       );
 
       final saved = await repository.savePerformance('m1', 'p1', draft);
@@ -84,6 +83,7 @@ void main() {
       expect(body['minutesPlayed'], 80);
       expect(body.containsKey('club'), isFalse);
       expect(body.containsKey('playerId'), isFalse);
+      expect(body.containsKey('coachRating'), isFalse);
       expect(saved.coachRating, 8);
     },
   );

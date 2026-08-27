@@ -8,6 +8,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/log_attendance_screen.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_session_screen.dart';
+import 'package:footpath_cebu/presentation/screens/tournament_schedule_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
@@ -103,7 +104,18 @@ class _TrainingScheduleScreenState
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('Training'),
-        actions: [const NotificationBell()],
+        actions: [
+          IconButton(
+            tooltip: 'Tournament schedule',
+            icon: const Icon(Icons.emoji_events_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const TournamentScheduleScreen(),
+              ),
+            ),
+          ),
+          const NotificationBell(),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

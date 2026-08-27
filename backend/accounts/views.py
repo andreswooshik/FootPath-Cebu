@@ -32,6 +32,7 @@ from .services import (
     provision_club_coordinator,
     provision_user,
     provision_web_user,
+    set_coordinator_mobile_disabled,
 )
 
 
@@ -184,7 +185,17 @@ class AdminClubDetailView(generics.RetrieveUpdateAPIView):
     def perform_update(self, serializer):
         club = serializer.save()
         if not club.is_active:
-            club.members.filter(role=Roles.COORDINATOR).update(is_active=False)
+            for coordinator in club.members.filter(role=Roles.COORDINATOR):
+                coordinator.is_active = False
+                coordinator.save(update_fields=['is_active'])
+                try:
+                    set_coordinator_mobile_disabled(
+                        coordinator, disabled=True
+                    )
+                except Exception:
+                    # Local is_active is the API enforcement boundary; remote
+                    # revocation is defense in depth and may be retried later.
+                    pass
         if not club.allows_school_staff:
             club.members.filter(role=Roles.SCHOOL_STAFF).update(is_active=False)
         AuditLog.record(

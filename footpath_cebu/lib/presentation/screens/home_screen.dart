@@ -42,6 +42,11 @@ class HomeScreen extends ConsumerWidget {
     // Route each role to its dashboard; unknown roles fall through to the
     // generic placeholder below.
     switch (profile.role) {
+      case 'COORDINATOR':
+        return CoordinatorPortalScreen(
+          profile: profile,
+          initialTabIndex: initialPortalTabIndex,
+        );
       case 'COACH':
         return CoachPortalScreen(
           profile: profile,

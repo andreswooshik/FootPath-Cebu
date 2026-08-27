@@ -177,7 +177,7 @@ class FootballMatchSerializer(serializers.ModelSerializer):
     """Read/write contract for a completed club match.
 
     Club and creator are intentionally absent from writable fields; views stamp
-    both from the authenticated coach so a request cannot cross tenant bounds.
+    both from the authenticated Coordinator so a request cannot cross tenant bounds.
     """
 
     id = serializers.CharField(read_only=True)
@@ -188,12 +188,14 @@ class FootballMatchSerializer(serializers.ModelSerializer):
     opponentScore = serializers.IntegerField(
         source='opponent_score', min_value=0, max_value=99,
     )
+    fixtureId = serializers.SerializerMethodField()
+    recordSource = serializers.SerializerMethodField()
 
     class Meta:
         model = FootballMatch
         fields = [
             'id', 'opponent', 'competition', 'playedOn', 'venue',
-            'ourScore', 'opponentScore',
+            'ourScore', 'opponentScore', 'fixtureId', 'recordSource',
         ]
 
     def validate_opponent(self, value):
@@ -217,6 +219,15 @@ class FootballMatchSerializer(serializers.ModelSerializer):
         if cleaned not in set(MatchVenue.values):
             raise serializers.ValidationError(f'Unknown venue: {value}')
         return cleaned
+
+    def get_fixtureId(self, obj):
+        try:
+            return str(obj.source_fixture.id)
+        except TournamentFixture.DoesNotExist:
+            return None
+
+    def get_recordSource(self, obj):
+        return 'SCHEDULED' if self.get_fixtureId(obj) is not None else 'AD_HOC'
 
 
 class TournamentFixtureSerializer(serializers.ModelSerializer):
@@ -268,8 +279,9 @@ class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
     cleanSheet = serializers.BooleanField(source='clean_sheet')
     coachRating = serializers.DecimalField(
         source='coach_rating', max_digits=3, decimal_places=1,
-        coerce_to_string=False,
+        coerce_to_string=False, allow_null=True,
     )
+    ratingStatus = serializers.SerializerMethodField()
 
     class Meta:
         model = PlayerMatchPerformance
@@ -278,15 +290,26 @@ class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
             'minutesPlayed', 'goals', 'assists', 'shots', 'shotsOnTarget',
             'passesAttempted', 'passesCompleted', 'tackles', 'interceptions',
             'yellowCards', 'redCards', 'saves', 'goalsConceded', 'cleanSheet',
-            'coachRating', 'notes',
+            'coachRating', 'notes', 'ratingStatus',
         ]
 
     def get_playerName(self, obj):
         return _display_name(obj.player)
 
+    def get_ratingStatus(self, obj):
+        return 'RATED' if obj.coach_rating is not None else 'AWAITING_RATING'
 
-class PlayerMatchPerformanceWriteSerializer(serializers.ModelSerializer):
-    """Coach-owned write contract; match and player come from the URL."""
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if getattr(getattr(request, 'user', None), 'role', None) == Roles.COORDINATOR:
+            data.pop('coachRating', None)
+            data.pop('notes', None)
+        return data
+
+
+class PlayerMatchStatisticsWriteSerializer(serializers.ModelSerializer):
+    """Coordinator-owned objective statistics; match/player come from the URL."""
 
     minutesPlayed = serializers.IntegerField(
         source='minutes_played', min_value=0, max_value=180,
@@ -310,18 +333,13 @@ class PlayerMatchPerformanceWriteSerializer(serializers.ModelSerializer):
         source='goals_conceded', min_value=0,
     )
     cleanSheet = serializers.BooleanField(source='clean_sheet')
-    coachRating = serializers.DecimalField(
-        source='coach_rating', max_digits=3, decimal_places=1,
-        min_value=0, max_value=10, coerce_to_string=False,
-    )
-
     class Meta:
         model = PlayerMatchPerformance
         fields = [
             'position', 'starter', 'minutesPlayed', 'goals', 'assists',
             'shots', 'shotsOnTarget', 'passesAttempted', 'passesCompleted',
             'tackles', 'interceptions', 'yellowCards', 'redCards', 'saves',
-            'goalsConceded', 'cleanSheet', 'coachRating', 'notes',
+            'goalsConceded', 'cleanSheet',
         ]
         extra_kwargs = {
             'position': {'allow_blank': True, 'required': False},
@@ -331,7 +349,6 @@ class PlayerMatchPerformanceWriteSerializer(serializers.ModelSerializer):
             'tackles': {'min_value': 0},
             'interceptions': {'min_value': 0},
             'saves': {'min_value': 0},
-            'notes': {'allow_blank': True, 'required': False},
         }
 
     def validate_position(self, value):
@@ -378,6 +395,26 @@ class PlayerMatchPerformanceWriteSerializer(serializers.ModelSerializer):
                 'position': 'Goalkeeper statistics require the GK position.'
             })
         return attrs
+
+
+class CoachMatchRatingSerializer(serializers.ModelSerializer):
+    """Coach-owned subjective evaluation for existing objective statistics."""
+
+    coachRating = serializers.DecimalField(
+        source='coach_rating',
+        max_digits=3,
+        decimal_places=1,
+        min_value=0,
+        max_value=10,
+        coerce_to_string=False,
+    )
+
+    class Meta:
+        model = PlayerMatchPerformance
+        fields = ['coachRating', 'notes']
+        extra_kwargs = {
+            'notes': {'allow_blank': True, 'required': False, 'max_length': 1000},
+        }
 
 
 class TrainingSessionSerializer(serializers.ModelSerializer):

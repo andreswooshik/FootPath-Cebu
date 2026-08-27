@@ -1,0 +1,45 @@
+{% extends 'portal/base.html' %}
+{% block title %}Mobile access · FootPath{% endblock %}
+{% block page_title %}
+  <div>
+    <h1 class="text-xl font-bold text-gray-900">Coordinator mobile access</h1>
+    <p class="mt-0.5 text-sm text-gray-500">Use one email and password on the web and mobile app.</p>
+  </div>
+{% endblock %}
+{% block breadcrumb %}<a href="{% url 'portal:dashboard' %}" class="hover:text-gray-900">Home</a> <span aria-hidden="true">/</span> <span>Mobile access</span>{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-xl rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+  <div class="flex items-start gap-3 rounded-xl {% if mobile_enabled %}bg-green-50 text-green-900{% else %}bg-blue-50 text-blue-950{% endif %} p-4">
+    <span aria-hidden="true" class="text-xl">{% if mobile_enabled %}✓{% else %}i{% endif %}</span>
+    <div>
+      <h2 class="font-bold">{% if mobile_enabled %}Mobile access enabled{% else %}Enable mobile access{% endif %}</h2>
+      <p class="mt-1 text-sm leading-6">
+        {% if mobile_enabled %}
+          Reconfirming below refreshes your mobile login with the current portal password.
+        {% else %}
+          Confirm your current portal password to securely create the matching mobile login.
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <form method="post" class="mt-6 space-y-4">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    <div>
+      <label for="{{ form.current_password.id_for_label }}">{{ form.current_password.label }}</label>
+      {{ form.current_password }}
+      <p class="mt-1 text-xs text-gray-500">{{ form.current_password.help_text }}</p>
+      {{ form.current_password.errors }}
+    </div>
+    <button type="submit" class="portal-button-primary w-full" data-loading-label="Enabling…">
+      {% if mobile_enabled %}Refresh mobile login{% else %}Enable mobile access{% endif %}
+    </button>
+  </form>
+
+  <p class="mt-5 border-t border-gray-100 pt-4 text-xs leading-5 text-gray-500">
+    Your password is verified by the server and is never stored as readable text.
+  </p>
+</section>
+{% endblock %}

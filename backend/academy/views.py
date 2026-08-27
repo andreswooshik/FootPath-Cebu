@@ -35,6 +35,7 @@ from .models import (
     Dispute,
     DisputeResponse,
     EligibilityHistory,
+    FixtureStatus,
     FootballMatch,
     InjuryRecord,
     NotificationRecord,
@@ -43,6 +44,7 @@ from .models import (
     PlayerPrivacyPin,
     SessionConfirmation,
     TrainingSession,
+    TournamentFixture,
     TournamentSchedule,
 )
 from .notifications import (
@@ -72,11 +74,12 @@ from .serializers import (
     DisputeResponseCreateSerializer,
     DisputeSerializer,
     EligibilityHistorySerializer,
+    CoachMatchRatingSerializer,
     FootballMatchSerializer,
     InjuryRecordSerializer,
     NotificationRecordSerializer,
     PlayerMatchPerformanceSerializer,
-    PlayerMatchPerformanceWriteSerializer,
+    PlayerMatchStatisticsWriteSerializer,
     PlayerPositionSerializer,
     PlayerSerializer,
     PlayerSelectorSerializer,
@@ -191,7 +194,9 @@ def _session_in_user_scope(user, session):
 
 def _matches_for(user):
     """Club-scoped match queryset; Admin can inspect every club."""
-    qs = FootballMatch.objects.select_related('club', 'created_by')
+    qs = FootballMatch.objects.select_related(
+        'club', 'created_by', 'source_fixture',
+    )
     if user.role == Roles.ADMIN:
         return qs
     if user.club_id is None:
@@ -199,14 +204,14 @@ def _matches_for(user):
     return qs.filter(club_id=user.club_id)
 
 
-def _coach_match(request, match_id):
-    """Return a coach-owned match, failing closed across tenant boundaries."""
-    if request.user.role != Roles.COACH:
-        raise PermissionDenied('Only coaches can manage match data.')
+def _role_match(request, match_id, role):
+    """Return a same-club match for one explicit role."""
+    if request.user.role != role:
+        raise PermissionDenied(f'Only {role.lower()} accounts can perform this action.')
     if request.user.club_id is None:
-        raise PermissionDenied('Coach account must belong to a club.')
+        raise PermissionDenied('Your account must belong to a club.')
     return get_object_or_404(
-        FootballMatch.objects.select_related('club'),
+        FootballMatch.objects.select_related('club', 'source_fixture'),
         pk=match_id,
         club_id=request.user.club_id,
     )
@@ -636,31 +641,80 @@ class TournamentScheduleListView(APIView):
 
 
 class FootballMatchListCreateView(APIView):
-    """List completed matches or let a coach create one for their own club."""
+    """List completed matches or let a Coordinator record a result."""
 
     def get(self, request):
-        if request.user.role not in (Roles.COACH, Roles.ADMIN):
-            raise PermissionDenied('Only coaches can view club match records.')
+        if request.user.role not in (
+            Roles.COORDINATOR, Roles.COACH, Roles.ADMIN,
+        ):
+            raise PermissionDenied('Your role cannot view club match records.')
         return Response(
             FootballMatchSerializer(_matches_for(request.user), many=True).data
         )
 
     def post(self, request):
-        if request.user.role != Roles.COACH:
-            raise PermissionDenied('Only coaches can create match records.')
+        if request.user.role != Roles.COORDINATOR:
+            raise PermissionDenied('Only Coordinators can create match records.')
         if request.user.club_id is None:
-            raise PermissionDenied('Coach account must belong to a club.')
-        serializer = FootballMatchSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        match = serializer.save(
-            club=request.user.club,
-            created_by=request.user,
-        )
+            raise PermissionDenied('Coordinator account must belong to a club.')
+
+        fixture_id = request.data.get('fixtureId')
+        with transaction.atomic():
+            fixture = None
+            if fixture_id not in (None, ''):
+                fixture = get_object_or_404(
+                    TournamentFixture.objects.select_for_update().select_related(
+                        'schedule', 'completed_match',
+                    ),
+                    pk=fixture_id,
+                    schedule__club_id=request.user.club_id,
+                )
+                if fixture.completed_match_id:
+                    raise ValidationError({
+                        'fixtureId': 'This fixture already has a recorded result.'
+                    })
+                if fixture.status == FixtureStatus.CANCELLED:
+                    raise ValidationError({
+                        'fixtureId': 'A cancelled fixture cannot record a result.'
+                    })
+                kickoff = fixture.kickoff_at
+                played_on = (
+                    timezone.localtime(kickoff).date()
+                    if timezone.is_aware(kickoff)
+                    else kickoff.date()
+                )
+                match_data = {
+                    'opponent': fixture.opponent,
+                    'competition': fixture.schedule.title,
+                    'playedOn': played_on,
+                    'venue': fixture.venue,
+                    'ourScore': request.data.get('ourScore'),
+                    'opponentScore': request.data.get('opponentScore'),
+                }
+            else:
+                match_data = request.data.copy()
+                match_data.pop('fixtureId', None)
+
+            serializer = FootballMatchSerializer(data=match_data)
+            serializer.is_valid(raise_exception=True)
+            match = serializer.save(
+                club=request.user.club,
+                created_by=request.user,
+            )
+            if fixture is not None:
+                fixture.completed_match = match
+                fixture.status = FixtureStatus.COMPLETED
+                fixture.save(update_fields=[
+                    'completed_match', 'status', 'updated_at',
+                ])
         AuditLog.record(
             request.user,
             'match.created',
             target=str(match.pk),
-            detail=f'{match.opponent} | {match.played_on}',
+            detail=(
+                f'{match.opponent} | {match.played_on} | '
+                f'{"scheduled" if fixture else "ad-hoc"}'
+            ),
         )
         return Response(
             FootballMatchSerializer(match).data,
@@ -672,15 +726,25 @@ class FootballMatchDetailView(APIView):
     """Read or correct match metadata without changing tenant ownership."""
 
     def get(self, request, match_id):
-        if request.user.role not in (Roles.COACH, Roles.ADMIN):
-            raise PermissionDenied('Only coaches can view club match records.')
+        if request.user.role not in (
+            Roles.COORDINATOR, Roles.COACH, Roles.ADMIN,
+        ):
+            raise PermissionDenied('Your role cannot view club match records.')
         match = get_object_or_404(_matches_for(request.user), pk=match_id)
         return Response(FootballMatchSerializer(match).data)
 
     def put(self, request, match_id):
-        match = _coach_match(request, match_id)
+        match = _role_match(request, match_id, Roles.COORDINATOR)
+        data = request.data.copy()
+        data.pop('fixtureId', None)
+        if hasattr(match, 'source_fixture'):
+            data = {
+                key: data[key]
+                for key in ('ourScore', 'opponentScore')
+                if key in data
+            }
         serializer = FootballMatchSerializer(
-            match, data=request.data, partial=True,
+            match, data=data, partial=True,
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -694,23 +758,74 @@ class FootballMatchDetailView(APIView):
 
 
 class MatchPerformanceListView(APIView):
-    """Coach/Admin read view for all recorded players in one match."""
+    """Role-redacted read view for all recorded players in one match."""
 
     def get(self, request, match_id):
-        if request.user.role not in (Roles.COACH, Roles.ADMIN):
-            raise PermissionDenied('Only coaches can view match performances.')
+        if request.user.role not in (
+            Roles.COORDINATOR, Roles.COACH, Roles.ADMIN,
+        ):
+            raise PermissionDenied('Your role cannot view match performances.')
         match = get_object_or_404(_matches_for(request.user), pk=match_id)
         rows = PlayerMatchPerformance.objects.select_related(
             'match', 'player', 'match__club',
         ).filter(match=match)
-        return Response(PlayerMatchPerformanceSerializer(rows, many=True).data)
+        return Response(PlayerMatchPerformanceSerializer(
+            rows, many=True, context={'request': request},
+        ).data)
+
+
+class MatchRosterView(APIView):
+    """A club-scoped roster without eligibility, assessments, or profile notes."""
+
+    def get(self, request, match_id):
+        if request.user.role not in (
+            Roles.COORDINATOR, Roles.COACH, Roles.ADMIN,
+        ):
+            raise PermissionDenied('Your role cannot view this match roster.')
+        match = get_object_or_404(_matches_for(request.user), pk=match_id)
+        profiles = PlayerProfile.objects.select_related('user').filter(
+            user__club_id=match.club_id,
+            user__role=Roles.PLAYER,
+            user__is_active=True,
+        ).order_by('user__last_name', 'user__first_name', 'user__id')
+        performances = {
+            row.player_id: row
+            for row in PlayerMatchPerformance.objects.select_related(
+                'match', 'player', 'match__club',
+            ).filter(match=match)
+        }
+        result = []
+        for profile in profiles:
+            performance = performances.get(profile.user_id)
+            result.append({
+                'id': str(profile.user_id),
+                'name': (
+                    f'{profile.user.first_name} {profile.user.last_name}'.strip()
+                    or profile.user.email.split('@')[0]
+                ),
+                'registeredPosition': profile.position,
+                'performance': (
+                    PlayerMatchPerformanceSerializer(
+                        performance, context={'request': request},
+                    ).data
+                    if performance else None
+                ),
+                'ratingStatus': (
+                    'RATED'
+                    if performance and performance.coach_rating is not None
+                    else 'AWAITING_RATING'
+                    if performance
+                    else 'AWAITING_STATISTICS'
+                ),
+            })
+        return Response(result)
 
 
 class MatchPerformanceDetailView(APIView):
-    """Upsert or remove one club player's statistics for one match."""
+    """Coordinator-owned objective statistics for one player/match."""
 
     def put(self, request, match_id, player_id):
-        match = _coach_match(request, match_id)
+        match = _role_match(request, match_id, Roles.COORDINATOR)
         player = get_object_or_404(
             User.objects.select_related('player_profile'),
             pk=player_id,
@@ -724,7 +839,7 @@ class MatchPerformanceDetailView(APIView):
             existing = PlayerMatchPerformance.objects.select_for_update().filter(
                 match=match, player=player,
             ).first()
-            serializer = PlayerMatchPerformanceWriteSerializer(
+            serializer = PlayerMatchStatisticsWriteSerializer(
                 existing, data=request.data,
             )
             serializer.is_valid(raise_exception=True)
@@ -758,21 +873,85 @@ class MatchPerformanceDetailView(APIView):
             target=f'{match.pk}:{player.pk}',
         )
         return Response(
-            PlayerMatchPerformanceSerializer(performance).data,
+            PlayerMatchPerformanceSerializer(
+                performance, context={'request': request},
+            ).data,
             status=status.HTTP_200_OK if existing else status.HTTP_201_CREATED,
         )
 
     def delete(self, request, match_id, player_id):
-        match = _coach_match(request, match_id)
+        match = _role_match(request, match_id, Roles.COORDINATOR)
         performance = get_object_or_404(
             PlayerMatchPerformance,
             match=match,
             player_id=player_id,
         )
+        if (
+            performance.coach_rating is not None
+            and request.query_params.get('confirmRated', '').lower() != 'true'
+        ):
+            return Response(
+                {'detail': 'Deleting these statistics also removes the Coach rating.'},
+                status=status.HTTP_409_CONFLICT,
+            )
         performance.delete()
         AuditLog.record(
             request.user,
             'match.performance_deleted',
+            target=f'{match.pk}:{player_id}',
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MatchPerformanceRatingView(APIView):
+    """Coach-only rating and optional notes for existing objective statistics."""
+
+    def put(self, request, match_id, player_id):
+        match = _role_match(request, match_id, Roles.COACH)
+        with transaction.atomic():
+            performance = get_object_or_404(
+                PlayerMatchPerformance.objects.select_for_update().select_related(
+                    'match', 'player',
+                ),
+                match=match,
+                player_id=player_id,
+            )
+            serializer = CoachMatchRatingSerializer(
+                performance,
+                data=request.data,
+                partial=False,
+            )
+            serializer.is_valid(raise_exception=True)
+            performance = serializer.save(
+                rated_by=request.user,
+                rated_at=timezone.now(),
+            )
+        AuditLog.record(
+            request.user,
+            'match.rating_saved',
+            target=f'{match.pk}:{player_id}',
+        )
+        return Response(PlayerMatchPerformanceSerializer(
+            performance, context={'request': request},
+        ).data)
+
+    def delete(self, request, match_id, player_id):
+        match = _role_match(request, match_id, Roles.COACH)
+        performance = get_object_or_404(
+            PlayerMatchPerformance,
+            match=match,
+            player_id=player_id,
+        )
+        performance.coach_rating = None
+        performance.notes = ''
+        performance.rated_by = None
+        performance.rated_at = None
+        performance.save(update_fields=[
+            'coach_rating', 'notes', 'rated_by', 'rated_at', 'updated_at',
+        ])
+        AuditLog.record(
+            request.user,
+            'match.rating_cleared',
             target=f'{match.pk}:{player_id}',
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -827,7 +1006,7 @@ class PlayerMatchStatisticsView(APIView):
             'playerName': name or player.email.split('@')[0],
             'summary': build_performance_summary(records),
             'performances': PlayerMatchPerformanceSerializer(
-                records, many=True,
+                records, many=True, context={'request': request},
             ).data,
         })
 

@@ -58,6 +58,7 @@ void main() {
           'cleanSheet': false,
           'coachRating': 8.5,
           'notes': 'Created chances.',
+          'ratingStatus': 'RATED',
         },
       ],
     });

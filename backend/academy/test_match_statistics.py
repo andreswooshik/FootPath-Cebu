@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import Club, GuardianLink, Roles, User
@@ -12,6 +13,8 @@ from .models import (
     FootballMatch,
     PlayerMatchPerformance,
     PlayerProfile,
+    TournamentFixture,
+    TournamentSchedule,
 )
 from .pin_service import set_pin
 from .player_unlock import issue_player_unlock
@@ -52,6 +55,12 @@ class MatchPerformanceApiTests(APITestCase):
     def setUp(self):
         self.club_a = _club('Match Club A')
         self.club_b = _club('Match Club B')
+        self.coordinator_a = _user(
+            'coordinator-a@match.test', Roles.COORDINATOR, self.club_a
+        )
+        self.coordinator_b = _user(
+            'coordinator-b@match.test', Roles.COORDINATOR, self.club_b
+        )
         self.coach_a = _user('coach-a@match.test', Roles.COACH, self.club_a)
         self.coach_b = _user('coach-b@match.test', Roles.COACH, self.club_b)
         self.admin = _user('admin@match.test', Roles.ADMIN, None)
@@ -65,7 +74,7 @@ class MatchPerformanceApiTests(APITestCase):
             venue='HOME',
             our_score=3,
             opponent_score=1,
-            created_by=self.coach_a,
+            created_by=self.coordinator_a,
         )
 
     def _match_payload(self, **overrides):
@@ -98,8 +107,6 @@ class MatchPerformanceApiTests(APITestCase):
             'saves': 0,
             'goalsConceded': 0,
             'cleanSheet': False,
-            'coachRating': 8.5,
-            'notes': 'Controlled midfield and created chances.',
         }
         payload.update(overrides)
         return payload
@@ -113,8 +120,8 @@ class MatchPerformanceApiTests(APITestCase):
             ],
         )
 
-    def test_coach_creates_match_stamped_to_own_club(self):
-        self.client.force_authenticate(self.coach_a)
+    def test_coordinator_creates_match_stamped_to_own_club(self):
+        self.client.force_authenticate(self.coordinator_a)
         response = self.client.post(
             reverse('football-matches'),
             self._match_payload(),
@@ -123,7 +130,7 @@ class MatchPerformanceApiTests(APITestCase):
         self.assertEqual(response.status_code, 201)
         created = FootballMatch.objects.get(pk=response.data['id'])
         self.assertEqual(created.club, self.club_a)
-        self.assertEqual(created.created_by, self.coach_a)
+        self.assertEqual(created.created_by, self.coordinator_a)
 
     def test_match_list_and_detail_are_club_scoped(self):
         FootballMatch.objects.create(
@@ -132,17 +139,17 @@ class MatchPerformanceApiTests(APITestCase):
             played_on=date.today(),
             our_score=1,
             opponent_score=0,
-            created_by=self.coach_b,
+            created_by=self.coordinator_b,
         )
-        self.client.force_authenticate(self.coach_a)
+        self.client.force_authenticate(self.coordinator_a)
         response = self.client.get(reverse('football-matches'))
         self.assertEqual(
             {row['opponent'] for row in response.data},
             {'Cebu United'},
         )
 
-    def test_non_coach_cannot_create_match(self):
-        self.client.force_authenticate(self.player_a)
+    def test_non_coordinator_cannot_create_match(self):
+        self.client.force_authenticate(self.coach_a)
         response = self.client.post(
             reverse('football-matches'),
             self._match_payload(),
@@ -157,7 +164,7 @@ class MatchPerformanceApiTests(APITestCase):
             played_on=date.today(),
             our_score=2,
             opponent_score=0,
-            created_by=self.coach_b,
+            created_by=self.coordinator_b,
         )
         self.client.force_authenticate(self.admin)
         self.assertEqual(
@@ -171,7 +178,7 @@ class MatchPerformanceApiTests(APITestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_future_match_is_rejected(self):
-        self.client.force_authenticate(self.coach_a)
+        self.client.force_authenticate(self.coordinator_a)
         response = self.client.post(
             reverse('football-matches'),
             self._match_payload(
@@ -181,25 +188,41 @@ class MatchPerformanceApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_coach_upserts_one_players_performance(self):
-        self.client.force_authenticate(self.coach_a)
+    def test_coordinator_records_statistics_then_coach_rates(self):
+        self.client.force_authenticate(self.coordinator_a)
         first = self.client.put(
             self._performance_url(), self._performance_payload(), format='json'
         )
         self.assertEqual(first.status_code, 201)
-        self.assertEqual(first.data['coachRating'], 8.5)
+        self.assertEqual(first.data['ratingStatus'], 'AWAITING_RATING')
+        self.assertNotIn('coachRating', first.data)
 
         second = self.client.put(
             self._performance_url(),
-            self._performance_payload(goals=2, coachRating=9.0),
+            self._performance_payload(goals=2),
             format='json',
         )
         self.assertEqual(second.status_code, 200)
         self.assertEqual(PlayerMatchPerformance.objects.count(), 1)
         self.assertEqual(PlayerMatchPerformance.objects.get().goals, 2)
 
-    def test_coach_cannot_record_other_clubs_player_or_match(self):
         self.client.force_authenticate(self.coach_a)
+        rated = self.client.put(
+            reverse(
+                'match-performance-rating',
+                args=[self.match_a.id, self.player_a.id],
+            ),
+            {'coachRating': 9.0, 'notes': 'Controlled midfield.'},
+            format='json',
+        )
+        self.assertEqual(rated.status_code, 200)
+        self.assertEqual(rated.data['coachRating'], 9.0)
+        performance = PlayerMatchPerformance.objects.get()
+        self.assertEqual(performance.rated_by, self.coach_a)
+        self.assertIsNotNone(performance.rated_at)
+
+    def test_coordinator_cannot_record_other_clubs_player_or_match(self):
+        self.client.force_authenticate(self.coordinator_a)
         other_player = self.client.put(
             self._performance_url(player=self.player_b),
             self._performance_payload(),
@@ -207,14 +230,14 @@ class MatchPerformanceApiTests(APITestCase):
         )
         self.assertEqual(other_player.status_code, 404)
 
-        self.client.force_authenticate(self.coach_b)
+        self.client.force_authenticate(self.coordinator_b)
         other_match = self.client.put(
             self._performance_url(), self._performance_payload(), format='json'
         )
         self.assertEqual(other_match.status_code, 404)
 
     def test_impossible_statistics_are_rejected(self):
-        self.client.force_authenticate(self.coach_a)
+        self.client.force_authenticate(self.coordinator_a)
         response = self.client.put(
             self._performance_url(),
             self._performance_payload(
@@ -230,7 +253,7 @@ class MatchPerformanceApiTests(APITestCase):
 
     def test_player_goal_totals_cannot_exceed_team_score(self):
         teammate = _player('teammate@match.test', self.club_a)
-        self.client.force_authenticate(self.coach_a)
+        self.client.force_authenticate(self.coordinator_a)
         first = self.client.put(
             self._performance_url(),
             self._performance_payload(goals=2, shots=3, shotsOnTarget=2),
@@ -246,13 +269,104 @@ class MatchPerformanceApiTests(APITestCase):
         self.assertEqual(PlayerMatchPerformance.objects.count(), 1)
 
     def test_goalkeeper_fields_require_goalkeeper_position(self):
-        self.client.force_authenticate(self.coach_a)
+        self.client.force_authenticate(self.coordinator_a)
         response = self.client.put(
             self._performance_url(),
             self._performance_payload(position='CM', saves=3),
             format='json',
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_scheduled_fixture_converts_to_one_completed_match(self):
+        schedule = TournamentSchedule.objects.create(
+            club=self.club_a,
+            title='One Day Cup',
+            document_path='local/cup.pdf',
+            uploaded_by=self.coordinator_a,
+        )
+        fixture = TournamentFixture.objects.create(
+            schedule=schedule,
+            stage='Semi-final',
+            opponent='TBD',
+            kickoff_at=timezone.now() - timedelta(hours=2),
+            venue='NEUTRAL',
+        )
+        self.client.force_authenticate(self.coordinator_a)
+        response = self.client.post(
+            reverse('football-matches'),
+            {'fixtureId': fixture.id, 'ourScore': 2, 'opponentScore': 1},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data['fixtureId'], str(fixture.id))
+        self.assertEqual(response.data['recordSource'], 'SCHEDULED')
+        self.assertEqual(response.data['competition'], 'One Day Cup')
+        fixture.refresh_from_db()
+        self.assertEqual(fixture.completed_match_id, int(response.data['id']))
+        self.assertEqual(fixture.status, 'COMPLETED')
+
+        duplicate = self.client.post(
+            reverse('football-matches'),
+            {'fixtureId': fixture.id, 'ourScore': 2, 'opponentScore': 1},
+            format='json',
+        )
+        self.assertEqual(duplicate.status_code, 400)
+
+    def test_coach_cannot_rate_before_coordinator_statistics_exist(self):
+        self.client.force_authenticate(self.coach_a)
+        response = self.client.put(
+            reverse(
+                'match-performance-rating',
+                args=[self.match_a.id, self.player_a.id],
+            ),
+            {'coachRating': 8.0, 'notes': ''},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_coordinator_roster_never_exposes_rating_or_notes(self):
+        PlayerMatchPerformance.objects.create(
+            match=self.match_a,
+            player=self.player_a,
+            position='CM',
+            minutes_played=80,
+            shots=1,
+            shots_on_target=1,
+            coach_rating=8.5,
+            notes='Private Coach evaluation.',
+            recorded_by=self.coordinator_a,
+            rated_by=self.coach_a,
+            rated_at=timezone.now(),
+        )
+        url = reverse('match-roster', args=[self.match_a.id])
+        self.client.force_authenticate(self.coordinator_a)
+        coordinator_row = self.client.get(url).data[0]
+        self.assertEqual(coordinator_row['ratingStatus'], 'RATED')
+        self.assertNotIn('coachRating', coordinator_row['performance'])
+        self.assertNotIn('notes', coordinator_row['performance'])
+
+        self.client.force_authenticate(self.coach_a)
+        coach_row = self.client.get(url).data[0]
+        self.assertEqual(coach_row['performance']['coachRating'], 8.5)
+        self.assertEqual(
+            coach_row['performance']['notes'], 'Private Coach evaluation.'
+        )
+
+    def test_unrated_appearance_counts_but_average_ignores_it(self):
+        PlayerMatchPerformance.objects.create(
+            match=self.match_a,
+            player=self.player_a,
+            position='CM',
+            minutes_played=25,
+            recorded_by=self.coordinator_a,
+        )
+        self.client.force_authenticate(self.player_a)
+        response = self.client.get(
+            reverse('player-match-statistics', args=[self.player_a.id])
+        )
+        self.assertEqual(response.data['summary']['matchesPlayed'], 1)
+        self.assertIsNone(response.data['summary']['averageRating'])
+        self.assertIsNone(response.data['performances'][0]['coachRating'])
 
     def test_player_reads_own_summary_and_history(self):
         PlayerMatchPerformance.objects.create(

@@ -62,6 +62,7 @@ class MockMatchRepository implements MatchRepository {
     cleanSheet: false,
     coachRating: rating,
     notes: 'Strong movement and decision-making.',
+    ratingStatus: MatchRatingStatus.rated,
   );
 
   @override
@@ -79,6 +80,10 @@ class MockMatchRepository implements MatchRepository {
       venue: draft.venue,
       ourScore: draft.ourScore,
       opponentScore: draft.opponentScore,
+      fixtureId: draft.fixtureId,
+      recordSource: draft.fixtureId == null
+          ? MatchRecordSource.adHoc
+          : MatchRecordSource.scheduled,
     );
     _matches.add(match);
     return match;
@@ -99,6 +104,8 @@ class MockMatchRepository implements MatchRepository {
       venue: draft.venue,
       ourScore: draft.ourScore,
       opponentScore: draft.opponentScore,
+      fixtureId: _matches[index].fixtureId,
+      recordSource: _matches[index].recordSource,
     );
     _matches[index] = updated;
     return updated;
@@ -109,6 +116,27 @@ class MockMatchRepository implements MatchRepository {
       _performances
           .where((performance) => performance.match.id == matchId)
           .toList(growable: false);
+
+  @override
+  Future<List<MatchRosterPlayer>> fetchMatchRoster(String matchId) async {
+    final rows = await fetchMatchPerformances(matchId);
+    final byPlayer = {for (final row in rows) row.playerId: row};
+    return [
+      for (final entry in const [
+        ('p1', 'Rhobert Ronaldo', 'ST'),
+        ('p2', 'Mika Santos', 'CM'),
+      ])
+        MatchRosterPlayer(
+          id: entry.$1,
+          name: entry.$2,
+          registeredPosition: entry.$3,
+          performance: byPlayer[entry.$1],
+          ratingStatus:
+              byPlayer[entry.$1]?.ratingStatus ??
+              MatchRatingStatus.awaitingStatistics,
+        ),
+    ];
+  }
 
   @override
   Future<MatchPerformance> savePerformance(
@@ -146,8 +174,11 @@ class MockMatchRepository implements MatchRepository {
       saves: draft.saves,
       goalsConceded: draft.goalsConceded,
       cleanSheet: draft.cleanSheet,
-      coachRating: draft.coachRating,
-      notes: draft.notes,
+      coachRating: existing < 0 ? null : _performances[existing].coachRating,
+      notes: existing < 0 ? '' : _performances[existing].notes,
+      ratingStatus: existing < 0
+          ? MatchRatingStatus.awaitingRating
+          : _performances[existing].ratingStatus,
     );
     if (existing < 0) {
       _performances.add(performance);
@@ -161,6 +192,44 @@ class MockMatchRepository implements MatchRepository {
   Future<void> deletePerformance(String matchId, String playerId) async {
     _performances.removeWhere(
       (item) => item.match.id == matchId && item.playerId == playerId,
+    );
+  }
+
+  @override
+  Future<MatchPerformance> saveRating(
+    String matchId,
+    String playerId,
+    MatchRatingDraft draft,
+  ) async {
+    final index = _performances.indexWhere(
+      (item) => item.match.id == matchId && item.playerId == playerId,
+    );
+    if (index < 0) {
+      throw const MatchRepositoryException(
+        'Coordinator statistics must be recorded first.',
+      );
+    }
+    final row = _performances[index];
+    final updated = _copyPerformance(
+      row,
+      coachRating: draft.coachRating,
+      notes: draft.notes,
+      ratingStatus: MatchRatingStatus.rated,
+    );
+    _performances[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<void> deleteRating(String matchId, String playerId) async {
+    final index = _performances.indexWhere(
+      (item) => item.match.id == matchId && item.playerId == playerId,
+    );
+    if (index < 0) return;
+    _performances[index] = _copyPerformance(
+      _performances[index],
+      clearRating: true,
+      ratingStatus: MatchRatingStatus.awaitingRating,
     );
   }
 
@@ -198,12 +267,46 @@ class MockMatchRepository implements MatchRepository {
         saves: rows.fold(0, (sum, row) => sum + row.saves),
         goalsConceded: rows.fold(0, (sum, row) => sum + row.goalsConceded),
         cleanSheets: rows.where((row) => row.cleanSheet).length,
-        averageRating: rows.isEmpty
+        averageRating: rows.where((row) => row.coachRating != null).isEmpty
             ? null
-            : rows.fold<double>(0, (sum, row) => sum + row.coachRating) /
-                  rows.length,
+            : rows
+                      .where((row) => row.coachRating != null)
+                      .fold<double>(0, (sum, row) => sum + row.coachRating!) /
+                  rows.where((row) => row.coachRating != null).length,
       ),
       performances: rows,
     );
   }
+
+  MatchPerformance _copyPerformance(
+    MatchPerformance row, {
+    double? coachRating,
+    String? notes,
+    bool clearRating = false,
+    MatchRatingStatus? ratingStatus,
+  }) => MatchPerformance(
+    id: row.id,
+    playerId: row.playerId,
+    playerName: row.playerName,
+    match: row.match,
+    position: row.position,
+    starter: row.starter,
+    minutesPlayed: row.minutesPlayed,
+    goals: row.goals,
+    assists: row.assists,
+    shots: row.shots,
+    shotsOnTarget: row.shotsOnTarget,
+    passesAttempted: row.passesAttempted,
+    passesCompleted: row.passesCompleted,
+    tackles: row.tackles,
+    interceptions: row.interceptions,
+    yellowCards: row.yellowCards,
+    redCards: row.redCards,
+    saves: row.saves,
+    goalsConceded: row.goalsConceded,
+    cleanSheet: row.cleanSheet,
+    coachRating: clearRating ? null : (coachRating ?? row.coachRating),
+    notes: clearRating ? '' : (notes ?? row.notes),
+    ratingStatus: ratingStatus ?? row.ratingStatus,
+  );
 }

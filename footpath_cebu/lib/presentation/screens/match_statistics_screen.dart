@@ -179,6 +179,7 @@ class _PlayerMatchStatisticsViewState
               child: PerformanceTrendChart(
                 ratings: visible.reversed
                     .map((row) => row.coachRating)
+                    .whereType<double>()
                     .toList(growable: false),
               ),
             ),
@@ -230,7 +231,9 @@ class _MatchPerformanceCard extends StatelessWidget {
     return Card(
       child: ExpansionTile(
         leading: CircleAvatar(
-          child: Text(performance.coachRating.toStringAsFixed(1)),
+          child: performance.coachRating == null
+              ? const Icon(Icons.hourglass_empty, size: 18)
+              : Text(performance.coachRating!.toStringAsFixed(1)),
         ),
         title: Text('vs ${match.opponent} · ${match.scoreLabel}'),
         subtitle: Text(

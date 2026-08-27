@@ -9,6 +9,7 @@ import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 import 'package:footpath_cebu/presentation/widgets/session_confirmation_button.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
+import 'package:footpath_cebu/presentation/screens/tournament_schedule_screen.dart';
 
 /// Schedule tab — upcoming/past training sessions. Shared by the Player and
 /// Guardian portals (unlike the Coach's Training Schedule screen, there's no
@@ -40,6 +41,17 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('Schedule'),
+        actions: [
+          IconButton(
+            tooltip: 'Tournament schedule',
+            icon: const Icon(Icons.emoji_events_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const TournamentScheduleScreen(),
+              ),
+            ),
+          ),
+        ],
       ),
       body: PlayerPrivacyGate(
         player: widget.player,
