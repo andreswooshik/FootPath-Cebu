@@ -89,6 +89,22 @@ class _SetupPinRepo implements PlayerPrivacyPinRepository {
       const PlayerPrivacyPinStatus(hasPin: false, locked: false);
 }
 
+class _LockedPinRepo extends _PinRepo {
+  var fetchCount = 0;
+
+  @override
+  Future<PlayerPrivacyPinStatus> fetchStatus(String playerId) async {
+    fetchCount += 1;
+    return fetchCount == 1
+        ? PlayerPrivacyPinStatus(
+            hasPin: true,
+            locked: true,
+            lockedUntil: DateTime.now().add(const Duration(minutes: 2)),
+          )
+        : const PlayerPrivacyPinStatus(hasPin: true, locked: false);
+  }
+}
+
 class _Switcher extends StatefulWidget {
   const _Switcher();
 
@@ -120,6 +136,39 @@ class _SwitcherState extends State<_Switcher> {
 }
 
 void main() {
+  testWidgets('locked PIN shows recovery timing and can refresh its status', (
+    tester,
+  ) async {
+    final repository = _LockedPinRepo();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          playerPrivacyPinRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: PlayerPrivacyGate(
+              player: _first,
+              child: Text('Private dashboard'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('Try again in'), findsOneWidget);
+    expect(find.text('Check lock status'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
+
+    await tester.tap(find.text('Check lock status'));
+    await tester.pumpAndSettle();
+
+    expect(repository.fetchCount, 2);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
+  });
+
   testWidgets('switching players clears the entered privacy PIN', (
     tester,
   ) async {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -203,8 +205,11 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
           busy: _busy,
           error: _error,
           locked: pinStatus.locked,
+          lockedUntil: pinStatus.lockedUntil,
           onVerify: _verify,
           onClearError: _clearError,
+          onRefreshStatus: () =>
+              ref.invalidate(playerPrivacyPinStatusProvider(widget.player.id)),
           onOpenPrivacyPin: widget.isGuardian
               ? _openPrivacyPinManagement
               : null,
@@ -343,7 +348,7 @@ class _PinSetupPrompt extends StatelessWidget {
   }
 }
 
-class _PinPrompt extends StatelessWidget {
+class _PinPrompt extends StatefulWidget {
   const _PinPrompt({
     required this.player,
     required this.controller,
@@ -351,8 +356,10 @@ class _PinPrompt extends StatelessWidget {
     required this.busy,
     required this.error,
     required this.locked,
+    required this.lockedUntil,
     required this.onVerify,
     required this.onClearError,
+    required this.onRefreshStatus,
     required this.onOpenPrivacyPin,
   });
 
@@ -362,9 +369,72 @@ class _PinPrompt extends StatelessWidget {
   final bool busy;
   final String? error;
   final bool locked;
+  final DateTime? lockedUntil;
   final VoidCallback onVerify;
   final VoidCallback onClearError;
+  final VoidCallback onRefreshStatus;
   final VoidCallback? onOpenPrivacyPin;
+
+  @override
+  State<_PinPrompt> createState() => _PinPromptState();
+}
+
+class _PinPromptState extends State<_PinPrompt> {
+  Timer? _timer;
+  Duration _remaining = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _startCountdown();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PinPrompt oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.locked != widget.locked ||
+        oldWidget.lockedUntil != widget.lockedUntil) {
+      _startCountdown();
+    }
+  }
+
+  void _startCountdown() {
+    _timer?.cancel();
+    _remaining = _calculateRemaining();
+    if (!widget.locked || widget.lockedUntil == null) return;
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      final next = _calculateRemaining();
+      if (!mounted) return;
+      setState(() => _remaining = next);
+      if (next == Duration.zero) {
+        _timer?.cancel();
+        widget.onRefreshStatus();
+      }
+    });
+  }
+
+  Duration _calculateRemaining() {
+    final until = widget.lockedUntil;
+    if (!widget.locked || until == null) return Duration.zero;
+    final remaining = until.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  String get _remainingLabel {
+    final seconds = _remaining.inSeconds;
+    if (seconds <= 0) return 'a moment';
+    final minutes = seconds ~/ 60;
+    final remainder = seconds % 60;
+    return minutes > 0
+        ? '${minutes}m ${remainder.toString().padLeft(2, '0')}s'
+        : '${remainder}s';
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -376,41 +446,49 @@ class _PinPrompt extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           PrivacyPinHeader(
-            title: '${player.name}’s private profile',
-            description: locked
-                ? 'This PIN is temporarily locked after too many attempts. Please try again later.'
+            title: '${widget.player.name}’s private profile',
+            description: widget.locked
+                ? 'Too many attempts temporarily locked this PIN. Try again in $_remainingLabel.'
                 : 'Enter the household privacy PIN to securely continue.',
-            icon: locked ? Icons.lock_clock_outlined : Icons.lock_outline,
-            badgeLabel: locked ? 'TEMPORARILY LOCKED' : 'PIN REQUIRED',
+            icon: widget.locked
+                ? Icons.lock_clock_outlined
+                : Icons.lock_outline,
+            badgeLabel: widget.locked ? 'TEMPORARILY LOCKED' : 'PIN REQUIRED',
           ),
           const SizedBox(height: 24),
           PrivacyPinField(
-            controller: controller,
-            focusNode: focusNode,
+            controller: widget.controller,
+            focusNode: widget.focusNode,
             label: 'Privacy PIN',
-            enabled: !busy && !locked,
-            autofocus: !locked,
+            enabled: !widget.busy && !widget.locked,
+            autofocus: !widget.locked,
             textInputAction: TextInputAction.done,
-            onChanged: (_) => onClearError(),
+            onChanged: (_) => widget.onClearError(),
             onSubmitted: (_) {
-              if (!busy && !locked) onVerify();
+              if (!widget.busy && !widget.locked) widget.onVerify();
             },
           ),
-          if (error != null) ...[
+          if (widget.error != null) ...[
             const SizedBox(height: 14),
-            PrivacyPinErrorBanner(message: error!),
+            PrivacyPinErrorBanner(message: widget.error!),
           ],
           const SizedBox(height: 20),
           PrivacyPinPrimaryButton(
             label: 'Unlock profile',
-            onPressed: locked ? null : onVerify,
-            busy: busy,
+            onPressed: widget.locked ? null : widget.onVerify,
+            busy: widget.busy,
             icon: Icons.lock_open_rounded,
           ),
           const SizedBox(height: 10),
-          if (onOpenPrivacyPin != null)
+          if (widget.locked)
             TextButton.icon(
-              onPressed: busy ? null : onOpenPrivacyPin,
+              onPressed: widget.busy ? null : widget.onRefreshStatus,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Check lock status'),
+            ),
+          if (widget.onOpenPrivacyPin != null)
+            TextButton.icon(
+              onPressed: widget.busy ? null : widget.onOpenPrivacyPin,
               icon: const Icon(Icons.lock_reset_outlined, size: 18),
               label: const Text('Reset PIN in Player privacy PIN'),
             )
