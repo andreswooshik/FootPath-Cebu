@@ -1,24 +1,16 @@
 """Security headers for the server-rendered portal pages.
 
-Scoped to the `/portal/` path so the JSON API and the Jazzmin `/admin/` site
-are untouched.
-
-The portal's design system runs on Tailwind's Play CDN and Alpine.js, both of
-which compile/evaluate expressions at runtime (`new Function`-style eval) —
-there is no way to allow them without `'unsafe-eval'`, and Tailwind's
-JS-injected <style> tag needs `'unsafe-inline'` on style-src. This is a real,
-conscious loosening of the original `default-src 'self'` policy (OWASP A03
-injection / A05 misconfiguration), accepted specifically to allow these named
-CDN origins — not a blanket relaxation.
+Scoped to the ``/portal/`` path so the JSON API and Jazzmin admin remain
+untouched. Portal CSS and JavaScript are served locally, allowing a restrictive
+policy without runtime compilation, inline scripts, or third-party origins.
 """
 
 _CSP = (
     "default-src 'self'; "
     "img-src 'self' data:; "
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-    "font-src 'self' https://fonts.gstatic.com; "
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' "
-    "https://cdn.tailwindcss.com https://unpkg.com; "
+    "style-src 'self'; "
+    "font-src 'self'; "
+    "script-src 'self'; "
     "form-action 'self'; "
     "frame-ancestors 'none'; "
     "base-uri 'self'; "

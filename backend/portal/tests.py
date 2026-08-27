@@ -295,7 +295,12 @@ class AccessControlTests(TestCase):
 
     def test_portal_pages_carry_csp_header(self):
         resp = self.client.get(reverse('portal:login'))
-        self.assertIn('Content-Security-Policy', resp)
+        csp = resp['Content-Security-Policy']
+        self.assertIn("script-src 'self'", csp)
+        self.assertNotIn('unsafe-eval', csp)
+        self.assertNotIn('cdn.tailwindcss.com', csp)
+        self.assertContains(resp, 'portal/tailwind.css')
+        self.assertNotContains(resp, 'cdn.tailwindcss.com')
 
 
 class CreateAccountTests(TestCase):
