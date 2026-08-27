@@ -17,6 +17,45 @@ const el = (id) => document.getElementById(id);
 const loginSection = el('login-section');
 const appSection = el('app-section');
 
+function setButtonBusy(button, busy, busyLabel) {
+  if (busy) {
+    button.dataset.label = button.textContent;
+    button.textContent = busyLabel;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    return;
+  }
+  button.textContent = button.dataset.label || button.textContent;
+  button.disabled = false;
+  button.removeAttribute('aria-busy');
+}
+
+function showStatus(message, { error = false, temporaryPassword = '' } = {}) {
+  const box = el('global-status');
+  box.hidden = false;
+  box.classList.toggle('is-error', error);
+  box.textContent = message;
+  if (temporaryPassword) {
+    box.append(' One-time password: ');
+    const code = document.createElement('code');
+    code.textContent = temporaryPassword;
+    box.appendChild(code);
+  }
+}
+
+function confirmAction(message, confirmLabel = 'Confirm') {
+  const dialog = el('confirmation-dialog');
+  el('confirmation-message').textContent = message;
+  el('confirmation-submit').textContent = confirmLabel;
+  dialog.returnValue = '';
+  dialog.showModal();
+  return new Promise((resolve) => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === 'confirm'), {
+      once: true,
+    });
+  });
+}
+
 function userLabel(user) {
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
   return name || user.email || `Player ${user.id}`;
@@ -90,6 +129,9 @@ async function loadUsers() {
 
   for (const u of users) {
     const tr = document.createElement('tr');
+    tr.dataset.search = [u.email, u.first_name, u.last_name, u.role_display]
+      .filter(Boolean).join(' ').toLowerCase();
+    tr.dataset.inactive = String(!u.is_active);
     tr.appendChild(textCell(u.email));
     tr.appendChild(
       textCell([u.first_name, u.last_name].filter(Boolean).join(' ') || '—')
@@ -112,8 +154,6 @@ async function loadUsers() {
     tr.appendChild(photoCell);
 
     tr.appendChild(buildUserActions(u));
-    if (!u.is_active) tr.style.opacity = '0.5';
-
     tbody.appendChild(tr);
 
     if (u.role === 'GUARDIAN') {
@@ -124,6 +164,19 @@ async function loadUsers() {
       playerSelect.add(new Option(userLabel(u), u.id));
     }
   }
+  filterUsers();
+}
+
+function filterUsers() {
+  const query = el('users-search').value.trim().toLowerCase();
+  const rows = [...el('users-table-body').querySelectorAll('tr')];
+  let visible = 0;
+  for (const row of rows) {
+    const matches = !query || row.dataset.search.includes(query);
+    row.hidden = !matches;
+    if (matches) visible += 1;
+  }
+  el('users-empty').hidden = visible !== 0;
 }
 
 async function loadClubs() {
@@ -152,12 +205,12 @@ async function patchUser(id, payload) {
     body: JSON.stringify(payload),
   });
   if (result.temporary_password) {
-    alert(
-      `One-time password: ${result.temporary_password}\n` +
-      (result.note || '')
-    );
+    showStatus(result.note || 'Account updated.', {
+      temporaryPassword: result.temporary_password,
+    });
   }
   await loadUsers();
+  return result;
 }
 
 function buildUserActions(user) {
@@ -171,14 +224,19 @@ function buildUserActions(user) {
     }
     select.addEventListener('change', async () => {
       if (select.value === user.role) return;
-      if (!confirm(`Change ${user.email} to ${select.value}?`)) {
+      const confirmed = await confirmAction(
+        `Change ${user.email} to ${select.options[select.selectedIndex].text}?`,
+        'Change role'
+      );
+      if (!confirmed) {
         select.value = user.role;
         return;
       }
       try {
-        await patchUser(user.id, { role: select.value });
+        const result = await patchUser(user.id, { role: select.value });
+        if (!result.temporary_password) showStatus(`${user.email} was updated.`);
       } catch (e) {
-        alert(e.message || e);
+        showStatus(e.message || String(e), { error: true });
         select.value = user.role;
       }
     });
@@ -187,15 +245,18 @@ function buildUserActions(user) {
 
   const toggle = document.createElement('button');
   toggle.textContent = user.is_active ? 'Deactivate' : 'Activate';
-  if (user.is_active) toggle.className = 'secondary';
-  toggle.style.marginTop = '4px';
+  toggle.type = 'button';
+  toggle.className = user.is_active ? 'button button-danger' : 'button button-ghost';
   toggle.addEventListener('click', async () => {
     const verb = user.is_active ? 'Deactivate' : 'Activate';
-    if (!confirm(`${verb} ${user.email}?`)) return;
+    if (!await confirmAction(`${verb} ${user.email}?`, verb)) return;
     try {
-      await patchUser(user.id, { is_active: !user.is_active });
+      const result = await patchUser(user.id, { is_active: !user.is_active });
+      if (!result.temporary_password) {
+        showStatus(`${user.email} was ${verb.toLowerCase()}d.`);
+      }
     } catch (e) {
-      alert(e.message || e);
+      showStatus(e.message || String(e), { error: true });
     }
   });
   cell.appendChild(toggle);
@@ -206,18 +267,20 @@ function buildUserActions(user) {
 // Django admin endpoint) for one player.
 function buildPhotoUploader(user) {
   const wrap = document.createElement('div');
+  wrap.className = 'photo-uploader';
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/*';
-  input.style.width = 'auto';
+  input.setAttribute('aria-label', `Choose a photo for ${userLabel(user)}`);
 
   const button = document.createElement('button');
   button.textContent = 'Upload';
-  button.style.marginTop = '4px';
+  button.type = 'button';
+  button.className = 'button button-ghost';
 
   const status = document.createElement('span');
-  status.style.marginLeft = '8px';
-  status.style.fontSize = '0.8em';
+  status.className = 'photo-status';
+  status.setAttribute('aria-live', 'polite');
 
   button.addEventListener('click', async () => {
     if (!input.files || !input.files[0]) {
@@ -226,7 +289,7 @@ function buildPhotoUploader(user) {
     }
     const formData = new FormData();
     formData.append('photo', input.files[0]);
-    button.disabled = true;
+    setButtonBusy(button, true, 'Uploading…');
     status.textContent = 'Uploading…';
     try {
       await apiUpload(`/api/admin/players/${user.id}/photo/`, formData);
@@ -234,7 +297,7 @@ function buildPhotoUploader(user) {
     } catch (e) {
       status.textContent = e.message;
     } finally {
-      button.disabled = false;
+      setButtonBusy(button, false);
     }
   });
 
@@ -255,11 +318,19 @@ async function loadLinks() {
 
     const actionCell = document.createElement('td');
     const btn = document.createElement('button');
-    btn.className = 'secondary';
+    btn.className = 'button button-danger';
+    btn.type = 'button';
     btn.textContent = 'Unlink';
     btn.addEventListener('click', async () => {
-      await apiFetch(`/api/admin/guardian-links/${link.id}/`, { method: 'DELETE' });
-      await loadLinks();
+      const message = `Remove the link between ${userLabel(link.guardian)} and ${userLabel(link.player)}?`;
+      if (!await confirmAction(message, 'Remove link')) return;
+      try {
+        await apiFetch(`/api/admin/guardian-links/${link.id}/`, { method: 'DELETE' });
+        await loadLinks();
+        showStatus('Guardian link removed.');
+      } catch (e) {
+        showStatus(e.message || String(e), { error: true });
+      }
     });
     actionCell.appendChild(btn);
     tr.appendChild(actionCell);
@@ -355,28 +426,29 @@ async function loadAgeTiers() {
 }
 
 async function refreshDashboard() {
-  await loadClubs();
-  await loadUsers();
-  await loadLinks();
-  await loadDisputes();
-  await loadAgeTiers();
+  await Promise.all([
+    loadClubs(), loadUsers(), loadLinks(), loadDisputes(), loadAgeTiers(),
+  ]);
 }
 
 async function showApp(profile) {
-  loginSection.style.display = 'none';
-  appSection.style.display = 'block';
+  loginSection.hidden = true;
+  appSection.hidden = false;
   el('current-user-email').textContent = profile.email;
   await refreshDashboard();
 }
 
 function showLogin(message) {
-  loginSection.style.display = 'block';
-  appSection.style.display = 'none';
+  loginSection.hidden = false;
+  appSection.hidden = true;
   el('login-error').textContent = message || '';
 }
 
-el('login-button').addEventListener('click', async () => {
+el('login-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = el('login-button');
   el('login-error').textContent = '';
+  setButtonBusy(button, true, 'Signing in…');
   try {
     await firebase.auth().signInWithEmailAndPassword(
       el('login-email').value.trim(),
@@ -385,13 +457,27 @@ el('login-button').addEventListener('click', async () => {
     // onAuthStateChanged below picks up the result.
   } catch (e) {
     el('login-error').textContent = 'Sign-in failed: ' + (e.message || e.code || e);
+  } finally {
+    setButtonBusy(button, false);
   }
 });
 
+document.querySelector('.password-toggle').addEventListener('click', (event) => {
+  const input = el(event.currentTarget.getAttribute('aria-controls'));
+  const showing = input.type === 'text';
+  input.type = showing ? 'password' : 'text';
+  event.currentTarget.textContent = showing ? 'Show' : 'Hide';
+  event.currentTarget.setAttribute('aria-pressed', String(!showing));
+});
+
+el('users-search').addEventListener('input', filterUsers);
 el('signout-button').addEventListener('click', () => firebase.auth().signOut());
 
-el('age-tiers-save-button').addEventListener('click', async () => {
+el('age-tiers-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = el('age-tiers-save-button');
   el('age-tiers-error').textContent = '';
+  setButtonBusy(button, true, 'Saving…');
   try {
     const rows = {};
     for (const input of el('age-tiers-table-body').querySelectorAll('input')) {
@@ -404,14 +490,20 @@ el('age-tiers-save-button').addEventListener('click', async () => {
       body: JSON.stringify(Object.values(rows)),
     });
     await loadAgeTiers();
+    showStatus('Age tiers saved.');
   } catch (e) {
     el('age-tiers-error').textContent = e.message || String(e);
+  } finally {
+    setButtonBusy(button, false);
   }
 });
 
-el('create-user-button').addEventListener('click', async () => {
+el('create-user-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = el('create-user-button');
   el('create-user-error').textContent = '';
-  el('create-user-result').style.display = 'none';
+  el('create-user-result').hidden = true;
+  setButtonBusy(button, true, 'Creating…');
   try {
     const payload = {
       email: el('create-email').value.trim(),
@@ -425,7 +517,7 @@ el('create-user-button').addEventListener('click', async () => {
       body: JSON.stringify(payload),
     });
     const box = el('create-user-result');
-    box.style.display = 'block';
+    box.hidden = false;
     box.textContent = '';
     box.append(`Account created for `);
     const emailStrong = document.createElement('strong');
@@ -439,18 +531,20 @@ el('create-user-button').addEventListener('click', async () => {
     } else {
       box.append(result.note);
     }
-    el('create-email').value = '';
-    el('create-first-name').value = '';
-    el('create-last-name').value = '';
+    el('create-user-form').reset();
     await loadUsers();
   } catch (e) {
     el('create-user-error').textContent = e.message;
+  } finally {
+    setButtonBusy(button, false);
   }
 });
 
-el('add-player-button').addEventListener('click', async () => {
+el('add-player-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = el('add-player-button');
   el('add-player-error').textContent = '';
-  el('add-player-result').style.display = 'none';
+  el('add-player-result').hidden = true;
   try {
     const guardianId = el('player-guardian').value;
     if (!guardianId) {
@@ -458,6 +552,7 @@ el('add-player-button').addEventListener('click', async () => {
         'Select the guardian before adding a player.';
       return;
     }
+    setButtonBusy(button, true, 'Adding…');
     const payload = {
       email: el('player-email').value.trim(),
       first_name: el('player-first-name').value.trim(),
@@ -472,7 +567,7 @@ el('add-player-button').addEventListener('click', async () => {
       body: JSON.stringify(payload),
     });
     const box = el('add-player-result');
-    box.style.display = 'block';
+    box.hidden = false;
     box.textContent = '';
     box.append('Player created for ');
     const emailStrong = document.createElement('strong');
@@ -487,20 +582,19 @@ el('add-player-button').addEventListener('click', async () => {
     } else {
       box.append(result.note);
     }
-    el('player-email').value = '';
-    el('player-family-name').value = '';
-    el('player-first-name').value = '';
-    el('player-mi').value = '';
-    el('player-dob').value = '';
-    el('player-guardian').value = '';
+    el('add-player-form').reset();
     await loadUsers();
     await loadLinks();
   } catch (e) {
     el('add-player-error').textContent = e.message;
+  } finally {
+    setButtonBusy(button, false);
   }
 });
 
-el('link-button').addEventListener('click', async () => {
+el('link-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = el('link-button');
   el('link-error').textContent = '';
   try {
     const guardianId = el('link-guardian').value;
@@ -509,19 +603,25 @@ el('link-button').addEventListener('click', async () => {
       el('link-error').textContent = 'Select both a guardian and a player.';
       return;
     }
+    setButtonBusy(button, true, 'Linking…');
     await apiFetch('/api/admin/guardian-links/', {
       method: 'POST',
       body: JSON.stringify({ guardian_id: guardianId, player_id: playerId }),
     });
     await loadLinks();
+    showStatus('Guardian link created.');
   } catch (e) {
     el('link-error').textContent = e.message;
+  } finally {
+    setButtonBusy(button, false);
   }
 });
 
 el('respond-dispute').addEventListener('change', renderDisputeThread);
 
-el('respond-button').addEventListener('click', async () => {
+el('respond-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = el('respond-button');
   el('respond-error').textContent = '';
   try {
     const disputeId = el('respond-dispute').value;
@@ -530,6 +630,7 @@ el('respond-button').addEventListener('click', async () => {
       el('respond-error').textContent = 'Pick a dispute and write a response.';
       return;
     }
+    setButtonBusy(button, true, 'Posting…');
     const payload = { body };
     const statusChange = el('respond-status').value;
     if (statusChange) payload.statusChangeTo = statusChange;
@@ -540,8 +641,11 @@ el('respond-button').addEventListener('click', async () => {
     el('respond-body').value = '';
     el('respond-status').value = '';
     await loadDisputes();
+    showStatus('Dispute response posted.');
   } catch (e) {
     el('respond-error').textContent = e.message;
+  } finally {
+    setButtonBusy(button, false);
   }
 });
 

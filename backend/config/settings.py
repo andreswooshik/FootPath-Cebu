@@ -380,7 +380,7 @@ JAZZMIN_SETTINGS = {
     'search_model': ['accounts.User'],
     'user_avatar': None,
     'topmenu_links': [
-        {'name': 'Admin Console', 'url': '/console/', 'new_window': True},
+        {'name': 'Emergency operations', 'url': '/console/'},
     ],
     'icons': {
         'accounts.User': 'fas fa-user',

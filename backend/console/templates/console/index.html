@@ -1,195 +1,147 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>FootPath Cebu — Admin Console</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    :root { color-scheme: light dark; }
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      max-width: 960px; margin: 0 auto; padding: 24px;
-      background: #f4f6f5; color: #1a1a1a;
-    }
-    h1 { display: flex; align-items: center; gap: 10px; }
-    h2 { margin-top: 40px; border-bottom: 2px solid #2e7d32; padding-bottom: 6px; }
-    .card {
-      background: white; border-radius: 8px; padding: 20px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px;
-    }
-    label { display: block; font-size: 0.85em; font-weight: 600; margin-top: 12px; }
-    input, select {
-      width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box;
-      border: 1px solid #ccc; border-radius: 4px; font-size: 1em;
-    }
-    button {
-      background: #2e7d32; color: white; border: none; border-radius: 4px;
-      padding: 10px 18px; margin-top: 16px; cursor: pointer; font-size: 1em;
-    }
-    button:hover { background: #256428; }
-    button.secondary { background: #b71c1c; }
-    button.secondary:hover { background: #8f1414; }
-    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-    th, td { text-align: left; padding: 8px; border-bottom: 1px solid #e0e0e0; font-size: 0.9em; }
-    .badge {
-      display: inline-block; padding: 2px 8px; border-radius: 12px;
-      background: #e8f5e9; color: #2e7d32; font-size: 0.8em; font-weight: 600;
-    }
-    .error { color: #b71c1c; font-weight: 600; }
-    .notice { background: #fff8e1; border: 1px solid #ffca28; border-radius: 4px; padding: 12px; margin-top: 12px; }
-    #app-section { display: none; }
-    #create-user-result { display: none; }
-    footer { margin-top: 40px; font-size: 0.8em; color: #777; }
-    .mt-0 { margin-top: 0; }
-    .row-header { display: flex; justify-content: space-between; align-items: center; }
-  </style>
+  <meta name="description" content="Emergency support tools for FootPath Cebu platform administrators.">
+  <title>Emergency Operations · FootPath Cebu</title>
+  <link rel="stylesheet" href="{% static 'console/console.css' %}">
 </head>
 <body>
-  <h1>⚽ FootPath Cebu — Admin Console</h1>
-
-  <section id="login-section" class="card">
-    <h2 class="mt-0">Sign in</h2>
-    <p>Admin accounts only. Accounts are issued by another administrator.</p>
-    <label for="login-email">Email</label>
-    <input id="login-email" type="email" autocomplete="username">
-    <label for="login-password">Password</label>
-    <input id="login-password" type="password" autocomplete="current-password">
-    <button id="login-button">Sign In</button>
-    <p id="login-error" class="error"></p>
-  </section>
-
-  <section id="app-section">
-    <div class="card row-header">
-      <span>Signed in as <strong id="current-user-email"></strong></span>
-      <button class="secondary" id="signout-button">Sign Out</button>
+  <a class="skip-link" href="#main-content">Skip to main content</a>
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="/console/" aria-label="FootPath Cebu emergency operations home">
+        <span class="brand-mark" aria-hidden="true">FP</span>
+        <span><strong>FootPath Cebu</strong><small>Emergency operations</small></span>
+      </a>
+      <a class="admin-link" href="/admin/">Open primary admin <span aria-hidden="true">→</span></a>
     </div>
+  </header>
 
-    <h2>Platform Club Setup</h2>
-    <div class="card">
-      <p>
-        Create and classify Clubs, then assign their single Club Coordinator in
-        the <a href="/admin/accounts/club/">Club administration</a>. Club
-        Coordinators are the normal creators of Coach, Player, Guardian, and
-        eligible School Staff accounts.
-      </p>
+  <main id="main-content" class="shell" tabindex="-1">
+    <section id="login-section" class="auth-card" aria-labelledby="login-heading">
+      <p class="eyebrow">Restricted access</p>
+      <h1 id="login-heading">Emergency operations</h1>
+      <p class="lede">Use an administrator account to access platform-support tools. Routine club and account management belongs in the primary admin.</p>
+      <a class="text-link" href="/admin/">Go to primary admin</a>
+      <form id="login-form" class="form-stack">
+        <div class="field">
+          <label for="login-email">Email address</label>
+          <input id="login-email" type="email" autocomplete="username" inputmode="email" required autofocus>
+        </div>
+        <div class="field">
+          <label for="login-password">Password</label>
+          <div class="password-field">
+            <input id="login-password" type="password" autocomplete="current-password" required>
+            <button class="password-toggle" type="button" aria-controls="login-password" aria-pressed="false">Show</button>
+          </div>
+        </div>
+        <button id="login-button" class="button button-primary" type="submit">Sign in</button>
+        <p id="login-error" class="form-error" role="alert" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <div id="app-section" hidden>
+      <section class="session-bar" aria-label="Current administrator session">
+        <span>Signed in as <strong id="current-user-email"></strong></span>
+        <button class="button button-ghost" id="signout-button" type="button">Sign out</button>
+      </section>
+      <section class="page-intro" aria-labelledby="page-heading">
+        <div>
+          <p class="eyebrow">Platform support</p>
+          <h1 id="page-heading">Emergency operations console</h1>
+          <p>Use these focused recovery tools only when a club coordinator cannot complete the task. All standard administration remains in Django Admin.</p>
+        </div>
+        <a class="button button-primary" href="/admin/">Open primary admin</a>
+      </section>
+      <nav class="section-nav" aria-label="Emergency operations sections">
+        <a href="#create-member">Create member</a><a href="#add-player">Add player</a><a href="#users">Users</a><a href="#guardian-links">Guardian links</a><a href="#disputes">Disputes</a><a href="#age-tiers">Age tiers</a>
+      </nav>
+      <div id="global-status" class="global-status" role="status" aria-live="polite" hidden></div>
+
+      <div class="operation-grid">
+        <section id="create-member" class="panel" aria-labelledby="create-member-heading">
+          <div class="panel-heading"><div><p class="eyebrow">Account recovery</p><h2 id="create-member-heading">Create a member</h2></div><span class="support-badge">Emergency only</span></div>
+          <p class="panel-copy">Normal member provisioning belongs to the club coordinator.</p>
+          <form id="create-user-form" class="form-grid">
+            <div class="field field-wide"><label for="create-email">Email address</label><input id="create-email" type="email" autocomplete="off" required></div>
+            <div class="field"><label for="create-first-name">First name</label><input id="create-first-name" type="text" autocomplete="off" required></div>
+            <div class="field"><label for="create-last-name">Last name</label><input id="create-last-name" type="text" autocomplete="off" required></div>
+            <div class="field"><label for="create-role">Role</label><select id="create-role"><option value="COACH">Coach</option><option value="SCHOOL_STAFF">School staff</option><option value="GUARDIAN">Guardian</option></select></div>
+            <div class="field"><label for="create-club">Club</label><select id="create-club" required></select></div>
+            <div class="field-wide"><button id="create-user-button" class="button button-primary" type="submit">Create account</button></div>
+          </form>
+          <p id="create-user-error" class="form-error" role="alert" aria-live="polite"></p>
+          <div id="create-user-result" class="result-box" role="status" aria-live="polite" hidden></div>
+        </section>
+
+        <section id="add-player" class="panel" aria-labelledby="add-player-heading">
+          <div class="panel-heading"><div><p class="eyebrow">Roster recovery</p><h2 id="add-player-heading">Add a player</h2></div><span class="support-badge">Emergency only</span></div>
+          <p class="panel-copy">A guardian is required so the player has household access from the start.</p>
+          <form id="add-player-form" class="form-grid">
+            <div class="field field-wide"><label for="player-email">Email <span class="optional">Optional</span></label><input id="player-email" type="email" autocomplete="off"></div>
+            <div class="field"><label for="player-first-name">First name</label><input id="player-first-name" type="text" required></div>
+            <div class="field"><label for="player-family-name">Family name</label><input id="player-family-name" type="text" required></div>
+            <div class="field"><label for="player-mi">Middle initial <span class="optional">Optional</span></label><input id="player-mi" type="text" maxlength="5"></div>
+            <div class="field"><label for="player-dob">Date of birth</label><input id="player-dob" type="date" required></div>
+            <div class="field field-wide"><label for="player-guardian">Guardian</label><select id="player-guardian" required><option value="">Select guardian</option></select></div>
+            <div class="field-wide"><button id="add-player-button" class="button button-primary" type="submit">Add player</button></div>
+          </form>
+          <p id="add-player-error" class="form-error" role="alert" aria-live="polite"></p>
+          <div id="add-player-result" class="result-box" role="status" aria-live="polite" hidden></div>
+        </section>
+      </div>
+
+      <section id="users" class="panel" aria-labelledby="users-heading">
+        <div class="panel-heading panel-heading-wrap"><div><p class="eyebrow">Directory</p><h2 id="users-heading">Users</h2></div><div class="search-field"><label class="sr-only" for="users-search">Search users</label><input id="users-search" type="search" placeholder="Search name, email, or role…"></div></div>
+        <div class="table-scroll" tabindex="0"><table><caption class="sr-only">Platform users available to emergency operations</caption><thead><tr><th scope="col">Email</th><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Photo</th><th scope="col">Actions</th></tr></thead><tbody id="users-table-body"></tbody></table></div>
+        <p id="users-empty" class="empty-state" hidden>No users match your search.</p>
+      </section>
+
+      <section id="guardian-links" class="panel" aria-labelledby="links-heading">
+        <div class="panel-heading"><div><p class="eyebrow">Household access</p><h2 id="links-heading">Guardian links</h2></div></div>
+        <form id="link-form" class="inline-form">
+          <div class="field"><label for="link-guardian">Guardian</label><select id="link-guardian" required></select></div>
+          <div class="field"><label for="link-player">Player</label><select id="link-player" required></select></div>
+          <button id="link-button" class="button button-primary" type="submit">Create link</button>
+        </form>
+        <p id="link-error" class="form-error" role="alert" aria-live="polite"></p>
+        <div class="table-scroll" tabindex="0"><table><caption class="sr-only">Existing guardian-to-player links</caption><thead><tr><th scope="col">Guardian</th><th scope="col">Player</th><th scope="col">Action</th></tr></thead><tbody id="links-table-body"></tbody></table></div>
+      </section>
+
+      <section id="disputes" class="panel" aria-labelledby="disputes-heading">
+        <div class="panel-heading"><div><p class="eyebrow">Case review</p><h2 id="disputes-heading">Disputes</h2></div></div>
+        <div class="table-scroll" tabindex="0"><table><caption class="sr-only">Disputes raised across the platform</caption><thead><tr><th scope="col">Summary</th><th scope="col">Category</th><th scope="col">Status</th><th scope="col">Raised by</th><th scope="col">Player</th><th scope="col">Responses</th></tr></thead><tbody id="disputes-table-body"></tbody></table></div>
+        <form id="respond-form" class="response-form">
+          <div class="field"><label for="respond-dispute">Respond to</label><select id="respond-dispute" required></select></div>
+          <div id="dispute-thread" class="thread" aria-live="polite"></div>
+          <div class="field"><label for="respond-body">Response</label><textarea id="respond-body" rows="4" required></textarea></div>
+          <div class="field"><label for="respond-status">Change status <span class="optional">Optional</span></label><select id="respond-status"><option value="">No change</option><option value="OPEN">Open</option><option value="UNDER_REVIEW">Under review</option><option value="RESOLVED">Resolved</option><option value="DISMISSED">Dismissed</option></select></div>
+          <button id="respond-button" class="button button-primary" type="submit">Post response</button>
+        </form>
+        <p id="respond-error" class="form-error" role="alert" aria-live="polite"></p>
+      </section>
+
+      <section id="age-tiers" class="panel" aria-labelledby="age-tiers-heading">
+        <div class="panel-heading"><div><p class="eyebrow">Classification rules</p><h2 id="age-tiers-heading">Age tiers</h2></div></div>
+        <p class="panel-copy">New players use these age bands. Existing players keep their assigned tier.</p>
+        <form id="age-tiers-form">
+          <div class="table-scroll" tabindex="0"><table><caption class="sr-only">Minimum and maximum age for each player tier</caption><thead><tr><th scope="col">Tier</th><th scope="col">Minimum age</th><th scope="col">Maximum age</th></tr></thead><tbody id="age-tiers-table-body"></tbody></table></div>
+          <button id="age-tiers-save-button" class="button button-primary" type="submit">Save age tiers</button>
+        </form>
+        <p id="age-tiers-error" class="form-error" role="alert" aria-live="polite"></p>
+      </section>
     </div>
+  </main>
 
-    <h2>Emergency Member Creation</h2>
-    <div class="card">
-      <p>Use only for platform support; normal member provisioning belongs to the Club Coordinator.</p>
-      <label for="create-email">Email</label>
-      <input id="create-email" type="email">
-      <label for="create-first-name">First name</label>
-      <input id="create-first-name" type="text">
-      <label for="create-last-name">Last name</label>
-      <input id="create-last-name" type="text">
-      <label for="create-role">Role</label>
-      <select id="create-role">
-        <option value="COACH">Coach</option>
-        <option value="SCHOOL_STAFF">School Staff</option>
-        <option value="GUARDIAN">Guardian</option>
-      </select>
-      <label for="create-club">Club</label>
-      <select id="create-club"></select>
-      <button id="create-user-button">Create Account</button>
-      <p id="create-user-error" class="error"></p>
-      <div id="create-user-result" class="notice"></div>
-    </div>
-
-    <h2>Emergency Add Player</h2>
-    <div class="card">
-      <label for="player-email">Email (optional)</label>
-      <input id="player-email" type="email">
-      <label for="player-family-name">Family Name</label>
-      <input id="player-family-name" type="text">
-      <label for="player-first-name">First Name</label>
-      <input id="player-first-name" type="text">
-      <label for="player-mi">M.I.</label>
-      <input id="player-mi" type="text" maxlength="5">
-      <label for="player-dob">Date of Birth</label>
-      <input id="player-dob" type="date">
-      <label for="player-guardian">Guardian (required)</label>
-      <select id="player-guardian">
-        <option value="">— select guardian —</option>
-      </select>
-      <button id="add-player-button">Add Player</button>
-      <p id="add-player-error" class="error"></p>
-      <div id="add-player-result" class="notice"></div>
-    </div>
-
-    <h2>Age Tiers</h2>
-    <div class="card">
-      <p>Age band per tier. New players are placed by these when created;
-      existing players keep their assigned tier.</p>
-      <table>
-        <thead>
-          <tr><th>Tier</th><th>Min age</th><th>Max age</th></tr>
-        </thead>
-        <tbody id="age-tiers-table-body"></tbody>
-      </table>
-      <button id="age-tiers-save-button">Save Age Tiers</button>
-      <p id="age-tiers-error" class="error"></p>
-    </div>
-
-    <h2>Users</h2>
-    <div class="card">
-      <table>
-        <thead>
-          <tr><th>Email</th><th>Name</th><th>Role</th><th>Photo</th><th>Actions</th></tr>
-        </thead>
-        <tbody id="users-table-body"></tbody>
-      </table>
-    </div>
-
-    <h2>Guardian ↔ Player Links</h2>
-    <div class="card">
-      <label for="link-guardian">Guardian</label>
-      <select id="link-guardian"></select>
-      <label for="link-player">Player</label>
-      <select id="link-player"></select>
-      <button id="link-button">Link</button>
-      <p id="link-error" class="error"></p>
-      <table>
-        <thead>
-          <tr><th>Guardian</th><th>Player</th><th></th></tr>
-        </thead>
-        <tbody id="links-table-body"></tbody>
-      </table>
-    </div>
-    <h2>Disputes</h2>
-    <div class="card">
-      <table>
-        <thead>
-          <tr>
-            <th>Summary</th><th>Category</th><th>Status</th>
-            <th>Raised by</th><th>Player</th><th>Responses</th>
-          </tr>
-        </thead>
-        <tbody id="disputes-table-body"></tbody>
-      </table>
-      <label for="respond-dispute">Respond to</label>
-      <select id="respond-dispute"></select>
-      <div id="dispute-thread"></div>
-      <label for="respond-body">Response</label>
-      <input id="respond-body" type="text">
-      <label for="respond-status">Change status (optional)</label>
-      <select id="respond-status">
-        <option value="">No change</option>
-        <option value="OPEN">Open</option>
-        <option value="UNDER_REVIEW">Under Review</option>
-        <option value="RESOLVED">Resolved</option>
-        <option value="DISMISSED">Dismissed</option>
-      </select>
-      <button id="respond-button">Post Response</button>
-      <p id="respond-error" class="error"></p>
-    </div>
-  </section>
-
-  <footer>FootPath Cebu Admin Console — dev environment</footer>
-
+  <footer class="site-footer"><div class="shell">FootPath Cebu · Restricted platform support</div></footer>
+  <dialog id="confirmation-dialog" class="confirm-dialog" aria-labelledby="confirmation-title" aria-describedby="confirmation-message">
+    <form method="dialog"><h2 id="confirmation-title">Confirm action</h2><p id="confirmation-message"></p><div class="dialog-actions"><button class="button button-ghost" value="cancel">Cancel</button><button id="confirmation-submit" class="button button-danger" value="confirm">Confirm</button></div></form>
+  </dialog>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-  {% load static %}
   <script src="{% static 'console/app.js' %}"></script>
 </body>
 </html>
