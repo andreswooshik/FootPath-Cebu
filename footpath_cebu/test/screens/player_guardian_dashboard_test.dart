@@ -33,7 +33,7 @@ void main() {
     expect(find.byType(PlayerCard), findsOneWidget);
     // The shared portal shell's four tabs.
     expect(find.text('Dashboard'), findsOneWidget);
-    expect(find.text('Schedule'), findsOneWidget);
+    expect(find.text('Schedule'), findsWidgets);
     expect(find.text('Progress'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);
 

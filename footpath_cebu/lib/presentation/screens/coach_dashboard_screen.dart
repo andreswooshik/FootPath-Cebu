@@ -79,13 +79,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
     final registeredCount = ref.watch(squadProvider).value?.length ?? 0;
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.sports_soccer, size: 20),
-            SizedBox(width: 8),
-            Text('FootPath Cebu'),
-          ],
-        ),
+        title: const Text('Squad'),
         actions: [
           IconButton(
             icon: Icon(_compact ? Icons.grid_view : Icons.view_agenda_outlined),
@@ -113,7 +107,8 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '$registeredCount Players Registered • Season 2024-2025',
+                      '$registeredCount '
+                      '${registeredCount == 1 ? 'player' : 'players'} registered',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 12),

@@ -129,7 +129,7 @@ void main() {
     await tester.pumpWidget(_portalApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Squad'), findsOneWidget);
+    expect(find.text('Squad'), findsWidgets);
     expect(find.text('Training'), findsOneWidget);
     expect(find.text('Progress'), findsOneWidget);
     expect(find.text('Profile'), findsOneWidget);

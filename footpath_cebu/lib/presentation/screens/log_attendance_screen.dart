@@ -274,15 +274,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
         if (!didPop) _confirmDiscard();
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: const Row(
-            children: [
-              Icon(Icons.sports_soccer, size: 20),
-              SizedBox(width: 8),
-              Text('FootPath Cebu'),
-            ],
-          ),
-        ),
+        appBar: AppBar(title: const Text('Attendance')),
         body: rosterAsync.when(
           loading: () => const DashboardLoadingState(),
           error: (e, _) => DashboardErrorState(

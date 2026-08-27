@@ -193,13 +193,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     final isSaving = ref.watch(scheduleSessionControllerProvider).isLoading;
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.sports_soccer, size: 20),
-            SizedBox(width: 8),
-            Text('FootPath Cebu'),
-          ],
-        ),
+        title: Text(_isEditing ? 'Edit session' : 'Schedule session'),
       ),
       body: Center(
         child: ConstrainedBox(
@@ -209,7 +203,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               Text(
-                _isEditing ? 'Edit Session' : 'Schedule New Session',
+                'Session details',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 2),

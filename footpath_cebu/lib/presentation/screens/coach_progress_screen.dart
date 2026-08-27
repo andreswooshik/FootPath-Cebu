@@ -26,13 +26,7 @@ class CoachProgressScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Row(
-          children: [
-            Icon(Icons.sports_soccer, size: 20),
-            SizedBox(width: 8),
-            Text('FootPath Cebu'),
-          ],
-        ),
+        title: const Text('Progress'),
         actions: [
           IconButton(
             tooltip: 'Manage match records',
