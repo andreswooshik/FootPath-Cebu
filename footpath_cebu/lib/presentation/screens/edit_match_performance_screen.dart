@@ -311,14 +311,27 @@ class _EditMatchPerformanceScreenState
           children: [
             Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              childAspectRatio: 2.3,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-              children: fields,
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 720
+                    ? 3
+                    : constraints.maxWidth >= 440
+                    ? 2
+                    : 1;
+                const spacing = 10.0;
+                final fieldWidth =
+                    (constraints.maxWidth - (spacing * (columns - 1))) /
+                    columns;
+                return Wrap(
+                  key: Key('performance-fields-columns-$columns'),
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    for (final field in fields)
+                      SizedBox(width: fieldWidth, child: field),
+                  ],
+                );
+              },
             ),
           ],
         ),

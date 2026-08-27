@@ -121,10 +121,10 @@ class _PlayerMatchStatisticsViewState
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 12),
-          GridView.count(
+          GridView.extent(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            maxCrossAxisExtent: 180,
             mainAxisSpacing: 8,
             crossAxisSpacing: 8,
             childAspectRatio: 1.2,

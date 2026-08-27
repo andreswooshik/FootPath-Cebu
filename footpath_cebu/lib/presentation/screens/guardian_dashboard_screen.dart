@@ -209,44 +209,53 @@ class _StatRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final attendance =
         ref.watch(childAttendanceProvider(child.id)).value ?? const [];
-    return Row(
-      children: [
-        Expanded(
-          child: StatTile(
-            icon: Icons.school_outlined,
-            label: 'Academic Performance',
-            value: child.academicEligibilityApplicable
-                ? child.eligibility.label
-                : 'N/A',
-            color: child.academicEligibilityApplicable
-                ? Colors.orange
-                : Colors.grey,
-            subtitle: child.academicEligibilityApplicable
-                ? 'Tap for status history'
-                : 'Available only to School clubs',
-            onTap: child.academicEligibilityApplicable
-                ? () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => EligibilityHistoryScreen(
-                        playerId: child.id,
-                        playerName: child.name,
-                      ),
-                    ),
-                  )
-                : null,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: StatTile(
-            icon: Icons.event_available_outlined,
-            label: 'Attendance',
-            value: '${attendance.presentPercent}%',
-            subtitle: 'Last ${attendance.sessionCount} sessions',
-            color: AppColors.teal,
-          ),
-        ),
-      ],
+    final eligibility = StatTile(
+      icon: Icons.school_outlined,
+      label: 'Academic Performance',
+      value: child.academicEligibilityApplicable
+          ? child.eligibility.label
+          : 'N/A',
+      color: child.academicEligibilityApplicable ? Colors.orange : Colors.grey,
+      subtitle: child.academicEligibilityApplicable
+          ? 'Tap for status history'
+          : 'Available only to School clubs',
+      onTap: child.academicEligibilityApplicable
+          ? () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EligibilityHistoryScreen(
+                  playerId: child.id,
+                  playerName: child.name,
+                ),
+              ),
+            )
+          : null,
+    );
+    final attendanceTile = StatTile(
+      icon: Icons.event_available_outlined,
+      label: 'Attendance',
+      value: '${attendance.presentPercent}%',
+      subtitle: 'Last ${attendance.sessionCount} sessions',
+      color: AppColors.teal,
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final stack = constraints.maxWidth < 340 || textScale > 1.3;
+        if (stack) {
+          return Column(
+            key: const Key('guardian-stats-stacked'),
+            children: [eligibility, const SizedBox(height: 12), attendanceTile],
+          );
+        }
+        return Row(
+          key: const Key('guardian-stats-inline'),
+          children: [
+            Expanded(child: eligibility),
+            const SizedBox(width: 12),
+            Expanded(child: attendanceTile),
+          ],
+        );
+      },
     );
   }
 }
