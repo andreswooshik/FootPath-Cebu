@@ -688,3 +688,69 @@ iframe.related-iframe {
   border: 0;
   display: block;
 }
+
+/* ============================================================================
+   4. CLUB APPLICATION REVIEW — separate immutable evidence from the decision.
+   ============================================================================ */
+
+.fp-application-review {
+  display: grid;
+  gap: 12px;
+}
+.fp-application-review__status {
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #9A6700;
+  background: #FFF4CE;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.fp-application-review h2 {
+  margin: 0;
+  color: var(--bs-emphasis-color);
+  font-size: 17px;
+  font-weight: 700;
+}
+.fp-application-review p {
+  margin: 0;
+  color: #64748B;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.fp-application-review__actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+.fp-application-review__actions .btn {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.fp-application-review__back {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #64748B;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 991.98px) {
+  .fp-application-review__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 479.98px) {
+  .fp-application-review__actions {
+    grid-template-columns: 1fr;
+  }
+}

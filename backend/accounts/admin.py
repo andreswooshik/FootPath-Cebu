@@ -9,10 +9,10 @@ from django.contrib.auth.password_validation import (
     get_default_password_validators,
     validate_password,
 )
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponseNotAllowed, JsonResponse
+from django.http import HttpResponseNotAllowed, HttpResponseRedirect, JsonResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -368,6 +368,7 @@ class GuardianLinkAdmin(BulkActionLabelMixin, admin.ModelAdmin):
 @admin.register(Club)
 class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     form = ClubAdminForm
+    change_form_template = 'admin/accounts/club/change_form.html'
     list_display = (
         'name', 'coordinator_email', 'registration_status', 'member_count', 'school_chip',
         'active_chip', 'created_at',
@@ -380,6 +381,83 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     # do not expose Django's ambiguous raw "Is active" checkbox.
     exclude = ('is_active',)
     actions = ('approve_registrations', 'disapprove_registrations')
+
+    @staticmethod
+    def _registration_state(club):
+        """Return the review state represented by the existing account flags."""
+        if club is None:
+            return 'INCOMPLETE'
+        coordinator = club.coordinator
+        if coordinator is None:
+            return 'INCOMPLETE'
+        if not club.is_active:
+            return 'NOT_APPROVED'
+        if not coordinator.is_active:
+            return 'PENDING'
+        return 'APPROVED'
+
+    def get_readonly_fields(self, request, obj=None):
+        """Keep an applicant's submitted evidence immutable during review."""
+        if self._registration_state(obj) == 'PENDING':
+            return (
+                'name',
+                'slug',
+                'is_school_affiliated',
+                'school_name',
+                'head_coach_name',
+                'coach_license',
+                'cvfa_membership',
+                'created_at',
+            )
+        return self.readonly_fields
+
+    def get_prepopulated_fields(self, request, obj=None):
+        # A prepopulation script cannot target the read-only slug shown while
+        # reviewing a pending application.
+        if self._registration_state(obj) == 'PENDING':
+            return {}
+        return super().get_prepopulated_fields(request, obj)
+
+    def changeform_view(
+        self, request, object_id=None, form_url='', extra_context=None
+    ):
+        club = self.get_object(request, object_id) if object_id else None
+        decision = None
+        if request.method == 'POST':
+            if '_approve_application' in request.POST:
+                decision = 'approve'
+            elif '_not_approve_application' in request.POST:
+                decision = 'not_approve'
+
+        if club is not None and decision is not None:
+            if not self.has_change_permission(request, club):
+                raise PermissionDenied
+            if self._registration_state(club) != 'PENDING':
+                self.message_user(
+                    request,
+                    'This club application has already been reviewed.',
+                    level=messages.WARNING,
+                )
+            elif decision == 'approve':
+                self.approve_registrations(
+                    request, Club.objects.filter(pk=club.pk)
+                )
+            else:
+                self.disapprove_registrations(
+                    request, Club.objects.filter(pk=club.pk)
+                )
+            return HttpResponseRedirect(request.path)
+
+        context = {
+            'is_pending_application': self._registration_state(club) == 'PENDING',
+            **(extra_context or {}),
+        }
+        return super().changeform_view(
+            request,
+            object_id=object_id,
+            form_url=form_url,
+            extra_context=context,
+        )
 
     def get_urls(self):
         custom_urls = [
@@ -516,7 +594,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                     approved += 1
         self.message_user(
             request,
-            f'Activated {approved} club(s).',
+            f'Approved and activated {approved} club application(s).',
             level=messages.SUCCESS if approved else messages.WARNING,
         )
 
@@ -538,7 +616,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                     disapproved += 1
         self.message_user(
             request,
-            f'Deactivated {disapproved} club(s).',
+            f'Marked {disapproved} club application(s) as not approved.',
             level=messages.SUCCESS if disapproved else messages.WARNING,
         )
 
@@ -553,7 +631,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
         if coordinator is None:
             label, color = 'Incomplete', '#64748B'
         elif not obj.is_active:
-            label, color = 'Disapproved', '#DC2626'
+            label, color = 'Not approved', '#DC2626'
         elif not coordinator.is_active:
             label, color = 'Pending', '#D97706'
         else:
