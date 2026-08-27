@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 
@@ -7,8 +6,8 @@ import 'package:footpath_cebu/core/theme/app_motion.dart';
 ///
 /// Brand colours live here so every screen stays on-theme: teal as the
 /// primary brand colour, coral as the energetic accent for CTAs, streaks, and
-/// "on fire" states. Type is Fredoka (display/headings, rounded and friendly)
-/// over Nunito (body, highly legible for younger readers).
+/// "on fire" states. Type uses the native platform family so the interface
+/// stays readable and renders immediately without a font download.
 class AppColors {
   AppColors._();
 
@@ -63,32 +62,22 @@ class AppTheme {
       ),
     );
 
-    // Fredoka for display/titles, Nunito for body — applied over the M3
-    // baseline so sizes/weights stay sensible.
-    final textTheme = GoogleFonts.nunitoTextTheme(base.textTheme).copyWith(
-      displayLarge: GoogleFonts.fredoka(textStyle: base.textTheme.displayLarge),
-      displayMedium: GoogleFonts.fredoka(
-        textStyle: base.textTheme.displayMedium,
-      ),
-      displaySmall: GoogleFonts.fredoka(textStyle: base.textTheme.displaySmall),
-      headlineLarge: GoogleFonts.fredoka(
-        textStyle: base.textTheme.headlineLarge,
+    // Keep the Material 3 platform typeface and strengthen heading weights so
+    // the hierarchy remains clear without relying on a network font.
+    final textTheme = base.textTheme.copyWith(
+      headlineLarge: base.textTheme.headlineLarge?.copyWith(
         fontWeight: FontWeight.w700,
       ),
-      headlineMedium: GoogleFonts.fredoka(
-        textStyle: base.textTheme.headlineMedium,
+      headlineMedium: base.textTheme.headlineMedium?.copyWith(
         fontWeight: FontWeight.w700,
       ),
-      headlineSmall: GoogleFonts.fredoka(
-        textStyle: base.textTheme.headlineSmall,
+      headlineSmall: base.textTheme.headlineSmall?.copyWith(
         fontWeight: FontWeight.w600,
       ),
-      titleLarge: GoogleFonts.fredoka(
-        textStyle: base.textTheme.titleLarge,
+      titleLarge: base.textTheme.titleLarge?.copyWith(
         fontWeight: FontWeight.w600,
       ),
-      titleMedium: GoogleFonts.fredoka(
-        textStyle: base.textTheme.titleMedium,
+      titleMedium: base.textTheme.titleMedium?.copyWith(
         fontWeight: FontWeight.w600,
       ),
     );
@@ -104,7 +93,7 @@ class AppTheme {
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.fredoka(
+        titleTextStyle: const TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.w700,
           color: Colors.white,
@@ -121,10 +110,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: GoogleFonts.nunito(
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
-          ),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
           // White text at this size falls short of WCAG AA (measured ~3.4:1
           // on teal, ~3.9:1 on coral vs the 4.5:1 normal-text minimum) — a
           // dark foreground clears AA comfortably (~6:1 / ~5.4:1) on both.
@@ -136,7 +122,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          textStyle: GoogleFonts.nunito(fontWeight: FontWeight.w800),
+          textStyle: const TextStyle(fontWeight: FontWeight.w800),
           // Same AA reasoning as filledButtonTheme — the default M3 foreground
           // (colorScheme.primary, i.e. teal) only hits ~3.4:1 against a white
           // surface at this text size, short of the 4.5:1 minimum.
