@@ -7,8 +7,8 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 /// A minimized "Ultimate Team" card for the roster list: a tier-tinted strip
-/// with the overall rating, the player's photo, name, position and academic
-/// dot, and a quick-action affordance. Denser than the full [PlayerCard] so a
+/// with the overall rating, the player's photo, name, position and applicable
+/// academic dot, and a quick-action affordance. Denser than the full [PlayerCard] so a
 /// coach can scan the whole squad at once.
 class MiniPlayerCard extends StatelessWidget {
   const MiniPlayerCard({
@@ -93,17 +93,18 @@ class MiniPlayerCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Row(
                         children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: player.academicEligibilityApplicable
-                                  ? _eligibilityColor(player.eligibility)
-                                  : Colors.grey,
-                              shape: BoxShape.circle,
+                          if (player.academicEligibilityApplicable) ...[
+                            Container(
+                              key: const Key('mini-player-eligibility'),
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _eligibilityColor(player.eligibility),
+                                shape: BoxShape.circle,
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
+                            const SizedBox(width: 6),
+                          ],
                           Text(
                             '${player.ageTier.label} · ${tier.label}',
                             style: theme.textTheme.bodySmall?.copyWith(

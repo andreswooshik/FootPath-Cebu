@@ -49,6 +49,25 @@ Player _goalkeeper() => const Player(
   ),
 );
 
+Player _independentClubPlayer() => const Player(
+  id: 'p9',
+  name: 'Club Player',
+  age: 16,
+  classYear: 'Class of 2026',
+  ageTier: AgeTier.pathway,
+  position: PlayerPosition.striker,
+  eligibility: EligibilityStatus.pending,
+  academicEligibilityApplicable: false,
+  ratings: PlayerRatings(
+    pace: 70,
+    shooting: 70,
+    passing: 70,
+    dribbling: 70,
+    defending: 70,
+    physical: 70,
+  ),
+);
+
 Future<void> _pump(
   WidgetTester tester,
   Player player, {
@@ -84,6 +103,23 @@ void main() {
       expect(card, findsOneWidget);
       await tester.tap(card);
       expect(tapped, isTrue);
+      semantics.dispose();
+    });
+
+    testWidgets('omits eligibility for an independent-club player', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await _pump(tester, _independentClubPlayer());
+
+      expect(find.text('Pending'), findsNothing);
+      expect(find.text('Eligibility N/A'), findsNothing);
+      expect(
+        find.bySemanticsLabel(
+          'Club Player, Striker (ST), Pathway, overall rating 70',
+        ),
+        findsOneWidget,
+      );
       semantics.dispose();
     });
 

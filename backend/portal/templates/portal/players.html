@@ -26,6 +26,7 @@
       <option value="PATHWAY">Pathway</option>
     </select>
   </div>
+  {% if request.user.club.allows_academic_eligibility %}
   <div>
     <label for="player-eligibility-filter">Eligibility</label>
     <select id="player-eligibility-filter" data-table-filter="players-table" data-filter-key="eligibility">
@@ -36,6 +37,7 @@
       <option value="PENDING">Pending</option>
     </select>
   </div>
+  {% endif %}
 </div>
 
 <div class="responsive-table">
@@ -46,7 +48,9 @@
         <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Player</th>
         <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Position</th>
         <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Age Tier</th>
+        {% if request.user.club.allows_academic_eligibility %}
         <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Eligibility</th>
+        {% endif %}
         <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Photo</th>
         <th scope="col" class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Privacy PIN</th>
       </tr>
@@ -57,7 +61,7 @@
           data-filter-row
           data-search="{{ profile.user.get_full_name|lower }} {{ profile.user.email|lower }}"
           data-tier="{{ profile.age_tier }}"
-          data-eligibility="{{ profile.eligibility }}">
+          {% if request.user.club.allows_academic_eligibility %}data-eligibility="{{ profile.eligibility }}"{% endif %}>
         <td class="px-6 py-4 text-sm text-gray-900">
           <div class="flex items-center gap-3">
             <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--fp-green-dark)] text-sm font-bold text-white" aria-hidden="true">
@@ -71,6 +75,7 @@
         </td>
         <td class="px-6 py-4 text-sm text-gray-900">{{ profile.position|default:'—' }}</td>
         <td class="px-6 py-4 text-sm text-gray-900">{{ profile.get_age_tier_display }}</td>
+        {% if request.user.club.allows_academic_eligibility %}
         <td class="px-6 py-4 text-sm text-gray-900">
           {% with elig=profile.get_eligibility_display %}
           <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
@@ -82,6 +87,7 @@
           </span>
           {% endwith %}
         </td>
+        {% endif %}
         <td class="px-6 py-4 text-sm">
           <form method="post" action="{% url 'portal:player-photo' profile.user_id %}" enctype="multipart/form-data" class="flex min-w-[18rem] items-center gap-2">
             {% csrf_token %}
