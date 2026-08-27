@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:footpath_cebu/presentation/providers/coach_overview_providers.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 
-/// The Coach Dashboard's "Team Overview" — a ready-to-play gauge plus a short
-/// list of the alerts and tasks needing attention (grade benches, missing
-/// positions, empty schedule). Built from [TeamOverview].
+/// The Coach Dashboard's "Team Overview" combines the next session with the
+/// alerts needing attention. School clubs also receive academic clearance;
+/// independent clubs do not see school-only eligibility concepts.
 class TeamOverviewCard extends StatelessWidget {
   const TeamOverviewCard({super.key, required this.overview});
 
@@ -33,17 +33,16 @@ class TeamOverviewCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                _ReadyGauge(
-                  percent: overview.readyPercent,
-                  ready: overview.readyCount,
-                  squadSize: overview.squadSize,
-                ),
-                const SizedBox(width: 18),
-                Expanded(child: _NextSession(overview: overview)),
-              ],
-            ),
+            if (overview.academicEligibilityApplicable)
+              Row(
+                children: [
+                  _ReadyGauge(percent: overview.readyPercent),
+                  const SizedBox(width: 18),
+                  Expanded(child: _NextSession(overview: overview)),
+                ],
+              )
+            else
+              _NextSession(overview: overview),
             if (overview.alerts.isNotEmpty) ...[
               const SizedBox(height: 16),
               const Divider(height: 1),
@@ -66,15 +65,9 @@ class TeamOverviewCard extends StatelessWidget {
 }
 
 class _ReadyGauge extends StatelessWidget {
-  const _ReadyGauge({
-    required this.percent,
-    required this.ready,
-    required this.squadSize,
-  });
+  const _ReadyGauge({required this.percent});
 
   final int percent;
-  final int ready;
-  final int squadSize;
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +148,10 @@ class _NextSession extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${overview.readyCount} of ${overview.squadSize} cleared to play',
+          overview.academicEligibilityApplicable
+              ? '${overview.readyCount} of ${overview.squadSize} cleared to play'
+              : '${overview.squadSize} player'
+                    '${overview.squadSize == 1 ? '' : 's'} in this squad',
           style: theme.textTheme.bodyMedium?.copyWith(
             fontWeight: FontWeight.w700,
           ),

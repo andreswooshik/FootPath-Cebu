@@ -14,12 +14,16 @@ class TeamOverview {
     required this.readyCount,
     required this.alerts,
     required this.nextSession,
+    this.academicEligibilityApplicable = true,
   });
 
   final int squadSize;
 
   /// Players cleared to play (academically eligible).
   final int readyCount;
+
+  /// Whether this club participates in the school eligibility workflow.
+  final bool academicEligibilityApplicable;
 
   /// Things needing the coach's attention, most urgent first.
   final List<TeamAlert> alerts;
@@ -57,15 +61,31 @@ final teamOverviewProvider = Provider.autoDispose<AsyncValue<TeamOverview>>((
   return squadAsync.whenData((squad) {
     final upcoming = upcomingAsync.value ?? const <TrainingSession>[];
 
+    final academicEligibilityApplicable =
+        squad.isNotEmpty &&
+        squad.every((player) => player.academicEligibilityApplicable);
+
     final ready = squad
-        .where((p) => p.eligibility == EligibilityStatus.eligible)
+        .where(
+          (p) =>
+              p.academicEligibilityApplicable &&
+              p.eligibility == EligibilityStatus.eligible,
+        )
         .length;
 
     final ineligible = squad
-        .where((p) => p.eligibility == EligibilityStatus.notEligible)
+        .where(
+          (p) =>
+              p.academicEligibilityApplicable &&
+              p.eligibility == EligibilityStatus.notEligible,
+        )
         .toList();
     final warnings = squad
-        .where((p) => p.eligibility == EligibilityStatus.academicWarning)
+        .where(
+          (p) =>
+              p.academicEligibilityApplicable &&
+              p.eligibility == EligibilityStatus.academicWarning,
+        )
         .toList();
     final unassigned = squad.where((p) => p.position == null).toList();
 
@@ -107,6 +127,7 @@ final teamOverviewProvider = Provider.autoDispose<AsyncValue<TeamOverview>>((
       readyCount: ready,
       alerts: alerts,
       nextSession: upcoming.isEmpty ? null : upcoming.first,
+      academicEligibilityApplicable: academicEligibilityApplicable,
     );
   });
 });
