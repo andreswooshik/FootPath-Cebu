@@ -67,99 +67,120 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(loginControllerProvider);
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Icon(
-                  Icons.sports_soccer,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'FootPath Cebu',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 32),
-                TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: !state.showPassword,
-                  onSubmitted: (_) => state.isLoading ? null : _handleSignIn(),
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        state.showPassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(24),
+            child: AutofillGroup(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Icon(
+                      Icons.sports_soccer,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'FootPath Cebu',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
+                    const SizedBox(height: 32),
+                    TextField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      autocorrect: false,
+                      autofillHints: const [
+                        AutofillHints.email,
+                        AutofillHints.username,
+                      ],
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
                       ),
-                      onPressed: ref
-                          .read(loginControllerProvider.notifier)
-                          .togglePasswordVisibility,
                     ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: state.isSendingReset
-                        ? null
-                        : _handleForgotPassword,
-                    child: state.isSendingReset
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Forgot password?'),
-                  ),
-                ),
-                if (state.error != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    state.error!,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: !state.showPassword,
+                      autofillHints: const [AutofillHints.password],
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) =>
+                          state.isLoading ? null : _handleSignIn(),
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          tooltip: state.showPassword
+                              ? 'Hide password'
+                              : 'Show password',
+                          icon: Icon(
+                            state.showPassword
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: ref
+                              .read(loginControllerProvider.notifier)
+                              .togglePasswordVisibility,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: state.isLoading ? null : _handleSignIn,
-                  child: state.isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Sign In'),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: state.isSendingReset
+                            ? null
+                            : _handleForgotPassword,
+                        child: state.isSendingReset
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Forgot password?'),
+                      ),
+                    ),
+                    if (state.error != null) ...[
+                      const SizedBox(height: 8),
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          state.error!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: state.isLoading ? null : _handleSignIn,
+                      child: state.isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Sign In'),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Accounts are issued by the academy administrator.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Accounts are issued by the academy administrator.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
+              ),
             ),
           ),
         ),

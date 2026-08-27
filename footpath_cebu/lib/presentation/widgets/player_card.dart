@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 
@@ -28,125 +29,142 @@ class PlayerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = player.ratings;
+    final position = player.position?.labelWithCode ?? 'Position not assigned';
+    final eligibility = player.academicEligibilityApplicable
+        ? player.eligibility.label
+        : 'Academic eligibility not applicable';
     return MotionPress(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AspectRatio(
-          aspectRatio: _canvasW / _canvasH,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // Pixels per design unit — everything scales from this.
-              final s = constraints.maxWidth / _canvasW;
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: SvgPicture.asset(
-                      'assets/cards/card_frame.svg',
-                      fit: BoxFit.fill,
-                    ),
-                  ),
-
-                  // Player photo (behind the rating corner).
-                  _place(
-                    s,
-                    x: 170,
-                    y: 140,
-                    w: 260,
-                    h: 260,
-                    child: _Photo(photoUrl: player.photoUrl),
-                  ),
-
-                  // Overall rating + position, top-left.
-                  _place(
-                    s,
-                    x: 46,
-                    y: 148,
-                    w: 148,
-                    h: 104,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '${player.overall}',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 58 * s,
-                            height: 1,
-                          ),
+      child: Semantics(
+        container: true,
+        button: onTap != null,
+        label:
+            '${player.name}, $position, ${player.ageTier.label}, '
+            'overall rating ${player.overall}, $eligibility',
+        excludeSemantics: true,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(24),
+            child: AspectRatio(
+              aspectRatio: _canvasW / _canvasH,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Pixels per design unit — everything scales from this.
+                  final s = constraints.maxWidth / _canvasW;
+                  return Stack(
+                    children: [
+                      Positioned.fill(
+                        child: SvgPicture.asset(
+                          'assets/cards/card_frame.svg',
+                          fit: BoxFit.fill,
                         ),
-                        Text(
-                          player.position?.code ?? '--',
-                          style: TextStyle(
-                            color: _gold,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 22 * s,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                      ),
 
-                  // Name banner text.
-                  _place(
-                    s,
-                    x: 128,
-                    y: 430,
-                    w: 344,
-                    h: 58,
-                    child: Center(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          player.name,
-                          maxLines: 1,
-                          style: TextStyle(
-                            color: _bannerInk,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 26 * s,
-                            letterSpacing: 1,
+                      // Player photo (behind the rating corner).
+                      _place(
+                        s,
+                        x: 170,
+                        y: 140,
+                        w: 260,
+                        h: 260,
+                        child: _Photo(photoUrl: player.photoUrl),
+                      ),
+
+                      // Overall rating + position, top-left.
+                      _place(
+                        s,
+                        x: 46,
+                        y: 148,
+                        w: 148,
+                        h: 104,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '${player.overall}',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 58 * s,
+                                height: 1,
+                              ),
+                            ),
+                            Text(
+                              player.position?.code ?? '--',
+                              style: TextStyle(
+                                color: _gold,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 22 * s,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Name banner text.
+                      _place(
+                        s,
+                        x: 128,
+                        y: 430,
+                        w: 344,
+                        h: 58,
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              player.name,
+                              maxLines: 1,
+                              style: TextStyle(
+                                color: _bannerInk,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 26 * s,
+                                letterSpacing: 1,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
 
-                  // Six stats, two columns astride the frame's divider.
-                  _place(
-                    s,
-                    x: 84,
-                    y: 516,
-                    w: 432,
-                    h: 188,
-                    child: _StatsPanel(
-                      ratings: r,
-                      scale: s,
-                      isGoalkeeper:
-                          player.position?.group == PositionGroup.goalkeeper,
-                    ),
-                  ),
-
-                  // Academic-standing badge.
-                  _place(
-                    s,
-                    x: 120,
-                    y: 712,
-                    w: 360,
-                    h: 44,
-                    child: Center(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: _EligibilityBadge(
-                          status: player.eligibility,
-                          applicable: player.academicEligibilityApplicable,
+                      // Six stats, two columns astride the frame's divider.
+                      _place(
+                        s,
+                        x: 84,
+                        y: 516,
+                        w: 432,
+                        h: 188,
+                        child: _StatsPanel(
+                          ratings: r,
                           scale: s,
+                          isGoalkeeper:
+                              player.position?.group ==
+                              PositionGroup.goalkeeper,
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              );
-            },
+
+                      // Academic-standing badge.
+                      _place(
+                        s,
+                        x: 120,
+                        y: 712,
+                        w: 360,
+                        h: 44,
+                        child: Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: _EligibilityBadge(
+                              status: player.eligibility,
+                              applicable: player.academicEligibilityApplicable,
+                              scale: s,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ),
         ),
       ),

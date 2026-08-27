@@ -24,5 +24,14 @@ void main() {
     expect(find.text('Email'), findsOneWidget);
     expect(find.text('Password'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Sign In'), findsOneWidget);
+
+    final fields = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .toList();
+    expect(fields.first.textInputAction, TextInputAction.next);
+    expect(fields.first.autofillHints, contains(AutofillHints.email));
+    expect(fields.last.textInputAction, TextInputAction.done);
+    expect(fields.last.autofillHints, contains(AutofillHints.password));
+    expect(find.byTooltip('Show password'), findsOneWidget);
   });
 }
