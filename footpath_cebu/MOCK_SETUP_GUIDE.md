@@ -4,13 +4,14 @@ This project now supports running with **mock data** instead of Firebase, allowi
 
 ## Quick Start
 
-### Using Mock Data (Default)
+### Using Mock Data (Explicit UI Mode)
 
-The app is currently set to use mock data. To use it:
+The app uses the live Firebase + Django backend by default. To opt into mock
+data for isolated UI work:
 
-1. Run the app normally:
+1. Run the app with the mock flag:
 ```bash
-flutter run
+flutter run --dart-define=USE_MOCK=true
 ```
 
 2. Login with any of these test accounts:
@@ -25,13 +26,12 @@ flutter run
 
 3. **Or use any email** with password `demo123` — the mock accepts any email as long as the password is correct!
 
-### Switching to Firebase
+### Using Firebase + Django
 
-To run a debug build against the real Firebase + Django backend, no code
-change is needed — pass a dart-define:
+Run normally to use the real Firebase + Django backend:
 
 ```bash
-flutter run --dart-define=USE_MOCK=false
+flutter run
 ```
 
 A **release** build always uses the live backend (the mock auth must never

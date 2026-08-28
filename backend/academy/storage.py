@@ -11,6 +11,7 @@ so `photoUrl` is simply null and the client shows its avatar fallback.
 """
 import os
 
+from django.conf import settings
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
@@ -211,6 +212,10 @@ def upload_tournament_document(club_id, schedule_id, content, content_type):
     object_name = f'{club_id}/{schedule_id}.{extension}'
     url, key, bucket = _tournament_config()
     if not (url and key):
+        if not (settings.DEBUG or getattr(settings, 'TESTING', False)):
+            raise RuntimeError(
+                'Supabase tournament-schedule storage is not configured.'
+            )
         local_name = f'tournament-schedules/{object_name}'
         if default_storage.exists(local_name):
             default_storage.delete(local_name)
@@ -272,6 +277,8 @@ def signed_tournament_document_url(document_path, expires=900):
     if not document_path:
         return None
     if document_path.startswith('local/'):
+        if not (settings.DEBUG or getattr(settings, 'TESTING', False)):
+            return None
         return default_storage.url(document_path.removeprefix('local/'))
     cache_key = f'tournament-signed-url:{expires}:{document_path}'
     cached = cache.get(cache_key)

@@ -96,14 +96,13 @@ Staff. FootPath Cebu never stores raw student grades.
 ```powershell
 cd footpath_cebu
 flutter pub get
-flutter run -d chrome --dart-define=USE_MOCK=false
+flutter run -d chrome
 ```
 
-**`--dart-define=USE_MOCK=false` matters** — in debug builds the app defaults
-to in-memory mock data (no backend needed) unless this flag is set. Omit it
-to work on UI without the backend running; include it to test against the
-real backend. Release builds (`flutter run --release`) always use the live
-backend regardless.
+Normal debug and release runs use Firebase + Django. For isolated UI work
+without a backend, opt into in-memory data explicitly with
+`--dart-define=USE_MOCK=true`; release builds ignore that flag and always use
+the live backend.
 
 The app picks the backend URL automatically: `http://localhost:8000` on
 web/desktop, `http://10.0.2.2:8000` on the Android emulator. Override with
@@ -131,7 +130,6 @@ LAN IP:
 
 ```powershell
 flutter run -d <tablet-ip>:<debug-port> `
-  --dart-define=USE_MOCK=false `
   --dart-define=API_BASE_URL=http://<computer-lan-ip>:8000
 ```
 
@@ -140,14 +138,13 @@ Example, where the tablet is `10.0.0.30:44107` and the computer is
 
 ```powershell
 flutter run -d 10.0.0.30:44107 `
-  --dart-define=USE_MOCK=false `
   --dart-define=API_BASE_URL=http://10.0.0.4:8000
 ```
 
 The tablet and computer must be on the same Wi-Fi network, and Windows
 Firewall must allow inbound TCP traffic on port `8000`. The Flutter app needs
-an actual Firebase account with a matching provisioned Django user when
-`USE_MOCK=false`; mock/demo credentials are only for mock mode.
+an actual Firebase account with a matching provisioned Django user. Mock/demo
+credentials work only when `USE_MOCK=true` is explicitly supplied.
 
 ## Troubleshooting
 
@@ -157,7 +154,7 @@ an actual Firebase account with a matching provisioned Django user when
   `0.0.0.0:8000` and the manifest has `android:usesCleartextTraffic="true"`
   (dev-only; production uses HTTPS).
 - **"Could not sign in" on a physical tablet**: confirm the app was launched
-  with `USE_MOCK=false` and `API_BASE_URL=http://<computer-lan-ip>:8000`.
+  with `API_BASE_URL=http://<computer-lan-ip>:8000`.
   `10.0.2.2` is for the Android emulator and `localhost` points to the tablet
   itself.
 - **Debug APK signing error**: use `flutter run` or build with

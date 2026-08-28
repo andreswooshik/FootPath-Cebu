@@ -13,32 +13,36 @@ import 'package:footpath_cebu/presentation/providers/edit_performance_controller
 
 void main() {
   group('F1 — release-safe wiring', () {
-    test('a release build never selects mock data', () {
+    test('normal builds are live by default and tests opt into mocks', () {
       // useMockData is hard-false in release regardless of the USE_MOCK define.
-      // In the (debug) test runner kReleaseMode is false, so this asserts the
-      // invariant that matters: release => live.
       if (kReleaseMode) {
         expect(useMockData, isFalse);
       } else {
-        // Debug default is mock (UI dev). The important guarantee is the
-        // release branch above; this documents the debug default.
+        // No build flag asks for mocks; the Flutter test process is detected
+        // explicitly without changing a normal `flutter run`.
+        expect(mockDataRequestedByBuild, isFalse);
         expect(useMockData, isTrue);
       }
     });
   });
 
-  group('M3 — device registration is a safe no-op without a token provider', () {
-    test('mock registration completes without error', () async {
-      await RegisterDevice(MockDeviceRepository())();
-    });
+  group(
+    'M3 — device registration is a safe no-op without a token provider',
+    () {
+      test('mock registration completes without error', () async {
+        await RegisterDevice(MockDeviceRepository())();
+      });
 
-    test('live repo with no token provider is a logged no-op (no throw)',
+      test(
+        'live repo with no token provider is a logged no-op (no throw)',
         () async {
-      // Default (no provider): registration returns without touching the
-      // network or the FCM plugin. Enables shipping before FCM is pinned.
-      await RegisterDevice(ApiDeviceRepository())();
-    });
-  });
+          // Default (no provider): registration returns without touching the
+          // network or the FCM plugin. Enables shipping before FCM is pinned.
+          await RegisterDevice(ApiDeviceRepository())();
+        },
+      );
+    },
+  );
 
   group('M2 — coach assessment persists through the repository', () {
     test('saveAssessment updates the roster and survives a re-fetch', () async {
@@ -74,8 +78,12 @@ void main() {
       final repo = MockPlayerRepository();
       final target = (await repo.fetchSquad()).first;
       const ratings = PlayerRatings(
-        pace: 70, shooting: 70, passing: 70, dribbling: 70,
-        defending: 70, physical: 70,
+        pace: 70,
+        shooting: 70,
+        passing: 70,
+        dribbling: 70,
+        defending: 70,
+        physical: 70,
       );
 
       final save = SavePlayerAssessment(repo);
@@ -107,15 +115,22 @@ void main() {
         overrides: [playerRepositoryProvider.overrideWithValue(repo)],
       );
       addTearDown(container.dispose);
-      final sub =
-          container.listen(editPerformanceControllerProvider, (_, _) {});
-      final controller =
-          container.read(editPerformanceControllerProvider.notifier);
+      final sub = container.listen(
+        editPerformanceControllerProvider,
+        (_, _) {},
+      );
+      final controller = container.read(
+        editPerformanceControllerProvider.notifier,
+      );
       final squad = await repo.fetchSquad();
 
       const ratings = PlayerRatings(
-        pace: 60, shooting: 60, passing: 60, dribbling: 60,
-        defending: 60, physical: 60,
+        pace: 60,
+        shooting: 60,
+        passing: 60,
+        dribbling: 60,
+        defending: 60,
+        physical: 60,
       );
       final ok = await controller.submit(
         squad.first.id,

@@ -162,13 +162,18 @@ if os.environ.get('DB_HOST') and not TESTING:
             'DISABLE_SERVER_SIDE_CURSORS': os.environ.get('DB_PORT') == '6543',
         }
     }
-else:
+elif TESTING or DEBUG:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+else:
+    raise ImproperlyConfigured(
+        'DB_HOST must be set in production; local SQLite is only available '
+        'for development and automated tests.'
+    )
 
 
 # Password hashing — Argon2id first (via argon2-cffi); PBKDF2 kept so existing

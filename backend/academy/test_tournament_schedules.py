@@ -2,7 +2,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -81,6 +81,20 @@ class TournamentStorageTests(TestCase):
         storage.save.return_value = 'tournament-schedules/2/3.png'
         path = upload_tournament_document(2, 3, b'png', 'image/png')
         self.assertEqual(path, 'local/tournament-schedules/2/3.png')
+
+    @override_settings(TESTING=False, DEBUG=False)
+    @patch.dict('os.environ', {
+        'SUPABASE_URL': '',
+        'SUPABASE_SERVICE_KEY': '',
+    }, clear=False)
+    def test_production_never_falls_back_to_local_storage(self):
+        with self.assertRaisesMessage(RuntimeError, 'is not configured'):
+            upload_tournament_document(2, 3, b'png', 'image/png')
+        self.assertIsNone(
+            signed_tournament_document_url(
+                'local/tournament-schedules/2/3.png'
+            )
+        )
 
     @patch.dict('os.environ', {
         'SUPABASE_URL': 'https://project.supabase.co',

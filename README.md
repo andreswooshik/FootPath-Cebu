@@ -38,7 +38,7 @@ lib/
 SOLID shows up concretely: use cases depend on **narrow** repository interfaces (`SquadRepository`, `PlayerProfileRepository`, `LinkedPlayersRepository` — Interface Segregation + Dependency Inversion); provider-specific concerns (Firebase, HTTP, JSON) stay in the data layer so domain and presentation stay provider-agnostic.
 
 **Feature trace — Coach dashboard "Active Squad Roster":**
-`CoachDashboardScreen` (View) → `filteredSquadProvider`/`squadProvider` → `GetSquad` (use case) → `SquadRepository` → `MockPlayerRepository` / `ApiPlayerRepository`. Mock is the debug default; run against the live backend with `--dart-define=USE_MOCK=false` (release builds are always live).
+`CoachDashboardScreen` (View) → `filteredSquadProvider`/`squadProvider` → `GetSquad` (use case) → `SquadRepository` → `MockPlayerRepository` / `ApiPlayerRepository`. Live Firebase + Django repositories are the default; use `--dart-define=USE_MOCK=true` only for isolated UI work (release builds are always live).
 
 **Feature trace — Match performance:**
 `CoachMatchesScreen` / `PlayerMatchStatisticsView` → match providers → narrow match use cases → `MatchManager` / `MatchStatisticsReader` → `MockMatchRepository` / `ApiMatchRepository`. Django stamps match ownership from the authenticated Coach, validates same-Club players, and exposes read-only trends to the Player, same-Club Coach, Admin, and linked Guardians through the existing privacy-PIN unlock.

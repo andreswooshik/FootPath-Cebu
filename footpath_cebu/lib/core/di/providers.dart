@@ -101,6 +101,8 @@ import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
 import 'package:footpath_cebu/domain/usecases/sign_in.dart';
 import 'package:footpath_cebu/domain/usecases/sign_out.dart';
 
+import 'test_runtime_stub.dart' if (dart.library.io) 'test_runtime_io.dart';
+
 /// Composition root (the outermost layer), expressed as Riverpod providers.
 ///
 /// The repository providers pick the concrete data-layer implementation
@@ -112,13 +114,23 @@ import 'package:footpath_cebu/domain/usecases/sign_out.dart';
 /// Whether to wire the in-memory mock repositories instead of the live
 /// Firebase + Django backend.
 ///
-/// A release build ALWAYS uses live data — the mock auth accepts a shared demo
-/// password for any email, so it must never ship (audit finding F1). In debug,
-/// mocks are the default for UI work; override with
-/// `--dart-define=USE_MOCK=false` to run debug against the real backend.
+/// Live Firebase + Django repositories are the default in every build mode so
+/// a normal `flutter run` exercises the same server-authoritative data path as
+/// production. Mocks are available only when explicitly requested for
+/// isolated UI work with `--dart-define=USE_MOCK=true`. Release builds ignore
+/// that flag and always stay live.
+const bool mockDataRequestedByBuild = bool.fromEnvironment(
+  'USE_MOCK',
+  defaultValue: false,
+);
+
 bool get useMockData {
   if (kReleaseMode) return false;
-  return const bool.fromEnvironment('USE_MOCK', defaultValue: true);
+  // Flutter's test runner marks its process with FLUTTER_TEST. This keeps
+  // existing widget tests deterministic without making ordinary debug runs
+  // silently use device-only data.
+  if (isFlutterTestRuntime) return true;
+  return mockDataRequestedByBuild;
 }
 
 // ---------------------------------------------------------------------------
