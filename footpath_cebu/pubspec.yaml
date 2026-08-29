@@ -39,7 +39,7 @@ dependencies:
   # The firebase_auth 6.5.4 / firebase_messaging platform-interface conflict
   # documented in docs/wiring-implementation-notes.md is resolved upstream:
   # both packages now target firebase_core_platform_interface ^8.x.
-  firebase_messaging: ^16.4.3
+  firebase_messaging: ^16.6.0
   http: ^1.6.0
   http_parser: ^4.1.2
   flutter_svg: ^2.0.10
