@@ -524,7 +524,7 @@ def tournament_schedules(request):
     form = TournamentScheduleForm(request.POST or None, request.FILES or None)
     if request.method == 'POST' and form.is_valid():
         document = form.cleaned_data['document']
-        content_type = validate_tournament_document(document)
+        content_type = validate_tournament_document(document) if document else None
         schedule = None
         document_path = ''
         try:
@@ -532,21 +532,26 @@ def tournament_schedules(request):
                 schedule = TournamentSchedule.objects.create(
                     club=request.user.club,
                     title=form.cleaned_data['title'],
+                    starts_on=form.cleaned_data['starts_on'],
                     uploaded_by=request.user,
                 )
-                document_path = upload_tournament_document(
-                    request.user.club_id,
-                    schedule.id,
-                    document.read(),
-                    content_type,
-                )
-                schedule.document_path = document_path
-                schedule.save(update_fields=['document_path', 'updated_at'])
+                if document:
+                    document_path = upload_tournament_document(
+                        request.user.club_id,
+                        schedule.id,
+                        document.read(),
+                        content_type,
+                    )
+                    schedule.document_path = document_path
+                    schedule.save(update_fields=['document_path', 'updated_at'])
                 AuditLog.record(
                     request.user,
                     'tournament.created',
                     target=schedule.title,
-                    detail='Official schedule uploaded.',
+                    detail=(
+                        'Official schedule uploaded.'
+                        if document else 'Created without an official document.'
+                    ),
                 )
         except RuntimeError as exc:
             if document_path:

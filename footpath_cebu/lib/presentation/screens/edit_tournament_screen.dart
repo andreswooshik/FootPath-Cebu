@@ -1,0 +1,473 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:footpath_cebu/core/utils/date_format.dart';
+import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
+import 'package:footpath_cebu/presentation/providers/error_text.dart';
+import 'package:footpath_cebu/presentation/providers/tournament_schedule_providers.dart';
+
+class EditTournamentScreen extends ConsumerStatefulWidget {
+  const EditTournamentScreen({super.key, this.existing});
+
+  final TournamentSchedule? existing;
+
+  @override
+  ConsumerState<EditTournamentScreen> createState() =>
+      _EditTournamentScreenState();
+}
+
+class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
+  late final TextEditingController _titleController = TextEditingController(
+    text: widget.existing?.title ?? '',
+  );
+  late DateTime? _startsOn = widget.existing?.startsOn;
+  late TournamentSchedule? _current = widget.existing;
+  String? _formError;
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickStartDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startsOn ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 10),
+    );
+    if (picked != null) setState(() => _startsOn = picked);
+  }
+
+  Future<void> _saveDetails() async {
+    final title = _titleController.text.trim();
+    if (title.isEmpty || _startsOn == null) {
+      setState(() => _formError = 'Enter a tournament name and start date.');
+      return;
+    }
+    final controller = ref.read(
+      tournamentManagementControllerProvider.notifier,
+    );
+    final saved = _current == null
+        ? await controller.create(title: title, startsOn: _startsOn!)
+        : await controller.saveTournament(
+            _current!.copyWith(title: title, startsOn: _startsOn),
+          );
+    if (!mounted) return;
+    if (saved == null) {
+      _showError('Could not save the tournament.');
+      return;
+    }
+    setState(() {
+      _current = saved;
+      _formError = null;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Tournament draft saved.')));
+  }
+
+  Future<void> _editBracket([TournamentAgeBracket? existing]) async {
+    final result = await showDialog<({int maxAge, DateTime? scheduledAt})>(
+      context: context,
+      builder: (context) => _BracketDialog(existing: existing),
+    );
+    if (result == null || _current == null) return;
+    final controller = ref.read(
+      tournamentManagementControllerProvider.notifier,
+    );
+    final saved = existing == null
+        ? await controller.addBracket(
+            _current!.id,
+            maxAge: result.maxAge,
+            scheduledAt: result.scheduledAt,
+          )
+        : await controller.updateBracket(
+            existing.id,
+            maxAge: result.maxAge,
+            scheduledAt: result.scheduledAt,
+          );
+    if (!mounted) return;
+    if (saved == null) {
+      _showError('Could not save the age bracket.');
+      return;
+    }
+    setState(() => _current = saved);
+  }
+
+  Future<void> _removeBracket(TournamentAgeBracket bracket) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Remove ${bracket.label}?'),
+        content: const Text(
+          'This removes the age bracket from the tournament draft.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep bracket'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final ok = await ref
+        .read(tournamentManagementControllerProvider.notifier)
+        .deleteBracket(bracket.id);
+    if (!mounted) return;
+    if (!ok) {
+      _showError('Could not remove the age bracket.');
+      return;
+    }
+    setState(() {
+      _current = _current!.copyWith(
+        ageBrackets: _current!.ageBrackets
+            .where((row) => row.id != bracket.id)
+            .toList(),
+      );
+    });
+  }
+
+  Future<void> _publish() async {
+    if (_current == null) return;
+    if (_current!.ageBrackets.isEmpty) {
+      setState(() => _formError = 'Add at least one age bracket first.');
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Publish tournament?'),
+        content: const Text(
+          'Players and guardians will be able to see the tournament and its age brackets.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not yet'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Publish'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final saved = await ref
+        .read(tournamentManagementControllerProvider.notifier)
+        .publish(_current!.id);
+    if (!mounted) return;
+    if (saved == null) {
+      _showError('Could not publish the tournament.');
+      return;
+    }
+    setState(() => _current = saved);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Tournament published to the club.')),
+    );
+  }
+
+  void _showError(String fallback) {
+    final error = ref.read(tournamentManagementControllerProvider).error;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(friendlyErrorMessage(error, fallback))),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isSaving = ref.watch(
+      tournamentManagementControllerProvider.select((state) => state.isLoading),
+    );
+    final tournament = _current;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          tournament == null ? 'New tournament' : 'Manage tournament',
+        ),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      tournament?.isPublished == true
+                          ? 'Published tournament'
+                          : 'Tournament draft',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  Chip(
+                    label: Text(
+                      tournament?.isPublished == true ? 'Published' : 'Draft',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _titleController,
+                enabled: !isSaving,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Tournament name',
+                  hintText: 'e.g. Sinulog Cup',
+                  prefixIcon: Icon(Icons.emoji_events_outlined),
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: isSaving ? null : _pickStartDate,
+                icon: const Icon(Icons.calendar_month_outlined),
+                label: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _startsOn == null
+                        ? 'Choose tournament start date'
+                        : formatFullDate(_startsOn!),
+                  ),
+                ),
+              ),
+              if (_formError != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _formError!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: isSaving ? null : _saveDetails,
+                icon: const Icon(Icons.save_outlined),
+                label: Text(tournament == null ? 'Save draft' : 'Save details'),
+              ),
+              const SizedBox(height: 28),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Age brackets',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  if (tournament != null)
+                    OutlinedButton.icon(
+                      onPressed: isSaving ? null : () => _editBracket(),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add bracket'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (tournament == null)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'Save the tournament draft before adding U-age brackets.',
+                    ),
+                  ),
+                )
+              else if (tournament.ageBrackets.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'No brackets yet. Add U8, U10, U12, or another division.',
+                    ),
+                  ),
+                )
+              else
+                for (final bracket in tournament.ageBrackets)
+                  Card(
+                    child: ListTile(
+                      leading: CircleAvatar(child: Text(bracket.label)),
+                      title: Text('${bracket.label} division'),
+                      subtitle: Text(
+                        bracket.scheduledAt == null
+                            ? 'Schedule date and time: TBD'
+                            : _formatDateTime(context, bracket.scheduledAt!),
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Edit ${bracket.label}',
+                            onPressed: isSaving
+                                ? null
+                                : () => _editBracket(bracket),
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                          if (!tournament.isPublished)
+                            IconButton(
+                              tooltip: 'Remove ${bracket.label}',
+                              onPressed: isSaving
+                                  ? null
+                                  : () => _removeBracket(bracket),
+                              icon: const Icon(Icons.delete_outline),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+              const SizedBox(height: 24),
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.lock_outline),
+                  title: Text('Official schedule document'),
+                  subtitle: Text(
+                    'Upload or replace the private PDF, JPG, or PNG in the web portal.',
+                  ),
+                ),
+              ),
+              if (tournament != null && !tournament.isPublished) ...[
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: isSaving ? null : _publish,
+                  icon: const Icon(Icons.publish_outlined),
+                  label: const Text('Publish tournament'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BracketDialog extends StatefulWidget {
+  const _BracketDialog({this.existing});
+
+  final TournamentAgeBracket? existing;
+
+  @override
+  State<_BracketDialog> createState() => _BracketDialogState();
+}
+
+class _BracketDialogState extends State<_BracketDialog> {
+  late final TextEditingController _ageController = TextEditingController(
+    text: widget.existing?.maxAge.toString() ?? '',
+  );
+  late DateTime? _scheduledAt = widget.existing?.scheduledAt?.toLocal();
+  String? _error;
+
+  @override
+  void dispose() {
+    _ageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickSchedule() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _scheduledAt ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 10),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: _scheduledAt == null
+          ? TimeOfDay.now()
+          : TimeOfDay.fromDateTime(_scheduledAt!),
+    );
+    if (time == null) return;
+    setState(() {
+      _scheduledAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      );
+    });
+  }
+
+  void _submit() {
+    final age = int.tryParse(_ageController.text.trim());
+    if (age == null || age < 3 || age > 25) {
+      setState(() => _error = 'Enter a U-age from 3 to 25.');
+      return;
+    }
+    Navigator.pop(context, (maxAge: age, scheduledAt: _scheduledAt));
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(
+      widget.existing == null ? 'Add age bracket' : 'Edit age bracket',
+    ),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _ageController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Maximum age',
+              prefixText: 'U',
+              helperText: 'Example: enter 8 for U8.',
+            ),
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _pickSchedule,
+            icon: const Icon(Icons.event_outlined),
+            label: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _scheduledAt == null
+                    ? 'Add optional schedule date and time'
+                    : _formatDateTime(context, _scheduledAt!),
+              ),
+            ),
+          ),
+          if (_scheduledAt != null)
+            TextButton(
+              onPressed: () => setState(() => _scheduledAt = null),
+              child: const Text('Clear schedule time'),
+            ),
+          if (_error != null)
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: const Text('Save bracket')),
+    ],
+  );
+}
+
+String _formatDateTime(BuildContext context, DateTime value) {
+  final local = value.toLocal();
+  final time = MaterialLocalizations.of(
+    context,
+  ).formatTimeOfDay(TimeOfDay.fromDateTime(local));
+  return '${formatFullDate(local)} at $time';
+}

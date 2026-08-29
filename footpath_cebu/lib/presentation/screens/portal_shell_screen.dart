@@ -41,7 +41,11 @@ class CoordinatorPortalScreen extends StatelessWidget {
   Widget build(BuildContext context) => PortalShell(
     initialIndex: initialTabIndex,
     pages: [
-      const TournamentScheduleScreen(asTab: true, canRecordResults: true),
+      const TournamentScheduleScreen(
+        asTab: true,
+        canRecordResults: true,
+        canManage: true,
+      ),
       const CoordinatorMatchesScreen(),
       const CoordinatorInjuriesScreen(),
       CoordinatorAccountScreen(profile: profile),

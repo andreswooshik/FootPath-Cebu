@@ -19,6 +19,30 @@ extension TournamentFixtureStatusInfo on TournamentFixtureStatus {
       };
 }
 
+class TournamentAgeBracket {
+  const TournamentAgeBracket({
+    required this.id,
+    required this.maxAge,
+    required this.label,
+    this.scheduledAt,
+  });
+
+  final String id;
+  final int maxAge;
+  final String label;
+  final DateTime? scheduledAt;
+
+  factory TournamentAgeBracket.fromJson(Map<String, dynamic> json) =>
+      TournamentAgeBracket(
+        id: json['id'].toString(),
+        maxAge: json['maxAge'] as int,
+        label: json['label'] as String? ?? 'U${json['maxAge']}',
+        scheduledAt: json['scheduledAt'] == null
+            ? null
+            : DateTime.parse(json['scheduledAt'] as String),
+      );
+}
+
 class TournamentFixture {
   const TournamentFixture({
     required this.id,
@@ -74,26 +98,60 @@ class TournamentSchedule {
   const TournamentSchedule({
     required this.id,
     required this.title,
+    required this.startsOn,
+    required this.isPublished,
     required this.publishedAt,
     required this.updatedAt,
+    required this.ageBrackets,
     required this.fixtures,
     this.documentUrl,
   });
 
   final String id;
   final String title;
+  final DateTime startsOn;
+  final bool isPublished;
   final String? documentUrl;
-  final DateTime publishedAt;
+  final DateTime? publishedAt;
   final DateTime updatedAt;
+  final List<TournamentAgeBracket> ageBrackets;
   final List<TournamentFixture> fixtures;
+
+  TournamentSchedule copyWith({
+    String? title,
+    DateTime? startsOn,
+    bool? isPublished,
+    DateTime? publishedAt,
+    DateTime? updatedAt,
+    List<TournamentAgeBracket>? ageBrackets,
+    List<TournamentFixture>? fixtures,
+  }) => TournamentSchedule(
+    id: id,
+    title: title ?? this.title,
+    startsOn: startsOn ?? this.startsOn,
+    isPublished: isPublished ?? this.isPublished,
+    documentUrl: documentUrl,
+    publishedAt: publishedAt ?? this.publishedAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    ageBrackets: ageBrackets ?? this.ageBrackets,
+    fixtures: fixtures ?? this.fixtures,
+  );
 
   factory TournamentSchedule.fromJson(Map<String, dynamic> json) =>
       TournamentSchedule(
         id: json['id'].toString(),
         title: json['title'] as String? ?? '',
+        startsOn: DateTime.parse(json['startsOn'] as String),
+        isPublished: json['isPublished'] as bool? ?? true,
         documentUrl: json['documentUrl'] as String?,
-        publishedAt: DateTime.parse(json['publishedAt'] as String),
+        publishedAt: json['publishedAt'] == null
+            ? null
+            : DateTime.parse(json['publishedAt'] as String),
         updatedAt: DateTime.parse(json['updatedAt'] as String),
+        ageBrackets: (json['ageBrackets'] as List? ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(TournamentAgeBracket.fromJson)
+            .toList(growable: false),
         fixtures: (json['fixtures'] as List? ?? const [])
             .cast<Map<String, dynamic>>()
             .map(TournamentFixture.fromJson)
