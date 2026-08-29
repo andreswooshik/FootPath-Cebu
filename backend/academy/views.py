@@ -48,6 +48,7 @@ from .models import (
     PlayerPrivacyPin,
     SessionConfirmation,
     TrainingSession,
+    TournamentAgeBracket,
     TournamentFixture,
     TournamentSchedule,
 )
@@ -91,7 +92,9 @@ from .serializers import (
     SessionAttendanceRecordSerializer,
     SessionConfirmationSerializer,
     TrainingSessionSerializer,
+    TournamentAgeBracketWriteSerializer,
     TournamentScheduleSerializer,
+    TournamentScheduleWriteSerializer,
 )
 from .match_statistics import build_performance_summary
 from .player_unlock import issue_player_unlock, require_player_unlock
@@ -615,7 +618,7 @@ class TrainingSessionListCreateView(APIView):
 
 
 class TournamentScheduleListView(APIView):
-    """Read-only published tournament schedules for authenticated club roles."""
+    """Role-aware tournament list and Coordinator draft creation."""
 
     _roles = (
         Roles.COORDINATOR,
@@ -631,18 +634,187 @@ class TournamentScheduleListView(APIView):
                 'Your role cannot view mobile tournament schedules.'
             )
         schedules = (
-            TournamentSchedule.objects.filter(is_published=True)
+            TournamentSchedule.objects.all()
             .select_related('club')
-            .prefetch_related('fixtures')
+            .prefetch_related('fixtures', 'age_brackets')
         )
-        if request.user.role != Roles.ADMIN:
-            if request.user.club_id is None:
-                schedules = schedules.none()
-            else:
-                schedules = schedules.filter(club_id=request.user.club_id)
+        if request.user.role == Roles.ADMIN:
+            pass
+        elif request.user.club_id is None:
+            schedules = schedules.none()
+        else:
+            schedules = schedules.filter(club_id=request.user.club_id)
+            if request.user.role not in (Roles.COORDINATOR, Roles.COACH):
+                schedules = schedules.filter(is_published=True)
         return Response(
             TournamentScheduleSerializer(schedules, many=True).data
         )
+
+    def post(self, request):
+        if request.user.role != Roles.COORDINATOR:
+            raise PermissionDenied('Only Coordinators can create tournaments.')
+        if request.user.club_id is None:
+            raise PermissionDenied('Coordinator account must belong to a club.')
+        serializer = TournamentScheduleWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        schedule = serializer.save(
+            club=request.user.club,
+            uploaded_by=request.user,
+            is_published=False,
+            published_at=None,
+        )
+        AuditLog.record(
+            request.user,
+            'tournament.draft_created',
+            target=schedule.title,
+            detail=str(schedule.starts_on),
+        )
+        return Response(
+            TournamentScheduleSerializer(schedule).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+def _coordinator_mobile_schedule(user, schedule_id):
+    if user.role != Roles.COORDINATOR:
+        raise PermissionDenied('Only Coordinators can manage tournaments.')
+    if user.club_id is None:
+        raise PermissionDenied('Coordinator account must belong to a club.')
+    return get_object_or_404(
+        TournamentSchedule.objects.prefetch_related('fixtures', 'age_brackets'),
+        pk=schedule_id,
+        club_id=user.club_id,
+    )
+
+
+class TournamentScheduleDetailView(APIView):
+    """Edit the mobile-managed name/date portion of a club tournament."""
+
+    def patch(self, request, schedule_id):
+        schedule = _coordinator_mobile_schedule(request.user, schedule_id)
+        old_title = schedule.title
+        old_date = schedule.starts_on
+        serializer = TournamentScheduleWriteSerializer(
+            schedule, data=request.data, partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        schedule = serializer.save()
+        AuditLog.record(
+            request.user,
+            'tournament.updated',
+            target=schedule.title,
+            detail=(
+                f'{old_title} ({old_date}) -> '
+                f'{schedule.title} ({schedule.starts_on})'
+            ),
+        )
+        return Response(TournamentScheduleSerializer(schedule).data)
+
+
+class TournamentSchedulePublishView(APIView):
+    """Publish a configured tournament to the whole club."""
+
+    def post(self, request, schedule_id):
+        schedule = _coordinator_mobile_schedule(request.user, schedule_id)
+        if not schedule.age_brackets.exists():
+            raise ValidationError({
+                'ageBrackets': 'Add at least one age bracket before publishing.'
+            })
+        if not schedule.is_published:
+            schedule.is_published = True
+            schedule.published_at = timezone.now()
+            schedule.save(update_fields=[
+                'is_published', 'published_at', 'updated_at',
+            ])
+            AuditLog.record(
+                request.user,
+                'tournament.published',
+                target=schedule.title,
+                detail=str(schedule.starts_on),
+            )
+        return Response(TournamentScheduleSerializer(schedule).data)
+
+
+class TournamentAgeBracketCreateView(APIView):
+    """Add one flexible U-age bracket to a Coordinator's tournament."""
+
+    def post(self, request, schedule_id):
+        schedule = _coordinator_mobile_schedule(request.user, schedule_id)
+        serializer = TournamentAgeBracketWriteSerializer(
+            data=request.data,
+            context={'schedule': schedule},
+        )
+        serializer.is_valid(raise_exception=True)
+        bracket = serializer.save(schedule=schedule)
+        TournamentSchedule.objects.filter(pk=schedule.pk).update(
+            updated_at=timezone.now()
+        )
+        AuditLog.record(
+            request.user,
+            'tournament.bracket_added',
+            target=f'{schedule.title} {bracket.label}',
+            detail=bracket.scheduled_at or 'Schedule time TBD',
+        )
+        schedule.refresh_from_db()
+        return Response(
+            TournamentScheduleSerializer(schedule).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+def _coordinator_mobile_bracket(user, bracket_id):
+    if user.role != Roles.COORDINATOR:
+        raise PermissionDenied('Only Coordinators can manage age brackets.')
+    if user.club_id is None:
+        raise PermissionDenied('Coordinator account must belong to a club.')
+    return get_object_or_404(
+        TournamentAgeBracket.objects.select_related('schedule'),
+        pk=bracket_id,
+        schedule__club_id=user.club_id,
+    )
+
+
+class TournamentAgeBracketDetailView(APIView):
+    def patch(self, request, bracket_id):
+        bracket = _coordinator_mobile_bracket(request.user, bracket_id)
+        serializer = TournamentAgeBracketWriteSerializer(
+            bracket,
+            data=request.data,
+            partial=True,
+            context={'schedule': bracket.schedule},
+        )
+        serializer.is_valid(raise_exception=True)
+        bracket = serializer.save()
+        TournamentSchedule.objects.filter(pk=bracket.schedule_id).update(
+            updated_at=timezone.now()
+        )
+        AuditLog.record(
+            request.user,
+            'tournament.bracket_updated',
+            target=f'{bracket.schedule.title} {bracket.label}',
+            detail=bracket.scheduled_at or 'Schedule time TBD',
+        )
+        bracket.schedule.refresh_from_db()
+        return Response(TournamentScheduleSerializer(bracket.schedule).data)
+
+    def delete(self, request, bracket_id):
+        bracket = _coordinator_mobile_bracket(request.user, bracket_id)
+        schedule = bracket.schedule
+        if schedule.is_published:
+            raise ValidationError({
+                'ageBracket': 'Published tournament brackets cannot be removed.'
+            })
+        target = f'{schedule.title} {bracket.label}'
+        bracket.delete()
+        TournamentSchedule.objects.filter(pk=schedule.pk).update(
+            updated_at=timezone.now()
+        )
+        AuditLog.record(
+            request.user,
+            'tournament.bracket_removed',
+            target=target,
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class FootballMatchListCreateView(APIView):

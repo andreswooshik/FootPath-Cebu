@@ -13,6 +13,7 @@ from .models import (
     AuditLog,
     FixtureStatus,
     MatchVenue,
+    TournamentAgeBracket,
     TournamentFixture,
     TournamentSchedule,
 )
@@ -134,6 +135,7 @@ class TournamentPortalTests(TestCase):
     def test_coordinator_publishes_schedule(self, signed, upload):
         response = self.client.post(reverse('portal:tournaments'), {
             'title': 'Cebu Youth Cup',
+            'starts_on': '2026-09-15',
             'document': _pdf(),
         })
         schedule = TournamentSchedule.objects.get()
@@ -175,6 +177,19 @@ class TournamentPortalTests(TestCase):
         fixture = TournamentFixture.objects.get()
         self.assertEqual(fixture.schedule, schedule)
         self.assertEqual(fixture.stage, 'Quarter-final')
+
+    def test_coordinator_can_publish_without_document(self):
+        response = self.client.post(reverse('portal:tournaments'), {
+            'title': 'Fixture Later Cup',
+            'starts_on': '2026-10-02',
+        })
+        schedule = TournamentSchedule.objects.get(title='Fixture Later Cup')
+        self.assertRedirects(
+            response,
+            reverse('portal:tournament-detail', args=[schedule.id]),
+        )
+        self.assertEqual(schedule.document_path, '')
+        self.assertEqual(str(schedule.starts_on), '2026-10-02')
 
     def test_non_coordinator_cannot_manage_schedules(self):
         self.client.force_login(self.coach)
@@ -236,3 +251,138 @@ class TournamentScheduleApiTests(APITestCase):
         self.client.force_authenticate(staff)
         response = self.client.get(reverse('tournament-schedules'))
         self.assertEqual(response.status_code, 403)
+
+
+class TournamentCoordinatorMobileApiTests(APITestCase):
+    def setUp(self):
+        self.club = _club('Coordinator Mobile FC')
+        self.other_club = _club('Other Coordinator FC')
+        self.coordinator = _user(
+            'coordinator@mobile-management.test', Roles.COORDINATOR, self.club
+        )
+        self.coach = _user('coach@mobile-management.test', Roles.COACH, self.club)
+        self.player = _user(
+            'player@mobile-management.test', Roles.PLAYER, self.club
+        )
+        self.other_schedule = TournamentSchedule.objects.create(
+            club=self.other_club,
+            title='Other Club Draft',
+            starts_on='2026-10-01',
+            is_published=False,
+            published_at=None,
+        )
+
+    def _create_draft(self):
+        self.client.force_authenticate(self.coordinator)
+        response = self.client.post(reverse('tournament-schedules'), {
+            'title': 'Sinulog Cup',
+            'startsOn': '2026-09-20',
+        })
+        self.assertEqual(response.status_code, 201)
+        return TournamentSchedule.objects.get(pk=response.data['id'])
+
+    def test_coordinator_creates_a_document_optional_draft(self):
+        schedule = self._create_draft()
+        self.assertFalse(schedule.is_published)
+        self.assertIsNone(schedule.published_at)
+        self.assertEqual(str(schedule.starts_on), '2026-09-20')
+        self.assertEqual(schedule.document_path, '')
+        self.assertTrue(
+            AuditLog.objects.filter(action='tournament.draft_created').exists()
+        )
+
+    def test_coach_sees_same_club_draft_but_player_does_not(self):
+        schedule = self._create_draft()
+        self.client.force_authenticate(self.coach)
+        coach_response = self.client.get(reverse('tournament-schedules'))
+        self.assertEqual(
+            [row['id'] for row in coach_response.data], [schedule.id]
+        )
+        self.client.force_authenticate(self.player)
+        player_response = self.client.get(reverse('tournament-schedules'))
+        self.assertEqual(player_response.data, [])
+
+    def test_non_coordinator_cannot_create_or_mutate_tournament(self):
+        self.client.force_authenticate(self.coach)
+        create_response = self.client.post(reverse('tournament-schedules'), {
+            'title': 'Denied Cup', 'startsOn': '2026-09-20',
+        })
+        self.assertEqual(create_response.status_code, 403)
+        patch_response = self.client.patch(
+            reverse('tournament-schedule-detail', args=[self.other_schedule.id]),
+            {'title': 'Changed'},
+            format='json',
+        )
+        self.assertEqual(patch_response.status_code, 403)
+
+    def test_coordinator_adds_edits_and_removes_draft_bracket(self):
+        schedule = self._create_draft()
+        add_response = self.client.post(
+            reverse('tournament-bracket-create', args=[schedule.id]),
+            {'maxAge': 8, 'scheduledAt': '2026-09-20T08:00:00Z'},
+            format='json',
+        )
+        self.assertEqual(add_response.status_code, 201)
+        self.assertEqual(add_response.data['ageBrackets'][0]['label'], 'U8')
+        bracket = TournamentAgeBracket.objects.get(schedule=schedule)
+        edit_response = self.client.patch(
+            reverse('tournament-bracket-detail', args=[bracket.id]),
+            {'maxAge': 10},
+            format='json',
+        )
+        self.assertEqual(edit_response.status_code, 200)
+        bracket.refresh_from_db()
+        self.assertEqual(bracket.max_age, 10)
+        delete_response = self.client.delete(
+            reverse('tournament-bracket-detail', args=[bracket.id])
+        )
+        self.assertEqual(delete_response.status_code, 204)
+
+    def test_duplicate_bracket_and_cross_club_mutation_are_rejected(self):
+        schedule = self._create_draft()
+        url = reverse('tournament-bracket-create', args=[schedule.id])
+        self.assertEqual(
+            self.client.post(url, {'maxAge': 8}, format='json').status_code,
+            201,
+        )
+        self.assertEqual(
+            self.client.post(url, {'maxAge': 8}, format='json').status_code,
+            400,
+        )
+        other_url = reverse(
+            'tournament-bracket-create', args=[self.other_schedule.id]
+        )
+        self.assertEqual(
+            self.client.post(other_url, {'maxAge': 10}, format='json').status_code,
+            404,
+        )
+
+    def test_publish_requires_bracket_and_exposes_tournament_to_player(self):
+        schedule = self._create_draft()
+        publish_url = reverse('tournament-schedule-publish', args=[schedule.id])
+        self.assertEqual(self.client.post(publish_url).status_code, 400)
+        self.client.post(
+            reverse('tournament-bracket-create', args=[schedule.id]),
+            {'maxAge': 12},
+            format='json',
+        )
+        publish_response = self.client.post(publish_url)
+        self.assertEqual(publish_response.status_code, 200)
+        self.assertTrue(publish_response.data['isPublished'])
+        self.client.force_authenticate(self.player)
+        rows = self.client.get(reverse('tournament-schedules')).data
+        self.assertEqual([row['title'] for row in rows], ['Sinulog Cup'])
+
+    def test_published_bracket_cannot_be_removed(self):
+        schedule = self._create_draft()
+        add_response = self.client.post(
+            reverse('tournament-bracket-create', args=[schedule.id]),
+            {'maxAge': 8},
+            format='json',
+        )
+        bracket_id = add_response.data['ageBrackets'][0]['id']
+        self.client.post(reverse('tournament-schedule-publish', args=[schedule.id]))
+        response = self.client.delete(
+            reverse('tournament-bracket-detail', args=[bracket_id])
+        )
+        self.assertEqual(response.status_code, 400)

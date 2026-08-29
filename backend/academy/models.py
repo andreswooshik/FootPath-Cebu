@@ -450,6 +450,7 @@ class TournamentSchedule(models.Model):
         related_name='tournament_schedules',
     )
     title = models.CharField(max_length=120)
+    starts_on = models.DateField(default=timezone.localdate)
     document_path = models.CharField(max_length=500, blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -459,7 +460,7 @@ class TournamentSchedule(models.Model):
         related_name='uploaded_tournament_schedules',
     )
     is_published = models.BooleanField(default=True)
-    published_at = models.DateTimeField(default=timezone.now)
+    published_at = models.DateTimeField(null=True, blank=True, default=timezone.now)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -474,7 +475,7 @@ class TournamentSchedule(models.Model):
         return super().save(*args, **kwargs)
 
     class Meta:
-        ordering = ['-published_at', '-id']
+        ordering = ['-starts_on', '-id']
         indexes = [
             models.Index(
                 fields=['club', '-published_at'],
@@ -484,6 +485,44 @@ class TournamentSchedule(models.Model):
 
     def __str__(self):
         return f'{self.club.name} · {self.title}'
+
+
+class TournamentAgeBracket(models.Model):
+    """One flexible U-age division announced for a tournament."""
+
+    schedule = models.ForeignKey(
+        TournamentSchedule,
+        on_delete=models.CASCADE,
+        related_name='age_brackets',
+    )
+    max_age = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(3), MaxValueValidator(25)],
+    )
+    scheduled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def label(self):
+        return f'U{self.max_age}'
+
+    class Meta:
+        ordering = ['max_age', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['schedule', 'max_age'],
+                name='academy_unique_tournament_age_bracket',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['schedule', 'max_age'],
+                name='academy_tourn_bracket_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.schedule.title} - {self.label}'
 
 
 class TournamentFixture(models.Model):

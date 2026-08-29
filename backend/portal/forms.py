@@ -242,10 +242,15 @@ class TournamentScheduleForm(forms.Form):
         label='Tournament name',
         widget=forms.TextInput(attrs={'placeholder': 'e.g. Cebu Youth Cup 2026'}),
     )
+    starts_on = forms.DateField(
+        label='Tournament start date',
+        widget=forms.DateInput(attrs={'type': 'date'}),
+    )
     document = forms.FileField(
         label='Official schedule document',
-        help_text='PDF, JPG, or PNG, up to 5 MB.',
+        help_text='Optional. PDF, JPG, or PNG, up to 5 MB.',
         validators=[validate_tournament_document],
+        required=False,
     )
 
     def clean_title(self):

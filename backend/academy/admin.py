@@ -12,6 +12,7 @@ from .models import (
     NotificationRecord,
     PlayerMatchPerformance,
     PlayerEligibility,
+    TournamentAgeBracket,
     TournamentFixture,
     TournamentSchedule,
 )
@@ -233,16 +234,28 @@ class TournamentFixtureInline(admin.TabularInline):
         return False
 
 
+class TournamentAgeBracketInline(admin.TabularInline):
+    model = TournamentAgeBracket
+    extra = 0
+    readonly_fields = ('max_age', 'scheduled_at', 'created_at', 'updated_at')
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(TournamentSchedule)
 class TournamentScheduleAdmin(admin.ModelAdmin):
-    list_display = ('title', 'club', 'is_published', 'published_at', 'uploaded_by')
+    list_display = (
+        'title', 'club', 'starts_on', 'is_published', 'published_at', 'uploaded_by',
+    )
     list_filter = ('is_published', 'club')
     search_fields = ('title', 'club__name')
     readonly_fields = (
-        'club', 'title', 'document_path', 'uploaded_by', 'is_published',
+        'club', 'title', 'starts_on', 'document_path', 'uploaded_by', 'is_published',
         'published_at', 'created_at', 'updated_at',
     )
-    inlines = [TournamentFixtureInline]
+    inlines = [TournamentAgeBracketInline, TournamentFixtureInline]
 
     def has_add_permission(self, request):
         return False

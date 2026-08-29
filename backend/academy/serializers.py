@@ -33,6 +33,7 @@ from .models import (
     SessionConfirmation,
     SessionFocus,
     TrainingSession,
+    TournamentAgeBracket,
     TournamentFixture,
     TournamentSchedule,
 )
@@ -249,20 +250,75 @@ class TournamentFixtureSerializer(serializers.ModelSerializer):
         ]
 
 
+class TournamentAgeBracketSerializer(serializers.ModelSerializer):
+    maxAge = serializers.IntegerField(source='max_age', read_only=True)
+    scheduledAt = serializers.DateTimeField(
+        source='scheduled_at', read_only=True, allow_null=True,
+    )
+    label = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = TournamentAgeBracket
+        fields = ['id', 'maxAge', 'label', 'scheduledAt']
+
+
 class TournamentScheduleSerializer(serializers.ModelSerializer):
     documentUrl = serializers.SerializerMethodField()
-    publishedAt = serializers.DateTimeField(source='published_at', read_only=True)
+    startsOn = serializers.DateField(source='starts_on', read_only=True)
+    isPublished = serializers.BooleanField(source='is_published', read_only=True)
+    publishedAt = serializers.DateTimeField(
+        source='published_at', read_only=True, allow_null=True,
+    )
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     fixtures = TournamentFixtureSerializer(many=True, read_only=True)
+    ageBrackets = TournamentAgeBracketSerializer(
+        source='age_brackets', many=True, read_only=True,
+    )
 
     class Meta:
         model = TournamentSchedule
         fields = [
-            'id', 'title', 'documentUrl', 'publishedAt', 'updatedAt', 'fixtures',
+            'id', 'title', 'startsOn', 'isPublished', 'documentUrl',
+            'publishedAt', 'updatedAt', 'ageBrackets', 'fixtures',
         ]
 
     def get_documentUrl(self, obj):
         return signed_tournament_document_url(obj.document_path)
+
+
+class TournamentScheduleWriteSerializer(serializers.ModelSerializer):
+    startsOn = serializers.DateField(source='starts_on')
+
+    class Meta:
+        model = TournamentSchedule
+        fields = ['title', 'startsOn']
+
+
+class TournamentAgeBracketWriteSerializer(serializers.ModelSerializer):
+    maxAge = serializers.IntegerField(
+        source='max_age', min_value=3, max_value=25,
+    )
+    scheduledAt = serializers.DateTimeField(
+        source='scheduled_at', required=False, allow_null=True,
+    )
+
+    class Meta:
+        model = TournamentAgeBracket
+        fields = ['maxAge', 'scheduledAt']
+
+    def validate(self, attrs):
+        schedule = self.context['schedule']
+        max_age = attrs.get('max_age', getattr(self.instance, 'max_age', None))
+        duplicates = TournamentAgeBracket.objects.filter(
+            schedule=schedule, max_age=max_age,
+        )
+        if self.instance is not None:
+            duplicates = duplicates.exclude(pk=self.instance.pk)
+        if duplicates.exists():
+            raise serializers.ValidationError({
+                'maxAge': f'{schedule.title} already has a U{max_age} bracket.'
+            })
+        return attrs
 
 
 class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):

@@ -58,6 +58,26 @@ urlpatterns = [
         name='tournament-schedules',
     ),
     path(
+        'tournament-schedules/<int:schedule_id>/',
+        views.TournamentScheduleDetailView.as_view(),
+        name='tournament-schedule-detail',
+    ),
+    path(
+        'tournament-schedules/<int:schedule_id>/publish/',
+        views.TournamentSchedulePublishView.as_view(),
+        name='tournament-schedule-publish',
+    ),
+    path(
+        'tournament-schedules/<int:schedule_id>/brackets/',
+        views.TournamentAgeBracketCreateView.as_view(),
+        name='tournament-bracket-create',
+    ),
+    path(
+        'tournament-brackets/<int:bracket_id>/',
+        views.TournamentAgeBracketDetailView.as_view(),
+        name='tournament-bracket-detail',
+    ),
+    path(
         'matches/',
         views.FootballMatchListCreateView.as_view(),
         name='football-matches',

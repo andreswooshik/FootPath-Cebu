@@ -7,6 +7,7 @@ import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/tournament_schedule_providers.dart';
+import 'package:footpath_cebu/presentation/screens/edit_tournament_screen.dart';
 import 'package:footpath_cebu/presentation/screens/edit_football_match_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
@@ -15,10 +16,12 @@ class TournamentScheduleScreen extends ConsumerWidget {
     super.key,
     this.asTab = false,
     this.canRecordResults = false,
+    this.canManage = false,
   });
 
   final bool asTab;
   final bool canRecordResults;
+  final bool canManage;
 
   Future<void> _openDocument(BuildContext context, String url) async {
     final opened = await launchUrl(
@@ -40,6 +43,20 @@ class TournamentScheduleScreen extends ConsumerWidget {
         automaticallyImplyLeading: !asTab,
         title: const Text('Tournament Schedule'),
       ),
+      floatingActionButton: canManage
+          ? FloatingActionButton.extended(
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const EditTournamentScreen(),
+                  ),
+                );
+                ref.invalidate(tournamentSchedulesProvider);
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Tournament'),
+            )
+          : null,
       body: schedules.when(
         loading: () => const DashboardLoadingState(),
         error: (error, _) => DashboardErrorState(
@@ -55,12 +72,14 @@ class TournamentScheduleScreen extends ConsumerWidget {
               ? ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(32),
-                  children: const [
-                    SizedBox(height: 72),
-                    Icon(Icons.emoji_events_outlined, size: 64),
-                    SizedBox(height: 16),
+                  children: [
+                    const SizedBox(height: 72),
+                    const Icon(Icons.emoji_events_outlined, size: 64),
+                    const SizedBox(height: 16),
                     Text(
-                      'No tournament schedule has been published.',
+                      canManage
+                          ? 'No tournament plans yet.'
+                          : 'No tournament schedule has been published.',
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -72,6 +91,17 @@ class TournamentScheduleScreen extends ConsumerWidget {
                   itemBuilder: (context, index) => _ScheduleCard(
                     schedule: rows[index],
                     canRecordResults: canRecordResults,
+                    onManage: canManage
+                        ? () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    EditTournamentScreen(existing: rows[index]),
+                              ),
+                            );
+                            ref.invalidate(tournamentSchedulesProvider);
+                          }
+                        : null,
                     onOpenDocument: rows[index].documentUrl?.isNotEmpty == true
                         ? () => _openDocument(context, rows[index].documentUrl!)
                         : null,
@@ -88,11 +118,13 @@ class _ScheduleCard extends StatelessWidget {
     required this.schedule,
     required this.canRecordResults,
     required this.onOpenDocument,
+    required this.onManage,
   });
 
   final TournamentSchedule schedule;
   final bool canRecordResults;
   final VoidCallback? onOpenDocument;
+  final VoidCallback? onManage;
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +148,7 @@ class _ScheduleCard extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       Text(
-                        '${schedule.fixtures.length} fixtures',
+                        formatFullDate(schedule.startsOn),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -128,14 +160,57 @@ class _ScheduleCard extends StatelessWidget {
                     icon: const Icon(Icons.open_in_new, size: 18),
                     label: const Text('Document'),
                   ),
+                if (onManage != null)
+                  IconButton(
+                    tooltip: 'Manage tournament',
+                    onPressed: onManage,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Chip(
+                  avatar: Icon(
+                    schedule.isPublished
+                        ? Icons.public_outlined
+                        : Icons.edit_note_outlined,
+                    size: 18,
+                  ),
+                  label: Text(schedule.isPublished ? 'Published' : 'Draft'),
+                ),
+                for (final bracket in schedule.ageBrackets)
+                  Chip(label: Text(bracket.label)),
               ],
             ),
           ),
           const Divider(height: 1),
+          if (schedule.ageBrackets.isNotEmpty) ...[
+            for (final bracket in schedule.ageBrackets)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.groups_outlined),
+                title: Text('${bracket.label} division'),
+                subtitle: Text(
+                  bracket.scheduledAt == null
+                      ? 'Schedule date and time: TBD'
+                      : _bracketScheduleLabel(context, bracket.scheduledAt!),
+                ),
+              ),
+            const Divider(height: 1),
+          ],
           if (schedule.fixtures.isEmpty)
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('No structured fixtures were added.'),
+              child: Text(
+                'No game fixtures yet. Rosters can still be prepared.',
+              ),
             )
           else
             for (final fixture in schedule.fixtures)
@@ -147,6 +222,14 @@ class _ScheduleCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _bracketScheduleLabel(BuildContext context, DateTime value) {
+  final local = value.toLocal();
+  final time = MaterialLocalizations.of(
+    context,
+  ).formatTimeOfDay(TimeOfDay.fromDateTime(local));
+  return '${formatFullDate(local)} at $time';
 }
 
 class _FixtureTile extends StatelessWidget {
