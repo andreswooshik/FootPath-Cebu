@@ -525,6 +525,100 @@ class TournamentAgeBracket(models.Model):
         return f'{self.schedule.title} - {self.label}'
 
 
+class TournamentSquadStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PUBLISHED = 'PUBLISHED', 'Published'
+
+
+class TournamentSquad(models.Model):
+    """The club's shared Coach-managed roster for one age bracket."""
+
+    bracket = models.OneToOneField(
+        TournamentAgeBracket,
+        on_delete=models.CASCADE,
+        related_name='squad',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=TournamentSquadStatus.choices,
+        default=TournamentSquadStatus.DRAFT,
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_tournament_squads',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'{self.bracket} - {self.get_status_display()}'
+
+
+class TournamentSquadEntry(models.Model):
+    """One player selected for a bracket, with an optional event position."""
+
+    squad = models.ForeignKey(
+        TournamentSquad,
+        on_delete=models.CASCADE,
+        related_name='entries',
+    )
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='tournament_squad_entries',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    position = models.CharField(max_length=8, blank=True)
+    added_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='added_tournament_squad_entries',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        super().clean()
+        self.position = self.position.strip().upper()
+        if self.position and self.position not in PLAYER_POSITION_CODES:
+            raise ValidationError({'position': 'Unknown player position.'})
+        if self.player_id and self.squad_id:
+            if self.player.role != Roles.PLAYER:
+                raise ValidationError({'player': 'Squad members must be players.'})
+            if self.player.club_id != self.squad.bracket.schedule.club_id:
+                raise ValidationError({
+                    'player': 'Squad members must belong to the tournament club.'
+                })
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        ordering = ['player__last_name', 'player__first_name', 'player_id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['squad', 'player'],
+                name='academy_unique_tournament_squad_player',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['squad', 'player'],
+                name='academy_tourn_squad_player_idx',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.squad.bracket} - {self.player.email}'
+
+
 class TournamentFixture(models.Model):
     """One structured fixture within a published tournament schedule."""
 

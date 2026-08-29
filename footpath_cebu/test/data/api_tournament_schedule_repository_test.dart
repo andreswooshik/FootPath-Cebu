@@ -31,6 +31,20 @@ void main() {
                   'maxAge': 12,
                   'label': 'U12',
                   'scheduledAt': '2026-08-27T05:00:00Z',
+                  'squad': {
+                    'id': 'squad-1',
+                    'bracketId': 'bracket-1',
+                    'status': 'PUBLISHED',
+                    'publishedAt': '2026-08-26T08:00:00Z',
+                    'entries': [
+                      {
+                        'id': 'entry-1',
+                        'playerId': '8',
+                        'playerName': 'Alex Santos',
+                        'tournamentPosition': 'CM',
+                      },
+                    ],
+                  },
                 },
               ],
               'fixtures': [
@@ -62,6 +76,10 @@ void main() {
     expect(captured.url.path, '/api/tournament-schedules/');
     expect(rows.single.title, 'Cebu Youth Cup');
     expect(rows.single.ageBrackets.single.label, 'U12');
+    expect(
+      rows.single.ageBrackets.single.squad!.entries.single.playerName,
+      'Alex Santos',
+    );
     expect(
       rows.single.fixtures.single.status,
       TournamentFixtureStatus.scheduled,

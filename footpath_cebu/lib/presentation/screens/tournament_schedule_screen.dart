@@ -4,11 +4,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/football_match.dart';
+import 'package:footpath_cebu/domain/entities/tournament_roster.dart';
 import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/tournament_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/edit_tournament_screen.dart';
 import 'package:footpath_cebu/presentation/screens/edit_football_match_screen.dart';
+import 'package:footpath_cebu/presentation/screens/tournament_squad_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
 class TournamentScheduleScreen extends ConsumerWidget {
@@ -17,11 +19,13 @@ class TournamentScheduleScreen extends ConsumerWidget {
     this.asTab = false,
     this.canRecordResults = false,
     this.canManage = false,
+    this.canManageRosters = false,
   });
 
   final bool asTab;
   final bool canRecordResults;
   final bool canManage;
+  final bool canManageRosters;
 
   Future<void> _openDocument(BuildContext context, String url) async {
     final opened = await launchUrl(
@@ -91,6 +95,7 @@ class TournamentScheduleScreen extends ConsumerWidget {
                   itemBuilder: (context, index) => _ScheduleCard(
                     schedule: rows[index],
                     canRecordResults: canRecordResults,
+                    canManageRosters: canManageRosters,
                     onManage: canManage
                         ? () async {
                             await Navigator.of(context).push(
@@ -119,12 +124,14 @@ class _ScheduleCard extends StatelessWidget {
     required this.canRecordResults,
     required this.onOpenDocument,
     required this.onManage,
+    required this.canManageRosters,
   });
 
   final TournamentSchedule schedule;
   final bool canRecordResults;
   final VoidCallback? onOpenDocument;
   final VoidCallback? onManage;
+  final bool canManageRosters;
 
   @override
   Widget build(BuildContext context) {
@@ -198,10 +205,27 @@ class _ScheduleCard extends StatelessWidget {
                 leading: const Icon(Icons.groups_outlined),
                 title: Text('${bracket.label} division'),
                 subtitle: Text(
-                  bracket.scheduledAt == null
-                      ? 'Schedule date and time: TBD'
-                      : _bracketScheduleLabel(context, bracket.scheduledAt!),
+                  '${bracket.scheduledAt == null ? 'Schedule date and time: TBD' : _bracketScheduleLabel(context, bracket.scheduledAt!)}\n'
+                  '${bracket.squad == null ? 'Roster not started' : '${bracket.squad!.status.label} roster - ${bracket.squad!.entries.length} players'}',
                 ),
+                isThreeLine: true,
+                onTap: canManageRosters || bracket.squad != null
+                    ? () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TournamentSquadScreen(
+                              tournamentTitle: schedule.title,
+                              tournamentPublished: schedule.isPublished,
+                              bracket: bracket,
+                              canEdit: canManageRosters,
+                            ),
+                          ),
+                        );
+                      }
+                    : null,
+                trailing: canManageRosters || bracket.squad != null
+                    ? const Icon(Icons.chevron_right)
+                    : null,
               ),
             const Divider(height: 1),
           ],

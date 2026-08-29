@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/football_match.dart';
+import 'package:footpath_cebu/domain/entities/tournament_roster.dart';
 import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
 import 'package:footpath_cebu/domain/repositories/tournament_schedule_repository.dart';
 
@@ -19,7 +20,25 @@ class MockTournamentScheduleRepository implements TournamentScheduleRepository {
         publishedAt: now.subtract(const Duration(days: 10)),
         updatedAt: now.subtract(const Duration(days: 1)),
         ageBrackets: [
-          TournamentAgeBracket(id: 'bracket-1', maxAge: 12, label: 'U12'),
+          TournamentAgeBracket(
+            id: 'bracket-1',
+            maxAge: 12,
+            label: 'U12',
+            squad: TournamentSquad(
+              id: 'squad-1',
+              bracketId: 'bracket-1',
+              status: TournamentSquadStatus.published,
+              publishedAt: now.subtract(const Duration(days: 1)),
+              entries: const [
+                TournamentSquadEntry(
+                  id: 'entry-1',
+                  playerId: '1',
+                  playerName: 'Alex Santos',
+                  tournamentPosition: 'CM',
+                ),
+              ],
+            ),
+          ),
         ],
         fixtures: [
           TournamentFixture(
