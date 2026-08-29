@@ -15,6 +15,8 @@ from .models import (
     TournamentAgeBracket,
     TournamentFixture,
     TournamentSchedule,
+    TournamentSquad,
+    TournamentSquadEntry,
 )
 
 
@@ -241,6 +243,38 @@ class TournamentAgeBracketInline(admin.TabularInline):
     can_delete = False
 
     def has_add_permission(self, request, obj=None):
+        return False
+
+
+class TournamentSquadEntryInline(admin.TabularInline):
+    model = TournamentSquadEntry
+    extra = 0
+    readonly_fields = (
+        'player', 'position', 'added_by', 'created_at', 'updated_at',
+    )
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(TournamentSquad)
+class TournamentSquadAdmin(admin.ModelAdmin):
+    list_display = ('bracket', 'status', 'published_at', 'updated_by', 'updated_at')
+    list_filter = ('status', 'bracket__schedule__club')
+    search_fields = ('bracket__schedule__title',)
+    readonly_fields = (
+        'bracket', 'status', 'published_at', 'updated_by', 'created_at', 'updated_at',
+    )
+    inlines = [TournamentSquadEntryInline]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
         return False
 
 

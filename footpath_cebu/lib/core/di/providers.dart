@@ -20,6 +20,7 @@ import 'package:footpath_cebu/data/repositories/api_profile_photo_repository.dar
 import 'package:footpath_cebu/data/repositories/api_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_tournament_schedule_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_tournament_roster_repository.dart';
 import 'package:footpath_cebu/data/repositories/firebase_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_age_tier_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_attendance_repository.dart';
@@ -37,6 +38,7 @@ import 'package:footpath_cebu/data/repositories/mock_profile_photo_repository.da
 import 'package:footpath_cebu/data/repositories/mock_session_confirmation_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_tournament_schedule_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_tournament_roster_repository.dart';
 import 'package:footpath_cebu/data/repositories/offline_first_attendance_repository.dart';
 import 'package:footpath_cebu/core/security/player_unlock_token_store.dart';
 import 'package:footpath_cebu/domain/repositories/age_tier_repository.dart';
@@ -55,6 +57,7 @@ import 'package:footpath_cebu/domain/repositories/profile_photo_repository.dart'
 import 'package:footpath_cebu/domain/repositories/session_confirmation_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/domain/repositories/tournament_schedule_repository.dart';
+import 'package:footpath_cebu/domain/repositories/tournament_roster_repository.dart';
 import 'package:footpath_cebu/domain/usecases/confirm_session.dart';
 import 'package:footpath_cebu/domain/usecases/create_football_match.dart';
 import 'package:footpath_cebu/domain/usecases/delete_match_performance.dart';
@@ -447,6 +450,12 @@ final tournamentScheduleRepositoryProvider =
           ? MockTournamentScheduleRepository()
           : ApiTournamentScheduleRepository(),
     );
+
+final tournamentRosterRepositoryProvider = Provider<TournamentRosterRepository>(
+  (ref) => useMockData
+      ? MockTournamentRosterRepository()
+      : ApiTournamentRosterRepository(),
+);
 
 final getMatchRosterProvider = Provider<GetMatchRoster>(
   (ref) => GetMatchRoster(ref.watch(matchRepositoryProvider)),

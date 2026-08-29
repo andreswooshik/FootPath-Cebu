@@ -36,7 +36,11 @@ from .models import (
     TournamentAgeBracket,
     TournamentFixture,
     TournamentSchedule,
+    TournamentSquad,
+    TournamentSquadEntry,
+    TournamentSquadStatus,
 )
+from .tournament_rosters import roster_eligibility
 from .storage import signed_photo_url, signed_tournament_document_url
 
 
@@ -250,16 +254,77 @@ class TournamentFixtureSerializer(serializers.ModelSerializer):
         ]
 
 
+class TournamentSquadEntrySerializer(serializers.ModelSerializer):
+    playerId = serializers.CharField(source='player_id', read_only=True)
+    playerName = serializers.SerializerMethodField()
+    tournamentPosition = serializers.CharField(source='position', read_only=True)
+    availability = serializers.SerializerMethodField()
+    availabilityReason = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TournamentSquadEntry
+        fields = [
+            'id', 'playerId', 'playerName', 'tournamentPosition',
+            'availability', 'availabilityReason',
+        ]
+
+    def get_playerName(self, obj):
+        return _display_name(obj.player)
+
+    def _eligibility(self, obj):
+        return roster_eligibility(obj.player, obj.squad.bracket)
+
+    def get_availability(self, obj):
+        return self._eligibility(obj).state
+
+    def get_availabilityReason(self, obj):
+        return self._eligibility(obj).reason
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        role = getattr(getattr(request, 'user', None), 'role', None)
+        if role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN):
+            data.pop('availability', None)
+            data.pop('availabilityReason', None)
+        return data
+
+
+class TournamentSquadSerializer(serializers.ModelSerializer):
+    bracketId = serializers.CharField(source='bracket_id', read_only=True)
+    publishedAt = serializers.DateTimeField(
+        source='published_at', read_only=True, allow_null=True,
+    )
+    entries = TournamentSquadEntrySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = TournamentSquad
+        fields = ['id', 'bracketId', 'status', 'publishedAt', 'entries']
+
+
 class TournamentAgeBracketSerializer(serializers.ModelSerializer):
     maxAge = serializers.IntegerField(source='max_age', read_only=True)
     scheduledAt = serializers.DateTimeField(
         source='scheduled_at', read_only=True, allow_null=True,
     )
     label = serializers.CharField(read_only=True)
+    squad = serializers.SerializerMethodField()
 
     class Meta:
         model = TournamentAgeBracket
-        fields = ['id', 'maxAge', 'label', 'scheduledAt']
+        fields = ['id', 'maxAge', 'label', 'scheduledAt', 'squad']
+
+    def get_squad(self, obj):
+        try:
+            squad = obj.squad
+        except TournamentSquad.DoesNotExist:
+            return None
+        request = self.context.get('request')
+        role = getattr(getattr(request, 'user', None), 'role', None)
+        manager = role in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN)
+        if squad.status != TournamentSquadStatus.PUBLISHED and not manager:
+            return None
+        return TournamentSquadSerializer(squad, context=self.context).data
 
 
 class TournamentScheduleSerializer(serializers.ModelSerializer):
@@ -319,6 +384,31 @@ class TournamentAgeBracketWriteSerializer(serializers.ModelSerializer):
                 'maxAge': f'{schedule.title} already has a U{max_age} bracket.'
             })
         return attrs
+
+
+class TournamentSquadEntryWriteSerializer(serializers.Serializer):
+    playerId = serializers.IntegerField(min_value=1)
+    position = serializers.CharField(
+        required=False, allow_blank=True, max_length=8,
+    )
+
+    def validate_position(self, value):
+        cleaned = value.strip().upper()
+        if cleaned and cleaned not in PLAYER_POSITION_CODES:
+            raise serializers.ValidationError('Unknown player position.')
+        return cleaned
+
+
+class TournamentSquadWriteSerializer(serializers.Serializer):
+    entries = TournamentSquadEntryWriteSerializer(many=True)
+
+    def validate_entries(self, value):
+        player_ids = [row['playerId'] for row in value]
+        if len(player_ids) != len(set(player_ids)):
+            raise serializers.ValidationError(
+                'A player can appear only once in an age-bracket roster.'
+            )
+        return value
 
 
 class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):

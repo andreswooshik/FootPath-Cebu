@@ -51,6 +51,9 @@ from .models import (
     TournamentAgeBracket,
     TournamentFixture,
     TournamentSchedule,
+    TournamentSquad,
+    TournamentSquadEntry,
+    TournamentSquadStatus,
 )
 from .notifications import (
     _recipients_for_session,
@@ -95,6 +98,8 @@ from .serializers import (
     TournamentAgeBracketWriteSerializer,
     TournamentScheduleSerializer,
     TournamentScheduleWriteSerializer,
+    TournamentSquadSerializer,
+    TournamentSquadWriteSerializer,
 )
 from .match_statistics import build_performance_summary
 from .player_unlock import issue_player_unlock, require_player_unlock
@@ -104,6 +109,7 @@ from .storage import (
     upload_photo,
     validate_photo_upload,
 )
+from .tournament_rosters import invalid_squad_entries, roster_eligibility
 
 # Roles that participate in the dispute process: the coach flags, School
 # Staff and Admin review/respond. Players and guardians have no access.
@@ -617,6 +623,14 @@ class TrainingSessionListCreateView(APIView):
         )
 
 
+def _tournament_schedule_data(value, request, *, many=False):
+    return TournamentScheduleSerializer(
+        value,
+        many=many,
+        context={'request': request},
+    ).data
+
+
 class TournamentScheduleListView(APIView):
     """Role-aware tournament list and Coordinator draft creation."""
 
@@ -636,7 +650,10 @@ class TournamentScheduleListView(APIView):
         schedules = (
             TournamentSchedule.objects.all()
             .select_related('club')
-            .prefetch_related('fixtures', 'age_brackets')
+            .prefetch_related(
+                'fixtures',
+                'age_brackets__squad__entries__player__player_profile',
+            )
         )
         if request.user.role == Roles.ADMIN:
             pass
@@ -647,7 +664,7 @@ class TournamentScheduleListView(APIView):
             if request.user.role not in (Roles.COORDINATOR, Roles.COACH):
                 schedules = schedules.filter(is_published=True)
         return Response(
-            TournamentScheduleSerializer(schedules, many=True).data
+            _tournament_schedule_data(schedules, request, many=True)
         )
 
     def post(self, request):
@@ -670,7 +687,7 @@ class TournamentScheduleListView(APIView):
             detail=str(schedule.starts_on),
         )
         return Response(
-            TournamentScheduleSerializer(schedule).data,
+            _tournament_schedule_data(schedule, request),
             status=status.HTTP_201_CREATED,
         )
 
@@ -681,7 +698,9 @@ def _coordinator_mobile_schedule(user, schedule_id):
     if user.club_id is None:
         raise PermissionDenied('Coordinator account must belong to a club.')
     return get_object_or_404(
-        TournamentSchedule.objects.prefetch_related('fixtures', 'age_brackets'),
+        TournamentSchedule.objects.prefetch_related(
+            'fixtures', 'age_brackets__squad__entries__player__player_profile',
+        ),
         pk=schedule_id,
         club_id=user.club_id,
     )
@@ -694,11 +713,27 @@ class TournamentScheduleDetailView(APIView):
         schedule = _coordinator_mobile_schedule(request.user, schedule_id)
         old_title = schedule.title
         old_date = schedule.starts_on
-        serializer = TournamentScheduleWriteSerializer(
-            schedule, data=request.data, partial=True,
-        )
-        serializer.is_valid(raise_exception=True)
-        schedule = serializer.save()
+        with transaction.atomic():
+            serializer = TournamentScheduleWriteSerializer(
+                schedule, data=request.data, partial=True,
+            )
+            serializer.is_valid(raise_exception=True)
+            schedule = serializer.save()
+            invalid = []
+            for bracket in schedule.age_brackets.all():
+                invalid.extend(
+                    (entry, result)
+                    for entry, result in invalid_squad_entries(bracket)
+                    if result.code in ('OVERAGE', 'DOB_REQUIRED', 'PROFILE_REQUIRED')
+                )
+            if invalid:
+                names = ', '.join(
+                    entry.player.get_full_name() or entry.player.email
+                    for entry, _ in invalid
+                )
+                raise ValidationError({
+                    'startsOn': f'Roster members must be reviewed first: {names}.'
+                })
         AuditLog.record(
             request.user,
             'tournament.updated',
@@ -708,7 +743,7 @@ class TournamentScheduleDetailView(APIView):
                 f'{schedule.title} ({schedule.starts_on})'
             ),
         )
-        return Response(TournamentScheduleSerializer(schedule).data)
+        return Response(_tournament_schedule_data(schedule, request))
 
 
 class TournamentSchedulePublishView(APIView):
@@ -732,7 +767,7 @@ class TournamentSchedulePublishView(APIView):
                 target=schedule.title,
                 detail=str(schedule.starts_on),
             )
-        return Response(TournamentScheduleSerializer(schedule).data)
+        return Response(_tournament_schedule_data(schedule, request))
 
 
 class TournamentAgeBracketCreateView(APIView):
@@ -757,7 +792,7 @@ class TournamentAgeBracketCreateView(APIView):
         )
         schedule.refresh_from_db()
         return Response(
-            TournamentScheduleSerializer(schedule).data,
+            _tournament_schedule_data(schedule, request),
             status=status.HTTP_201_CREATED,
         )
 
@@ -777,14 +812,28 @@ def _coordinator_mobile_bracket(user, bracket_id):
 class TournamentAgeBracketDetailView(APIView):
     def patch(self, request, bracket_id):
         bracket = _coordinator_mobile_bracket(request.user, bracket_id)
-        serializer = TournamentAgeBracketWriteSerializer(
-            bracket,
-            data=request.data,
-            partial=True,
-            context={'schedule': bracket.schedule},
-        )
-        serializer.is_valid(raise_exception=True)
-        bracket = serializer.save()
+        with transaction.atomic():
+            serializer = TournamentAgeBracketWriteSerializer(
+                bracket,
+                data=request.data,
+                partial=True,
+                context={'schedule': bracket.schedule},
+            )
+            serializer.is_valid(raise_exception=True)
+            bracket = serializer.save()
+            invalid = [
+                (entry, result)
+                for entry, result in invalid_squad_entries(bracket)
+                if result.code in ('OVERAGE', 'DOB_REQUIRED', 'PROFILE_REQUIRED')
+            ]
+            if invalid:
+                names = ', '.join(
+                    entry.player.get_full_name() or entry.player.email
+                    for entry, _ in invalid
+                )
+                raise ValidationError({
+                    'maxAge': f'Roster members must be reviewed first: {names}.'
+                })
         TournamentSchedule.objects.filter(pk=bracket.schedule_id).update(
             updated_at=timezone.now()
         )
@@ -795,7 +844,7 @@ class TournamentAgeBracketDetailView(APIView):
             detail=bracket.scheduled_at or 'Schedule time TBD',
         )
         bracket.schedule.refresh_from_db()
-        return Response(TournamentScheduleSerializer(bracket.schedule).data)
+        return Response(_tournament_schedule_data(bracket.schedule, request))
 
     def delete(self, request, bracket_id):
         bracket = _coordinator_mobile_bracket(request.user, bracket_id)
@@ -815,6 +864,235 @@ class TournamentAgeBracketDetailView(APIView):
             target=target,
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def _mobile_tournament_bracket(user, bracket_id):
+    allowed = (
+        Roles.COORDINATOR,
+        Roles.COACH,
+        Roles.PLAYER,
+        Roles.GUARDIAN,
+        Roles.ADMIN,
+    )
+    if user.role not in allowed:
+        raise PermissionDenied('Your role cannot view tournament rosters.')
+    brackets = TournamentAgeBracket.objects.select_related(
+        'schedule', 'schedule__club',
+    )
+    if user.role != Roles.ADMIN:
+        if user.club_id is None:
+            raise PermissionDenied('Your account must belong to a club.')
+        brackets = brackets.filter(schedule__club_id=user.club_id)
+    bracket = get_object_or_404(brackets, pk=bracket_id)
+    if (
+        user.role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN)
+        and not bracket.schedule.is_published
+    ):
+        raise PermissionDenied('This tournament has not been published.')
+    return bracket
+
+
+def _squad_data(squad, request):
+    return TournamentSquadSerializer(
+        squad,
+        context={'request': request},
+    ).data
+
+
+class TournamentSquadDetailView(APIView):
+    """Read a role-visible roster or atomically save it as a Coach."""
+
+    def get(self, request, bracket_id):
+        bracket = _mobile_tournament_bracket(request.user, bracket_id)
+        try:
+            squad = TournamentSquad.objects.prefetch_related(
+                'entries__player__player_profile',
+            ).get(bracket=bracket)
+        except TournamentSquad.DoesNotExist:
+            if request.user.role not in (
+                Roles.COACH, Roles.COORDINATOR, Roles.ADMIN,
+            ):
+                raise PermissionDenied('No published roster is available.')
+            return Response({
+                'id': None,
+                'bracketId': str(bracket.id),
+                'status': TournamentSquadStatus.DRAFT,
+                'publishedAt': None,
+                'entries': [],
+            })
+        if (
+            squad.status != TournamentSquadStatus.PUBLISHED
+            and request.user.role not in (
+                Roles.COACH, Roles.COORDINATOR, Roles.ADMIN,
+            )
+        ):
+            raise PermissionDenied('No published roster is available.')
+        return Response(_squad_data(squad, request))
+
+    def put(self, request, bracket_id):
+        if request.user.role != Roles.COACH:
+            raise PermissionDenied('Only Coaches can manage tournament rosters.')
+        bracket = _mobile_tournament_bracket(request.user, bracket_id)
+        serializer = TournamentSquadWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        rows = serializer.validated_data['entries']
+        player_ids = [row['playerId'] for row in rows]
+        players = {
+            player.id: player
+            for player in User.objects.filter(
+                id__in=player_ids,
+                role=Roles.PLAYER,
+                club_id=request.user.club_id,
+                is_active=True,
+            ).select_related('player_profile')
+        }
+        missing = sorted(set(player_ids) - set(players))
+        if missing:
+            raise ValidationError({
+                'entries': f'Unknown or inactive club player IDs: {missing}.'
+            })
+        blocked = {
+            player_id: result.reason
+            for player_id, player in players.items()
+            if (result := roster_eligibility(player, bracket)).blocked
+        }
+        if blocked:
+            raise ValidationError({'entries': blocked})
+
+        with transaction.atomic():
+            squad, _ = TournamentSquad.objects.select_for_update().get_or_create(
+                bracket=bracket,
+                defaults={'updated_by': request.user},
+            )
+            if squad.status == TournamentSquadStatus.PUBLISHED and not rows:
+                raise ValidationError({
+                    'entries': 'A published tournament roster cannot be empty.'
+                })
+            current = {
+                entry.player_id: entry
+                for entry in squad.entries.select_related('player')
+            }
+            incoming = set(player_ids)
+            removed = set(current) - incoming
+            added = incoming - set(current)
+            changed_positions = []
+            if removed:
+                squad.entries.filter(player_id__in=removed).delete()
+            for row in rows:
+                player_id = row['playerId']
+                position = row.get('position', '')
+                entry = current.get(player_id)
+                if entry is None:
+                    TournamentSquadEntry.objects.create(
+                        squad=squad,
+                        player=players[player_id],
+                        position=position,
+                        added_by=request.user,
+                    )
+                elif entry.position != position:
+                    entry.position = position
+                    entry.save(update_fields=['position', 'updated_at'])
+                    changed_positions.append(player_id)
+            squad.updated_by = request.user
+            squad.save(update_fields=['updated_by', 'updated_at'])
+            AuditLog.record(
+                request.user,
+                'tournament.squad_saved',
+                target=f'{bracket.schedule.title} {bracket.label}',
+                detail=(
+                    f'added={sorted(added)}; removed={sorted(removed)}; '
+                    f'positions={sorted(changed_positions)}'
+                ),
+            )
+        squad = TournamentSquad.objects.prefetch_related(
+            'entries__player__player_profile',
+        ).get(pk=squad.pk)
+        return Response(_squad_data(squad, request))
+
+
+class TournamentSquadCandidatesView(APIView):
+    """Coach-only player choices with privacy-safe eligibility outcomes."""
+
+    def get(self, request, bracket_id):
+        if request.user.role != Roles.COACH:
+            raise PermissionDenied('Only Coaches can select roster members.')
+        bracket = _mobile_tournament_bracket(request.user, bracket_id)
+        try:
+            squad = bracket.squad
+            selected = {
+                entry.player_id: entry.position
+                for entry in squad.entries.all()
+            }
+        except TournamentSquad.DoesNotExist:
+            selected = {}
+        players = User.objects.filter(
+            role=Roles.PLAYER,
+            club_id=request.user.club_id,
+            is_active=True,
+        ).select_related('player_profile').order_by(
+            'last_name', 'first_name', 'email',
+        )
+        data = []
+        for player in players:
+            result = roster_eligibility(player, bracket)
+            name = player.get_full_name().strip() or player.email.split('@')[0]
+            try:
+                current_position = player.player_profile.position
+            except PlayerProfile.DoesNotExist:
+                current_position = ''
+            data.append({
+                'playerId': str(player.id),
+                'playerName': name,
+                'currentPosition': current_position,
+                'eligibility': result.state,
+                'eligibilityCode': result.code,
+                'eligibilityReason': result.reason,
+                'selected': player.id in selected,
+                'tournamentPosition': selected.get(player.id, ''),
+            })
+        return Response(data)
+
+
+class TournamentSquadPublishView(APIView):
+    def post(self, request, bracket_id):
+        if request.user.role != Roles.COACH:
+            raise PermissionDenied('Only Coaches can publish tournament rosters.')
+        bracket = _mobile_tournament_bracket(request.user, bracket_id)
+        if not bracket.schedule.is_published:
+            raise ValidationError({
+                'tournament': 'The Coordinator must publish the tournament first.'
+            })
+        with transaction.atomic():
+            squad = get_object_or_404(
+                TournamentSquad.objects.select_for_update().prefetch_related(
+                    'entries__player__player_profile',
+                ),
+                bracket=bracket,
+            )
+            entries = list(squad.entries.all())
+            if not entries:
+                raise ValidationError({'entries': 'Add at least one player first.'})
+            blocked = {
+                str(entry.player_id): result.reason
+                for entry in entries
+                if (result := roster_eligibility(entry.player, bracket)).blocked
+            }
+            if blocked:
+                raise ValidationError({'entries': blocked})
+            if squad.status != TournamentSquadStatus.PUBLISHED:
+                squad.status = TournamentSquadStatus.PUBLISHED
+                squad.published_at = timezone.now()
+            squad.updated_by = request.user
+            squad.save(update_fields=[
+                'status', 'published_at', 'updated_by', 'updated_at',
+            ])
+            AuditLog.record(
+                request.user,
+                'tournament.squad_published',
+                target=f'{bracket.schedule.title} {bracket.label}',
+                detail=f'{len(entries)} players',
+            )
+        return Response(_squad_data(squad, request))
 
 
 class FootballMatchListCreateView(APIView):

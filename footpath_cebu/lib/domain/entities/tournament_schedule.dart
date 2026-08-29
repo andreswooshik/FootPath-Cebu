@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/football_match.dart';
+import 'package:footpath_cebu/domain/entities/tournament_roster.dart';
 
 enum TournamentFixtureStatus { scheduled, postponed, cancelled, completed }
 
@@ -25,12 +26,14 @@ class TournamentAgeBracket {
     required this.maxAge,
     required this.label,
     this.scheduledAt,
+    this.squad,
   });
 
   final String id;
   final int maxAge;
   final String label;
   final DateTime? scheduledAt;
+  final TournamentSquad? squad;
 
   factory TournamentAgeBracket.fromJson(Map<String, dynamic> json) =>
       TournamentAgeBracket(
@@ -40,6 +43,9 @@ class TournamentAgeBracket {
         scheduledAt: json['scheduledAt'] == null
             ? null
             : DateTime.parse(json['scheduledAt'] as String),
+        squad: json['squad'] == null
+            ? null
+            : TournamentSquad.fromJson(json['squad'] as Map<String, dynamic>),
       );
 }
 

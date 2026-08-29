@@ -110,7 +110,8 @@ class _TrainingScheduleScreenState
             icon: const Icon(Icons.emoji_events_outlined),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const TournamentScheduleScreen(),
+                builder: (_) =>
+                    const TournamentScheduleScreen(canManageRosters: true),
               ),
             ),
           ),

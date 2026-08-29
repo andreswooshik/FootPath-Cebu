@@ -78,6 +78,21 @@ urlpatterns = [
         name='tournament-bracket-detail',
     ),
     path(
+        'tournament-brackets/<int:bracket_id>/squad/',
+        views.TournamentSquadDetailView.as_view(),
+        name='tournament-squad-detail',
+    ),
+    path(
+        'tournament-brackets/<int:bracket_id>/squad/candidates/',
+        views.TournamentSquadCandidatesView.as_view(),
+        name='tournament-squad-candidates',
+    ),
+    path(
+        'tournament-brackets/<int:bracket_id>/squad/publish/',
+        views.TournamentSquadPublishView.as_view(),
+        name='tournament-squad-publish',
+    ),
+    path(
         'matches/',
         views.FootballMatchListCreateView.as_view(),
         name='football-matches',
