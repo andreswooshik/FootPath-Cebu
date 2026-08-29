@@ -29,13 +29,19 @@ from reportlab.platypus.tableofcontents import TableOfContents
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "docs" / "capstone-defense" / "16-code-tracing.md"
-OUTPUT = ROOT / "output" / "pdf" / "footpath-cebu-code-tracing.pdf"
+OUTPUT = (
+    ROOT
+    / "docs"
+    / "capstone-defense"
+    / "artifacts"
+    / "footpath-cebu-code-tracing.pdf"
+)
 
 PAGE = landscape(A4)
 PAGE_W, PAGE_H = PAGE
 LEFT = RIGHT = 16 * mm
 TOP = 19 * mm
-BOTTOM = 16 * mm
+BOTTOM = 22 * mm
 CONTENT_W = PAGE_W - LEFT - RIGHT
 
 NAVY = colors.HexColor("#102A43")
@@ -255,7 +261,11 @@ class TracingDocTemplate(BaseDocTemplate):
             subject="Verified code execution maps and security traces",
         )
         frame = Frame(LEFT, BOTTOM, CONTENT_W, PAGE_H - TOP - BOTTOM, id="body")
-        self.addPageTemplates(PageTemplate(id="main", frames=[frame], onPage=self._page))
+        # Draw running furniture after flowables so a split LongTable cannot
+        # paint over the header/footer on continuation pages.
+        self.addPageTemplates(
+            PageTemplate(id="main", frames=[frame], onPageEnd=self._page)
+        )
 
     def _page(self, canvas, doc):
         canvas.saveState()
@@ -266,12 +276,12 @@ class TracingDocTemplate(BaseDocTemplate):
             canvas.setFillColor(colors.white)
             canvas.drawString(LEFT, PAGE_H - 7.5 * mm, "FOOTPATH CEBU | DEEP CODE TRACING")
             canvas.setFont(REGULAR, 7.7)
-            canvas.drawRightString(PAGE_W - RIGHT, PAGE_H - 7.5 * mm, "Updated: Match Performance Tracking")
+            canvas.drawRightString(PAGE_W - RIGHT, PAGE_H - 7.5 * mm, "Updated: 50% Defense Integrated Trace")
         canvas.setStrokeColor(GRID)
         canvas.line(LEFT, 10.5 * mm, PAGE_W - RIGHT, 10.5 * mm)
         canvas.setFont(REGULAR, 7.4)
         canvas.setFillColor(MUTED)
-        canvas.drawString(LEFT, 6.5 * mm, "Repository-backed defense reference | Commit db9e869")
+        canvas.drawString(LEFT, 6.5 * mm, "Repository-backed defense reference | Baseline 532446a")
         canvas.drawRightString(PAGE_W - RIGHT, 6.5 * mm, f"Page {doc.page}")
         canvas.restoreState()
 
@@ -443,7 +453,7 @@ def build() -> None:
         alignment=TA_CENTER,
     )
     cover_box = Table(
-        [[Paragraph("UPDATED FEATURE TRACE", badge_style)]],
+        [[Paragraph("50% DEFENSE - UPDATED TRACE", badge_style)]],
         colWidths=[55 * mm],
         rowHeights=[11 * mm],
         style=TableStyle([
@@ -474,9 +484,9 @@ def build() -> None:
         Spacer(1, 15 * mm),
         Table(
             [
-                [Paragraph("Revision", styles["table_head"]), Paragraph("Merged match-performance tracking", styles["table"])],
-                [Paragraph("Source commit", styles["table_head"]), Paragraph("db9e869 - feat: add secure match performance tracking", styles["table"])],
-                [Paragraph("Verified suites", styles["table_head"]), Paragraph("271 Django tests | 250 Flutter tests | clean Flutter analysis | no migration drift", styles["table"])],
+                [Paragraph("Revision", styles["table_head"]), Paragraph("50% defense integrated-system trace", styles["table"])],
+                [Paragraph("Source commit", styles["table_head"]), Paragraph("532446a - live Supabase persistence baseline", styles["table"])],
+                [Paragraph("Verified suites", styles["table_head"]), Paragraph("321 Django tests | 276 Flutter tests | clean Flutter analysis | no migration drift", styles["table"])],
                 [Paragraph("Primary audience", styles["table_head"]), Paragraph("Capstone defense, code review, and implementation tracing", styles["table"])],
             ],
             colWidths=[42 * mm, 145 * mm],

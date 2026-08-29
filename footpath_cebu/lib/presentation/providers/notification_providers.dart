@@ -1,16 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/providers.dart'
-    show restoreSessionProvider, useMockData;
-import 'package:footpath_cebu/data/repositories/api_notification_repository.dart';
-import 'package:footpath_cebu/data/repositories/mock_notification_repository.dart';
+    show notificationRepositoryProvider, restoreSessionProvider;
 import 'package:footpath_cebu/domain/entities/app_notification.dart';
 import 'package:footpath_cebu/domain/repositories/notification_repository.dart';
 import 'package:footpath_cebu/presentation/navigation/notification_navigation_controller.dart';
 
-final notificationRepositoryProvider = Provider<NotificationRepository>((ref) {
-  if (useMockData) return MockNotificationRepository();
-  return ApiNotificationRepository();
-});
+export 'package:footpath_cebu/core/di/providers.dart'
+    show notificationRepositoryProvider;
 
 // Auto-dispose is a privacy boundary as well as a lifecycle optimization: no
 // previous account's in-memory inbox/count may survive after its screens leave

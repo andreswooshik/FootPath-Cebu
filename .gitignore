@@ -6,6 +6,8 @@
 build/
 backend/staticfiles/
 backend/backups/
+__pycache__/
+*.py[cod]
 *.dump
 # pubspec.lock is committed: this is an application, so builds stay reproducible
 
@@ -41,6 +43,13 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+.kotlin/
 
 # Personal study notes for the skill test — not part of the project deliverable.
 study-notes/
+
+# Local/generated working artifacts. Published documentation artifacts belong
+# under docs/; these paths should remain disposable.
+/tmp/
+/output/
+/.git-commit-msg.txt

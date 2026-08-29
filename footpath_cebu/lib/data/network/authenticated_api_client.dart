@@ -60,9 +60,9 @@ class ApiRequestConfigurationException extends ApiException {
 /// Authenticated HTTP boundary shared by every live REST repository.
 ///
 /// It owns token injection, a uniform timeout, safe server-error extraction,
-/// and the only legal cache fallback: a GET that failed before any HTTP
-/// response was received. HTTP 4xx/5xx responses always throw and never use a
-/// stale cached value.
+/// and an explicit opt-in cache fallback for GET requests that fail before any
+/// HTTP response is received. Authenticated responses are never persisted by
+/// default. HTTP 4xx/5xx responses always throw and never use a stale value.
 class AuthenticatedApiClient {
   AuthenticatedApiClient({
     http.Client? httpClient,
@@ -86,7 +86,7 @@ class AuthenticatedApiClient {
     String path, {
     Map<String, String> headers = const {},
     Set<int> expectedStatuses = const {200},
-    bool cache = true,
+    bool cache = false,
     bool forceRefreshToken = false,
   }) => _request(
     'GET',

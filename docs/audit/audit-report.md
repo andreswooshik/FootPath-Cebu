@@ -351,5 +351,6 @@ tree).
   - The brief's "sync conflict resolution" and "offline→online transition" tests are
     **N/A** (no sync layer).
 
-See `auditdatetodya.md`, `footpath_cebu/test/`, and the Django app test modules for
+See `docs/audit/security-architecture-audit-2026-08-06.md`,
+`footpath_cebu/test/`, and the Django app test modules for
 the current audit results and runnable regression tests.

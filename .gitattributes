@@ -1,0 +1,2 @@
+# Generated binary deliverables must not be treated as text during reviews.
+*.pdf binary

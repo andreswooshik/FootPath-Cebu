@@ -15,7 +15,6 @@ from django.db.models import Q
 from django.http import HttpResponseNotAllowed, HttpResponseRedirect, JsonResponse
 from django.urls import path, reverse
 from django.utils.html import format_html
-from django.utils.safestring import mark_safe
 
 from .models import Club, GuardianLink, Roles, User
 from .services import (
@@ -97,18 +96,22 @@ class FootPathUserChangeForm(FootPathUserValidationMixin, UserChangeForm):
         model = User
 
 
-_COORDINATOR_PASSWORD_HELP = mark_safe(
+_COORDINATOR_PASSWORD_HELP = format_html(
     '<ul id="coordinator-password-requirements" '
     'class="fp-password-requirements" aria-live="polite">'
     '<li data-password-rule="similarity" class="is-unmet">'
-    'Not too similar to the coordinator name or email.</li>'
+    '{}</li>'
     '<li data-password-rule="minimum_length" class="is-unmet">'
-    'Contains at least 8 characters.</li>'
+    '{}</li>'
     '<li data-password-rule="common" class="is-unmet">'
-    'Not a commonly used password.</li>'
+    '{}</li>'
     '<li data-password-rule="numeric" class="is-unmet">'
-    'Not entirely numeric.</li>'
-    '</ul>'
+    '{}</li>'
+    '</ul>',
+    'Not too similar to the coordinator name or email.',
+    'Contains at least 8 characters.',
+    'Not a commonly used password.',
+    'Not entirely numeric.',
 )
 
 
@@ -134,10 +137,11 @@ class ClubAdminForm(forms.ModelForm):
         label='Confirm coordinator password',
         strip=False,
         widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}),
-        help_text=mark_safe(
+        help_text=format_html(
             '<span id="coordinator-password-match" '
             'class="fp-password-match is-pending" aria-live="polite">'
-            'Enter the same password again.</span>'
+            '{}</span>',
+            'Enter the same password again.',
         ),
     )
 

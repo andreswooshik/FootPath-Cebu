@@ -19,7 +19,7 @@ class CachedApiGet {
   final Map<String, String> headers;
 }
 
-/// Durable, owner-scoped cache for successful authenticated JSON GETs.
+/// Opt-in, durable, owner-scoped cache for successful authenticated JSON GETs.
 ///
 /// Network policy deliberately does not live here. [AuthenticatedApiClient]
 /// decides when a cached value is safe to use; this class only persists and
