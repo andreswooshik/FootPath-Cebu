@@ -18,7 +18,7 @@ psycopg[binary]~=3.2
 # SENTRY_DSN-driven error monitoring.
 gunicorn>=22,<24
 whitenoise>=6,<7
-redis>=5,<7
+redis>=8.1.0,<9
 sentry-sdk[django]>=2,<3
 
 # Security floors for transitive Firebase/HTTP/Django dependencies. Declaring
