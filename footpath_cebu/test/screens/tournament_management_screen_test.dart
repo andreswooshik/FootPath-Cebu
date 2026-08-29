@@ -32,7 +32,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.widgetWithText(FloatingActionButton, 'Tournament'),
+      find.widgetWithText(FloatingActionButton, 'Create tournament'),
       findsOneWidget,
     );
     expect(find.text('Cebu Youth Cup'), findsOneWidget);
@@ -54,6 +54,11 @@ void main() {
     expect(find.text('U8 division'), findsOneWidget);
     expect(find.text('Add bracket'), findsOneWidget);
     expect(find.text('Publish tournament'), findsOneWidget);
+
+    await tester.tap(find.text('Add bracket'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add age bracket'), findsOneWidget);
+    expect(find.text('Save bracket'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

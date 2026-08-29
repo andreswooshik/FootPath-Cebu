@@ -11,7 +11,9 @@ import 'package:footpath_cebu/presentation/providers/tournament_schedule_provide
 import 'package:footpath_cebu/presentation/screens/edit_tournament_screen.dart';
 import 'package:footpath_cebu/presentation/screens/edit_football_match_screen.dart';
 import 'package:footpath_cebu/presentation/screens/tournament_squad_screen.dart';
+import 'package:footpath_cebu/presentation/widgets/app_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 
 class TournamentScheduleScreen extends ConsumerWidget {
   const TournamentScheduleScreen({
@@ -45,7 +47,7 @@ class TournamentScheduleScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: !asTab,
-        title: const Text('Tournament Schedule'),
+        title: const Text('Schedule'),
       ),
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
@@ -58,7 +60,7 @@ class TournamentScheduleScreen extends ConsumerWidget {
                 ref.invalidate(tournamentSchedulesProvider);
               },
               icon: const Icon(Icons.add),
-              label: const Text('Tournament'),
+              label: const Text('Create tournament'),
             )
           : null,
       body: schedules.when(
@@ -72,46 +74,50 @@ class TournamentScheduleScreen extends ConsumerWidget {
         ),
         data: (rows) => RefreshIndicator(
           onRefresh: () => ref.refresh(tournamentSchedulesProvider.future),
-          child: rows.isEmpty
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(32),
-                  children: [
-                    const SizedBox(height: 72),
-                    const Icon(Icons.emoji_events_outlined, size: 64),
-                    const SizedBox(height: 16),
-                    Text(
-                      canManage
-                          ? 'No tournament plans yet.'
-                          : 'No tournament schedule has been published.',
-                      textAlign: TextAlign.center,
+          child: ResponsiveContent(
+            child: rows.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      DashboardEmptyState(
+                        icon: Icons.emoji_events_outlined,
+                        title: canManage
+                            ? 'No tournament plans yet'
+                            : 'No published tournaments',
+                        message: canManage
+                            ? 'Create a tournament draft, add its age brackets, and publish it when ready.'
+                            : 'Published tournament schedules will appear here.',
+                      ),
+                    ],
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                    itemCount: rows.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) => _ScheduleCard(
+                      schedule: rows[index],
+                      canRecordResults: canRecordResults,
+                      canManageRosters: canManageRosters,
+                      onManage: canManage
+                          ? () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => EditTournamentScreen(
+                                    existing: rows[index],
+                                  ),
+                                ),
+                              );
+                              ref.invalidate(tournamentSchedulesProvider);
+                            }
+                          : null,
+                      onOpenDocument:
+                          rows[index].documentUrl?.isNotEmpty == true
+                          ? () =>
+                                _openDocument(context, rows[index].documentUrl!)
+                          : null,
                     ),
-                  ],
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: rows.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) => _ScheduleCard(
-                    schedule: rows[index],
-                    canRecordResults: canRecordResults,
-                    canManageRosters: canManageRosters,
-                    onManage: canManage
-                        ? () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    EditTournamentScreen(existing: rows[index]),
-                              ),
-                            );
-                            ref.invalidate(tournamentSchedulesProvider);
-                          }
-                        : null,
-                    onOpenDocument: rows[index].documentUrl?.isNotEmpty == true
-                        ? () => _openDocument(context, rows[index].documentUrl!)
-                        : null,
                   ),
-                ),
+          ),
         ),
       ),
     );
@@ -161,12 +167,6 @@ class _ScheduleCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (onOpenDocument != null)
-                  TextButton.icon(
-                    onPressed: onOpenDocument,
-                    icon: const Icon(Icons.open_in_new, size: 18),
-                    label: const Text('Document'),
-                  ),
                 if (onManage != null)
                   IconButton(
                     tooltip: 'Manage tournament',
@@ -183,14 +183,14 @@ class _ScheduleCard extends StatelessWidget {
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Chip(
-                  avatar: Icon(
-                    schedule.isPublished
-                        ? Icons.public_outlined
-                        : Icons.edit_note_outlined,
-                    size: 18,
-                  ),
-                  label: Text(schedule.isPublished ? 'Published' : 'Draft'),
+                AppStatusChip(
+                  label: schedule.isPublished ? 'Published' : 'Draft',
+                  tone: schedule.isPublished
+                      ? AppStatusTone.success
+                      : AppStatusTone.neutral,
+                  icon: schedule.isPublished
+                      ? Icons.public_outlined
+                      : Icons.edit_note_outlined,
                 ),
                 for (final bracket in schedule.ageBrackets)
                   Chip(label: Text(bracket.label)),
@@ -198,6 +198,17 @@ class _ScheduleCard extends StatelessWidget {
             ),
           ),
           const Divider(height: 1),
+          if (onOpenDocument != null) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onOpenDocument,
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('Open schedule document'),
+              ),
+            ),
+            const Divider(height: 1),
+          ],
           if (schedule.ageBrackets.isNotEmpty) ...[
             for (final bracket in schedule.ageBrackets)
               ListTile(
@@ -297,9 +308,14 @@ class _FixtureTile extends StatelessWidget {
                   ],
                 ),
               ),
-              Chip(
-                visualDensity: VisualDensity.compact,
-                label: Text(fixture.status.label),
+              AppStatusChip(
+                label: fixture.status.label,
+                tone: switch (fixture.status) {
+                  TournamentFixtureStatus.scheduled => AppStatusTone.info,
+                  TournamentFixtureStatus.postponed => AppStatusTone.warning,
+                  TournamentFixtureStatus.cancelled => AppStatusTone.danger,
+                  TournamentFixtureStatus.completed => AppStatusTone.success,
+                },
               ),
             ],
           ),

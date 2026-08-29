@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 const _coachDestinations = [
-  (Icons.groups, 'Squad'),
-  (Icons.fitness_center, 'Training'),
-  (Icons.trending_up, 'Progress'),
+  (Icons.groups_outlined, 'Squad'),
+  (Icons.fitness_center_outlined, 'Training'),
+  (Icons.trending_up_outlined, 'Progress'),
   (Icons.person_outline, 'Profile'),
 ];
 

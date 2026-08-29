@@ -4,7 +4,7 @@ const _coordinatorDestinations = [
   (Icons.event_note_outlined, 'Schedule'),
   (Icons.sports_score_outlined, 'Statistics'),
   (Icons.healing_outlined, 'Injuries'),
-  (Icons.person_outline, 'Account'),
+  (Icons.person_outline, 'Profile'),
 ];
 
 class CoordinatorBottomNav extends StatelessWidget {

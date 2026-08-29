@@ -9,7 +9,10 @@ import 'package:footpath_cebu/presentation/providers/match_providers.dart';
 import 'package:footpath_cebu/presentation/screens/edit_football_match_screen.dart';
 import 'package:footpath_cebu/presentation/screens/edit_match_performance_screen.dart';
 import 'package:footpath_cebu/presentation/screens/edit_match_rating_screen.dart';
+import 'package:footpath_cebu/presentation/widgets/adaptive_form_modal.dart';
+import 'package:footpath_cebu/presentation/widgets/app_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 
 enum MatchRosterMode { coordinator, coach }
 
@@ -76,10 +79,9 @@ class _MatchRosterScreenState extends ConsumerState<MatchRosterScreen> {
       );
       return;
     }
-    final selection = await showModalBottomSheet<_SquadExceptionSelection>(
+    final selection = await showAdaptiveFormModal<_SquadExceptionSelection>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
+      phoneHeightFactor: 0.92,
       builder: (_) => _SquadExceptionSheet(candidates: candidates),
     );
     if (selection == null || !mounted) return;
@@ -152,89 +154,93 @@ class _RosterBody extends StatelessWidget {
     final coordinator = mode == MatchRosterMode.coordinator;
     return RefreshIndicator(
       onRefresh: onRefresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${match.venue.label} - '
-                          '${match.competition.isEmpty ? 'Match' : match.competition}',
-                        ),
-                        if (match.isAgeBracketMatch) ...[
+      child: ResponsiveContent(
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${match.venue.label} - '
+                            '${match.competition.isEmpty ? 'Match' : match.competition}',
+                          ),
+                          if (match.isAgeBracketMatch) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              '${match.ageBracketLabel ?? 'Age bracket'} published squad',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
                           const SizedBox(height: 4),
                           Text(
-                            '${match.ageBracketLabel ?? 'Age bracket'} published squad',
+                            coordinator
+                                ? '$recorded of ${players.length} players recorded'
+                                : '$rated of $recorded recorded players rated',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
-                        const SizedBox(height: 4),
-                        Text(
-                          coordinator
-                              ? '$recorded of ${players.length} players recorded'
-                              : '$rated of $recorded recorded players rated',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  Text(
-                    match.scoreLabel,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
+                    Text(
+                      match.scoreLabel,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            coordinator ? 'Player Statistics' : 'Coach Ratings',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            coordinator
-                ? 'Record objective match data. Coach ratings stay private and appear only as a status.'
-                : 'Rate a player after the Coordinator records their match statistics.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          if (coordinator && match.isAgeBracketMatch) ...[
             const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                key: const Key('add-out-of-squad-player'),
-                onPressed: onAddOutOfSquad,
-                icon: const Icon(Icons.person_add_alt_1_outlined),
-                label: const Text('Add eligible squad exception'),
-              ),
+            Text(
+              coordinator ? 'Player Statistics' : 'Coach Ratings',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-          ],
-          const SizedBox(height: 8),
-          if (players.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: Text('No players are registered in this club.'),
-            )
-          else
-            for (final player in players)
-              _PlayerPerformanceTile(
-                match: match,
-                mode: mode,
-                player: player,
-                onChanged: onRefresh,
+            const SizedBox(height: 4),
+            Text(
+              coordinator
+                  ? 'Record objective match data. Coach ratings stay private and appear only as a status.'
+                  : 'Rate a player after the Coordinator records their match statistics.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (coordinator && match.isAgeBracketMatch) ...[
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  key: const Key('add-out-of-squad-player'),
+                  onPressed: onAddOutOfSquad,
+                  icon: const Icon(Icons.person_add_alt_1_outlined),
+                  label: const Text('Add eligible squad exception'),
+                ),
               ),
-        ],
+            ],
+            const SizedBox(height: 8),
+            if (players.isEmpty)
+              const DashboardEmptyState(
+                icon: Icons.group_off_outlined,
+                title: 'No available players',
+                message:
+                    'Eligible players will appear here when they are available for this match.',
+                compact: true,
+              )
+            else
+              for (final player in players)
+                _PlayerPerformanceTile(
+                  match: match,
+                  mode: mode,
+                  player: player,
+                  onChanged: onRefresh,
+                ),
+          ],
+        ),
       ),
     );
   }
@@ -333,11 +339,41 @@ class _PlayerPerformanceTile extends StatelessWidget {
           child: Text(player.name.isEmpty ? '?' : player.name[0]),
         ),
         title: Text(player.name),
-        subtitle: Text(
-          '${coordinator ? '$position - ${saved ? status : 'Not recorded'}' : '$position - $status${rating == null ? '' : ' (${rating.toStringAsFixed(1)})'}'}'
-          '${exception ? '\nApproved squad exception' : ''}'
-          '${warning ? '\n${player.availabilityReason}' : ''}'
-          '${injury == null || !coordinator ? '' : '\nConfirmed ${injury.label} injury - ${match.isAgeBracketMatch ? 'unavailable' : 'review before entry'}'}',
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              coordinator
+                  ? '$position - ${saved ? status : 'Not recorded'}'
+                  : '$position - $status${rating == null ? '' : ' (${rating.toStringAsFixed(1)})'}',
+            ),
+            if (exception) ...[
+              const SizedBox(height: 6),
+              const AppStatusChip(
+                label: 'Approved squad exception',
+                tone: AppStatusTone.info,
+                icon: Icons.person_add_alt_1_outlined,
+              ),
+            ],
+            if (warning) ...[
+              const SizedBox(height: 6),
+              Text(
+                player.availabilityReason,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onTertiaryContainer,
+                ),
+              ),
+            ],
+            if (injury != null && coordinator) ...[
+              const SizedBox(height: 6),
+              AppStatusChip(
+                label:
+                    'Confirmed ${injury.label} injury - ${match.isAgeBracketMatch ? 'unavailable' : 'review before entry'}',
+                tone: AppStatusTone.danger,
+                icon: Icons.healing_outlined,
+              ),
+            ],
+          ],
         ),
         isThreeLine: exception || warning || (coordinator && injury != null),
         trailing: Icon(
@@ -402,134 +438,117 @@ class _SquadExceptionSheetState extends State<_SquadExceptionSheet> {
         )
         .toList(growable: false);
     return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
-      ),
+      padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 16),
       child: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Add squad exception',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Only age- and injury-eligible players appear. The reason is stored with the match statistics and audit log.',
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  key: const Key('squad-exception-search'),
-                  controller: _search,
-                  decoration: const InputDecoration(
-                    labelText: 'Search eligible players',
-                    prefixIcon: Icon(Icons.search),
+          child: SizedBox(
+            height: double.infinity,
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Add squad exception',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Close',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
                   ),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 8),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 280),
-                  child: RadioGroup<String>(
-                    groupValue: _selected?.id,
-                    onChanged: (playerId) => setState(
-                      () => _selected = visible.firstWhere(
-                        (player) => player.id == playerId,
+                  const Text(
+                    'Only age- and injury-eligible players appear. The reason is stored with the match statistics and audit log.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('squad-exception-search'),
+                    controller: _search,
+                    decoration: const InputDecoration(
+                      labelText: 'Search eligible players',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: RadioGroup<String>(
+                      groupValue: _selected?.id,
+                      onChanged: (playerId) => setState(
+                        () => _selected = visible.firstWhere(
+                          (player) => player.id == playerId,
+                        ),
+                      ),
+                      child: ListView.builder(
+                        itemCount: visible.length,
+                        itemBuilder: (context, index) {
+                          final player = visible[index];
+                          return RadioListTile<String>(
+                            key: Key('squad-exception-player-${player.id}'),
+                            value: player.id,
+                            title: Text(player.name),
+                            subtitle: Text(
+                              player.availability == 'WARNING'
+                                  ? player.availabilityReason
+                                  : player.registeredPosition.isEmpty
+                                  ? 'Position not assigned'
+                                  : player.registeredPosition,
+                            ),
+                          );
+                        },
                       ),
                     ),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: visible.length,
-                      itemBuilder: (context, index) {
-                        final player = visible[index];
-                        return RadioListTile<String>(
-                          key: Key('squad-exception-player-${player.id}'),
-                          value: player.id,
-                          title: Text(player.name),
-                          subtitle: Text(
-                            player.availability == 'WARNING'
-                                ? player.availabilityReason
-                                : player.registeredPosition.isEmpty
-                                ? 'Position not assigned'
-                                : player.registeredPosition,
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    key: const Key('squad-exception-reason'),
+                    controller: _reason,
+                    maxLength: 500,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Required exception reason',
+                      hintText: 'Example: organizer-approved late replacement',
+                      counterText: '',
+                    ),
+                    validator: (value) => (value ?? '').trim().isEmpty
+                        ? 'Enter the Coordinator exception reason.'
+                        : null,
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      key: const Key('continue-squad-exception'),
+                      onPressed: () {
+                        if (_selected == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Select a player.')),
+                          );
+                          return;
+                        }
+                        if (!_formKey.currentState!.validate()) return;
+                        Navigator.of(context).pop(
+                          _SquadExceptionSelection(
+                            _selected!,
+                            _reason.text.trim(),
                           ),
                         );
                       },
+                      child: const Text('Continue to statistics'),
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  key: const Key('squad-exception-reason'),
-                  controller: _reason,
-                  maxLength: 500,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Required exception reason',
-                    hintText: 'Example: organizer-approved late replacement',
-                  ),
-                  validator: (value) => (value ?? '').trim().isEmpty
-                      ? 'Enter the Coordinator exception reason.'
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    void continueToStatistics() {
-                      if (_selected == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Select a player.')),
-                        );
-                        return;
-                      }
-                      if (!_formKey.currentState!.validate()) return;
-                      Navigator.of(context).pop(
-                        _SquadExceptionSelection(
-                          _selected!,
-                          _reason.text.trim(),
-                        ),
-                      );
-                    }
-
-                    final cancel = TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('Cancel'),
-                    );
-                    final continueButton = FilledButton(
-                      key: const Key('continue-squad-exception'),
-                      onPressed: continueToStatistics,
-                      child: const Text('Continue to statistics'),
-                    );
-                    if (constraints.maxWidth < 480) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          continueButton,
-                          const SizedBox(height: 4),
-                          cancel,
-                        ],
-                      );
-                    }
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        cancel,
-                        const SizedBox(width: 8),
-                        continueButton,
-                      ],
-                    );
-                  },
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

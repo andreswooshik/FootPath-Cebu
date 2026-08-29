@@ -88,3 +88,53 @@ class DashboardErrorState extends StatelessWidget {
     );
   }
 }
+
+/// Shared empty-state content for dashboard and management lists.
+///
+/// The surrounding screen owns scrolling so pull-to-refresh remains available.
+class DashboardEmptyState extends StatelessWidget {
+  const DashboardEmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.action,
+    this.compact = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final Widget? action;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.symmetric(horizontal: 24, vertical: compact ? 32 : 72),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: compact ? 48 : 64,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(height: 16),
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (action != null) ...[const SizedBox(height: 20), action!],
+      ],
+    ),
+  );
+}
