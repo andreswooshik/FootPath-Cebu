@@ -13,7 +13,7 @@ python-dotenv~=1.1
 httpx~=0.28
 # Postgres driver — used when DB_* points at Supabase/Postgres.
 # SQLite (local dev + tests) needs no driver.
-psycopg[binary]~=3.2
+psycopg[binary]~=3.3
 # Production WSGI server, static assets, shared Redis cache, and optional
 # SENTRY_DSN-driven error monitoring.
 gunicorn>=22,<24
