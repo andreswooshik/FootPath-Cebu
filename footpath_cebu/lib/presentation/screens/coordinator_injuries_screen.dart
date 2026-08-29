@@ -6,15 +6,26 @@ import 'package:footpath_cebu/domain/entities/injury_record.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/injury_providers.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
+import 'package:footpath_cebu/presentation/widgets/adaptive_form_modal.dart';
+import 'package:footpath_cebu/presentation/widgets/app_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/injury_status_chip.dart';
+import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 
-class CoordinatorInjuriesScreen extends ConsumerWidget {
+class CoordinatorInjuriesScreen extends ConsumerStatefulWidget {
   const CoordinatorInjuriesScreen({super.key});
 
+  @override
+  ConsumerState<CoordinatorInjuriesScreen> createState() =>
+      _CoordinatorInjuriesScreenState();
+}
+
+class _CoordinatorInjuriesScreenState
+    extends ConsumerState<CoordinatorInjuriesScreen> {
+  String? _busyRecordId;
+
   Future<void> _openReport(
-    BuildContext context,
-    WidgetRef ref, {
+    BuildContext context, {
     InjuryRecord? existing,
   }) async {
     var playerId = existing?.playerId;
@@ -32,84 +43,43 @@ class CoordinatorInjuriesScreen extends ConsumerWidget {
         return;
       }
       if (!context.mounted) return;
-      final selected = await showDialog<InjuryPlayerOption>(
+      final selected = await showAdaptiveFormModal<InjuryPlayerOption>(
         context: context,
-        builder: (dialogContext) => SimpleDialog(
-          title: const Text('Choose player'),
-          children: [
-            if (players.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(20),
-                child: Text('No active players are registered.'),
-              )
-            else
-              for (final player in players)
-                SimpleDialogOption(
-                  onPressed: () => Navigator.of(dialogContext).pop(player),
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(player.name),
-                    subtitle: Text(player.ageTier),
-                  ),
-                ),
-          ],
-        ),
+        phoneHeightFactor: 0.85,
+        builder: (_) => _PlayerPicker(players: players),
       );
       playerId = selected?.id;
     }
     if (playerId == null || !context.mounted) return;
-    await showModalBottomSheet<void>(
+    await showAdaptiveFormModal<void>(
       context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: InjuryReportFormSheet(playerId: playerId!, existing: existing),
-      ),
+      phoneHeightFactor: 0.92,
+      builder: (_) =>
+          InjuryReportFormSheet(playerId: playerId!, existing: existing),
     );
   }
 
   Future<String?> _rejectionReason(BuildContext context, String title) async {
-    final controller = TextEditingController();
-    final reason = await showDialog<String>(
+    return showAdaptiveFormModal<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 500,
-          minLines: 3,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            labelText: 'Reason *',
-            alignLabelWithHint: true,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.isNotEmpty) Navigator.of(dialogContext).pop(value);
-            },
-            child: const Text('Submit'),
-          ),
-        ],
-      ),
+      builder: (_) => _RequiredReasonForm(title: title),
     );
-    controller.dispose();
-    return reason;
+  }
+
+  Future<T> _trackRecord<T>(
+    InjuryRecord record,
+    Future<T> Function() action,
+  ) async {
+    setState(() => _busyRecordId = record.id ?? record.playerId);
+    try {
+      return await action();
+    } finally {
+      if (mounted) setState(() => _busyRecordId = null);
+    }
   }
 
   Future<void> _reviewReport(
     BuildContext context,
-    WidgetRef ref,
     InjuryRecord record, {
     required bool confirm,
   }) async {
@@ -117,9 +87,16 @@ class CoordinatorInjuriesScreen extends ConsumerWidget {
         ? ''
         : await _rejectionReason(context, 'Reject injury report');
     if (!confirm && reason == null) return;
-    final ok = await ref
-        .read(injuryFormControllerProvider.notifier)
-        .reviewReport(record, confirm: confirm, rejectionReason: reason ?? '');
+    final ok = await _trackRecord(
+      record,
+      () => ref
+          .read(injuryFormControllerProvider.notifier)
+          .reviewReport(
+            record,
+            confirm: confirm,
+            rejectionReason: reason ?? '',
+          ),
+    );
     if (!context.mounted) return;
     _message(
       context,
@@ -133,7 +110,6 @@ class CoordinatorInjuriesScreen extends ConsumerWidget {
 
   Future<void> _reviewStatus(
     BuildContext context,
-    WidgetRef ref,
     InjuryRecord record, {
     required bool approve,
   }) async {
@@ -141,9 +117,16 @@ class CoordinatorInjuriesScreen extends ConsumerWidget {
         ? ''
         : await _rejectionReason(context, 'Reject recovery update');
     if (!approve && reason == null) return;
-    final ok = await ref
-        .read(injuryFormControllerProvider.notifier)
-        .reviewStatus(record, approve: approve, rejectionReason: reason ?? '');
+    final ok = await _trackRecord(
+      record,
+      () => ref
+          .read(injuryFormControllerProvider.notifier)
+          .reviewStatus(
+            record,
+            approve: approve,
+            rejectionReason: reason ?? '',
+          ),
+    );
     if (!context.mounted) return;
     _message(
       context,
@@ -155,11 +138,7 @@ class CoordinatorInjuriesScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _archive(
-    BuildContext context,
-    WidgetRef ref,
-    InjuryRecord record,
-  ) async {
+  Future<void> _archive(BuildContext context, InjuryRecord record) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -180,9 +159,10 @@ class CoordinatorInjuriesScreen extends ConsumerWidget {
       ),
     );
     if (confirmed != true) return;
-    final ok = await ref
-        .read(injuryFormControllerProvider.notifier)
-        .archive(record);
+    final ok = await _trackRecord(
+      record,
+      () => ref.read(injuryFormControllerProvider.notifier).archive(record),
+    );
     if (context.mounted) {
       _message(context, ok ? 'Injury report archived.' : 'Could not archive.');
     }
@@ -193,7 +173,7 @@ class CoordinatorInjuriesScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final records = ref.watch(clubInjuriesProvider);
     final saving = ref.watch(injuryFormControllerProvider).isLoading;
     return Scaffold(
@@ -202,7 +182,7 @@ class CoordinatorInjuriesScreen extends ConsumerWidget {
         title: const Text('Injuries'),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: saving ? null : () => _openReport(context, ref),
+        onPressed: saving ? null : () => _openReport(context),
         icon: const Icon(Icons.add),
         label: const Text('Report injury'),
       ),
@@ -214,162 +194,176 @@ class CoordinatorInjuriesScreen extends ConsumerWidget {
         ),
         data: (rows) => RefreshIndicator(
           onRefresh: () => ref.refresh(clubInjuriesProvider.future),
-          child: rows.isEmpty
-              ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(32),
-                  children: const [
-                    SizedBox(height: 72),
-                    Icon(Icons.health_and_safety_outlined, size: 64),
-                    SizedBox(height: 16),
-                    Text(
-                      'No injury reports need attention.',
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                )
-              : ListView.separated(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                  itemCount: rows.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final record = rows[index];
-                    return Card(
-                      child: ExpansionTile(
-                        leading: CircleAvatar(
-                          child: Text(
-                            record.playerName.isEmpty
-                                ? '?'
-                                : record.playerName[0],
-                          ),
-                        ),
-                        title: Text(
-                          record.playerName.isEmpty
-                              ? 'Player ${record.playerId}'
-                              : record.playerName,
-                        ),
-                        subtitle: Text(record.description),
-                        trailing: _ReportBadge(status: record.reviewStatus),
-                        childrenPadding: const EdgeInsets.fromLTRB(
-                          16,
-                          0,
-                          16,
-                          16,
-                        ),
-                        expandedCrossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 8,
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              InjuryStatusChip(status: record.status),
-                              Text(formatFullDate(record.occurredOn)),
-                              if (record.reporterName.isNotEmpty)
-                                Text('Reported by ${record.reporterName}'),
-                            ],
-                          ),
-                          if (record.notes?.isNotEmpty == true) ...[
-                            const SizedBox(height: 10),
-                            Text(record.notes!),
-                          ],
-                          if (record.pendingStatusUpdate != null) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              'Recovery request: ${record.pendingStatusUpdate!.proposedStatus.label}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (record.pendingStatusUpdate!.notes?.isNotEmpty ==
-                                true)
-                              Text(record.pendingStatusUpdate!.notes!),
-                          ],
-                          const SizedBox(height: 14),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 10,
-                            children: [
-                              if (record.canReview) ...[
-                                FilledButton.icon(
-                                  onPressed: saving
-                                      ? null
-                                      : () => _reviewReport(
-                                          context,
-                                          ref,
-                                          record,
-                                          confirm: true,
-                                        ),
-                                  icon: const Icon(Icons.check),
-                                  label: const Text('Confirm'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: saving
-                                      ? null
-                                      : () => _reviewReport(
-                                          context,
-                                          ref,
-                                          record,
-                                          confirm: false,
-                                        ),
-                                  icon: const Icon(Icons.close),
-                                  label: const Text('Reject'),
-                                ),
-                              ],
-                              if (record.pendingStatusUpdate != null) ...[
-                                FilledButton.icon(
-                                  onPressed: saving
-                                      ? null
-                                      : () => _reviewStatus(
-                                          context,
-                                          ref,
-                                          record,
-                                          approve: true,
-                                        ),
-                                  icon: const Icon(Icons.check),
-                                  label: const Text('Approve update'),
-                                ),
-                                OutlinedButton.icon(
-                                  onPressed: saving
-                                      ? null
-                                      : () => _reviewStatus(
-                                          context,
-                                          ref,
-                                          record,
-                                          approve: false,
-                                        ),
-                                  icon: const Icon(Icons.close),
-                                  label: const Text('Reject update'),
-                                ),
-                              ],
-                              if (record.canEditConfirmed)
-                                OutlinedButton.icon(
-                                  onPressed: saving
-                                      ? null
-                                      : () => _openReport(
-                                          context,
-                                          ref,
-                                          existing: record,
-                                        ),
-                                  icon: const Icon(Icons.edit_outlined),
-                                  label: const Text('Edit'),
-                                ),
-                              if (record.canArchive)
-                                TextButton.icon(
-                                  onPressed: saving
-                                      ? null
-                                      : () => _archive(context, ref, record),
-                                  icon: const Icon(Icons.archive_outlined),
-                                  label: const Text('Archive'),
-                                ),
-                            ],
-                          ),
-                        ],
+          child: ResponsiveContent(
+            child: rows.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: const [
+                      DashboardEmptyState(
+                        icon: Icons.health_and_safety_outlined,
+                        title: 'No injury reports need attention',
+                        message:
+                            'New reports and recovery requests will appear here for review.',
                       ),
-                    );
-                  },
-                ),
+                    ],
+                  )
+                : ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                    itemCount: rows.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final record = rows[index];
+                      final recordKey = record.id ?? record.playerId;
+                      final recordSaving = _busyRecordId == recordKey;
+                      return Card(
+                        child: ExpansionTile(
+                          leading: CircleAvatar(
+                            child: Text(
+                              record.playerName.isEmpty
+                                  ? '?'
+                                  : record.playerName[0],
+                            ),
+                          ),
+                          title: Text(
+                            record.playerName.isEmpty
+                                ? 'Player ${record.playerId}'
+                                : record.playerName,
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                record.description,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              _ReportBadge(status: record.reviewStatus),
+                            ],
+                          ),
+                          childrenPadding: const EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            16,
+                          ),
+                          expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                InjuryStatusChip(status: record.status),
+                                Text(formatFullDate(record.occurredOn)),
+                                if (record.reporterName.isNotEmpty)
+                                  Text('Reported by ${record.reporterName}'),
+                              ],
+                            ),
+                            if (record.notes?.isNotEmpty == true) ...[
+                              const SizedBox(height: 10),
+                              Text(record.notes!),
+                            ],
+                            if (record.pendingStatusUpdate != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                'Recovery request: ${record.pendingStatusUpdate!.proposedStatus.label}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (record
+                                      .pendingStatusUpdate!
+                                      .notes
+                                      ?.isNotEmpty ==
+                                  true)
+                                Text(record.pendingStatusUpdate!.notes!),
+                            ],
+                            const SizedBox(height: 14),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 10,
+                              children: [
+                                if (record.canReview) ...[
+                                  FilledButton.icon(
+                                    onPressed: recordSaving
+                                        ? null
+                                        : () => _reviewReport(
+                                            context,
+                                            record,
+                                            confirm: true,
+                                          ),
+                                    icon: recordSaving
+                                        ? const _ActionProgress()
+                                        : const Icon(Icons.check),
+                                    label: const Text('Confirm'),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: recordSaving
+                                        ? null
+                                        : () => _reviewReport(
+                                            context,
+                                            record,
+                                            confirm: false,
+                                          ),
+                                    icon: const Icon(Icons.close),
+                                    label: const Text('Reject'),
+                                  ),
+                                ],
+                                if (record.pendingStatusUpdate != null) ...[
+                                  FilledButton.icon(
+                                    onPressed: recordSaving
+                                        ? null
+                                        : () => _reviewStatus(
+                                            context,
+                                            record,
+                                            approve: true,
+                                          ),
+                                    icon: recordSaving
+                                        ? const _ActionProgress()
+                                        : const Icon(Icons.check),
+                                    label: const Text('Approve update'),
+                                  ),
+                                  OutlinedButton.icon(
+                                    onPressed: recordSaving
+                                        ? null
+                                        : () => _reviewStatus(
+                                            context,
+                                            record,
+                                            approve: false,
+                                          ),
+                                    icon: const Icon(Icons.close),
+                                    label: const Text('Reject update'),
+                                  ),
+                                ],
+                                if (record.canEditConfirmed)
+                                  OutlinedButton.icon(
+                                    onPressed: recordSaving
+                                        ? null
+                                        : () => _openReport(
+                                            context,
+                                            existing: record,
+                                          ),
+                                    icon: const Icon(Icons.edit_outlined),
+                                    label: const Text('Edit'),
+                                  ),
+                                if (record.canArchive)
+                                  TextButton.icon(
+                                    onPressed: recordSaving
+                                        ? null
+                                        : () => _archive(context, record),
+                                    icon: const Icon(Icons.archive_outlined),
+                                    label: const Text('Archive'),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
         ),
       ),
     );
@@ -383,16 +377,195 @@ class _ReportBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      InjuryReportStatus.pending => Colors.orange,
-      InjuryReportStatus.confirmed => Colors.green,
-      InjuryReportStatus.rejected => Theme.of(context).colorScheme.error,
-      InjuryReportStatus.archived => Colors.grey,
+    final (tone, icon) = switch (status) {
+      InjuryReportStatus.pending => (
+        AppStatusTone.pending,
+        Icons.schedule_outlined,
+      ),
+      InjuryReportStatus.confirmed => (
+        AppStatusTone.success,
+        Icons.verified_outlined,
+      ),
+      InjuryReportStatus.rejected => (
+        AppStatusTone.danger,
+        Icons.cancel_outlined,
+      ),
+      InjuryReportStatus.archived => (
+        AppStatusTone.neutral,
+        Icons.archive_outlined,
+      ),
     };
-    return Chip(
-      visualDensity: VisualDensity.compact,
-      side: BorderSide(color: color.withValues(alpha: 0.5)),
-      label: Text(status.label),
+    return AppStatusChip(label: status.label, tone: tone, icon: icon);
+  }
+}
+
+class _ActionProgress extends StatelessWidget {
+  const _ActionProgress();
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.square(
+    dimension: 18,
+    child: CircularProgressIndicator(strokeWidth: 2),
+  );
+}
+
+class _PlayerPicker extends StatefulWidget {
+  const _PlayerPicker({required this.players});
+
+  final List<InjuryPlayerOption> players;
+
+  @override
+  State<_PlayerPicker> createState() => _PlayerPickerState();
+}
+
+class _PlayerPickerState extends State<_PlayerPicker> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _search.text.trim().toLowerCase();
+    final players = widget.players
+        .where(
+          (player) =>
+              query.isEmpty ||
+              player.name.toLowerCase().contains(query) ||
+              player.ageTier.toLowerCase().contains(query),
+        )
+        .toList(growable: false);
+    return Padding(
+      key: const Key('injury-player-picker'),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Choose player', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _search,
+            autofocus: widget.players.length > 6,
+            decoration: const InputDecoration(
+              labelText: 'Search players',
+              prefixIcon: Icon(Icons.search),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 8),
+          Flexible(
+            child: players.isEmpty
+                ? const SingleChildScrollView(
+                    child: DashboardEmptyState(
+                      icon: Icons.person_search_outlined,
+                      title: 'No players found',
+                      message: 'Try a different player name or age tier.',
+                      compact: true,
+                    ),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: players.length,
+                    itemBuilder: (context, index) {
+                      final player = players[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          child: Text(
+                            player.name.isEmpty
+                                ? '?'
+                                : player.name[0].toUpperCase(),
+                          ),
+                        ),
+                        title: Text(player.name),
+                        subtitle: Text(player.ageTier),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(context).pop(player),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _RequiredReasonForm extends StatefulWidget {
+  const _RequiredReasonForm({required this.title});
+
+  final String title;
+
+  @override
+  State<_RequiredReasonForm> createState() => _RequiredReasonFormState();
+}
+
+class _RequiredReasonFormState extends State<_RequiredReasonForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+    child: Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(widget.title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _controller,
+            autofocus: true,
+            maxLength: 500,
+            minLines: 3,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              labelText: 'Reason',
+              alignLabelWithHint: true,
+            ),
+            validator: (value) => (value ?? '').trim().isEmpty
+                ? 'Enter a reason before submitting.'
+                : null,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (!(_formKey.currentState?.validate() ?? false)) return;
+                  Navigator.of(context).pop(_controller.text.trim());
+                },
+                child: const Text('Submit'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }

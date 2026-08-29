@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 const _portalDestinations = [
   (Icons.dashboard_outlined, 'Dashboard'),
   (Icons.event_note_outlined, 'Schedule'),
-  (Icons.trending_up, 'Progress'),
+  (Icons.trending_up_outlined, 'Progress'),
   (Icons.person_outline, 'Profile'),
 ];
 

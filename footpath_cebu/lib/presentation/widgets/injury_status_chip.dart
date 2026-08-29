@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/domain/entities/injury_record.dart';
+import 'package:footpath_cebu/presentation/widgets/app_status_chip.dart';
 
 /// A colour-coded chip for a single [InjuryStatus] value.
 class InjuryStatusChip extends StatelessWidget {
@@ -10,19 +11,17 @@ class InjuryStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (color, icon) = switch (status) {
-      InjuryStatus.active => (Colors.red, Icons.error_outline),
-      InjuryStatus.recovering => (Colors.orange, Icons.healing_outlined),
-      InjuryStatus.recovered => (Colors.green, Icons.check_circle_outline),
+    final (tone, icon) = switch (status) {
+      InjuryStatus.active => (AppStatusTone.danger, Icons.error_outline),
+      InjuryStatus.recovering => (
+        AppStatusTone.warning,
+        Icons.healing_outlined,
+      ),
+      InjuryStatus.recovered => (
+        AppStatusTone.success,
+        Icons.check_circle_outline,
+      ),
     };
-
-    return Chip(
-      avatar: Icon(icon, color: color, size: 18),
-      label: Text(status.label),
-      labelStyle: TextStyle(color: color, fontWeight: FontWeight.w600),
-      backgroundColor: color.withValues(alpha: 0.12),
-      side: BorderSide(color: color),
-      visualDensity: VisualDensity.compact,
-    );
+    return AppStatusChip(label: status.label, tone: tone, icon: icon);
   }
 }

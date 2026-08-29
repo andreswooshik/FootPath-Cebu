@@ -9,6 +9,7 @@ import 'package:footpath_cebu/presentation/screens/edit_football_match_screen.da
 import 'package:footpath_cebu/presentation/screens/match_roster_screen.dart';
 import 'package:footpath_cebu/presentation/screens/tournament_schedule_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 
 class CoordinatorMatchesScreen extends ConsumerWidget {
   const CoordinatorMatchesScreen({super.key});
@@ -40,55 +41,57 @@ class CoordinatorMatchesScreen extends ConsumerWidget {
         ),
         data: (rows) => RefreshIndicator(
           onRefresh: () => ref.refresh(footballMatchesProvider.future),
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-            children: [
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.event_available_outlined),
-                  title: const Text('Record a scheduled result'),
-                  subtitle: const Text(
-                    'Choose a published fixture after the match is played.',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const TournamentScheduleScreen(
-                        canRecordResults: true,
-                      ),
+          child: ResponsiveContent(
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              children: [
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.event_available_outlined),
+                    title: const Text('Record a scheduled result'),
+                    subtitle: const Text(
+                      'Choose a published fixture after the match is played.',
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Completed Matches',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              if (rows.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 48),
-                  child: Text(
-                    'No match results recorded yet.',
-                    textAlign: TextAlign.center,
-                  ),
-                )
-              else
-                for (final match in rows)
-                  _CoordinatorMatchCard(
-                    match: match,
+                    trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => MatchRosterScreen(
-                          match: match,
-                          mode: MatchRosterMode.coordinator,
+                        builder: (_) => const TournamentScheduleScreen(
+                          canRecordResults: true,
                         ),
                       ),
                     ),
                   ),
-            ],
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Completed matches',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                if (rows.isEmpty)
+                  const DashboardEmptyState(
+                    icon: Icons.sports_score_outlined,
+                    title: 'No match statistics yet',
+                    message:
+                        'Record a scheduled result or create an ad-hoc match after a game.',
+                    compact: true,
+                  )
+                else
+                  for (final match in rows)
+                    _CoordinatorMatchCard(
+                      match: match,
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => MatchRosterScreen(
+                            match: match,
+                            mode: MatchRosterMode.coordinator,
+                          ),
+                        ),
+                      ),
+                    ),
+              ],
+            ),
           ),
         ),
       ),
@@ -114,21 +117,11 @@ class _CoordinatorMatchCard extends StatelessWidget {
       title: Text('vs ${match.opponent}'),
       subtitle: Text(
         '${formatShortDate(match.playedOn)} - '
-        '${match.recordSource == MatchRecordSource.scheduled ? 'Scheduled' : 'Ad-hoc'}',
+        '${match.recordSource == MatchRecordSource.scheduled ? 'Scheduled' : 'Ad-hoc'}\n'
+        'Score: ${match.scoreLabel}',
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            match.scoreLabel,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(width: 8),
-          const Icon(Icons.chevron_right),
-        ],
-      ),
+      isThreeLine: true,
+      trailing: const Icon(Icons.chevron_right),
     ),
   );
 }

@@ -45,4 +45,44 @@ void main() {
     expect(find.text('Injury report confirmed.'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Confirm'), findsNothing);
   });
+
+  for (final size in const [Size(390, 1000), Size(820, 1180)]) {
+    testWidgets(
+      'injury reporting uses a searchable adaptive player picker at ${size.width.toInt()}px',
+      (tester) async {
+        await tester.binding.setSurfaceSize(size);
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              injuryRepositoryProvider.overrideWithValue(
+                MockInjuryRepository(),
+              ),
+            ],
+            child: const MaterialApp(home: CoordinatorInjuriesScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Report injury'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Choose player'), findsOneWidget);
+        expect(find.text('Search players'), findsOneWidget);
+        await tester.enterText(find.byType(TextField).first, 'Mika');
+        await tester.pump();
+        final picker = find.byKey(const Key('injury-player-picker'));
+        expect(
+          find.descendant(of: picker, matching: find.text('Mika Santos')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: picker, matching: find.text('Rhobert Ronaldo')),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }
