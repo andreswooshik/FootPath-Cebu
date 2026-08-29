@@ -284,9 +284,14 @@ class _FixtureTile extends StatelessWidget {
                       'vs ${fixture.opponent}',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    if (fixture.stage.isNotEmpty)
+                    if (fixture.ageBracketLabel != null ||
+                        fixture.stage.isNotEmpty)
                       Text(
-                        fixture.stage,
+                        [
+                          if (fixture.ageBracketLabel != null)
+                            fixture.ageBracketLabel!,
+                          if (fixture.stage.isNotEmpty) fixture.stage,
+                        ].join(' - '),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                   ],

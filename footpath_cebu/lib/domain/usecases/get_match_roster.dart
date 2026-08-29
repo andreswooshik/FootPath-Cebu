@@ -6,6 +6,9 @@ class GetMatchRoster {
 
   final MatchManager _manager;
 
-  Future<List<MatchRosterPlayer>> call(String matchId) =>
-      _manager.fetchMatchRoster(matchId);
+  Future<List<MatchRosterPlayer>> call(
+    String matchId, {
+    bool includeOutOfSquad = false,
+  }) =>
+      _manager.fetchMatchRoster(matchId, includeOutOfSquad: includeOutOfSquad);
 }

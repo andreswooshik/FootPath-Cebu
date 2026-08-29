@@ -18,6 +18,22 @@ final matchRosterProvider = FutureProvider.autoDispose
       (ref, matchId) => ref.watch(getMatchRosterProvider)(matchId),
     );
 
+final outOfSquadMatchCandidatesProvider = FutureProvider.autoDispose
+    .family<List<MatchRosterPlayer>, String>((ref, matchId) async {
+      final rows = await ref.watch(getMatchRosterProvider)(
+        matchId,
+        includeOutOfSquad: true,
+      );
+      return rows
+          .where(
+            (row) =>
+                row.requiresSquadOverride &&
+                row.performance == null &&
+                row.isSelectable,
+          )
+          .toList(growable: false);
+    });
+
 final playerMatchStatisticsProvider = FutureProvider.autoDispose
     .family<PlayerMatchStatistics, String>(
       (ref, playerId) => ref.watch(getPlayerMatchStatisticsProvider)(playerId),
@@ -58,6 +74,7 @@ class MatchManagementController extends AsyncNotifier<void> {
       onSuccess: (_) {
         ref.invalidate(matchPerformancesProvider(matchId));
         ref.invalidate(matchRosterProvider(matchId));
+        ref.invalidate(outOfSquadMatchCandidatesProvider(matchId));
         ref.invalidate(playerMatchStatisticsProvider(playerId));
       },
     );
@@ -70,6 +87,7 @@ class MatchManagementController extends AsyncNotifier<void> {
       state = const AsyncData(null);
       ref.invalidate(matchPerformancesProvider(matchId));
       ref.invalidate(matchRosterProvider(matchId));
+      ref.invalidate(outOfSquadMatchCandidatesProvider(matchId));
       ref.invalidate(playerMatchStatisticsProvider(playerId));
       return true;
     } catch (error, stackTrace) {
@@ -88,6 +106,7 @@ class MatchManagementController extends AsyncNotifier<void> {
       onSuccess: (_) {
         ref.invalidate(matchPerformancesProvider(matchId));
         ref.invalidate(matchRosterProvider(matchId));
+        ref.invalidate(outOfSquadMatchCandidatesProvider(matchId));
         ref.invalidate(playerMatchStatisticsProvider(playerId));
       },
     );
@@ -100,6 +119,7 @@ class MatchManagementController extends AsyncNotifier<void> {
       state = const AsyncData(null);
       ref.invalidate(matchPerformancesProvider(matchId));
       ref.invalidate(matchRosterProvider(matchId));
+      ref.invalidate(outOfSquadMatchCandidatesProvider(matchId));
       ref.invalidate(playerMatchStatisticsProvider(playerId));
       return true;
     } catch (error, stackTrace) {

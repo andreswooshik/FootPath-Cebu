@@ -16,7 +16,10 @@ abstract interface class MatchManager {
 
   Future<List<MatchPerformance>> fetchMatchPerformances(String matchId);
 
-  Future<List<MatchRosterPlayer>> fetchMatchRoster(String matchId);
+  Future<List<MatchRosterPlayer>> fetchMatchRoster(
+    String matchId, {
+    bool includeOutOfSquad = false,
+  });
 
   Future<MatchPerformance> savePerformance(
     String matchId,

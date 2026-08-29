@@ -575,7 +575,7 @@ def tournament_schedules(request):
 def tournament_schedule_detail(request, schedule_id):
     schedule = _coordinator_schedule(request, schedule_id)
     document_form = TournamentDocumentForm()
-    fixture_form = TournamentFixtureForm(prefix='fixture')
+    fixture_form = TournamentFixtureForm(prefix='fixture', schedule=schedule)
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -612,7 +612,9 @@ def tournament_schedule_detail(request, schedule_id):
                         'portal:tournament-detail', schedule_id=schedule.id
                     )
         elif action == 'add-fixture':
-            fixture_form = TournamentFixtureForm(request.POST, prefix='fixture')
+            fixture_form = TournamentFixtureForm(
+                request.POST, prefix='fixture', schedule=schedule,
+            )
             if fixture_form.is_valid():
                 fixture = fixture_form.save(commit=False)
                 fixture.schedule = schedule
@@ -633,7 +635,9 @@ def tournament_schedule_detail(request, schedule_id):
         'document_url': signed_tournament_document_url(schedule.document_path),
         'document_form': document_form,
         'fixture_form': fixture_form,
-        'fixtures': schedule.fixtures.select_related('completed_match'),
+        'fixtures': schedule.fixtures.select_related(
+            'completed_match', 'age_bracket',
+        ),
     })
 
 
@@ -649,7 +653,9 @@ def tournament_fixture_edit(request, fixture_id):
         return redirect(
             'portal:tournament-detail', schedule_id=fixture.schedule_id
         )
-    form = TournamentFixtureForm(request.POST or None, instance=fixture)
+    form = TournamentFixtureForm(
+        request.POST or None, instance=fixture, schedule=fixture.schedule,
+    )
     if request.method == 'POST' and form.is_valid():
         fixture = form.save()
         AuditLog.record(

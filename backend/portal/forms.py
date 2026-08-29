@@ -281,16 +281,41 @@ class TournamentFixtureForm(forms.ModelForm):
 
     class Meta:
         model = TournamentFixture
-        fields = ['stage', 'opponent', 'kickoff_at', 'venue', 'location', 'status']
+        fields = [
+            'age_bracket', 'stage', 'opponent', 'kickoff_at', 'venue',
+            'location', 'status',
+        ]
         labels = {
+            'age_bracket': 'Age bracket',
             'stage': 'Stage or round',
             'opponent': 'Opponent',
             'venue': 'Home, away, or neutral',
         }
         help_texts = {
+            'age_bracket': 'Optional for legacy or mixed-age fixtures.',
             'opponent': 'Use TBD when the knockout opponent is not known.',
             'location': 'Pitch, stadium, or meeting location.',
         }
+
+    def __init__(self, *args, schedule=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.schedule = schedule or getattr(self.instance, 'schedule', None)
+        queryset = self.fields['age_bracket'].queryset.none()
+        if self.schedule is not None:
+            queryset = self.schedule.age_brackets.order_by('max_age', 'id')
+        self.fields['age_bracket'].queryset = queryset
+        self.fields['age_bracket'].required = False
+        self.fields['age_bracket'].empty_label = 'No age bracket (legacy)'
+
+    def clean_age_bracket(self):
+        bracket = self.cleaned_data.get('age_bracket')
+        if bracket and (
+            self.schedule is None or bracket.schedule_id != self.schedule.id
+        ):
+            raise forms.ValidationError(
+                'Select an age bracket from this tournament.'
+            )
+        return bracket
 
     def clean_opponent(self):
         return self.cleaned_data['opponent'].strip() or 'TBD'

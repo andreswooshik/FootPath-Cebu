@@ -13,8 +13,14 @@ class _InjuredRosterRepository extends MockMatchRepository {
   MatchPerformanceDraft? savedDraft;
 
   @override
-  Future<List<MatchRosterPlayer>> fetchMatchRoster(String matchId) async {
-    final rows = await super.fetchMatchRoster(matchId);
+  Future<List<MatchRosterPlayer>> fetchMatchRoster(
+    String matchId, {
+    bool includeOutOfSquad = false,
+  }) async {
+    final rows = await super.fetchMatchRoster(
+      matchId,
+      includeOutOfSquad: includeOutOfSquad,
+    );
     return [
       for (final row in rows)
         MatchRosterPlayer(

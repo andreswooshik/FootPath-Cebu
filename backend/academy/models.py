@@ -627,6 +627,13 @@ class TournamentFixture(models.Model):
         on_delete=models.CASCADE,
         related_name='fixtures',
     )
+    age_bracket = models.ForeignKey(
+        TournamentAgeBracket,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='fixtures',
+    )
     stage = models.CharField(max_length=80, blank=True)
     opponent = models.CharField(max_length=120, default='TBD')
     kickoff_at = models.DateTimeField()
@@ -656,6 +663,14 @@ class TournamentFixture(models.Model):
         self.stage = self.stage.strip()
         self.opponent = self.opponent.strip() or 'TBD'
         self.location = self.location.strip()
+        if (
+            self.age_bracket_id
+            and self.schedule_id
+            and self.age_bracket.schedule_id != self.schedule_id
+        ):
+            raise ValidationError({
+                'age_bracket': 'Age bracket must belong to this tournament.'
+            })
         if self.completed_match_id:
             if self.completed_match.club_id != self.schedule.club_id:
                 raise ValidationError(
@@ -746,6 +761,15 @@ class PlayerMatchPerformance(models.Model):
         related_name='rated_match_performances',
     )
     rated_at = models.DateTimeField(null=True, blank=True)
+    squad_override_reason = models.CharField(max_length=500, blank=True)
+    squad_override_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_match_squad_overrides',
+    )
+    squad_override_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -754,6 +778,7 @@ class PlayerMatchPerformance(models.Model):
         errors = {}
         self.position = self.position.strip().upper()
         self.notes = self.notes.strip()
+        self.squad_override_reason = self.squad_override_reason.strip()
         if self.position and self.position not in PLAYER_POSITION_CODES:
             errors['position'] = 'Unknown player position.'
         if self.player_id and self.player.role != Roles.PLAYER:
@@ -809,6 +834,19 @@ class PlayerMatchPerformance(models.Model):
                     passes_completed__lte=models.F('passes_attempted')
                 ),
                 name='passes_completed_lte_attempted',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        squad_override_reason='',
+                        squad_override_at__isnull=True,
+                    )
+                    | (
+                        ~models.Q(squad_override_reason='')
+                        & models.Q(squad_override_at__isnull=False)
+                    )
+                ),
+                name='squad_override_reason_requires_timestamp',
             ),
         ]
         indexes = [

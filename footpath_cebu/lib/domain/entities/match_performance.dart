@@ -43,6 +43,9 @@ class MatchPerformance {
     required this.coachRating,
     required this.notes,
     required this.ratingStatus,
+    this.squadException = false,
+    this.squadOverrideReason = '',
+    this.squadOverrideAt,
   });
 
   final String id;
@@ -68,6 +71,9 @@ class MatchPerformance {
   final double? coachRating;
   final String notes;
   final MatchRatingStatus ratingStatus;
+  final bool squadException;
+  final String squadOverrideReason;
+  final DateTime? squadOverrideAt;
 
   double? get passCompletionRate =>
       passesAttempted == 0 ? null : passesCompleted * 100 / passesAttempted;
@@ -101,6 +107,11 @@ class MatchPerformance {
         ratingStatus: MatchRatingStatusWire.fromWire(
           json['ratingStatus'] as String?,
         ),
+        squadException: json['squadException'] as bool? ?? false,
+        squadOverrideReason: json['squadOverrideReason'] as String? ?? '',
+        squadOverrideAt: json['squadOverrideAt'] == null
+            ? null
+            : DateTime.parse(json['squadOverrideAt'] as String),
       );
 }
 
@@ -124,6 +135,7 @@ class MatchPerformanceDraft {
     required this.goalsConceded,
     required this.cleanSheet,
     this.injuryOverrideAcknowledged = false,
+    this.squadOverrideReason = '',
   });
 
   final String position;
@@ -143,6 +155,7 @@ class MatchPerformanceDraft {
   final int goalsConceded;
   final bool cleanSheet;
   final bool injuryOverrideAcknowledged;
+  final String squadOverrideReason;
 
   Map<String, dynamic> toJson() => {
     'position': position.trim().toUpperCase(),
@@ -162,6 +175,8 @@ class MatchPerformanceDraft {
     'goalsConceded': goalsConceded,
     'cleanSheet': cleanSheet,
     if (injuryOverrideAcknowledged) 'injuryOverrideAcknowledged': true,
+    if (squadOverrideReason.trim().isNotEmpty)
+      'squadOverrideReason': squadOverrideReason.trim(),
   };
 }
 
@@ -185,6 +200,12 @@ class MatchRosterPlayer {
     required this.performance,
     required this.ratingStatus,
     this.activeInjuryStatus,
+    this.tournamentPosition = '',
+    this.inTournamentSquad = false,
+    this.requiresSquadOverride = false,
+    this.isSelectable = true,
+    this.availability = 'ELIGIBLE',
+    this.availabilityReason = '',
   });
 
   final String id;
@@ -193,6 +214,12 @@ class MatchRosterPlayer {
   final MatchPerformance? performance;
   final MatchRatingStatus ratingStatus;
   final InjuryStatus? activeInjuryStatus;
+  final String tournamentPosition;
+  final bool inTournamentSquad;
+  final bool requiresSquadOverride;
+  final bool isSelectable;
+  final String availability;
+  final String availabilityReason;
 
   factory MatchRosterPlayer.fromJson(Map<String, dynamic> json) =>
       MatchRosterPlayer(
@@ -210,6 +237,12 @@ class MatchRosterPlayer {
         activeInjuryStatus: json['activeInjuryStatus'] == null
             ? null
             : InjuryStatusWire.fromWire(json['activeInjuryStatus'] as String),
+        tournamentPosition: json['tournamentPosition'] as String? ?? '',
+        inTournamentSquad: json['inTournamentSquad'] as bool? ?? false,
+        requiresSquadOverride: json['requiresSquadOverride'] as bool? ?? false,
+        isSelectable: json['isSelectable'] as bool? ?? true,
+        availability: json['availability'] as String? ?? 'ELIGIBLE',
+        availabilityReason: json['availabilityReason'] as String? ?? '',
       );
 }
 
