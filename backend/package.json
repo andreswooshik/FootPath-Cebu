@@ -5,6 +5,6 @@
     "build:css": "tailwindcss -c tailwind.config.js -i ./assets/portal.css -o ./portal/static/portal/tailwind.css --minify"
   },
   "devDependencies": {
-    "tailwindcss": "3.4.17"
+    "tailwindcss": "4.3.3"
   }
 }
