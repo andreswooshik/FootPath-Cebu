@@ -45,7 +45,7 @@ dependencies:
   flutter_svg: ^2.0.10
   flutter_riverpod: ^3.3.2
   sqflite: ^2.4.3
-  connectivity_plus: ^7.3.0
+  connectivity_plus: ^7.3.1
   flutter_animate: ^4.5.2
   image_picker: ^1.2.3
   url_launcher: ^6.3.2
