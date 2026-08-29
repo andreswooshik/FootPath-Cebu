@@ -227,7 +227,7 @@ class TournamentFixtureInline(admin.TabularInline):
     model = TournamentFixture
     extra = 0
     readonly_fields = (
-        'stage', 'opponent', 'kickoff_at', 'venue', 'location', 'status',
+        'age_bracket', 'stage', 'opponent', 'kickoff_at', 'venue', 'location', 'status',
         'completed_match', 'created_at', 'updated_at',
     )
     can_delete = False
@@ -316,6 +316,7 @@ class PlayerMatchPerformanceAdmin(admin.ModelAdmin):
     )
     readonly_fields = (
         'match', 'player', 'recorded_by', 'rated_by', 'rated_at',
+        'squad_override_reason', 'squad_override_by', 'squad_override_at',
         'created_at', 'updated_at',
     )
 

@@ -26,7 +26,7 @@
                   <h3 class="font-semibold text-gray-900">{{ fixture.opponent }}</h3>
                   <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{{ fixture.get_status_display }}</span>
                 </div>
-                <p class="mt-1 text-sm text-gray-600">{{ fixture.stage|default:'Fixture' }} · {{ fixture.kickoff_at|date:'M j, Y · g:i A' }}</p>
+                <p class="mt-1 text-sm text-gray-600">{% if fixture.age_bracket %}{{ fixture.age_bracket.label }} · {% endif %}{{ fixture.stage|default:'Fixture' }} · {{ fixture.kickoff_at|date:'M j, Y · g:i A' }}</p>
                 <p class="mt-0.5 text-xs text-gray-500">{{ fixture.get_venue_display }}{% if fixture.location %} · {{ fixture.location }}{% endif %}</p>
               </div>
               <div class="flex flex-wrap gap-2">

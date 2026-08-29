@@ -7,7 +7,7 @@ Authorization is enforced two ways, both server-side (never trust the client):
     a player they are linked to — audit finding F3).
 """
 from django.db import transaction
-from django.db.models import Avg, Count, Q, Sum
+from django.db.models import Avg, Count, Prefetch, Q, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -209,7 +209,7 @@ def _session_in_user_scope(user, session):
 def _matches_for(user):
     """Club-scoped match queryset; Admin can inspect every club."""
     qs = FootballMatch.objects.select_related(
-        'club', 'created_by', 'source_fixture',
+        'club', 'created_by', 'source_fixture__age_bracket',
     )
     if user.role == Roles.ADMIN:
         return qs
@@ -225,10 +225,20 @@ def _role_match(request, match_id, role):
     if request.user.club_id is None:
         raise PermissionDenied('Your account must belong to a club.')
     return get_object_or_404(
-        FootballMatch.objects.select_related('club', 'source_fixture'),
+        FootballMatch.objects.select_related(
+            'club', 'source_fixture__age_bracket__schedule',
+        ),
         pk=match_id,
         club_id=request.user.club_id,
     )
+
+
+def _match_age_bracket(match):
+    """Return a linked age bracket without breaking legacy/ad-hoc matches."""
+    try:
+        return match.source_fixture.age_bracket
+    except TournamentFixture.DoesNotExist:
+        return None
 
 
 class SquadListView(APIView):
@@ -651,7 +661,12 @@ class TournamentScheduleListView(APIView):
             TournamentSchedule.objects.all()
             .select_related('club')
             .prefetch_related(
-                'fixtures',
+                Prefetch(
+                    'fixtures',
+                    queryset=TournamentFixture.objects.select_related(
+                        'age_bracket',
+                    ),
+                ),
                 'age_brackets__squad__entries__player__player_profile',
             )
         )
@@ -699,7 +714,11 @@ def _coordinator_mobile_schedule(user, schedule_id):
         raise PermissionDenied('Coordinator account must belong to a club.')
     return get_object_or_404(
         TournamentSchedule.objects.prefetch_related(
-            'fixtures', 'age_brackets__squad__entries__player__player_profile',
+            Prefetch(
+                'fixtures',
+                queryset=TournamentFixture.objects.select_related('age_bracket'),
+            ),
+            'age_brackets__squad__entries__player__player_profile',
         ),
         pk=schedule_id,
         club_id=user.club_id,
@@ -852,6 +871,18 @@ class TournamentAgeBracketDetailView(APIView):
         if schedule.is_published:
             raise ValidationError({
                 'ageBracket': 'Published tournament brackets cannot be removed.'
+            })
+        if bracket.fixtures.exists():
+            raise ValidationError({
+                'ageBracket': 'Remove linked fixtures before deleting this bracket.'
+            })
+        try:
+            squad_has_entries = bracket.squad.entries.exists()
+        except TournamentSquad.DoesNotExist:
+            squad_has_entries = False
+        if squad_has_entries:
+            raise ValidationError({
+                'ageBracket': 'Remove roster members before deleting this bracket.'
             })
         target = f'{schedule.title} {bracket.label}'
         bracket.delete()
@@ -1230,7 +1261,7 @@ class MatchPerformanceListView(APIView):
 
 
 class MatchRosterView(APIView):
-    """A club-scoped roster without eligibility, assessments, or profile notes."""
+    """Server-filtered current match choices plus existing historical rows."""
 
     def get(self, request, match_id):
         if request.user.role not in (
@@ -1238,6 +1269,14 @@ class MatchRosterView(APIView):
         ):
             raise PermissionDenied('Your role cannot view this match roster.')
         match = get_object_or_404(_matches_for(request.user), pk=match_id)
+        bracket = _match_age_bracket(match)
+        include_out_of_squad = (
+            request.query_params.get('includeOutOfSquad', '').lower() == 'true'
+        )
+        if include_out_of_squad and request.user.role != Roles.COORDINATOR:
+            raise PermissionDenied(
+                'Only Coordinators can review out-of-squad match candidates.'
+            )
         profiles = PlayerProfile.objects.select_related('user').filter(
             user__club_id=match.club_id,
             user__role=Roles.PLAYER,
@@ -1249,6 +1288,17 @@ class MatchRosterView(APIView):
                 'match', 'player', 'match__club',
             ).filter(match=match)
         }
+        squad_entries = {}
+        if bracket is not None:
+            squad_entries = {
+                entry.player_id: entry
+                for entry in TournamentSquadEntry.objects.select_related(
+                    'player__player_profile',
+                ).filter(
+                    squad__bracket=bracket,
+                    squad__status=TournamentSquadStatus.PUBLISHED,
+                )
+            }
         active_injury_statuses = {}
         for player_id, injury_status in InjuryRecord.objects.filter(
             player__club_id=match.club_id,
@@ -1261,6 +1311,22 @@ class MatchRosterView(APIView):
         result = []
         for profile in profiles:
             performance = performances.get(profile.user_id)
+            squad_entry = squad_entries.get(profile.user_id)
+            eligibility = (
+                roster_eligibility(profile.user, bracket)
+                if bracket is not None else None
+            )
+            in_tournament_squad = squad_entry is not None
+            if bracket is not None:
+                if eligibility.blocked and performance is None:
+                    continue
+                if (
+                    not include_out_of_squad
+                    and not in_tournament_squad
+                    and performance is None
+                ):
+                    continue
+            selectable = eligibility is None or not eligibility.blocked
             result.append({
                 'id': str(profile.user_id),
                 'name': (
@@ -1268,6 +1334,20 @@ class MatchRosterView(APIView):
                     or profile.user.email.split('@')[0]
                 ),
                 'registeredPosition': profile.position,
+                'tournamentPosition': (
+                    squad_entry.position if squad_entry is not None else ''
+                ),
+                'inTournamentSquad': in_tournament_squad,
+                'requiresSquadOverride': (
+                    bracket is not None and not in_tournament_squad
+                ),
+                'isSelectable': selectable,
+                'availability': (
+                    eligibility.state if eligibility is not None else 'ELIGIBLE'
+                ),
+                'availabilityReason': (
+                    eligibility.reason if eligibility is not None else ''
+                ),
                 'activeInjuryStatus': active_injury_statuses.get(
                     profile.user_id
                 ),
@@ -1299,11 +1379,12 @@ class MatchPerformanceDetailView(APIView):
             role=Roles.PLAYER,
             club_id=request.user.club_id,
         )
+        bracket = _match_age_bracket(match)
         active_injuries = InjuryRecord.objects.filter(
             player=player,
             review_status=InjuryReportStatus.CONFIRMED,
             status__in=(InjuryStatus.ACTIVE, InjuryStatus.RECOVERING),
-        )
+        ) if bracket is None else InjuryRecord.objects.none()
         injury_override = str(
             request.data.get('injuryOverrideAcknowledged', '')
         ).lower() == 'true'
@@ -1328,13 +1409,64 @@ class MatchPerformanceDetailView(APIView):
             )
         data = request.data.copy()
         data.pop('injuryOverrideAcknowledged', None)
+        requested_squad_reason = str(
+            data.pop('squadOverrideReason', '')
+        ).strip()
+        if len(requested_squad_reason) > 500:
+            raise ValidationError({
+                'squadOverrideReason': 'Use 500 characters or fewer.'
+            })
+        squad_override_applied = False
+        squad_override_reason = ''
         with transaction.atomic():
             # Lock the parent to serialize two submissions for the same match;
             # the unique DB constraint is the final duplicate-write guard.
-            FootballMatch.objects.select_for_update().get(pk=match.pk)
+            match = FootballMatch.objects.select_for_update().select_related(
+                'source_fixture__age_bracket__schedule',
+            ).get(pk=match.pk)
+            bracket = _match_age_bracket(match)
             existing = PlayerMatchPerformance.objects.select_for_update().filter(
                 match=match, player=player,
             ).first()
+            save_kwargs = {}
+            if bracket is not None:
+                eligibility = roster_eligibility(player, bracket)
+                if eligibility.blocked:
+                    raise ValidationError({
+                        'player': {
+                            'code': eligibility.code,
+                            'detail': eligibility.reason,
+                        }
+                    })
+                squad = TournamentSquad.objects.select_for_update().filter(
+                    bracket=bracket,
+                    status=TournamentSquadStatus.PUBLISHED,
+                ).first()
+                in_published_squad = (
+                    squad is not None
+                    and squad.entries.filter(player=player).exists()
+                )
+                if not in_published_squad:
+                    previous_reason = (
+                        existing.squad_override_reason if existing else ''
+                    )
+                    squad_override_reason = (
+                        requested_squad_reason or previous_reason
+                    ).strip()
+                    if not squad_override_reason:
+                        raise ValidationError({
+                            'squadOverrideReason': (
+                                'Explain why this eligible out-of-squad player '
+                                'is being added to the match.'
+                            )
+                        })
+                    if squad_override_reason != previous_reason:
+                        save_kwargs.update({
+                            'squad_override_reason': squad_override_reason,
+                            'squad_override_by': request.user,
+                            'squad_override_at': timezone.now(),
+                        })
+                        squad_override_applied = True
             serializer = PlayerMatchStatisticsWriteSerializer(
                 existing, data=data,
             )
@@ -1362,6 +1494,7 @@ class MatchPerformanceDetailView(APIView):
                 match=match,
                 player=player,
                 recorded_by=request.user,
+                **save_kwargs,
             )
         AuditLog.record(
             request.user,
@@ -1374,6 +1507,13 @@ class MatchPerformanceDetailView(APIView):
                 'match.injury_override',
                 target=f'{match.pk}:{player.pk}',
                 detail=','.join(str(item.id) for item in active_injuries),
+            )
+        if squad_override_applied:
+            AuditLog.record(
+                request.user,
+                'match.squad_override',
+                target=f'{match.pk}:{player.pk}',
+                detail=squad_override_reason,
             )
         return Response(
             PlayerMatchPerformanceSerializer(

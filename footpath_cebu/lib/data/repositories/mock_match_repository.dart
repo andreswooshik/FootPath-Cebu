@@ -106,6 +106,8 @@ class MockMatchRepository implements MatchRepository {
       opponentScore: draft.opponentScore,
       fixtureId: _matches[index].fixtureId,
       recordSource: _matches[index].recordSource,
+      ageBracketId: _matches[index].ageBracketId,
+      ageBracketLabel: _matches[index].ageBracketLabel,
     );
     _matches[index] = updated;
     return updated;
@@ -118,7 +120,10 @@ class MockMatchRepository implements MatchRepository {
           .toList(growable: false);
 
   @override
-  Future<List<MatchRosterPlayer>> fetchMatchRoster(String matchId) async {
+  Future<List<MatchRosterPlayer>> fetchMatchRoster(
+    String matchId, {
+    bool includeOutOfSquad = false,
+  }) async {
     final rows = await fetchMatchPerformances(matchId);
     final byPlayer = {for (final row in rows) row.playerId: row};
     return [

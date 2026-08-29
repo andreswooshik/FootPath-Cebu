@@ -15,12 +15,14 @@ class EditMatchPerformanceScreen extends ConsumerStatefulWidget {
     required this.player,
     this.existing,
     this.injuryOverrideAcknowledged = false,
+    this.squadOverrideReason = '',
   });
 
   final FootballMatch match;
   final MatchRosterPlayer player;
   final MatchPerformance? existing;
   final bool injuryOverrideAcknowledged;
+  final String squadOverrideReason;
 
   @override
   ConsumerState<EditMatchPerformanceScreen> createState() =>
@@ -118,6 +120,7 @@ class _EditMatchPerformanceScreenState
       goalsConceded: _value('goalsConceded'),
       cleanSheet: _cleanSheet,
       injuryOverrideAcknowledged: acknowledged,
+      squadOverrideReason: widget.squadOverrideReason,
     );
     final saved = await ref
         .read(matchManagementControllerProvider.notifier)
@@ -228,6 +231,7 @@ class _EditMatchPerformanceScreenState
             const SizedBox(height: 16),
             DropdownButtonFormField<PlayerPosition>(
               initialValue: _position,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: 'Match position'),
               items: PlayerPosition.values
                   .map(

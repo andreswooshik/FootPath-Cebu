@@ -157,11 +157,16 @@ class TournamentPortalTests(TestCase):
             document_path='local/schedule.pdf',
             uploaded_by=self.coordinator,
         )
+        bracket = TournamentAgeBracket.objects.create(
+            schedule=schedule,
+            max_age=10,
+        )
         kickoff = timezone.localtime() + timedelta(days=3)
         response = self.client.post(
             reverse('portal:tournament-detail', args=[schedule.id]),
             {
                 'action': 'add-fixture',
+                'fixture-age_bracket': bracket.id,
                 'fixture-stage': 'Quarter-final',
                 'fixture-opponent': 'TBD',
                 'fixture-kickoff_at': kickoff.strftime('%Y-%m-%dT%H:%M'),
@@ -176,7 +181,40 @@ class TournamentPortalTests(TestCase):
         )
         fixture = TournamentFixture.objects.get()
         self.assertEqual(fixture.schedule, schedule)
+        self.assertEqual(fixture.age_bracket, bracket)
         self.assertEqual(fixture.stage, 'Quarter-final')
+
+    def test_fixture_form_rejects_a_bracket_from_another_tournament(self):
+        schedule = TournamentSchedule.objects.create(
+            club=self.club,
+            title='First Cup',
+            starts_on='2026-09-10',
+        )
+        other = TournamentSchedule.objects.create(
+            club=self.club,
+            title='Second Cup',
+            starts_on='2026-10-10',
+        )
+        other_bracket = TournamentAgeBracket.objects.create(
+            schedule=other,
+            max_age=12,
+        )
+        response = self.client.post(
+            reverse('portal:tournament-detail', args=[schedule.id]),
+            {
+                'action': 'add-fixture',
+                'fixture-age_bracket': other_bracket.id,
+                'fixture-stage': 'Group A',
+                'fixture-opponent': 'Rivals FC',
+                'fixture-kickoff_at': '2026-09-10T10:00',
+                'fixture-venue': MatchVenue.NEUTRAL,
+                'fixture-location': 'Pitch 1',
+                'fixture-status': FixtureStatus.SCHEDULED,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Select a valid choice')
+        self.assertFalse(schedule.fixtures.exists())
 
     def test_coordinator_can_publish_without_document(self):
         response = self.client.post(reverse('portal:tournaments'), {

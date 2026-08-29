@@ -198,12 +198,15 @@ class FootballMatchSerializer(serializers.ModelSerializer):
     )
     fixtureId = serializers.SerializerMethodField()
     recordSource = serializers.SerializerMethodField()
+    ageBracketId = serializers.SerializerMethodField()
+    ageBracketLabel = serializers.SerializerMethodField()
 
     class Meta:
         model = FootballMatch
         fields = [
             'id', 'opponent', 'competition', 'playedOn', 'venue',
             'ourScore', 'opponentScore', 'fixtureId', 'recordSource',
+            'ageBracketId', 'ageBracketLabel',
         ]
 
     def validate_opponent(self, value):
@@ -237,6 +240,20 @@ class FootballMatchSerializer(serializers.ModelSerializer):
     def get_recordSource(self, obj):
         return 'SCHEDULED' if self.get_fixtureId(obj) is not None else 'AD_HOC'
 
+    def get_ageBracketId(self, obj):
+        try:
+            bracket_id = obj.source_fixture.age_bracket_id
+        except TournamentFixture.DoesNotExist:
+            return None
+        return str(bracket_id) if bracket_id is not None else None
+
+    def get_ageBracketLabel(self, obj):
+        try:
+            bracket = obj.source_fixture.age_bracket
+        except TournamentFixture.DoesNotExist:
+            return None
+        return bracket.label if bracket is not None else None
+
 
 class TournamentFixtureSerializer(serializers.ModelSerializer):
     scheduleId = serializers.CharField(source='schedule_id', read_only=True)
@@ -245,12 +262,19 @@ class TournamentFixtureSerializer(serializers.ModelSerializer):
     matchId = serializers.CharField(
         source='completed_match_id', read_only=True, allow_null=True,
     )
+    ageBracketId = serializers.CharField(
+        source='age_bracket_id', read_only=True, allow_null=True,
+    )
+    ageBracketLabel = serializers.CharField(
+        source='age_bracket.label', read_only=True, allow_null=True,
+    )
 
     class Meta:
         model = TournamentFixture
         fields = [
             'id', 'scheduleId', 'tournament', 'stage', 'opponent',
             'kickoffAt', 'venue', 'location', 'status', 'matchId',
+            'ageBracketId', 'ageBracketLabel',
         ]
 
 
@@ -431,6 +455,13 @@ class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
         coerce_to_string=False, allow_null=True,
     )
     ratingStatus = serializers.SerializerMethodField()
+    squadException = serializers.SerializerMethodField()
+    squadOverrideReason = serializers.CharField(
+        source='squad_override_reason', read_only=True,
+    )
+    squadOverrideAt = serializers.DateTimeField(
+        source='squad_override_at', read_only=True, allow_null=True,
+    )
 
     class Meta:
         model = PlayerMatchPerformance
@@ -440,6 +471,7 @@ class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
             'passesAttempted', 'passesCompleted', 'tackles', 'interceptions',
             'yellowCards', 'redCards', 'saves', 'goalsConceded', 'cleanSheet',
             'coachRating', 'notes', 'ratingStatus',
+            'squadException', 'squadOverrideReason', 'squadOverrideAt',
         ]
 
     def get_playerName(self, obj):
@@ -448,12 +480,19 @@ class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
     def get_ratingStatus(self, obj):
         return 'RATED' if obj.coach_rating is not None else 'AWAITING_RATING'
 
+    def get_squadException(self, obj):
+        return bool(obj.squad_override_reason)
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         request = self.context.get('request')
-        if getattr(getattr(request, 'user', None), 'role', None) == Roles.COORDINATOR:
+        role = getattr(getattr(request, 'user', None), 'role', None)
+        if role == Roles.COORDINATOR:
             data.pop('coachRating', None)
             data.pop('notes', None)
+        if role not in (Roles.COORDINATOR, Roles.ADMIN):
+            data.pop('squadOverrideReason', None)
+            data.pop('squadOverrideAt', None)
         return data
 
 

@@ -73,6 +73,7 @@ void main() {
         saves: 0,
         goalsConceded: 0,
         cleanSheet: false,
+        squadOverrideReason: 'Organizer-approved late replacement.',
       );
 
       final saved = await repository.savePerformance('m1', 'p1', draft);
@@ -84,7 +85,52 @@ void main() {
       expect(body.containsKey('club'), isFalse);
       expect(body.containsKey('playerId'), isFalse);
       expect(body.containsKey('coachRating'), isFalse);
+      expect(
+        body['squadOverrideReason'],
+        'Organizer-approved late replacement.',
+      );
       expect(saved.coachRating, 8);
+    },
+  );
+
+  test(
+    'out-of-squad roster request uses the explicit candidate query',
+    () async {
+      late http.Request captured;
+      final api = AuthenticatedApiClient(
+        identityProvider: () =>
+            ApiIdentity(uid: 'coordinator-1', getIdToken: (_) async => 'token'),
+        httpClient: MockClient((request) async {
+          captured = request;
+          return http.Response(
+            jsonEncode([
+              {
+                'id': 'p2',
+                'name': 'Eligible Replacement',
+                'registeredPosition': 'RW',
+                'tournamentPosition': '',
+                'performance': null,
+                'ratingStatus': 'AWAITING_STATISTICS',
+                'inTournamentSquad': false,
+                'requiresSquadOverride': true,
+                'isSelectable': true,
+                'availability': 'ELIGIBLE',
+                'availabilityReason': 'Eligible for this bracket.',
+              },
+            ]),
+            200,
+          );
+        }),
+      );
+
+      final rows = await ApiMatchRepository(
+        api: api,
+      ).fetchMatchRoster('m1', includeOutOfSquad: true);
+
+      expect(captured.url.path, '/api/matches/m1/roster/');
+      expect(captured.url.queryParameters['includeOutOfSquad'], 'true');
+      expect(rows.single.requiresSquadOverride, isTrue);
+      expect(rows.single.isSelectable, isTrue);
     },
   );
 

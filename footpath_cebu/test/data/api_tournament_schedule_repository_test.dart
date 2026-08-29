@@ -59,6 +59,8 @@ void main() {
                   'location': 'Cebu City Sports Center',
                   'status': 'SCHEDULED',
                   'matchId': null,
+                  'ageBracketId': 'b12',
+                  'ageBracketLabel': 'U12',
                 },
               ],
             },
@@ -84,6 +86,7 @@ void main() {
       rows.single.fixtures.single.status,
       TournamentFixtureStatus.scheduled,
     );
+    expect(rows.single.fixtures.single.ageBracketLabel, 'U12');
     expect(rows.single.fixtures.single.opponent, 'Mandaue FC');
   });
 

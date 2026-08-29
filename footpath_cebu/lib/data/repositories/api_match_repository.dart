@@ -75,9 +75,13 @@ class ApiMatchRepository implements MatchRepository {
   }
 
   @override
-  Future<List<MatchRosterPlayer>> fetchMatchRoster(String matchId) async {
+  Future<List<MatchRosterPlayer>> fetchMatchRoster(
+    String matchId, {
+    bool includeOutOfSquad = false,
+  }) async {
     try {
-      final response = await _api.get('/api/matches/$matchId/roster/');
+      final suffix = includeOutOfSquad ? '?includeOutOfSquad=true' : '';
+      final response = await _api.get('/api/matches/$matchId/roster/$suffix');
       return (jsonDecode(response.body) as List)
           .cast<Map<String, dynamic>>()
           .map(MatchRosterPlayer.fromJson)

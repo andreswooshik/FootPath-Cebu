@@ -61,6 +61,8 @@ class TournamentFixture {
     required this.location,
     required this.status,
     this.matchId,
+    this.ageBracketId,
+    this.ageBracketLabel,
   });
 
   final String id;
@@ -73,6 +75,8 @@ class TournamentFixture {
   final String location;
   final TournamentFixtureStatus status;
   final String? matchId;
+  final String? ageBracketId;
+  final String? ageBracketLabel;
 
   bool get hasResult =>
       matchId != null || status == TournamentFixtureStatus.completed;
@@ -97,6 +101,8 @@ class TournamentFixture {
         location: json['location'] as String? ?? '',
         status: TournamentFixtureStatusInfo.fromWire(json['status'] as String?),
         matchId: json['matchId']?.toString(),
+        ageBracketId: json['ageBracketId']?.toString(),
+        ageBracketLabel: json['ageBracketLabel'] as String?,
       );
 }
 

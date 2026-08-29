@@ -16,6 +16,26 @@ void main() {
     expect(player.activeInjuryStatus, InjuryStatus.recovering);
   });
 
+  test('match roster parses server-owned tournament selection flags', () {
+    final player = MatchRosterPlayer.fromJson(const {
+      'id': 'p2',
+      'name': 'Eligible Replacement',
+      'registeredPosition': 'RW',
+      'tournamentPosition': 'LW',
+      'performance': null,
+      'ratingStatus': 'AWAITING_STATISTICS',
+      'inTournamentSquad': false,
+      'requiresSquadOverride': true,
+      'isSelectable': true,
+      'availability': 'WARNING',
+      'availabilityReason': 'Pending injury report - review before selection.',
+    });
+
+    expect(player.tournamentPosition, 'LW');
+    expect(player.requiresSquadOverride, isTrue);
+    expect(player.availability, 'WARNING');
+  });
+
   test('parses the match statistics wire contract', () {
     final statistics = PlayerMatchStatistics.fromJson({
       'playerId': 'p1',

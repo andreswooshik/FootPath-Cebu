@@ -30,6 +30,8 @@ class FootballMatch {
     required this.opponentScore,
     this.fixtureId,
     this.recordSource = MatchRecordSource.adHoc,
+    this.ageBracketId,
+    this.ageBracketLabel,
   });
 
   final String id;
@@ -41,6 +43,10 @@ class FootballMatch {
   final int opponentScore;
   final String? fixtureId;
   final MatchRecordSource recordSource;
+  final String? ageBracketId;
+  final String? ageBracketLabel;
+
+  bool get isAgeBracketMatch => ageBracketId != null;
 
   String get scoreLabel => '$ourScore–$opponentScore';
 
@@ -62,6 +68,8 @@ class FootballMatch {
     recordSource: json['recordSource'] == 'SCHEDULED'
         ? MatchRecordSource.scheduled
         : MatchRecordSource.adHoc,
+    ageBracketId: json['ageBracketId']?.toString(),
+    ageBracketLabel: json['ageBracketLabel'] as String?,
   );
 }
 
