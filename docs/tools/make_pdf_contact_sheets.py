@@ -3,8 +3,9 @@ import math
 from PIL import Image, ImageDraw
 
 
-pages = sorted(Path("tmp/pdfs/rendered-v2").glob("page-*.png"))
-output = Path("tmp/pdfs/contact-v2")
+ROOT = Path(__file__).resolve().parents[2]
+pages = sorted((ROOT / "tmp" / "pdfs" / "rendered-v2").glob("page-*.png"))
+output = ROOT / "tmp" / "pdfs" / "contact-v2"
 output.mkdir(parents=True, exist_ok=True)
 thumb_w, thumb_h = 400, 283
 columns, rows = 4, 4

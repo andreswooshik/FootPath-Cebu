@@ -21,7 +21,11 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt pip-audit bandit
+      - name: Audit Python dependencies and backend source
+        run: |
+          pip-audit --local
+          bandit -r accounts academy config console portal scripts -x '*/migrations/*,*/tests.py' -ll -q
       - name: Run tests
         # The suite forces SQLite (see config.settings.TESTING) and mocks
         # Firebase, so no credentials or network are needed.
@@ -42,6 +46,11 @@ jobs:
           DJANGO_ALLOWED_HOSTS: ci.example.test
           CORS_ORIGINS: https://app.example.test
           REDIS_URL: redis://127.0.0.1:6379/0
+          DB_HOST: db.example.test
+          DB_NAME: postgres
+          DB_USER: ci
+          DB_PASSWORD: ci-only-placeholder-password
+          DB_SSLMODE: require
         run: python manage.py check --deploy
       - name: Validate operations scripts
         run: |

@@ -12,6 +12,7 @@ import 'package:footpath_cebu/data/repositories/api_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_match_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_notification_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_progress_repository.dart';
@@ -28,6 +29,7 @@ import 'package:footpath_cebu/data/repositories/mock_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_injury_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_match_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_notification_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_progress_repository.dart';
@@ -45,6 +47,7 @@ import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 import 'package:footpath_cebu/domain/repositories/eligibility_history_repository.dart';
 import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
 import 'package:footpath_cebu/domain/repositories/match_repository.dart';
+import 'package:footpath_cebu/domain/repositories/notification_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/domain/repositories/progress_repository.dart';
@@ -139,6 +142,11 @@ bool get useMockData {
 
 final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => useMockData ? MockAuthRepository() : FirebaseAuthRepository(),
+);
+
+final notificationRepositoryProvider = Provider<NotificationRepository>(
+  (ref) =>
+      useMockData ? MockNotificationRepository() : ApiNotificationRepository(),
 );
 
 final playerRepositoryProvider = Provider<PlayerRepository>(

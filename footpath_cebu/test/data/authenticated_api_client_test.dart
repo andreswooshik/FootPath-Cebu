@@ -37,7 +37,7 @@ void main() {
       cache: cache,
       identityProvider: identity,
     );
-    await online.get('/api/core/');
+    await online.get('/api/core/', cache: true);
 
     final offline = AuthenticatedApiClient(
       httpClient: MockClient((_) => Completer<http.Response>().future),
@@ -46,7 +46,7 @@ void main() {
       timeout: const Duration(milliseconds: 10),
     );
 
-    final response = await offline.get('/api/core/');
+    final response = await offline.get('/api/core/', cache: true);
     expect(response.body, '{"value":"fresh"}');
     expect(
       response.headers[AuthenticatedApiClient.cachedResponseHeader],
@@ -64,7 +64,7 @@ void main() {
         cache: cache,
         identityProvider: identity,
       );
-      await online.get('/api/core/');
+      await online.get('/api/core/', cache: true);
 
       activeUid = 'user-b';
       final offline = AuthenticatedApiClient(
@@ -76,7 +76,7 @@ void main() {
       );
 
       await expectLater(
-        offline.get('/api/core/'),
+        offline.get('/api/core/', cache: true),
         throwsA(isA<ApiNetworkException>()),
       );
     },
@@ -98,10 +98,10 @@ void main() {
       cache: cache,
       identityProvider: identity,
     );
-    await client.get('/api/core/');
+    await client.get('/api/core/', cache: true);
 
     await expectLater(
-      client.get('/api/core/'),
+      client.get('/api/core/', cache: true),
       throwsA(
         isA<ApiHttpException>()
             .having((error) => error.statusCode, 'statusCode', 403)
@@ -127,10 +127,10 @@ void main() {
         cache: cache,
         identityProvider: identity,
       );
-      await client.get('/api/core/');
+      await client.get('/api/core/', cache: true);
 
       await expectLater(
-        client.get('/api/core/'),
+        client.get('/api/core/', cache: true),
         throwsA(
           isA<ApiHttpException>().having(
             (error) => error.statusCode,
@@ -164,7 +164,7 @@ void main() {
         identityProvider: identity,
       );
       await expectLater(
-        malformed.get('/api/core/'),
+        malformed.get('/api/core/', cache: true),
         throwsA(isA<ApiDecodeException>()),
       );
 
@@ -176,7 +176,7 @@ void main() {
         identityProvider: identity,
       );
       await expectLater(
-        offline.get('/api/core/'),
+        offline.get('/api/core/', cache: true),
         throwsA(isA<ApiNetworkException>()),
       );
     },
@@ -191,7 +191,11 @@ void main() {
         cache: cache,
         identityProvider: identity,
       );
-      await online.get('/api/players/1/profile/', headers: unlockHeaders);
+      await online.get(
+        '/api/players/1/profile/',
+        headers: unlockHeaders,
+        cache: true,
+      );
 
       final offline = AuthenticatedApiClient(
         httpClient: MockClient(
@@ -201,11 +205,36 @@ void main() {
         identityProvider: identity,
       );
       await expectLater(
-        offline.get('/api/players/1/profile/', headers: unlockHeaders),
+        offline.get(
+          '/api/players/1/profile/',
+          headers: unlockHeaders,
+          cache: true,
+        ),
         throwsA(isA<ApiNetworkException>()),
       );
     },
   );
+
+  test('authenticated GET caching is disabled by default', () async {
+    final online = AuthenticatedApiClient(
+      httpClient: MockClient((_) async => http.Response('{"value":1}', 200)),
+      cache: cache,
+      identityProvider: identity,
+    );
+    await online.get('/api/default-no-cache/');
+
+    final offline = AuthenticatedApiClient(
+      httpClient: MockClient(
+        (_) async => throw http.ClientException('offline'),
+      ),
+      cache: cache,
+      identityProvider: identity,
+    );
+    await expectLater(
+      offline.get('/api/default-no-cache/', cache: true),
+      throwsA(isA<ApiNetworkException>()),
+    );
+  });
 
   test(
     'a network failure without a cached GET stays a network error',

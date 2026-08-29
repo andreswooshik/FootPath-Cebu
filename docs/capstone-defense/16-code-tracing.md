@@ -2,6 +2,86 @@
 
 This execution map follows only verified repository connections. Approximate locations use symbol names/nearby line numbers because line numbers can move. Django’s default table names are stated where no explicit `db_table` overrides exist.
 
+## 50% defense implementation snapshot
+
+This reviewer describes the current repository at commit `532446a`. For the 50% defense, the defensible claim is that the implemented core is integrated and testable: authenticated role routing, Club-scoped account management, player profiles, privacy PINs, training and attendance, assessments, eligibility rules, disputes, notifications, tournament schedules, completed-match statistics and ratings, injury confirmation, and private uploads all have executable Flutter/Django paths. The normal Flutter build uses live Firebase and Django repositories; mock repositories remain available only for isolated development and automated Flutter tests.
+
+"Done for the 50% defense" does not mean that every possible future feature or production operation is complete. Scout reports and AI recommendations are explicitly not implemented. Real-device FCM/APNs delivery, a public deployment, production alerting, and a restore drill remain environment-dependent verification items. This wording lets the team defend what exists without claiming more than the repository proves.
+
+### Short defense answer
+
+> Our 50% build is an integrated client-server system, not a collection of disconnected screens. Flutter obtains identity from Firebase, sends authenticated REST requests to Django, and Django applies the authoritative role, Club, object, and privacy rules before using its ORM. The current scope covers the main academy, safeguarding, tournament, and performance workflows. Automated tests and CI give repeatable evidence for the committed build, while deployment and physical-device checks remain separate validation work.
+
+## How the applications communicate
+
+The mobile application and backend communicate through a REST-style HTTP API implemented with Django REST Framework. Flutter does not connect directly to PostgreSQL, SQLite, Redis, Firebase Admin, or Supabase Storage.
+
+```text
+Flutter screen
+  -> Riverpod provider/controller
+  -> domain use case
+  -> repository interface
+  -> Api*Repository
+  -> AuthenticatedApiClient (`http` package)
+  -> HTTPS + JSON or multipart/form-data
+  -> Django URL route
+  -> DRF APIView + FirebaseAuthentication
+  -> serializer validation + role/Club/object checks
+  -> Django ORM transaction
+  -> PostgreSQL/Supabase in live production, SQLite in tests/local development
+  -> DRF JSON response
+  -> Dart `fromJson()` entity
+  -> Riverpod state refresh
+  -> rebuilt Flutter widget
+```
+
+### Authentication and request contract
+
+1. Firebase Authentication signs in the Flutter user and issues an ID token.
+2. `AuthenticatedApiClient` requests the current token and adds `Authorization: Bearer <Firebase ID token>`.
+3. JSON writes add `Content-Type: application/json`; photo uploads use `multipart/form-data`.
+4. `accounts.authentication.FirebaseAuthentication` verifies signature, expiry, and revocation with Firebase Admin, then maps the UID to an active Django `User`.
+5. Django uses the local `User.role`, `User.club`, guardian links, privacy unlock header, and object queries for authorization. The Firebase token proves identity but does not choose permissions.
+6. Serializers validate input and shape JSON output. Server-owned fields such as Club, actor, player, creator, and recorder are derived from the authenticated request or a scoped URL lookup.
+
+Typical calls include `GET /api/auth/me/`, `GET /api/tournament-schedules/`, `POST /api/training-sessions/`, `PUT /api/matches/{matchId}/performances/{playerId}/`, and `POST /api/injuries/{id}/review/`. Successful reads usually return HTTP 200; creates normally return 201; successful deletes return 204; validation, authentication, permission, missing-object, conflict, and server failures use 400, 401, 403, 404, 409, and 5xx responses respectively.
+
+### Why use an API boundary
+
+- Security: Flutter never receives database credentials, Firebase Admin credentials, or the Supabase service key.
+- Central authorization: Django enforces the same role and Club rules even if a mobile request is modified.
+- Validation and integrity: serializers, model validation, transactions, foreign keys, unique constraints, and database checks protect writes.
+- Maintainability: presentation and domain code depend on interfaces instead of HTTP details.
+- Testability: live repositories can be replaced by mocks/fakes without rewriting screens or use cases.
+- Multi-client support: Flutter, the Django portal, admin, and future clients can share the same server-owned data model.
+- Resilience: the shared client standardizes token attachment, timeouts, typed errors, owner-scoped GET caching, and the attendance offline outbox.
+
+## Technology stack and purpose
+
+| Area | Technology | Purpose in FootPath Cebu |
+|---|---|---|
+| Mobile application | Flutter and Dart | Cross-platform Coach, Coordinator, Player, and Guardian client |
+| Mobile architecture | Clean Architecture with presentation, domain, and data layers | Separates UI, business operations, and infrastructure dependencies |
+| State and dependency wiring | Riverpod | Async state, controllers, provider families, invalidation, and dependency injection |
+| Mobile HTTP | Dart `http` and `http_parser` | JSON requests, Bearer headers, and multipart uploads to Django |
+| Mobile identity | Firebase Authentication | Email/password sign-in, persisted session, ID-token issuance, and reauthentication |
+| Push transport | Firebase Cloud Messaging | Best-effort device alerts; Django remains the source for the persistent inbox |
+| Mobile local resilience | `sqflite` and `connectivity_plus` | Owner-scoped GET cache, attendance outbox, and reconnect-driven replay |
+| Backend | Python, Django 5.2, Django REST Framework 3.16 | API routing, serializers, permissions, web portal, admin, services, and ORM |
+| Backend identity bridge | Firebase Admin SDK | Verifies Firebase ID tokens and sends FCM notifications from trusted server code |
+| Web interfaces | Django templates, JavaScript, self-hosted Tailwind CSS | Coordinator/School Staff portal and emergency admin console |
+| Relational persistence | Django ORM with PostgreSQL/Supabase for live deployment | Authoritative users, Clubs, academy records, constraints, transactions, and migrations |
+| Local/test persistence | SQLite | Zero-setup local development and isolated automated tests |
+| Private object storage | Supabase Storage REST through server-side `httpx` | Player photos and tournament documents with short-lived signed URLs |
+| Cache and lockout state | Redis in production; local-memory cache in development/tests | Shared cache, signed-URL caching, rate/lockout consistency, and revocation windows |
+| Web/session security | Django sessions, Argon2id, django-axes, CORS/CSRF controls | Protects portal authentication and browser requests |
+| Production serving | Gunicorn, WhiteNoise, Docker Compose | WSGI serving, static files, reproducible application packaging, Postgres, and Redis |
+| Monitoring | Optional Sentry plus structured console logging | Error reporting and production diagnostics without logging secrets or request bodies |
+
+### Supabase clarification
+
+Supabase has two server-side roles here. PostgreSQL/Supabase can host the relational database through Django's PostgreSQL driver, and Supabase Storage holds private files. Flutter never uses Supabase Auth or Supabase Row Level Security and never receives a service key. In non-test production, Django refuses to start without `DB_HOST`, so live execution cannot silently fall back to a device-only or local SQLite database. SQLite remains intentionally available for development and automated tests.
+
 ## Code execution map index
 
 | Required map | Location in this document |
@@ -10,13 +90,14 @@ This execution map follows only verified repository connections. Approximate loc
 | Authentication trace | Workflows 2, 4, 5, and Authorization Trace |
 | Navigation trace | Workflow 7 and Screen-to-Screen Navigation Traces |
 | Role authorization trace | Workflow 6 and Authorization Trace |
-| Player workflow trace | Workflows 8, 9, 16, 18, 25, 26, 28, 32 |
-| Coach workflow trace | Workflows 13–17, 27, 30–32 and Button-to-Database Traces |
+| Player workflow trace | Workflows 8, 9, 16, 18, 25, 26, 28, 32, and 35 |
+| Coach workflow trace | Workflows 13–17, 27, 31, 32, 34, and Button-to-Database Traces |
+| Coordinator workflow trace | Workflows 24, 26, 30, 31, 33–35 and Button-to-Database Traces |
 | Scout workflow trace | Workflows 10–12: `NOT IMPLEMENTED IN CURRENT REPOSITORY` |
 | Scouting-report trace | Workflows 10–12: `NOT IMPLEMENTED IN CURRENT REPOSITORY` |
 | Training trace | Workflows 13, 14, and 28 |
 | Attendance trace | Workflow 14 and attendance lifecycle/query/variable traces |
-| Performance trace | Workflows 15–17 and 30–32 |
+| Performance trace | Workflows 15–17 and 30–34 |
 | Academic eligibility trace | Workflows 18–19 |
 | AI trace | Workflow 23: `NOT IMPLEMENTED IN CURRENT REPOSITORY` |
 | File-upload trace | Workflow 21 |
@@ -25,9 +106,12 @@ This execution map follows only verified repository connections. Approximate loc
 | Object/model traces | Object / Model Traces section |
 | Async traces | Async Code Traces section |
 | Failure/error traces | Failure / Error Path Matrix and workflow failure paths |
-| Top 20 important function call chains | Top 20 Important Function Call Chains section |
+| Top 27 important function call chains | Top 27 Important Function Call Chains section |
 | Shared HTTP/offline-read trace | Cross-Cutting Trace: Shared Authenticated API Client and Owner-Scoped Cache |
 | Production hardening trace | Repository Production Hardening Trace |
+| Flutter/Django API communication | How the applications communicate and Cross-Cutting Trace |
+| Technology stack | Technology stack and purpose |
+| 50% defense status | 50% defense implementation snapshot and Final Trace Verification Notes |
 
 ## Workflow 1: Application Startup
 
@@ -355,7 +439,7 @@ No route-state framework; `HomeScreen` returns a different widget.
 
 ### Step 9 — UI Update
 
-`COACH` → `CoachPortalScreen(profile)`; `PLAYER` → `PlayerPortalScreen`; `GUARDIAN` → `GuardianPortalScreen`; admin/coordinator/staff → generic signed-in placeholder. Feature transitions use `Navigator.push`/`pushReplacement` with `MaterialPageRoute`; tab shells use `IndexedStack`.
+`COORDINATOR` -> `CoordinatorPortalScreen(profile)`; `COACH` -> `CoachPortalScreen(profile)`; `PLAYER` -> `PlayerPortalScreen`; `GUARDIAN` -> `GuardianPortalScreen`; Admin/School Staff use their supported web/admin surface or authenticated fallback. Feature transitions use `Navigator.push`/`pushReplacement` with `MaterialPageRoute`; adaptive tab shells use `IndexedStack` with bottom navigation or navigation rail.
 
 **Call chain:** `/api/auth/me/` role → `UserProfile.fromJson()` → `HomeScreen.build()` switch → role portal → portal tab `IndexedStack`.
 
@@ -1215,51 +1299,51 @@ Selector `Player.id` → `selectedChildIdProvider` → PIN endpoint URL → sign
 
 **Failure path:** wrong PIN increments failures; fifth triggers 15-minute lock; expired token/detail 403 causes error/reunlock; changing URL player fails binding; removing GuardianLink makes an otherwise signed token insufficient.
 
-## Workflow 26: Injury Create / Update / Delete
+## Workflow 26: Injury Reporting, Confirmation, Recovery Update, and Archive
 
 ### Trigger
 
-Player presses add in `InjuryHistoryScreen` (`onPressed` near line 95) or taps an existing writable record; `_InjuryFormSheet` save/delete buttons call `_save()`/`_delete()`.
+A Player, linked Guardian, same-Club Coach, or Coordinator starts a report from the injury UI. The Coordinator reviews Pending reports in `CoordinatorInjuriesScreen`. After confirmation, a Player, Guardian, or Coach can request a recovery-status change, and the Coordinator approves/rejects it or archives a Confirmed Recovered report.
 
 ### Step 1 — UI
 
-Form controls create an `InjuryRecord` draft with description/body area/status, occurred/resolved dates, and notes. Read-only coach/guardian views do not enable write callbacks.
+`InjuryHistoryScreen` and its form collect the affected player, description, body area, occurrence date, and notes. Reporter-facing cards display Pending/Confirmed/Rejected state. `CoordinatorInjuriesScreen` separates review work from history and exposes Confirm, Reject, Approve update, Reject update, edit, and Archive actions. Rejection actions require a reason.
 
 ### Step 2 — State / Controller Layer
 
-`InjuryFormController.submit(record)` or `.remove(record)` sets `AsyncLoading`, calls `saveInjuryProvider`/`deleteInjuryProvider`, invalidates `injuriesProvider(playerId)`, and returns saved/boolean or stores `AsyncError`.
+`InjuryFormController` owns the async mutation state. `.submit()`/`.remove()` handle Pending report edits or withdrawal; `.reviewReport()`, `.requestStatus()`, `.reviewStatus()`, and `.archive()` call the corresponding repository operations. Every success invalidates both `injuriesProvider(playerId)` and `clubInjuriesProvider`.
 
 ### Step 3 — Service / Repository Layer
 
-`SaveInjury`/`DeleteInjury` use cases call `ApiInjuryRepository`, which POSTs for a new record, PUTs `/api/injuries/{id}/` for update, or DELETEs it; GET loads history. Bearer token and optional guardian unlock header are added.
+`ApiInjuryRepository` uses `AuthenticatedApiClient` for list/create/detail plus workflow endpoints: `POST /api/injuries/{id}/review/`, `POST /api/injuries/{id}/status-updates/`, `POST /api/injuries/{id}/status-updates/{updateId}/review/`, and `POST /api/injuries/{id}/archive/`. Linked-Guardian operations include the player-specific `X-Player-Unlock` header when required.
 
 ### Step 4 — Backend / API
 
-`InjuryRecordListCreateView.post()` allows only `PLAYER` and assigns `player=request.user`. `InjuryRecordDetailView._get_record(write=True)` requires owning player for PUT/DELETE. Read paths allow owner, same-club coach, admin, or unlocked linked guardian.
+`InjuryWorkflowListCreateView.post()` derives the Player through `_injury_player_for_report()`: Player self, linked unlocked Guardian, or same-Club Coach/Coordinator. Every new report is forced to Active and Pending. `InjuryReviewView` permits only the same-Club Coordinator to Confirm or Reject a locked Pending row. A Confirmed report accepts one Pending recovery update from a Player, Guardian, or Coach; `InjuryStatusUpdateReviewView` lets only the Coordinator atomically approve/reject it. `InjuryArchiveView` requires same-Club Coordinator plus Confirmed and Recovered state.
 
 ### Step 5 — Database
 
-Insert/update/delete `academy_injuryrecord`: PK `id`, FK `player_id`, description/body/status/date/notes/timestamps. Player deletion cascades these rows.
+The workflow writes `academy_injuryrecord`, `academy_injurystatusupdaterequest`, and `academy_auditlog`. Injury rows store reporter/reviewer, review status, rejection reason, injury/recovery state, dates, and archive time. Update requests preserve the proposer, requested state/date, reviewer, decision, and reason. Transactions and row locks prevent two reviews from independently applying stale Pending state.
 
 ### Step 6 — Backend Response
 
-Create returns 201 model JSON; update returns 200; delete 204; list returns 200 list. Validation, ownership, link/unlock, network, and not-found errors become controller/provider errors.
+Create returns 201; updates/reviews/archive return 200 serialized `InjuryRecord`; withdrawal returns 204. Invalid transition/date/reason returns 400, unauthorized role/Club/link/unlock returns 403, missing rows return 404, and repository/network failures become controller errors.
 
 ### Step 7 — Model Conversion
 
-JSON ↔ `InjuryRecord.toJson()`/`InjuryRecord.fromJson()`.
+JSON converts through `InjuryRecord.fromJson()` and nested `InjuryStatusUpdate.fromJson()`; request drafts use their `toJson()` methods. Enum conversion keeps server values such as `PENDING`, `CONFIRMED`, `REJECTED`, `ARCHIVED`, `ACTIVE`, `RECOVERING`, and `RECOVERED` typed in Dart.
 
 ### Step 8 — State Update
 
-Mutation controller invalidates the player-keyed history provider; read provider refetches authoritative list.
+The controller resolves to `AsyncData` and invalidates player and Club lists. Riverpod refetches the authoritative workflow state rather than locally pretending that a review succeeded.
 
 ### Step 9 — UI Update
 
-Form sheet closes on success; history list rebuilds. Failure keeps the form and shows error state/feedback.
+Reporter history and Coordinator review queues rebuild with the server decision. Rejected reports remain visible to their reporter with the reason; care-team visibility excludes unrelated rejected reports. Archived records are hidden from normal views unless the authorized Coordinator/Admin requests archived data.
 
-**Call chain:** add/edit/delete action → form `_save()`/`_delete()` → `InjuryFormController.submit/remove()` → use case → `ApiInjuryRepository` → injury API view → serializer/model → `InjuryRecord.fromJson()`/204 → invalidate → list.
+**Call chain:** report form -> `InjuryFormController.submit()` -> `SaveInjury` -> `ApiInjuryRepository.saveInjury()` -> `POST /api/injuries/` -> `_injury_player_for_report()` -> serializer -> Pending `InjuryRecord` + audit -> `InjuryRecord.fromJson()` -> invalidate. Review continues Coordinator action -> `.reviewReport()` -> review endpoint -> `select_for_update()` -> transition + reviewer/audit -> refreshed lists.
 
-**Failure path:** invalid dates/fields → UI/server validation; guardian/coach write attempt → 403; missing ID on delete returns false locally; network/server error → `AsyncError`, no optimistic deletion.
+**Failure path:** a user cannot choose an unrelated Player because Django resolves link/Club scope; a reporter cannot self-confirm; a second Pending recovery update is rejected; rejection without a reason fails; non-Recovered archive fails; any transaction error leaves the prior authoritative state intact.
 
 ## Workflow 27: Dispute Raise and Response
 
@@ -1401,15 +1485,15 @@ Change button → `ChangePasswordController.submit()` → `_validate()` → `Cha
 
 **Failure path:** local change validation → no Firebase call; wrong current password → mapped error; no current user/email → expired-session error; network/Firebase error → controller error. There is no Django DB rollback because no Django write occurs.
 
-## Workflow 30: Coach Creates or Updates a Completed Match
+## Workflow 30: Coordinator Creates or Updates a Completed Match
 
 ### Trigger
 
-The Coach opens the Progress tab, taps the score icon to enter `CoachMatchesScreen`, then taps **Record Match** or edits an existing match from `MatchRosterScreen`.
+The Coordinator opens `CoordinatorMatchesScreen`, chooses an uncompleted tournament fixture or an ad-hoc result, then records both scores. A completed match can later be corrected by the same role.
 
 ### Step 1 - UI
 
-`EditFootballMatchScreen` validates opponent, competition, played date, venue, and both scores, then creates a `FootballMatchDraft`. Only completed matches are accepted; the date cannot be in the future.
+`EditFootballMatchScreen` creates a `FootballMatchDraft`. For a tournament fixture, opponent, competition, date, and venue come from that fixture and the Coordinator supplies the scores; for an ad-hoc result, the form validates all match fields. Only completed, non-future matches are accepted.
 
 ### Step 2 - State / Controller Layer
 
@@ -1421,11 +1505,11 @@ The Coach opens the Progress tab, taps the score icon to enter `CoachMatchesScre
 
 ### Step 4 - Backend / API
 
-Create uses `POST /api/matches/`; update uses `PUT /api/matches/{matchId}/`. `FootballMatchListCreateView.post()` permits only `COACH`, rejects a coach without a Club, and stamps `club=request.user.club` and `created_by=request.user`. `FootballMatchDetailView.put()` calls `_coach_match()`, so the match ID must belong to the authenticated Coach's Club. The client cannot choose Club ownership.
+Create uses `POST /api/matches/`; update uses `PUT /api/matches/{matchId}/`. `FootballMatchListCreateView.post()` permits only `COORDINATOR`, rejects an account without a Club, and stamps `club=request.user.club` and `created_by=request.user`. If `fixtureId` is supplied, Django locks and resolves only a same-Club, not-cancelled, not-yet-completed fixture, derives its metadata, creates the match, and links it as `completed_match` atomically. `FootballMatchDetailView.put()` uses `_role_match(..., COORDINATOR)`; a fixture-linked match exposes only score correction so scheduled facts are not silently rewritten.
 
 ### Step 5 - Database
 
-Create inserts `academy_footballmatch` and `academy_auditlog`; update changes only editable match metadata and adds an audit row. `FootballMatch.save()` calls `full_clean()`. The Club FK uses `PROTECT`, creator uses `SET_NULL`, and the `(club, -played_on)` index supports scoped history ordering.
+Create inserts `academy_footballmatch` and `academy_auditlog`; fixture-backed creation also updates `academy_tournamentfixture.completed_match_id` and status. `FootballMatch.save()` calls `full_clean()`. The Club FK uses `PROTECT`, creator uses `SET_NULL`, the fixture-to-match relation is one-to-one, and the `(club, -played_on)` index supports scoped history ordering.
 
 ### Step 6 - Backend Response
 
@@ -1441,21 +1525,21 @@ The controller resolves and invalidates affected providers. The list provider re
 
 ### Step 9 - UI Update
 
-The form closes on success; `CoachMatchesScreen` shows the new or corrected score card. Selecting a card opens `MatchRosterScreen` for per-player data entry.
+The form closes on success; `CoordinatorMatchesScreen` shows the new or corrected result. Selecting a match opens `MatchRosterScreen` for objective per-player statistics. Coaches can see Club match records but cannot create/correct the result.
 
-**Call chain:** Progress score icon -> `CoachMatchesScreen` -> **Record Match** -> `EditFootballMatchScreen._submit()` -> `MatchManagementController.create()` -> `CreateFootballMatch.call()` -> `ApiMatchRepository.createMatch()` -> `POST /api/matches/` -> `FootballMatchListCreateView.post()` -> `FootballMatchSerializer.save()` with server Club/creator -> audit -> `FootballMatch.fromJson()` -> provider invalidation -> match card.
+**Call chain:** Coordinator Matches -> fixture/result action -> `EditFootballMatchScreen._submit()` -> `MatchManagementController.create()` -> `CreateFootballMatch.call()` -> `ApiMatchRepository.createMatch()` -> `POST /api/matches/` -> role/Club/fixture lock -> `FootballMatchSerializer.save()` with server Club/creator -> optional fixture completion -> audit -> `FootballMatch.fromJson()` -> provider invalidation -> result card.
 
-**Failure path:** local form validation prevents malformed submission; API validation returns a visible repository/controller error; non-Coach and cross-Club access fail before mutation; a database failure prevents both successful response and provider refresh.
+**Failure path:** malformed result returns local/server validation; a Coach/non-Coordinator or cross-Club request fails before mutation; a cancelled/already-completed fixture fails; the atomic block prevents a match row from being saved without the corresponding fixture link.
 
-## Workflow 31: Coach Records or Corrects One Player's Match Performance
+## Workflow 31: Coordinator Records or Corrects Objective Player Statistics
 
 ### Trigger
 
-The Coach opens a match card, selects a same-Club player in `MatchRosterScreen`, enters match statistics in `EditMatchPerformanceScreen`, and presses Save. The same screen can delete an existing row after confirmation.
+The Coordinator opens a completed match in `MatchRosterScreen`, selects a same-Club Player, enters objective statistics in `EditMatchPerformanceScreen`, and presses Save. The same screen can delete an existing statistics row after confirmation.
 
 ### Step 1 - UI
 
-The form builds `MatchPerformanceDraft` from position, starter flag, minutes, goals, assists, shots, passing, defending, cards, goalkeeper fields, coach rating, and notes. Goalkeeper-only fields are shown/meaningful for position `GK`.
+The form builds `MatchPerformanceDraft` from position, starter flag, minutes, goals, assists, shots, passing, defending, cards, and goalkeeper fields. Coach rating and subjective notes are deliberately absent because they belong to the Coach-only rating workflow. Goalkeeper-only fields are shown/meaningful for position `GK`. An Active/Recovering injury warning requires explicit acknowledgement before the Coordinator can proceed.
 
 ### Step 2 - State / Controller Layer
 
@@ -1467,15 +1551,15 @@ The form builds `MatchPerformanceDraft` from position, starter flag, minutes, go
 
 ### Step 4 - Backend / API
 
-`MatchPerformanceDetailView.put()` first resolves the match through `_coach_match()` and resolves the player with role `PLAYER` plus `club_id=request.user.club_id`. Inside `transaction.atomic()`, it locks the parent match and existing performance row, validates the full replacement payload, checks team goal totals and goalkeeper concessions against the match score, then saves with server-owned `match`, `player`, and `recorded_by` fields.
+`MatchPerformanceDetailView.put()` resolves the match through `_role_match(..., COORDINATOR)` and a same-Club `PLAYER`. It detects Confirmed Active/Recovering injuries and returns HTTP 409 with `ACTIVE_INJURY_WARNING` until the request acknowledges the override. Inside `transaction.atomic()`, it locks the parent match and existing row, validates the complete objective payload, checks team goal totals and goalkeeper concessions against the match score, then saves server-owned `match`, `player`, and `recorded_by` fields. An acknowledged injury override creates a separate audit event.
 
 ### Step 5 - Database
 
-The mutation inserts or updates `academy_playermatchperformance` and records `academy_auditlog`. The unique `(match, player)` constraint prevents duplicates. Database checks enforce `shots_on_target <= shots`, `goals <= shots_on_target`, and `passes_completed <= passes_attempted`; model validation also protects player role/Club, position, clean sheet, card, rating, and goalkeeper rules.
+The mutation inserts or updates `academy_playermatchperformance` and records `academy_auditlog`. The unique `(match, player)` constraint prevents duplicates. Database checks enforce `shots_on_target <= shots`, `goals <= shots_on_target`, and `passes_completed <= passes_attempted`; model validation also protects player role/Club, position, clean sheet, card, and goalkeeper rules. Existing Coach rating/notes remain role-separated fields.
 
 ### Step 6 - Backend Response
 
-The first save returns 201; correction returns 200; deletion returns 204. The read serializer returns nested match metadata and normalized camelCase statistic fields. Impossible statistics return 400; wrong role or Club scope returns 403/404.
+The first save returns 201; correction returns 200; deletion returns 204. The read serializer returns nested match metadata and normalized camelCase fields. Impossible statistics return 400; an unacknowledged injury warning returns 409; wrong role or Club scope returns 403/404. Deleting a rated row requires `confirmRated=true` because the rating is removed with the row.
 
 ### Step 7 - Model Conversion
 
@@ -1491,15 +1575,15 @@ The editor closes after a successful save; the match roster shows the recorded p
 
 **Call chain:** match card -> `MatchRosterScreen` -> player row -> `EditMatchPerformanceScreen._save()` -> `MatchManagementController.savePerformance()` -> `SaveMatchPerformance.call()` -> `ApiMatchRepository.savePerformance()` -> authenticated PUT -> `MatchPerformanceDetailView.put()` -> scoped match/player lookup -> atomic locks -> serializer/business checks -> `PlayerMatchPerformance.save()` -> audit -> `MatchPerformance.fromJson()` -> invalidate roster/player statistics.
 
-**Variable trace:** `FootballMatch.id` + `Player.id` -> Riverpod/controller parameters -> URL `matchId/playerId` -> `_coach_match()` and same-Club player query -> database `(match_id, player_id)` unique key -> serialized IDs -> provider-family cache keys.
+**Variable trace:** `FootballMatch.id` + `Player.id` -> Riverpod/controller parameters -> URL `matchId/playerId` -> role-specific `_role_match()` and same-Club Player query -> database `(match_id, player_id)` unique key -> serialized IDs -> provider-family cache keys.
 
-**Failure path:** invalid numeric relationships or goalkeeper rules return 400; a second concurrent save is serialized by row locks and the unique constraint; a player from another Club or another Club's match never reaches the save; transaction failure leaves no partial performance row.
+**Failure path:** invalid numeric relationships or goalkeeper rules return 400; an injury requires visible acknowledgement and an audit trail; concurrent save is serialized by row locks and the unique constraint; a Player/Coach/cross-Club Coordinator cannot reach the save; transaction failure leaves no partial row.
 
-## Workflow 32: Player and Coach View Match Statistics and Trends
+## Workflow 32: Player, Guardian, and Coach View Match Statistics and Trends
 
 ### Trigger
 
-A Player opens the Match Statistics tab in `ProgressScreen`; a Coach taps a player in `CoachProgressScreen` or taps **View Match Performance Trends** in `PlayerProfileScreen`.
+A Player opens Match Statistics in `ProgressScreen`; a linked Guardian opens the protected child view after PIN unlock; a same-Club Coach opens a Player trend view from progress/profile.
 
 ### Step 1 - UI
 
@@ -1515,7 +1599,7 @@ The family `FutureProvider` calls `getPlayerMatchStatisticsProvider(playerId)`. 
 
 ### Step 4 - Backend / API
 
-`PlayerMatchStatisticsView.get()` calls `_may_read_match_statistics()`: Admin may read all, Coach only same-Club players, Player only self, and Guardian/other roles are denied. Optional `from`, `to`, and `limit` query parameters are validated; limit must be 1-100.
+`PlayerMatchStatisticsView.get()` calls `_may_read_match_statistics()`: Admin may read all, Coach only same-Club Players, Player only self, and Guardian only a linked child. The endpoint then applies `_require_unlock_when_pin_exists()`, so relationship alone does not bypass the household PIN. Optional `from`, `to`, and `limit` query parameters are validated; limit must be 1-100.
 
 ### Step 5 - Database
 
@@ -1531,7 +1615,7 @@ HTTP 200 returns `{playerId, playerName, summary, performances}`. Invalid date/l
 
 ### Step 8 - State Update
 
-The provider resolves to `AsyncData`. Coach saves/deletes invalidate this player-specific provider; pull-to-refresh explicitly refetches it.
+The provider resolves to `AsyncData`. Coordinator statistics saves/deletes and Coach rating saves/deletes invalidate this Player-specific provider; pull-to-refresh explicitly refetches it.
 
 ### Step 9 - UI Update
 
@@ -1539,13 +1623,153 @@ Summary tiles show matches, goals, assists, rating, pass rate, and saves/tackles
 
 **Call chain:** Progress/player-profile trend action -> `PlayerMatchStatisticsView` -> `playerMatchStatisticsProvider(playerId)` -> `GetPlayerMatchStatistics.call()` -> `ApiMatchRepository.fetchPlayerStatistics()` -> authenticated GET -> `_may_read_match_statistics()` -> filtered `PlayerMatchPerformance` query -> `build_performance_summary()` + serializer -> `PlayerMatchStatistics.fromJson()` -> summary/chart/history.
 
-**Authorization answer:** a Player cannot substitute another player ID because Django compares the URL ID to `request.user.id`; a Coach must share the target's Club; Guardians are deliberately excluded from this feature. Flutter navigation is convenience, not enforcement.
+**Authorization answer:** a Player cannot substitute another Player ID because Django compares it with `request.user.id`; a Coach must share the target's Club; a Guardian must have both an active link and, when configured, a player-bound unlock token. Flutter navigation is convenience, not enforcement.
 
 **Failure path:** provider error renders retry UI; empty history renders an explicit message; malformed range/limit stays a 400 rather than silently broadening access; unauthorized player/guardian/cross-Club Coach receives no statistics.
+
+## Workflow 33: Coordinator Publishes a Tournament Schedule and Fixtures
+
+### Trigger
+
+The Coordinator signs into the Django portal, opens Tournaments, uploads an official PDF/JPEG/PNG schedule, and adds structured fixtures. Authenticated mobile Club members open `TournamentScheduleScreen` to view the published programme.
+
+### Step 1 - UI
+
+The portal uses `TournamentScheduleForm`, `TournamentDocumentForm`, and `TournamentFixtureForm`. Mobile `TournamentScheduleScreen` watches `tournamentSchedulesProvider` and renders schedule cards, fixture status, kickoff, location, venue, and a signed document link.
+
+### Step 2 - State / Controller Layer
+
+Portal views use Django forms and messages rather than Riverpod. Mobile uses a `FutureProvider` that calls the tournament schedule use case/repository and displays loading, empty, error/retry, or data states.
+
+### Step 3 - Service / Repository Layer
+
+The portal calls `validate_tournament_document()`, `upload_tournament_document()`, signed-URL, replacement, and deletion helpers in `academy/storage.py`. Flutter uses `ApiTournamentScheduleRepository.fetchSchedules()` and `AuthenticatedApiClient.get('/api/tournament-schedules/')`.
+
+### Step 4 - Backend / API
+
+Portal routes are session-authenticated and decorated with `portal_role_required(COORDINATOR)`. `_coordinator_schedule()` and fixture queries always filter `club_id=request.user.club_id`. The mobile DRF endpoint is read-only for Coordinator, Coach, Player, Guardian, and Admin; non-admin results are filtered to the authenticated Club and only `is_published=True` schedules are returned.
+
+### Step 5 - Database
+
+Create inserts `academy_tournamentschedule`; fixture forms insert/update/delete `academy_tournamentfixture`; every action records `academy_auditlog`. A fixture belongs to one schedule and may point one-to-one to a completed `FootballMatch`. A schedule with completed matches cannot be deleted, and a completed fixture cannot be edited or deleted.
+
+### Step 6 - Backend Response
+
+The portal redirects with success/error messages. Mobile returns HTTP 200 with nested `TournamentScheduleSerializer` and `TournamentFixtureSerializer` JSON, including a short-lived `documentUrl` rather than a storage credential or raw private path.
+
+### Step 7 - Model Conversion
+
+`TournamentSchedule.fromJson()` creates the schedule plus typed `TournamentFixture` entries. Date/time, venue, fixture status, and optional completed match ID are normalized in Dart.
+
+### Step 8 - State Update
+
+Portal redirects reload the authoritative database state. On mobile, the FutureProvider resolves; pull-to-refresh invalidates/refetches schedules.
+
+### Step 9 - UI Update
+
+The Coordinator portal shows editable official programme data, while mobile roles receive a read-only Club schedule. A Coordinator can start completed-result entry from an eligible fixture, joining Workflow 30 without retyping scheduled metadata.
+
+**Call chain:** portal upload -> `tournament_schedules()` -> form/signature validation -> `TournamentSchedule.objects.create()` -> server-side storage upload -> save opaque path + audit -> mobile `TournamentScheduleScreen` -> provider -> `ApiTournamentScheduleRepository` -> GET -> Club-filtered serializer -> typed schedule/fixtures -> cards.
+
+**Failure path:** wrong role/Club returns portal denial or DRF 403; invalid type/signature/size is rejected before storage; storage failure shows a form error; completed fixture/schedule guards prevent history from being orphaned; Flutter receives no Supabase service key.
+
+## Workflow 34: Coach Adds or Clears a Subjective Match Rating
+
+### Trigger
+
+A same-Club Coach opens a completed match roster, selects a Player who already has Coordinator-entered objective statistics, enters a 0.0-10.0 rating and optional notes in `EditMatchRatingScreen`, then saves or clears it.
+
+### Step 1 - UI
+
+The Coach rating screen contains only `coachRating` and `notes`; it cannot alter goals, minutes, passes, cards, or goalkeeper statistics. Coordinator views receive a serializer representation with rating and notes redacted.
+
+### Step 2 - State / Controller Layer
+
+`MatchManagementController.saveRating()`/`.deleteRating()` invokes the rating use cases and invalidates `matchPerformancesProvider(matchId)`, `matchRosterProvider(matchId)`, and `playerMatchStatisticsProvider(playerId)`.
+
+### Step 3 - Service / Repository Layer
+
+`SaveMatchRating`/`DeleteMatchRating` call `ApiMatchRepository.saveRating()` or `.deleteRating()` at `/api/matches/{matchId}/performances/{playerId}/rating/`.
+
+### Step 4 - Backend / API
+
+`MatchPerformanceRatingView` calls `_role_match(..., COACH)`, then locks and resolves an existing performance. `CoachMatchRatingSerializer` accepts only rating and notes. Save stamps `rated_by=request.user` and `rated_at=timezone.now()`; delete clears those four subjective fields without deleting objective statistics.
+
+### Step 5 - Database
+
+The endpoint updates the existing `academy_playermatchperformance` row and inserts an audit record. It does not create a performance row, change its Player/match/recorder, or edit Coordinator-owned statistics.
+
+### Step 6 - Backend Response
+
+Save returns HTTP 200 serialized performance; clear returns 204. Missing statistics return 404, out-of-range rating returns 400, and non-Coach/cross-Club access returns 403/404.
+
+### Step 7 - Model Conversion
+
+Save JSON converts through `MatchPerformance.fromJson()`. A nullable rating represents `AWAITING_RATING`; a numeric rating represents `RATED`.
+
+### Step 8 - State Update
+
+The controller resolves and invalidates roster/history providers. The Player's derived average rating is recalculated by the backend on the next statistics GET.
+
+### Step 9 - UI Update
+
+Coach roster and Player/Guardian trend views show the refreshed rating and notes. Coordinator screens continue to show objective completion status without receiving subjective fields.
+
+**Call chain:** Coach roster -> `EditMatchRatingScreen` -> controller `.saveRating()` -> `SaveMatchRating` -> repository PUT -> Coach role/same-Club match -> locked existing performance -> rating serializer -> stamp rater/time + audit -> JSON -> provider invalidation -> trend/history.
+
+**Failure path:** a Coach cannot rate before objective statistics exist; Coordinator cannot submit a rating through this endpoint; invalid rating/notes fail validation; clearing removes only subjective evaluation, preserving historical statistics.
+
+## Workflow 35: Independent-Club Academic Eligibility Suppression
+
+### Trigger
+
+A Player or linked Guardian opens a profile/eligibility destination for a Club whose type does not support school academic eligibility.
+
+### Step 1 - UI
+
+Cards and profile sections use `academicEligibilityApplicable`; independent Clubs display `Eligibility N/A` or `Not applicable to an Independent club` instead of presenting a misleading academic readiness result.
+
+### Step 2 - State / Controller Layer
+
+Existing profile and eligibility providers carry the applicability flag and results. Navigation does not manufacture eligibility history when the feature does not apply.
+
+### Step 3 - Service / Repository Layer
+
+The normal player/eligibility API repositories make authenticated reads. No separate client-side database rule is trusted.
+
+### Step 4 - Backend / API
+
+`EligibilityHistoryView.get()` first runs identity, Club/link, and PIN authorization, then checks `player.club.allows_academic_eligibility`. For an independent Club it returns `{applicable: false, results: []}`. Portal/admin eligibility controls follow the same Club-type business rule.
+
+### Step 5 - Database
+
+The check reads `accounts_club` and the target Player relationship. It performs no eligibility write and does not create a fake history row.
+
+### Step 6 - Backend Response
+
+HTTP 200 distinguishes a legitimate not-applicable state from network, authorization, and missing-object errors. This avoids treating absence as either Eligible or Not Eligible.
+
+### Step 7 - Model Conversion
+
+Dart converts the applicability boolean separately from the eligibility enum/history list.
+
+### Step 8 - State Update
+
+Riverpod stores the typed response, preserving the semantic difference between `not applicable`, `empty history`, and `request failed`.
+
+### Step 9 - UI Update
+
+The academic section is hidden or labeled N/A for independent Clubs while school-affiliated Clubs retain normal status/history behavior.
+
+**Defense purpose:** this prevents the system from imposing a school-specific academic workflow on an independent football Club and demonstrates that Club type affects server-authoritative business rules, not only labels in Flutter.
+
+**Failure path:** changing Flutter UI or URL parameters cannot enable the feature because the backend rechecks the Player's stored Club type before returning data.
 
 ## Cross-Cutting Trace: Shared Authenticated API Client and Owner-Scoped Cache
 
 Live academy REST adapters delegate authentication, the 15-second timeout, accepted-status checks, safe server-error extraction, and multipart handling to `data/network/authenticated_api_client.dart` instead of duplicating those policies in each repository. `FirebaseAuthRepository` keeps the `/api/auth/me/` login/restore boundary separate because it creates or restores the identity that the shared client later consumes.
+
+`ApiConfig.baseUrl` selects `http://10.0.2.2:8000` for the Android emulator and localhost for desktop/web development unless `API_BASE_URL` is supplied at build time. Release builds require HTTPS, reject localhost/emulator hosts, and can enforce `API_ALLOWED_HOST`. The client builds normalized URIs, reserves the `Authorization` header so repositories cannot override identity, and refreshes the Firebase token once on an eligible 401 before reporting authentication failure.
 
 **Successful GET chain:** Riverpod/use case → domain repository adapter → `AuthenticatedApiClient.get(path)` → current `ApiIdentity(uid,getIdToken)` → Bearer request → accepted HTTP response → JSON validation → `ApiGetCache.put(ownerUid,requestKey,response)` → repository model conversion → provider/UI.
 
@@ -1555,7 +1779,9 @@ Attendance mutation replay remains a separate, intentionally narrow path: `Offli
 
 ## Repository Production Hardening Trace
 
-The repository contains a production image and service topology (`backend/Dockerfile`, `compose.production.yml`) using Gunicorn, WhiteNoise, PostgreSQL, and Redis; production settings add TLS/HSTS/cookie hardening, structured logs, and optional Sentry without request PII. `/api/health/` is a cheap liveness probe, while `/api/ready/` checks database and cache dependencies and returns 503 when unavailable. CI runs deploy checks, validates the guarded PostgreSQL backup/restore scripts, and builds the backend image.
+The repository contains a production image and service topology (`backend/Dockerfile`, `compose.production.yml`) using Gunicorn, WhiteNoise, PostgreSQL, and Redis; production settings add TLS/HSTS/cookie hardening, structured logs, and optional Sentry without request PII. `/api/health/` is a cheap liveness probe, while `/api/ready/` checks database and cache dependencies and returns 503 when unavailable. CI runs Django tests/checks, Flutter analysis/tests, deploy checks, guarded PostgreSQL backup/restore-script checks, and the backend production-image build.
+
+Live-data safeguards are explicit. Flutter's normal debug/profile/release composition uses Firebase plus `Api*Repository`; mocks require `USE_MOCK=true` for isolated non-release work, while Flutter tests detect their own runtime. Django uses PostgreSQL when `DB_HOST` is configured, SQLite only for DEBUG/testing, and raises `ImproperlyConfigured` in non-test production without `DB_HOST`. These guards prevent an apparently successful production app from silently writing to an unintended local database.
 
 Operational flow: container start → migrations/static collection → Gunicorn → liveness/readiness probes → platform log/optional Sentry collection. Backup flow: operator/scheduler → `scripts/postgres_backup.py` → `pg_dump` custom-format file + retention. Restore-drill flow: explicit isolated database name → `scripts/postgres_restore.py` confirmation guard → `pg_restore`.
 
@@ -1683,17 +1909,17 @@ Operational flow: container start → migrations/static collection → Gunicorn 
 - **Error Handling:** form/permission errors; signal only logs a real change.
 - **Allowed Role:** school staff updates; authorized player/guardian/staff/admin reads.
 
-## QRY-11: Injury CRUD
+## QRY-11: Injury Confirmation Workflow
 
 - **Source File:** `backend/academy/views.py`.
-- **Function:** `InjuryRecordListCreateView`, `InjuryRecordDetailView`.
-- **Query:** filter by caller/player; serializer create/update; model delete.
-- **Table:** `academy_injuryrecord`.
-- **Filter:** owning player for writes; role/club/link/unlock for reads.
-- **Data Sent:** injury fields for POST/PUT.
-- **Data Returned:** row/list or 204.
-- **Error Handling:** validation 400, access 403, missing 404.
-- **Allowed Role:** player writes own; player/coach/admin/linked unlocked guardian reads per scope.
+- **Function:** `InjuryWorkflowListCreateView`, `InjuryWorkflowDetailView`, `InjuryReviewView`, `InjuryStatusUpdateListCreateView`, `InjuryStatusUpdateReviewView`, `InjuryArchiveView`.
+- **Query:** scoped list/create/edit/withdraw; locked review transition; create and review recovery update; archive recovered report.
+- **Table:** `academy_injuryrecord`, `academy_injurystatusupdaterequest`, `academy_auditlog`.
+- **Filter:** self/link/unlock/same-Club care-team scope; Coordinator-only review/archive; pending/confirmed/recovered state guards.
+- **Data Sent:** injury report, review action/reason, or requested status/resolution date.
+- **Data Returned:** nested workflow row/list or 204.
+- **Error Handling:** transition/validation 400, access 403, missing 404; transactions and row locks prevent stale double review.
+- **Allowed Role:** Player/Guardian/Coach/Coordinator report by relationship; Player/Guardian/Coach request recovery updates; same-Club Coordinator reviews/archives; scoped care team/Admin reads.
 
 ## QRY-12: Dispute and Response
 
@@ -1759,13 +1985,13 @@ Operational flow: container start → migrations/static collection → Gunicorn 
 
 - **Source File:** `backend/academy/views.py`, `backend/academy/serializers.py`.
 - **Function:** `FootballMatchListCreateView.post()`, `FootballMatchDetailView.put()`.
-- **Query:** insert/update `FootballMatch`; insert audit row.
-- **Table:** `academy_footballmatch`, `academy_auditlog`.
-- **Filter:** Coach role and server-owned Club; update resolves `pk=match_id, club_id=request.user.club_id`.
-- **Data Sent:** opponent, competition, played date, venue, team score; no writable Club or creator.
+- **Query:** insert/update `FootballMatch`; optional locked fixture link/status update; insert audit row.
+- **Table:** `academy_footballmatch`, `academy_tournamentfixture`, `academy_auditlog`.
+- **Filter:** Coordinator role and server-owned Club; update resolves `pk=match_id, club_id=request.user.club_id`.
+- **Data Sent:** optional same-Club fixture ID or ad-hoc opponent/competition/date/venue plus team scores; no writable Club or creator.
 - **Data Returned:** `FootballMatchSerializer` map.
 - **Error Handling:** future date/invalid values 400; wrong role 403; cross-Club/missing match 404.
-- **Allowed Role:** same-Club Coach for writes; Coach/Admin for scoped reads.
+- **Allowed Role:** same-Club Coordinator for writes; Coordinator/Coach/Admin for scoped reads.
 
 ## QRY-18: Upsert Player Match Performance
 
@@ -1773,11 +1999,11 @@ Operational flow: container start → migrations/static collection → Gunicorn 
 - **Function:** `MatchPerformanceDetailView.put()`.
 - **Query:** locked parent/existing-row read; aggregate other player goals; insert/update one performance; insert audit.
 - **Table:** `academy_footballmatch`, `academy_playermatchperformance`, `accounts_user`, `academy_auditlog`.
-- **Filter:** Coach-owned match and same-Club account with role `PLAYER`; unique `(match_id, player_id)`.
-- **Data Sent:** match statistics only; match/player/recorder ownership comes from URL plus verified user.
+- **Filter:** Coordinator-owned match and same-Club account with role `PLAYER`; unique `(match_id, player_id)`; confirmed injury check.
+- **Data Sent:** objective match statistics plus optional injury-warning acknowledgement; match/player/recorder ownership comes from URL plus verified user.
 - **Data Returned:** nested `PlayerMatchPerformanceSerializer` map.
-- **Error Handling:** serializer/model/score inconsistency 400; wrong role/Club 403/404; atomic rollback and row locks protect concurrency.
-- **Allowed Role:** same-Club Coach.
+- **Error Handling:** serializer/model/score inconsistency 400; unacknowledged injury 409; wrong role/Club 403/404; atomic rollback and row locks protect concurrency.
+- **Allowed Role:** same-Club Coordinator.
 
 ## QRY-19: Read Player Match Summary and History
 
@@ -1785,11 +2011,47 @@ Operational flow: container start → migrations/static collection → Gunicorn 
 - **Function:** `PlayerMatchStatisticsView.get()`, `build_performance_summary()`.
 - **Query:** select related match/Club/player, filter by player and optional date range, newest-first slice of 1-100 rows.
 - **Table:** `academy_playermatchperformance`, `academy_footballmatch`, `accounts_user`, `accounts_club`.
-- **Filter:** player self, same-Club Coach, or Admin; Guardians are excluded.
+- **Filter:** Player self, same-Club Coach, linked Guardian with PIN unlock when configured, or Admin.
 - **Data Sent:** URL player ID; optional `from`, `to`, and `limit`.
 - **Data Returned:** player identity, aggregate summary, and serialized historical rows.
 - **Error Handling:** malformed/reversed date range or invalid limit 400; disallowed reader 403; missing Player 404.
-- **Allowed Role:** Player self, same-Club Coach, Admin.
+- **Allowed Role:** Player self, same-Club Coach, linked unlocked Guardian, Admin.
+
+## QRY-20: Publish Tournament Schedule and Fixtures
+
+- **Source File:** `backend/portal/views.py`, `backend/academy/storage.py`, `backend/academy/views.py`.
+- **Function:** `tournament_schedules()`, `tournament_schedule_detail()`, fixture edit/delete views, `TournamentScheduleListView.get()`.
+- **Query:** insert/update/delete Club schedule and fixtures; save opaque document path; read published nested schedules.
+- **Table:** `academy_tournamentschedule`, `academy_tournamentfixture`, `academy_footballmatch`, `academy_auditlog`; private Supabase Storage object.
+- **Filter:** portal Coordinator's `request.user.club_id`; mobile non-admin Club scope; published schedules only.
+- **Data Sent:** validated document bytes and structured fixture fields.
+- **Data Returned:** portal redirect or nested schedule/fixture JSON with short-lived signed document URL.
+- **Error Handling:** invalid document/signature/size, storage failure, cross-Club access, or completed-history deletion guard stops mutation.
+- **Allowed Role:** same-Club Coordinator manages; authenticated Club mobile roles read; Admin may inspect all published schedules.
+
+## QRY-21: Save or Clear Coach Match Rating
+
+- **Source File:** `backend/academy/views.py`, `backend/academy/serializers.py`.
+- **Function:** `MatchPerformanceRatingView.put()`/`.delete()`.
+- **Query:** locked existing performance update of rating/notes/rater/time; audit insert; clear only subjective fields.
+- **Table:** `academy_playermatchperformance`, `academy_auditlog`.
+- **Filter:** same-Club Coach match and existing `(match_id, player_id)` performance.
+- **Data Sent:** `coachRating` 0.0-10.0 and optional notes.
+- **Data Returned:** serialized performance or 204.
+- **Error Handling:** invalid 400, wrong role/Club 403/404, missing statistics 404.
+- **Allowed Role:** same-Club Coach.
+
+## QRY-22: Live Database Selection
+
+- **Source File:** `backend/config/settings.py`.
+- **Function:** settings-time `DATABASES` selection.
+- **Query:** PostgreSQL configuration when `DB_HOST` exists; SQLite only under DEBUG/testing.
+- **Table:** all Django ORM tables through the selected engine.
+- **Filter:** environment and `TESTING` state, not a client request.
+- **Data Sent:** server-only `DB_*` configuration.
+- **Data Returned:** configured Django database connection.
+- **Error Handling:** non-test production without `DB_HOST` raises `ImproperlyConfigured` instead of silently using SQLite.
+- **Allowed Role:** deployment configuration only; Flutter has no database credentials.
 
 # Variable Traces
 
@@ -1807,7 +2069,7 @@ Operational flow: container start → migrations/static collection → Gunicorn 
 
 ## Variable: Coach ID
 
-Verified token UID → local coach `request.user.id` → server-assigned `created_by_id`, `recorded_by_id`, `actor_id`, or `raised_by_id`. It is not accepted as a trusted client payload field.
+Verified token UID -> local Coach `request.user.id` -> server-assigned `rated_by_id`, attendance `recorded_by_id`, audit `actor_id`, or dispute `raised_by_id`. Match/result and objective-statistics ownership now comes from the Coordinator's separately verified identity. Actor IDs are not accepted as trusted client payload fields.
 
 ## Variable: Training ID
 
@@ -1827,7 +2089,15 @@ Slider/input integer → `PlayerRatings` field → nested JSON → `AssessmentSe
 
 ## Variable: Coach Rating and Trend
 
-Form decimal 0.0-10.0 -> `MatchPerformanceDraft.coachRating` -> JSON `coachRating` -> serializer Decimal validation -> `academy_playermatchperformance.coach_rating` -> summary one-decimal mean and serialized row -> Dart `double` -> `PerformanceTrendChart` chronological point.
+Coach form decimal 0.0-10.0 -> `MatchRatingDraft.coachRating` -> rating-only JSON -> `CoachMatchRatingSerializer` Decimal validation -> `academy_playermatchperformance.coach_rating` plus `rated_by_id/rated_at` -> derived one-decimal mean and serialized row -> Dart `double` -> `PerformanceTrendChart` chronological point.
+
+## Variable: Tournament Fixture ID
+
+`TournamentFixtureSerializer.id` -> `TournamentFixture.id` -> Coordinator result-selection UI -> `FootballMatchDraft.fixtureId` -> JSON `fixtureId` -> same-Club locked fixture lookup -> `TournamentFixture.completed_match_id` -> fixture status `COMPLETED`. The server derives opponent/date/venue/competition from the fixture rather than trusting repeated client fields.
+
+## Variable: Injury Review Status
+
+New report -> forced `PENDING` -> Coordinator review action `CONFIRM`/`REJECT` -> locked transition to `CONFIRMED`/`REJECTED` -> optional recovery-update approval -> injury state changes -> Confirmed Recovered report -> Coordinator archive -> `ARCHIVED`. Serializer enums become typed Dart workflow states and determine visible actions.
 
 ## Variable: Academic Eligibility
 
@@ -1881,18 +2151,18 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 
 ## Object: FootballMatch
 
-- **Created from:** Coach `FootballMatchDraft` or `FootballMatchSerializer` JSON.
+- **Created from:** Coordinator `FootballMatchDraft`, optional tournament fixture, or `FootballMatchSerializer` JSON.
 - **Converted using:** `FootballMatchDraft.toJson()` and `FootballMatch.fromJson()`.
 - **Stored in:** `academy_footballmatch`; transient `footballMatchesProvider` list and route arguments.
-- **Consumed by:** Coach match cards, match editor, match roster, nested performance history.
+- **Consumed by:** Coordinator result/statistics screens, Coach roster/rating screens, and nested Player/Guardian performance history.
 - **Key fields:** ID, opponent, competition, played date, venue, both scores; Club/creator remain server-owned.
 
 ## Object: MatchPerformance
 
-- **Created from:** Coach `MatchPerformanceDraft` or `PlayerMatchPerformanceSerializer` JSON.
+- **Created from:** Coordinator objective `MatchPerformanceDraft`, Coach `MatchRatingDraft`, or `PlayerMatchPerformanceSerializer` JSON.
 - **Converted using:** draft `toJson()` and `MatchPerformance.fromJson()` with nested `FootballMatch`.
 - **Stored in:** unique `academy_playermatchperformance` row; transient match/player family providers.
-- **Consumed by:** Coach match roster/editor and Player/Coach summary, trend chart, and match-history cards.
+- **Consumed by:** Coordinator statistics roster/editor, Coach rating roster/editor, and Player/Guardian/Coach summary, trend chart, and match-history cards.
 - **Key fields:** player/match IDs, position/start/minutes, attacking/passing/defending/card/goalkeeper statistics, coach rating, and notes.
 
 ## Object: PlayerMatchStatistics
@@ -1900,7 +2170,7 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 - **Created from:** `/api/players/{playerId}/match-statistics/` aggregate response.
 - **Converted using:** `PlayerMatchStatistics.fromJson()` with `MatchPerformanceSummary.fromJson()` and performance-list conversion.
 - **Stored in:** Riverpod `playerMatchStatisticsProvider(playerId)` only; the summary is derived, not persisted.
-- **Consumed by:** Player Match Statistics tab and Coach player-trend routes.
+- **Consumed by:** Player Match Statistics, protected linked-Guardian child view, and Coach player-trend routes.
 - **Key fields:** authorized player identity, totals/rates/average, and historical performance rows.
 
 ## Object: EligibilityChange
@@ -1911,12 +2181,21 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 - **Consumed by:** `EligibilityHistoryScreen._ChangeCard`.
 - **Key fields:** old/new status, changer representation, timestamp.
 
+## Object: TournamentSchedule
+
+- **Created from:** Coordinator portal forms or `/api/tournament-schedules/` JSON.
+- **Converted using:** `TournamentSchedule.fromJson()` with nested `TournamentFixture.fromJson()`.
+- **Stored in:** `academy_tournamentschedule`, `academy_tournamentfixture`, private object storage path; transient Riverpod provider.
+- **Consumed by:** Coordinator portal management, mobile schedule cards, and fixture-backed result entry.
+- **Key fields:** Club-owned title/private document path/publish timestamps plus stage/opponent/kickoff/venue/location/status/completed match.
+
 ## Object: InjuryRecord
 
 - **Created from:** player form draft or API JSON.
 - **Converted using:** `InjuryRecord.toJson()`/`fromJson()`.
-- **Stored in:** `academy_injuryrecord`; family provider lists.
-- **Consumed by:** injury form/history for player and read-only authorized roles.
+- **Stored in:** `academy_injuryrecord` with nested `academy_injurystatusupdaterequest`; player and Club provider lists.
+- **Consumed by:** care-team report/history views and Coordinator confirmation/recovery/archive queue.
+- **Key fields:** Player, reporter, report review state/reason/reviewer, injury state/dates, archive time, and optional Pending recovery update.
 
 ## Object: Dispute
 
@@ -1955,32 +2234,35 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 | 9 | Assign position | position picker selection | position controller/use case | `PUT /api/players/{id}/position/` | update profile/audit | position label refresh |
 | 10 | Verify PIN | privacy gate submit | PIN controller/use case | `POST /api/players/{id}/pin/verify/` | PIN counter/lock; signed token | unlocked child content |
 | 11 | Confirm session | confirmation option `respond()` | confirmation controller/use case | `POST /api/session-confirmations/` | upsert confirmation | selected response or visible retry feedback |
-| 12 | Add injury | injury form `_save()` | injury controller/use case | `POST /api/injuries/` | insert injury | refreshed history |
-| 13 | Edit injury | injury form `_save()` | same | `PUT /api/injuries/{id}/` | update injury | refreshed history |
-| 14 | Delete injury | injury form `_delete()` | controller `.remove` | `DELETE /api/injuries/{id}/` | delete injury | list item removed after refetch |
+| 12 | Report injury | injury form `_save()` | injury controller/use case | `POST /api/injuries/` | insert Pending report/audit | reporter and Club queues refresh |
+| 13 | Confirm/reject injury | Coordinator review action | controller `.reviewReport` | `POST /api/injuries/{id}/review/` | locked report transition/audit | review queue refresh |
+| 14 | Request/review recovery | care-team/Coordinator action | `.requestStatus` / `.reviewStatus` | status-update POST/review endpoints | insert request; approved transition/audit | history/Club queues refresh |
 | 15 | Flag dispute | `FlagDisputeScreen._submit()` | dispute controller/use case | `POST /api/disputes/` | insert dispute | list/thread refresh |
 | 16 | Respond dispute | response submit | controller `.respond` | `POST /api/disputes/{id}/responses/` | insert response/update status | thread refresh |
 | 17 | Staff eligibility save | portal form submit | portal service | Django `set_player_eligibility` | profile + history + audit | portal/mobile refresh |
 | 18 | Upload photo | Coach picker or portal multipart submit | photo controller/use case or portal service | Django multipart → Supabase Storage REST | object + profile path | immediate/refetched avatar or visible error |
 | 19 | Coordinator create account | portal form submit | `create_club_account` | Firebase Admin/service/ORM | user/profile/link | roster/account list |
 | 20 | Notification bell / row / push open | bell or `_openMessage()` / `_openNotification()` | notification providers + `NotificationNavigationController` | current-user notification and profile APIs | read/update `NotificationRecord`; protected destination data remains API-scoped | badged inbox or role-aware schedule/profile/eligibility destination |
-| 21 | Record match | `EditFootballMatchScreen._submit()` | `MatchManagementController.create` -> `CreateFootballMatch` | `POST /api/matches/` | insert Club-owned match/audit | refreshed match cards |
-| 22 | Save player match statistics | `EditMatchPerformanceScreen._save()` | controller -> `SaveMatchPerformance` | `PUT /api/matches/{matchId}/performances/{playerId}/` | atomic upsert unique match/player row + audit | roster and player trends refresh |
-| 23 | Delete player match statistics | editor delete confirmation | controller -> `DeleteMatchPerformance` | DELETE same performance URL | delete scoped row + audit | roster and player trends refresh |
+| 21 | Record match | Coordinator `EditFootballMatchScreen._submit()` | `MatchManagementController.create` -> `CreateFootballMatch` | `POST /api/matches/` | insert Club-owned match, optional fixture link, audit | refreshed results/fixtures |
+| 22 | Save objective statistics | Coordinator statistics editor | controller -> `SaveMatchPerformance` | `PUT /api/matches/{matchId}/performances/{playerId}/` | atomic upsert unique match/player row + injury override audit when used | roster and Player trends refresh |
+| 23 | Save Coach rating | Coach rating editor | controller -> `SaveMatchRating` | PUT rating subresource | update rating/notes/rater/time + audit | roster and trends refresh |
+| 24 | Publish tournament | Coordinator portal form | Django form/storage helpers | portal POST + Supabase Storage REST | schedule/private path/audit | portal redirect; mobile schedule available |
+| 25 | Add fixture | Coordinator portal fixture form | Django ModelForm/view | portal POST | structured fixture/audit | schedule detail refresh |
+| 26 | Archive injury | Coordinator confirmation | controller `.archive` | `POST /api/injuries/{id}/archive/` | Confirmed Recovered -> Archived + audit | removed from normal queue |
 
 # Screen-to-Screen Navigation Traces
 
 - App launch → `MaterialApp.home` → `SessionBootstrapScreen` → conditional `LoginScreen`/`HomeScreen` by widget build.
 - Login → `Navigator.pushReplacement(MaterialPageRoute(HomeScreen(profile)))` → role portal.
-- `HomeScreen` → direct widget return `CoachPortalScreen`, `PlayerPortalScreen`, or `GuardianPortalScreen`.
+- `HomeScreen` -> direct widget return `CoordinatorPortalScreen`, `CoachPortalScreen`, `PlayerPortalScreen`, or `GuardianPortalScreen` according to the server-returned role.
 - Portal bottom navigation → local tab index → `IndexedStack` child; no route push and state is retained.
 - Training list add → `_openScheduleForm()` → `Navigator.push(MaterialPageRoute(ScheduleSessionScreen))`; boolean result triggers refresh behavior.
 - Training card tap → `_logAttendance(session)` → `Navigator.push(LogAttendanceScreen(session,...))`; full session object is passed.
 - Player card → `Navigator.push` player-profile screen; `Player` object/ID passed.
 - Player profile edit assessment → `Navigator.push(EditPerformanceDataScreen(player))`; saved `Player?` returns through pop.
-- Coach Progress score icon -> `Navigator.push(CoachMatchesScreen)` -> **Record Match** opens `EditFootballMatchScreen`; tapping a match opens `MatchRosterScreen`; selecting a player opens `EditMatchPerformanceScreen`.
-- Coach Progress player card or profile trend button -> `Navigator.push(PlayerMatchStatisticsScreen(playerId,...))`.
-- Player Progress tab -> embedded `PlayerMatchStatisticsView(playerId: currentPlayer.id)`; Guardian Progress intentionally keeps training feedback only.
+- Coordinator adaptive shell -> Tournament tab (`TournamentScheduleScreen`) / Matches (`CoordinatorMatchesScreen`) / Injuries (`CoordinatorInjuriesScreen`) / Account. Fixture result or match card opens `EditFootballMatchScreen`/`MatchRosterScreen`; selecting a Player opens `EditMatchPerformanceScreen`.
+- Coach match roster -> Player with existing statistics -> `EditMatchRatingScreen`; Coach Progress player card/profile trend -> `PlayerMatchStatisticsScreen(playerId,...)`.
+- Player Progress tab -> embedded `PlayerMatchStatisticsView(playerId: currentPlayer.id)`; linked Guardian protected child destinations can open the same authorized statistics view after PIN unlock.
 - Eligibility tile → `Navigator.push(EligibilityHistoryScreen(playerId,...))`.
 - Attendance history button → `Navigator.push(AttendanceHistoryScreen(playerId,...))`.
 - Injury history tile → `Navigator.push(InjuryHistoryScreen(playerId,readOnly...))`.
@@ -2038,14 +2320,16 @@ This callback is asynchronous in event timing, not a Flutter `Future`: it defers
 | Schedule | empty/tier/date or paired/ordered time validation | non-coach/cross-club edit 403 | HTTP/DB error | field/API error; form stays + SnackBar |
 | Attendance | unmarked/dialog/window/serializer | non-coach/cross-club/player set 403 | network queues; HTTP/DB does not | queued/success pop; other error SnackBar |
 | Assessment | malformed/range serializer | non-coach/cross-club 403 | transport/DB error | form remains, old current values |
-| Match record | blank/future/venue/score invalid | only Coach writes; match is server-Club scoped | transport/DB error | form remains; list unchanged |
-| Match performance | inconsistent shots/goals/passes/GK/team score | only same-Club Coach writes | atomic lock/constraint/DB error | editor remains; no partial row; providers stay authoritative |
-| Match statistics read | bad date range/limit | Player self, same-Club Coach, Admin only; Guardian denied | network/DB error | empty/retry/error state; no broadened data |
+| Match record | blank/future/venue/score or fixture conflict | only same-Club Coordinator writes | transport/DB error | form remains; no partial match/fixture link |
+| Objective match statistics | inconsistent shots/goals/passes/GK/team score | only same-Club Coordinator writes; injury override explicit | atomic lock/constraint/DB error | warning/editor remains; providers stay authoritative |
+| Coach rating | rating range/notes invalid | only same-Club Coach; existing statistics required | lock/DB error | rating editor remains; objective fields unchanged |
+| Match statistics read | bad date range/limit | Player self, same-Club Coach, linked unlocked Guardian, Admin | network/DB error | empty/retry/error state; no broadened data |
 | Profile read | optional photo null is valid | role/link/unlock rejects | network-only may use current-owner GET cache; HTTP/DB errors remain visible | cached data or AsyncError/retry; avatar fallback |
 | PIN | format/incorrect → 400 | missing link 403 | transaction error | failure count/lock feedback; no child detail |
 | Eligibility | invalid form/choice | staff/club/read permission | DB/notification failure | DB success survives push failure; refresh required |
 | Confirmation | invalid today/status/session | non-player/cross-club | network/server | submit SnackBar or **Retry RSVP**; no false selected response |
-| Injury | invalid fields/dates | only owner writes; scoped reads | network/DB | controller error, list unchanged |
+| Injury | invalid fields/dates/transition/rejection reason | relationship-scoped report; Coordinator-only review/archive | network/transaction | controller error, prior workflow state retained |
+| Tournament | invalid document/signature/size/fixture | Coordinator own Club manages; mobile reads own Club | storage/network/DB | form error/retry; completed history protected |
 | Dispute | summary/category/status invalid | role/club/scope | network/transaction | controller error, thread unchanged |
 | Photo | missing/size/MIME/signature | same-Club Coordinator portal; same-Club Coach/Super Admin API | storage config/network/DB | no path update; visible error/fallback |
 | Provisioning | duplicate/invalid role/link | coordinator/admin gate | Firebase/DB | compensation attempts Firebase cleanup |
@@ -2069,9 +2353,9 @@ Firebase email/password or restored user
   -> ORM query/mutation
 ```
 
-Access control is a combination of backend authentication, business/view authorization, and relational filters. Flutter role routing is UX only. There is no direct client database access and no RLS layer. The backend prevents a player from pretending to be a coach because the verified UID maps to the immutable-for-request local user role; a client-supplied role is ignored, and coach endpoints compare `request.user.role` to `Roles.COACH`.
+Access control is a combination of backend authentication, business/view authorization, and relational filters. Flutter role routing is UX only. There is no direct client database access and no Supabase RLS authorization layer. The backend prevents a user from pretending to be another role because the verified UID maps to the immutable-for-request local user role; client-supplied role/Club/actor fields are ignored, and each endpoint compares `request.user.role` with its explicit capability.
 
-Match-performance authorization adds two explicit boundaries. Write endpoints derive the Coach from the verified token, resolve the match only inside that Coach's Club, resolve the player only as a same-Club `PLAYER`, and never accept writable ownership fields. The statistics read endpoint separately permits only Admin, same-Club Coach, or the Player whose URL ID equals `request.user.id`; Guardian profile access does not imply match-statistics access.
+Match-performance authorization is role-separated. The Coordinator creates results and objective statistics using a same-Club match and Player, while the Coach can change only rating/notes on an existing row. Neither accepts writable ownership. Statistics reads separately permit Admin, same-Club Coach, Player self, or linked Guardian; Guardian access still passes the Player PIN unlock check when configured. Tournament and injury workflows apply the same principle: the URL ID is always combined with stored role, Club, relationship, state transition, and sometimes a row lock.
 
 # Data Lifecycle Traces
 
@@ -2097,13 +2381,33 @@ Match-performance authorization adds two explicit boundaries. Write endpoints de
 
 ## 2A. Football Match / Historical Performance
 
-- **Create:** Coach records a completed match; Django stamps Club/creator. Coach then upserts one performance per same-Club Player.
-- **Validate:** match date/venue/scores; statistic relationships, goalkeeper fields, rating, Club/player role, team-goal and opponent-score consistency.
+- **Create:** Coordinator records a fixture-backed or ad-hoc completed match; Django stamps Club/creator. Coordinator then upserts objective statistics per same-Club Player; Coach separately rates an existing row.
+- **Validate:** fixture state/date/venue/scores; statistic relationships, goalkeeper fields, rating, Club/Player role, team-goal/opponent-score consistency, and confirmed injury warning acknowledgement.
 - **Store:** `academy_footballmatch` plus unique historical `academy_playermatchperformance` rows and audit events.
-- **Retrieve:** Coach/Admin match roster endpoints; Player self/same-Club Coach/Admin statistics endpoint with optional date/limit filter.
-- **Display:** Coach match cards and roster; Player/Coach totals, performance-rating trend chart, and match history.
-- **Update:** same-Club Coach corrects match metadata or replaces a Player's complete row; providers refetch affected views.
-- **Delete/archive:** same-Club Coach can delete a performance row; deleting a match cascades its rows at model level, but the mobile API exposes no match-delete endpoint.
+- **Retrieve:** Coordinator/Coach/Admin match roster endpoints; Player self/same-Club Coach/linked unlocked Guardian/Admin statistics endpoint with optional date/limit filter.
+- **Display:** Coordinator results/statistics, Coach rating roster, and Player/Guardian/Coach totals, rating trend, and match history.
+- **Update:** same-Club Coordinator corrects results/objective statistics; same-Club Coach saves/clears subjective rating/notes; providers refetch affected views.
+- **Delete/archive:** Coordinator can delete a performance row with rated-row confirmation; Coach can clear only rating; deleting a match cascades its rows at model level, but the mobile API exposes no match-delete endpoint.
+
+## 2B. Tournament Schedule / Fixture
+
+- **Create:** Coordinator portal uploads one official document and creates structured fixtures in the authenticated Club.
+- **Validate:** file size/MIME/signature; fixture date/time/venue/status; Club ownership.
+- **Store:** opaque private object path in `academy_tournamentschedule`; structured rows in `academy_tournamentfixture`; file bytes in Supabase Storage or development/test fallback.
+- **Retrieve:** portal Club query or published, Club-scoped mobile API with signed document URL.
+- **Display:** portal management pages and mobile tournament/fixture cards.
+- **Update:** replace document or edit an uncompleted fixture; result entry links exactly one completed match.
+- **Delete/archive:** uncompleted fixtures/schedules can be deleted; completed-history guards prevent deletion/edit that would orphan a result.
+
+## 2C. Injury Report / Recovery Workflow
+
+- **Create:** authorized care-team relationship submits a Pending report; Player/Guardian/Coach can later submit one Pending recovery update on a Confirmed injury.
+- **Validate:** Player relationship/Club/PIN, dates, states, rejection reasons, and one-Pending-update rule.
+- **Store:** `academy_injuryrecord`, `academy_injurystatusupdaterequest`, and audit rows.
+- **Retrieve:** role/Club/link/unlock-scoped care-team lists; Coordinator can request archived records.
+- **Display:** reporter history and Coordinator confirmation/recovery queue.
+- **Update:** same-Club Coordinator confirms/rejects reports, approves/rejects status requests, or edits confirmed records.
+- **Delete/archive:** Pending reporter/Coordinator can withdraw; only Confirmed Recovered report can be archived by same-Club Coordinator.
 
 ## 3. Training Session
 
@@ -2128,10 +2432,10 @@ Match-performance authorization adds two explicit boundaries. Write endpoints de
 ## 5. Eligibility
 
 - **Create:** first status is part of player profile; every real change creates history.
-- **Validate:** portal choice, school-staff role, same club.
+- **Validate:** portal choice, School Staff role, same Club, and Club type supports academic eligibility.
 - **Store:** current `academy_playerprofile.eligibility` + append-only `academy_eligibilityhistory`.
 - **Retrieve:** player profile and history endpoint.
-- **Display:** badge/history cards.
+- **Display:** badge/history cards for school-affiliated Clubs; explicit N/A/hidden academic status for independent Clubs.
 - **Update:** school-staff portal save, signals/audit/FCM.
 - **Delete/archive:** player deletion cascades history; no normal history edit/delete UI.
 
@@ -2149,7 +2453,7 @@ Match-performance authorization adds two explicit boundaries. Write endpoints de
 
 `NOT IMPLEMENTED IN CURRENT REPOSITORY` at every lifecycle stage.
 
-# Top 23 Important Function Call Chains
+# Top 27 Important Function Call Chains
 
 1. **Startup:** `main()` → `Firebase.initializeApp()` → `runApp(ProviderScope)` → `_FootPathAppState.initState()` messaging listeners → `FootPathApp.build()` → `SessionBootstrapScreen`.
 2. **Restore:** `initState()` → `_restore()` → `RestoreSession.call()` → `FirebaseAuthRepository.restoreSession()` → `authStateChanges().first` → `/api/auth/me/` → `UserProfile.fromJson()` → `HomeScreen`.
@@ -2168,14 +2472,18 @@ Match-performance authorization adds two explicit boundaries. Write endpoints de
 15. **Attendance offline replay:** API transport exception → decorator → `AttendanceOutbox.enqueue()` → `AttendanceSyncService` owner query → API repository retry → backend save → outbox delete.
 16. **Squad progress:** progress screen → `squadProgressProvider` → `GetSquadProgress.call()` → API progress repository → `SquadProgressView.get()` → Coach Club filter or Super Admin all-club query → ORM Count/Avg → `PlayerProgress.fromJson()`.
 17. **Eligibility change:** staff form → `staff_eligibility()` → `set_player_eligibility()` → `PlayerProfile.save()` → pre/post signals → history/audit → on-commit inbox + FCM.
-18. **Injury create:** injury form `_save()` → `InjuryFormController.submit()` → `SaveInjury.call()` → API injury repository POST → `InjuryRecordListCreateView.post()` → model → `InjuryRecord.fromJson()` → invalidate.
+18. **Injury report/review:** form -> `InjuryFormController.submit()` -> `SaveInjury` -> API POST -> `InjuryWorkflowListCreateView.post()` -> Pending row/audit -> Coordinator `.reviewReport()` -> locked Confirm/Reject transition -> invalidate.
 19. **Dispute response:** response action → `DisputeFormController.respond()` → `RespondToDispute.call()` → API POST responses → `DisputeResponseCreateView.post()` → response/status transaction → `Dispute.fromJson()`.
 20. **Notification delivery/open:** mutation commit → `NotificationRecord` persistence + best-effort FCM → foreground/opened handler, bell, or inbox row → notification providers/API + `NotificationNavigationController` → current-profile role mapping → protected schedule/profile/eligibility destination or focused inbox fallback. Device registration supplies the optional FCM delivery token.
-21. **Create match:** Progress score icon -> `CoachMatchesScreen` -> match form -> `MatchManagementController.create()` -> `CreateFootballMatch` -> `ApiMatchRepository.createMatch()` -> `FootballMatchListCreateView.post()` -> server Club/creator + audit -> `FootballMatch.fromJson()` -> refresh.
-22. **Save match performance:** roster player -> performance editor -> controller -> `SaveMatchPerformance` -> API PUT -> `_coach_match()` + same-Club Player -> atomic locks/validation/upsert + audit -> `MatchPerformance.fromJson()` -> invalidate roster/statistics.
-23. **Read match trends:** Player tab or Coach player route -> `playerMatchStatisticsProvider` -> `GetPlayerMatchStatistics` -> API GET -> `_may_read_match_statistics()` -> scoped historical query -> `build_performance_summary()` -> typed summary/history -> chart/cards.
+21. **Publish tournament:** Coordinator portal form -> `tournament_schedules()` -> document validation -> schedule row -> private storage upload -> opaque path/audit -> nested mobile API -> typed schedule cards.
+22. **Create match:** Coordinator fixture/result action -> match form -> `MatchManagementController.create()` -> `CreateFootballMatch` -> API POST -> role/Club/fixture lock -> server Club/creator + optional fixture completion/audit -> `FootballMatch.fromJson()` -> refresh.
+23. **Save objective statistics:** Coordinator roster Player -> performance editor -> controller -> `SaveMatchPerformance` -> API PUT -> `_role_match(COORDINATOR)` + same-Club Player + injury gate -> atomic validation/upsert/audit -> `MatchPerformance.fromJson()` -> invalidate.
+24. **Save Coach rating:** Coach roster -> rating editor -> controller/use case -> rating API PUT -> `_role_match(COACH)` -> locked existing row -> rating/notes/rater/time + audit -> refresh.
+25. **Read match trends:** Player, linked unlocked Guardian, or Coach route -> `playerMatchStatisticsProvider` -> API GET -> `_may_read_match_statistics()` + PIN gate -> scoped query -> derived summary -> typed chart/history.
+26. **Recovery request:** care-team action -> controller `.requestStatus()` -> status-update API -> Confirmed injury/relationship/one-Pending validation -> request row/audit -> Coordinator review -> atomic injury transition.
+27. **Live database selection:** Django settings load -> `DB_HOST` present -> PostgreSQL/Supabase connection; DEBUG/testing -> SQLite; non-test production without `DB_HOST` -> `ImproperlyConfigured` before serving traffic.
 
-# Code-Tracing Defense Questions (38)
+# Code-Tracing Defense Questions (45)
 
 ### T1. What happens after the user presses Login?
 
@@ -2195,7 +2503,7 @@ Django loads `accounts_user` by verified Firebase UID, `UserSerializer` returns 
 
 ### T5. How does the application decide which screen to show?
 
-`HomeScreen.build()` switches on `UserProfile.role`: coach/player/guardian portals, otherwise a generic authenticated placeholder.
+`HomeScreen.build()` switches on `UserProfile.role`: Coordinator, Coach, Player, and Guardian enter their dedicated portals; other authenticated roles use their supported web/admin surface or fallback.
 
 ### T6. Trace a scouting report from UI to database.
 
@@ -2319,7 +2627,7 @@ Backend event helpers persist current-user `NotificationRecord` rows before opti
 
 ### T36. Who enters match-performance data?
 
-The Coach is the normal encoder. Django verifies `request.user.role == COACH`, derives the Club/recorder from that identity, and restricts both match and Player to the same Club. Players receive read-only access to their own history; Admin can inspect but cannot create through these endpoints.
+The Coordinator records the completed result and objective Player statistics. The Coach can add only the subjective rating and notes after statistics exist. Django verifies each role independently, derives Club/actor from the token-mapped local user, and restricts the match and Player to that Club. This separation prevents one role from controlling both evidence and evaluation.
 
 ### T37. How are impossible match statistics rejected?
 
@@ -2327,9 +2635,37 @@ The write serializer and model check field ranges and relationships such as goal
 
 ### T38. How can a Player see trends without reading another Player's data?
 
-Flutter sends the selected/current Player ID, but Django does not trust it. `_may_read_match_statistics()` compares a Player URL ID with `request.user.id`, checks same-Club scope for a Coach, permits Admin, and rejects Guardians/other roles. Only after authorization does it query rows and build the summary.
+Flutter sends the selected/current Player ID, but Django does not trust it. `_may_read_match_statistics()` compares a Player URL ID with `request.user.id`, checks same-Club scope for a Coach, permits Admin, or requires an active Guardian link. The endpoint also enforces PIN unlock when configured before querying and building the summary.
 
-# Memorization Cards — Twelve Critical Workflows
+### T39. How do Flutter and Django communicate?
+
+Flutter's API repository calls `AuthenticatedApiClient`, which sends HTTPS REST requests using JSON or multipart form data. It attaches a Firebase ID token as a Bearer header. Django REST Framework maps the URL to an APIView, verifies the token with Firebase Admin, authorizes the local role/Club/object, validates with serializers, uses the ORM, and returns JSON that Dart converts with `fromJson()`.
+
+### T40. Why does Flutter not connect directly to Supabase/PostgreSQL?
+
+Direct access would expose credentials and distribute authorization logic into a modifiable client. Django is the trusted boundary: it owns service keys, roles, Club tenancy, privacy rules, validation, transactions, audits, and signed-file URLs. Flutter therefore receives only the data each verified user may see.
+
+### T41. What API is used between the applications?
+
+The project uses a REST-style HTTP API built with Django REST Framework and Dart's `http` package. Payloads are normally JSON; photos use multipart form data. Authentication is Firebase Bearer-token based for mobile API requests, while the Django portal uses session cookies plus CSRF protection.
+
+### T42. What is the purpose of Riverpod and Clean Architecture?
+
+Screens watch Riverpod providers/controllers; controllers call domain use cases; use cases depend on repository interfaces; concrete API/Firebase/mock/local repositories live in the data layer. This keeps HTTP/Firebase details out of UI/business entities, makes async state consistent, and lets tests replace infrastructure without changing screens.
+
+### T43. How is a tournament document kept private?
+
+The Coordinator uploads it to Django, which validates size, declared type, and signature, then uploads server-side to private Supabase Storage. Django stores only an opaque path. An authorized schedule GET creates a short-lived signed URL; neither Flutter nor the browser receives the service key.
+
+### T44. Why is injury confirmation a separate workflow?
+
+An initial report may come from several care-team roles, so it begins Pending rather than immediately changing the authoritative injury state. A same-Club Coordinator confirms/rejects it. Recovery updates also require Coordinator approval and an audit trail, reducing accidental or unilateral status changes.
+
+### T45. How do we know normal builds use live shared data?
+
+Flutter defaults to Firebase plus `Api*Repository`; mocks require an explicit non-release `USE_MOCK=true` or the Flutter test runtime. Django uses PostgreSQL when `DB_HOST` is configured and refuses non-test production startup without it. SQLite is limited to DEBUG/testing, preventing silent local persistence in production.
+
+# Memorization Cards — Fifteen Critical Workflows
 
 ## Card 1: Login
 
@@ -2709,19 +3045,19 @@ School staff changes a same-club eligibility status. Signals preserve old/new hi
 
 The CSRF/session-protected staff form validates a club player and status, then calls `set_player_eligibility`. Saving `PlayerProfile` triggers `pre_save` to stash the prior value and `post_save` to insert `EligibilityHistory`, audit, and on-commit FCM only when changed. Mobile history uses a player-keyed Riverpod provider and authenticated endpoint; Django checks role/link/unlock, serializes rows, and Dart maps them to `EligibilityChange` cards. Grades are never stored.
 
-## Card 10: Injury Create
+## Card 10: Injury Report and Confirmation
 
 ### What I click
 
-Add Injury, then Save.
+Report Injury, then the Coordinator opens the review queue and confirms/rejects it.
 
 ### First function called
 
-`_InjuryFormSheetState._save()`.
+Injury form `_save()`, followed by the Coordinator review action.
 
 ### Next function
 
-`InjuryFormController.submit()` → `SaveInjury.call()`.
+`InjuryFormController.submit()`, then `.reviewReport()`.
 
 ### Service used
 
@@ -2729,7 +3065,7 @@ Add Injury, then Save.
 
 ### Database/API operation
 
-`POST /api/injuries/`; insert player-owned `academy_injuryrecord`.
+`POST /api/injuries/`, then `POST /api/injuries/{id}/review/`; insert Pending report, then locked Coordinator decision and audit.
 
 ### Data returned
 
@@ -2737,25 +3073,25 @@ Serialized `InjuryRecord`.
 
 ### State change
 
-Controller loading/data/error; player injury provider invalidated.
+Controller loading/data/error; Player and Club injury providers invalidated.
 
 ### Screen result
 
-Form closes and history list refreshes.
+Reporter history and Coordinator queue refresh with Pending/Confirmed/Rejected state.
 
 ### 20-second defense explanation
 
-The player submits a typed injury form; Django derives the owner from the authenticated player, validates and inserts the record, then Flutter refetches the history.
+An authorized care-team member submits a relationship-scoped Pending report. Only the same-Club Coordinator can confirm/reject it, and every decision is audited before Flutter refetches authoritative state.
 
 ### 60-second technical explanation
 
-The form creates an `InjuryRecord` draft and calls `InjuryFormController`, which invokes `SaveInjury` and the API repository. The repository delegates the authenticated POST to `AuthenticatedApiClient`. The view requires player role and ignores any attempt to choose another owner by saving `player=request.user`. Serializer writes the row and returns JSON; `InjuryRecord.fromJson` converts it, controller invalidates `injuriesProvider(playerId)`, and the list rebuilds. Invalid fields, network errors, and non-owner writes remain errors with no optimistic mutation.
+The form creates an `InjuryRecord` draft and calls the controller/use case/API repository. Django resolves the affected Player from self, Guardian link/PIN, or same-Club Coach/Coordinator scope and forces Active/Pending state. The Coordinator's review endpoint locks that same row, rechecks Club and Pending state, requires a rejection reason when needed, stamps reviewer/time, and records an audit action. JSON returns through `InjuryRecord.fromJson`; invalidated Player/Club providers refetch. Recovery changes follow the same request-then-Coordinator-review rule.
 
-## Card 11: Record Match and Player Performance
+## Card 11: Record Match and Objective Player Statistics
 
 ### What I click
 
-Coach Progress score icon -> Record Match -> match card -> Player -> Save.
+Coordinator Matches -> fixture/ad-hoc result -> match roster -> Player -> Save statistics.
 
 ### First function called
 
@@ -2783,21 +3119,21 @@ Controller loading/data/error; match list, roster, and affected Player statistic
 
 ### Screen result
 
-New score card and recorded roster row; trends become available to the Coach and Player.
+New result and recorded roster row; trends become available to authorized Player/Guardian/Coach readers.
 
 ### 20-second defense explanation
 
-The Coach records a completed match and one row per Player. Django derives ownership from the verified Coach, validates Club and statistic consistency, saves atomically, audits, and returns typed data for provider refresh.
+The Coordinator records the completed result and objective statistics. Django derives Club/actor from the verified Coordinator, validates fixture/Player/statistic consistency, saves atomically, audits, and returns typed data for refresh.
 
 ### 60-second technical explanation
 
-The match form creates a draft and posts it through the controller/use case/repository chain. Django accepts only a Coach, stamps Club and creator, validates the completed date and score, and saves an audit row. Selecting a Player sends match/player IDs in the URL plus statistics in the body. Django re-resolves both IDs inside the Coach's Club, locks the parent and existing row, validates statistic relationships and team-score totals, then inserts or replaces the unique historical row with `recorded_by=request.user`. The controller invalidates roster and Player-statistics providers so both views refetch authoritative data.
+The match form posts through controller/use case/repository. Django accepts only a Coordinator, stamps Club/creator, and optionally locks/links a same-Club tournament fixture. Selecting a Player sends match/Player IDs plus objective statistics. Django re-resolves both inside the Coordinator's Club, checks confirmed injuries, locks the match/existing row, validates relationships and team totals, then inserts/replaces the unique historical row with server-owned recorder. Coach rating is deliberately handled by a separate endpoint.
 
 ## Card 12: View Match Statistics and Trends
 
 ### What I click
 
-Player Progress -> Match Statistics, or Coach -> Player -> View Match Performance Trends.
+Player Progress -> Match Statistics; linked Guardian protected child view; or Coach -> Player trends.
 
 ### First function called
 
@@ -2829,11 +3165,137 @@ Season summary tiles, Last 5/10/All rating chart, and expandable match history.
 
 ### 20-second defense explanation
 
-Django permits only the Player themself, a same-Club Coach, or Admin, then summarizes historical match rows. Flutter converts the response into totals, a rating trend, and match details.
+Django permits only Player self, same-Club Coach, linked unlocked Guardian, or Admin, then summarizes historical rows. Flutter converts the response into totals, a rating trend, and match details.
 
 ### 60-second technical explanation
 
-The view watches a Player-keyed FutureProvider, which invokes the use case and authenticated repository GET. The backend checks the verified user's role and relationship to the URL Player before querying. It optionally validates date and limit filters, loads at most 100 newest historical rows, calculates pass rate, totals, clean sheets, and one-decimal average rating, then serializes summary plus history. Dart constructs nested typed objects; Riverpod resolves, and the UI renders summary tiles, a chronological coach-rating chart, and expandable match cards. Unauthorized IDs return 403 and never enter the query/aggregation path.
+The view watches a Player-keyed FutureProvider, which invokes the use case and authenticated repository GET. Django checks verified role, Club/self/link, and PIN unlock before querying. It validates optional date/limit filters, loads at most 100 newest rows, calculates pass rate, totals, clean sheets, and one-decimal average rating, then serializes summary/history. Dart constructs typed nested objects; Riverpod resolves; the UI renders tiles, chronological rating chart, and expandable cards. Unauthorized IDs never enter aggregation.
+
+## Card 13: Flutter-to-Django API Communication
+
+### What I click
+
+Any live-data action, such as opening schedule or saving attendance.
+
+### First function called
+
+The screen callback or Riverpod provider/controller.
+
+### Next function
+
+Domain use case -> repository interface -> concrete `Api*Repository`.
+
+### Service used
+
+`AuthenticatedApiClient` with Dart `http`, plus Firebase Auth for the ID token.
+
+### Database/API operation
+
+HTTPS REST request with Bearer token and JSON/multipart -> DRF APIView -> serializer/authorization -> Django ORM.
+
+### Data returned
+
+HTTP status plus JSON converted by a Dart `fromJson()` factory.
+
+### State change
+
+Riverpod changes loading -> data/error and invalidates/refetches affected providers after mutations.
+
+### Screen result
+
+Widget rebuilds from authorized server data or shows a retryable error.
+
+### 20-second defense explanation
+
+Flutter never queries the database directly. It sends a Firebase-authenticated REST request to Django; Django verifies identity, enforces role/Club/privacy, validates, persists, and returns JSON for Riverpod to display.
+
+### 60-second technical explanation
+
+The UI calls a controller/provider, then a domain use case and repository interface. A concrete API repository serializes the request and delegates to the shared authenticated client. That client gets the current Firebase ID token, reserves the Bearer header, builds the configured HTTPS URI, applies timeout/error/cache rules, and sends JSON or multipart data. DRF verifies the token with Firebase Admin, loads the local user, applies permissions and scoped queries, validates through serializer/model/database rules, and uses the ORM. The response becomes typed Dart data and Riverpod rebuilds only its consumers.
+
+## Card 14: Publish Tournament Schedule
+
+### What I click
+
+Coordinator portal -> Tournaments -> upload official schedule -> add fixture.
+
+### First function called
+
+`tournament_schedules()` or `tournament_schedule_detail()`.
+
+### Next function
+
+Django form validation -> storage helper -> ORM/audit.
+
+### Service used
+
+Supabase Storage REST through server-side `httpx`; DRF read API for mobile.
+
+### Database/API operation
+
+Insert Club schedule/fixtures and opaque document path; `GET /api/tournament-schedules/` returns published nested data.
+
+### Data returned
+
+Portal redirect/messages and mobile typed schedule/fixture list with short-lived signed URL.
+
+### State change
+
+Portal reloads DB state; mobile FutureProvider resolves/refetches.
+
+### Screen result
+
+Official programme and fixtures appear for authenticated Club roles; eligible fixture can start result entry.
+
+### 20-second defense explanation
+
+Only the Club Coordinator manages official schedules. Django validates and privately stores the file, stores structured fixtures for real workflows, and gives mobile users only authorized Club data and a short-lived link.
+
+### 60-second technical explanation
+
+Session-authenticated portal views require Coordinator role and filter every schedule/fixture by `request.user.club_id`. Upload validation checks size, MIME type, and signature. Django uploads with the server-only Supabase key and stores an opaque path. Structured fixtures are relational rows; completed ones link one-to-one to match results and cannot be casually edited/deleted. The mobile DRF endpoint returns only published same-Club schedules with nested fixtures and a signed URL, which Flutter converts through `TournamentSchedule.fromJson()`.
+
+## Card 15: Coach Match Rating Separation
+
+### What I click
+
+Coach match roster -> Player with statistics -> enter rating/notes -> Save.
+
+### First function called
+
+Rating editor save callback.
+
+### Next function
+
+`MatchManagementController.saveRating()` -> `SaveMatchRating`.
+
+### Service used
+
+`ApiMatchRepository.saveRating()` through `AuthenticatedApiClient`.
+
+### Database/API operation
+
+`PUT /api/matches/{matchId}/performances/{playerId}/rating/`; update only subjective fields on an existing row.
+
+### Data returned
+
+Typed `MatchPerformance` with rating state.
+
+### State change
+
+Roster, match performances, and Player statistics providers invalidate/refetch.
+
+### Screen result
+
+Coach sees rated state; authorized trend/history views show refreshed rating.
+
+### 20-second defense explanation
+
+The Coordinator owns objective statistics; the Coach owns rating and notes. Separate endpoints and serializers enforce that responsibility split instead of relying on hidden buttons.
+
+### 60-second technical explanation
+
+The rating call resolves a same-Club match through `_role_match(..., COACH)` and requires an existing objective performance. A rating-only serializer accepts 0.0-10.0 plus notes, locks the row, stamps the verified Coach and time, and audits the change. It cannot change goals, minutes, Player, match, or recorder. Clearing the rating nulls only subjective fields, preserving the historical evidence.
 
 # Final Trace Verification Notes
 
@@ -2844,4 +3306,5 @@ The view watches a Player-keyed FutureProvider, which invokes the use case and a
 - Notification persistence, current-user inbox/read APIs, device registration/unregister, foreground SnackBar handling, bell navigation, duplicate suppression, best-effort read marking, and role-aware session/profile/eligibility destinations are traceable and locally tested. Real Firebase/APNs delivery and presentation on a signed physical device are not claimed as verified.
 - Container/compose, health/readiness, optional Sentry, backup/restore scripts, runbook, and CI image-build paths are traceable repository artifacts; no live deployment, executed alert, scheduled backup, or successful restore drill is claimed.
 - The code comment in `PlayerAssessmentView` still says “six ratings,” while the executable entity/profile supports twelve (six outfield plus six goalkeeper); this trace follows the actual fields.
-- Match-performance tracing reflects commit `db9e869`: secure Club-owned match creation, atomic per-Player historical statistics, Player/self and same-Club Coach reads, derived summaries/trends, Flutter screens/providers, and focused/full regression results (271 Django tests, 250 Flutter tests, clean Flutter analysis, no migration drift).
+- Current tracing reflects commit `532446a`, including Coordinator tournament/result/objective-statistics ownership, Coach-only ratings, Guardian-authorized trends, injury confirmation/recovery/archive, independent-Club eligibility suppression, and enforced live persistence.
+- Verification on 2026-08-28: 321 Django tests passed, 276 Flutter tests passed, Flutter analysis reported no issues, and `makemigrations --check --dry-run` reported no changes. `check --deploy` under the local DEBUG/default-secret environment produced the expected seven production-setting warnings; production environment/TLS configuration remains a deployment responsibility rather than claimed live evidence.
