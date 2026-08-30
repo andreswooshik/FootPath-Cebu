@@ -8,6 +8,7 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
 import 'package:footpath_cebu/presentation/screens/progress_screen.dart';
+import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/performance_trend_chart.dart';
 
 const _linkedPlayer = Player(
@@ -71,15 +72,26 @@ void main() {
         overrides: [
           matchRepositoryProvider.overrideWithValue(MockMatchRepository()),
         ],
-        child: const MaterialApp(
-          home: ProgressScreen(player: _linkedPlayer, isGuardian: true),
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const ProgressScreen(player: _linkedPlayer, isGuardian: true),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
+    final tabBar = tester.widget<TabBar>(find.byType(TabBar));
+    expect(tabBar.labelColor, Colors.black);
+    expect(tabBar.unselectedLabelColor, Colors.black87);
+    expect(tabBar.indicatorColor, Colors.black);
     expect(find.text('Matches'), findsOneWidget);
     expect(find.text('Training Feedback'), findsOneWidget);
     expect(find.text('Season Summary'), findsOneWidget);
+
+    await tester.tap(find.text('Training Feedback'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Matches'), findsOneWidget);
+    expect(find.text('Training Feedback'), findsOneWidget);
   });
 }

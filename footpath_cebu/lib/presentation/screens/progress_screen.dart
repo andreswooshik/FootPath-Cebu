@@ -16,7 +16,8 @@ import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
 /// first. There's no separate "ratings" data: a coach's effort score and
 /// remark are recorded directly on the attendance record for that session
 /// (see [LogAttendanceScreen]), so this screen is just those same attendance
-/// records, filtered to the ones a coach actually left a note on.
+/// records, filtered to the ones where a coach recorded an effort score or a
+/// written note.
 class ProgressScreen extends ConsumerWidget {
   const ProgressScreen({
     super.key,
@@ -44,6 +45,9 @@ class ProgressScreen extends ConsumerWidget {
         automaticallyImplyLeading: false,
         title: const Text('Progress'),
         bottom: const TabBar(
+          labelColor: Colors.black,
+          unselectedLabelColor: Colors.black87,
+          indicatorColor: Colors.black,
           tabs: [
             Tab(text: 'Matches'),
             Tab(text: 'Training Feedback'),
@@ -78,7 +82,13 @@ class _TrainingFeedbackView extends ConsumerWidget {
       ),
       data: (records) {
         final feedback =
-            records.where((a) => (a.note ?? '').trim().isNotEmpty).toList()
+            records
+                .where(
+                  (record) =>
+                      record.effort != null ||
+                      (record.note ?? '').trim().isNotEmpty,
+                )
+                .toList()
               ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
         if (feedback.isEmpty) {
           return const Center(child: Text('No coach feedback yet.'));
@@ -122,6 +132,8 @@ class _ProgressEntry extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final intensity = _intensity(record.effort);
+    final note = record.note?.trim();
+    final hasNote = note != null && note.isNotEmpty;
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,14 +198,23 @@ class _ProgressEntry extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              '"${record.note}"',
+                              hasNote
+                                  ? '"$note"'
+                                  : 'No written coach feedback.',
                               style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(fontStyle: FontStyle.italic),
+                                  ?.copyWith(
+                                    fontStyle: hasNote
+                                        ? FontStyle.italic
+                                        : FontStyle.normal,
+                                    color: hasNote
+                                        ? null
+                                        : Colors.grey.shade600,
+                                  ),
                             ),
                           ),
                           if (record.effort != null)
                             Text(
-                              '${record.effort}%',
+                              'Effort ${record.effort}%',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: intensity.color,

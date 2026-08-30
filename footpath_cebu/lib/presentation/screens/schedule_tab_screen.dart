@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
@@ -35,7 +36,9 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
   @override
   Widget build(BuildContext context) {
     final sessionsAsync = ref.watch(
-      _showPast ? pastSessionsProvider : upcomingSessionsProvider,
+      _showPast
+          ? playerPastSessionsProvider(widget.player.ageTier)
+          : playerUpcomingSessionsProvider(widget.player.ageTier),
     );
     return Scaffold(
       appBar: AppBar(
@@ -81,8 +84,8 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
                     return Center(
                       child: Text(
                         _showPast
-                            ? 'No past sessions yet.'
-                            : 'No upcoming sessions.',
+                            ? 'No past sessions for ${widget.player.ageTier.label}.'
+                            : 'No upcoming sessions for ${widget.player.ageTier.label}.',
                         textAlign: TextAlign.center,
                       ),
                     );
@@ -99,6 +102,7 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
                       itemBuilder: (context, i) =>
                           TrainingSessionCard(
                             session: sessions[i],
+                            showPlayerDetails: true,
                             trailing: _showPast || !sessions[i].isToday
                                 ? null
                                 : SessionConfirmationButton(

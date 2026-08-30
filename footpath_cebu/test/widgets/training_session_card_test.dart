@@ -5,23 +5,26 @@ import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 
 TrainingSession _session(Set<AgeTier> tiers) => TrainingSession(
-      id: 't1',
-      title: 'Tactical Workshop',
-      ageTiers: tiers,
-      date: DateTime(2026, 7, 21),
-      startTime: '04:30 PM',
-      endTime: '06:00 PM',
-      location: 'USJ-R Basak Pitch',
-      focus: SessionFocus.technical,
-      attendeeCount: 12,
-    );
+  id: 't1',
+  title: 'Tactical Workshop',
+  ageTiers: tiers,
+  date: DateTime(2026, 7, 21),
+  startTime: '04:30 PM',
+  endTime: '06:00 PM',
+  location: 'USJ-R Basak Pitch',
+  focus: SessionFocus.technical,
+  attendeeCount: 12,
+);
 
 /// Renders one card at a fixed width and returns the focus icon's right edge.
 Future<double> _iconRight(WidgetTester tester, Set<AgeTier> tiers) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
-        body: SizedBox(width: 400, child: TrainingSessionCard(session: _session(tiers))),
+        body: SizedBox(
+          width: 400,
+          child: TrainingSessionCard(session: _session(tiers)),
+        ),
       ),
     ),
   );
@@ -31,26 +34,57 @@ Future<double> _iconRight(WidgetTester tester, Set<AgeTier> tiers) async {
 
 void main() {
   group('TrainingSessionCard header', () {
-    testWidgets('the focus icon sits in the same place for every tier label',
-        (tester) async {
+    testWidgets('the focus icon sits in the same place for every tier label', (
+      tester,
+    ) async {
       // The pill's width varies a lot with the label — "FOUNDATION" is far
       // shorter than "FOUNDATION · DEVELOPMENT". The icon must not move.
       final short = await _iconRight(tester, {AgeTier.foundation});
-      final long =
-          await _iconRight(tester, {AgeTier.foundation, AgeTier.development});
+      final long = await _iconRight(tester, {
+        AgeTier.foundation,
+        AgeTier.development,
+      });
       final all = await _iconRight(tester, AgeTier.values.toSet());
 
       expect(long, short);
       expect(all, short);
     });
 
-    testWidgets('the focus icon is flush with the header padding',
-        (tester) async {
+    testWidgets('the focus icon is flush with the header padding', (
+      tester,
+    ) async {
       final iconRight = await _iconRight(tester, {AgeTier.foundation});
       final cardRight = tester.getRect(find.byType(TrainingSessionCard)).right;
 
       // 16px of header padding, and nothing else, separates the two.
       expect(cardRight - iconRight, 16);
     });
+  });
+
+  testWidgets('player view labels every important training detail', (
+    tester,
+  ) async {
+    final session = _session({AgeTier.foundation, AgeTier.development});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            child: TrainingSessionCard(
+              session: session,
+              showPlayerDetails: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tactical Workshop'), findsOneWidget);
+    expect(find.text('Training focus: Technical'), findsOneWidget);
+    expect(find.text('Schedule: 04:30 PM - 06:00 PM'), findsOneWidget);
+    expect(find.text('Where: USJ-R Basak Pitch'), findsOneWidget);
+    expect(find.text('Age category: ${session.tiersLabel}'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 
 /// The full training schedule. Refresh with
@@ -29,6 +30,32 @@ final pastSessionsProvider =
           ..sort((a, b) => b.date.compareTo(a.date));
         return List.unmodifiable(list);
       });
+    });
+
+/// Upcoming sessions that actually target the signed-in/selected player's
+/// age category. The club schedule can contain sessions for several tiers;
+/// player and guardian portals should not present unrelated training.
+final playerUpcomingSessionsProvider = Provider.autoDispose
+    .family<AsyncValue<List<TrainingSession>>, AgeTier>((ref, ageTier) {
+      return ref
+          .watch(upcomingSessionsProvider)
+          .whenData(
+            (sessions) => List.unmodifiable(
+              sessions.where((session) => session.includesTier(ageTier)),
+            ),
+          );
+    });
+
+/// Past counterpart of [playerUpcomingSessionsProvider].
+final playerPastSessionsProvider = Provider.autoDispose
+    .family<AsyncValue<List<TrainingSession>>, AgeTier>((ref, ageTier) {
+      return ref
+          .watch(pastSessionsProvider)
+          .whenData(
+            (sessions) => List.unmodifiable(
+              sessions.where((session) => session.includesTier(ageTier)),
+            ),
+          );
     });
 
 bool _isPast(DateTime date) {

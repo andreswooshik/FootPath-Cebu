@@ -20,6 +20,7 @@ class TrainingSessionCard extends StatelessWidget {
     this.trailing,
     this.onEdit,
     this.onCancelSession,
+    this.showPlayerDetails = false,
   });
 
   final TrainingSession session;
@@ -35,6 +36,10 @@ class TrainingSessionCard extends StatelessWidget {
   /// beside the title.
   final VoidCallback? onEdit;
   final VoidCallback? onCancelSession;
+
+  /// Uses explicit labels for the details a player or guardian needs to scan:
+  /// training focus, schedule, venue, and age category.
+  final bool showPlayerDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -138,15 +143,33 @@ class TrainingSessionCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 10),
+                    if (showPlayerDetails) ...[
+                      _DetailRow(
+                        icon: Icons.sports_soccer_outlined,
+                        label: 'Training focus',
+                        text: session.focus.label,
+                      ),
+                      const SizedBox(height: 6),
+                    ],
                     _DetailRow(
                       icon: Icons.access_time,
+                      label: showPlayerDetails ? 'Schedule' : null,
                       text: '${session.startTime} - ${session.endTime}',
                     ),
                     const SizedBox(height: 6),
                     _DetailRow(
                       icon: Icons.location_on_outlined,
+                      label: showPlayerDetails ? 'Where' : null,
                       text: session.location,
                     ),
+                    if (showPlayerDetails) ...[
+                      const SizedBox(height: 6),
+                      _DetailRow(
+                        icon: Icons.groups_outlined,
+                        label: 'Age category',
+                        text: session.tiersLabel,
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     if (trailing != null)
                       Align(alignment: Alignment.centerRight, child: trailing)
@@ -228,10 +251,11 @@ class _TierPill extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.icon, required this.text});
+  const _DetailRow({required this.icon, required this.text, this.label});
 
   final IconData icon;
   final String text;
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
@@ -241,8 +265,17 @@ class _DetailRow extends StatelessWidget {
         Icon(icon, size: 16, color: muted),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            text,
+          child: Text.rich(
+            TextSpan(
+              children: [
+                if (label != null)
+                  TextSpan(
+                    text: '$label: ',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                TextSpan(text: text),
+              ],
+            ),
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: muted),
