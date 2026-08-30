@@ -33,12 +33,18 @@ class LogAttendanceScreen extends ConsumerStatefulWidget {
     super.key,
     required this.session,
     required this.profile,
+    this.initialAttendance,
   });
 
   final TrainingSession session;
 
   /// The signed-in coach, forwarded to the per-player assessment form.
   final UserProfile profile;
+
+  /// Saved records preloaded by the schedule screen. Passing the completed
+  /// snapshot prevents the roster from briefly painting every player as
+  /// unmarked while the same request finishes on this route.
+  final List<Attendance>? initialAttendance;
 
   @override
   ConsumerState<LogAttendanceScreen> createState() =>
@@ -256,9 +262,9 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   @override
   Widget build(BuildContext context) {
     final squadAsync = ref.watch(squadProvider);
-    final existingAsync = ref.watch(
-      sessionAttendanceProvider(widget.session.id),
-    );
+    final existingAsync = widget.initialAttendance == null
+        ? ref.watch(sessionAttendanceProvider(widget.session.id))
+        : AsyncData(widget.initialAttendance!);
     final isSaving = ref.watch(attendanceLogControllerProvider).isLoading;
 
     // Both sources feed the roster; combine them so we show one loading state.
@@ -285,12 +291,18 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
             onRetry: () => ref.invalidate(squadProvider),
           ),
           data: (roster) => existingAsync.when(
-            // The saved marks only preload the form; while they load we can
-            // already show the roster, so don't block on them.
-            loading: () =>
-                _Body(session: widget.session, roster: roster, state: this),
-            error: (_, _) =>
-                _Body(session: widget.session, roster: roster, state: this),
+            // Never display a blank roll call before saved marks arrive. That
+            // looks like attendance was not logged and exposes an incorrect
+            // draft for a few seconds.
+            loading: () => const DashboardLoadingState(),
+            error: (e, _) => DashboardErrorState(
+              message: friendlyErrorMessage(
+                e,
+                'Could not load the saved attendance for this session.',
+              ),
+              onRetry: () =>
+                  ref.invalidate(sessionAttendanceProvider(widget.session.id)),
+            ),
             data: (existing) {
               _seedOnce(roster, existing);
               return _Body(
@@ -302,13 +314,19 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
           ),
         ),
         bottomNavigationBar: rosterAsync.maybeWhen(
-          data: (roster) => _FinalizeBar(
-            markedCount: _marks.length,
-            presentCount: _presentCount(),
-            unmarkedCount: roster.length - _marks.length,
-            isSaving: isSaving,
-            canLog: widget.session.isAttendanceOpen,
-            onFinalize: () => _finalize(roster),
+          data: (roster) => existingAsync.maybeWhen(
+            data: (existing) {
+              _seedOnce(roster, existing);
+              return _FinalizeBar(
+                markedCount: _marks.length,
+                presentCount: _presentCount(),
+                unmarkedCount: roster.length - _marks.length,
+                isSaving: isSaving,
+                canLog: widget.session.isAttendanceOpen,
+                onFinalize: () => _finalize(roster),
+              );
+            },
+            orElse: () => null,
           ),
           orElse: () => null,
         ),

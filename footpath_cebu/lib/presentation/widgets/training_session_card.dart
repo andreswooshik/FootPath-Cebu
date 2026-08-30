@@ -21,6 +21,7 @@ class TrainingSessionCard extends StatelessWidget {
     this.onEdit,
     this.onCancelSession,
     this.showPlayerDetails = false,
+    this.isLoading = false,
   });
 
   final TrainingSession session;
@@ -41,6 +42,10 @@ class TrainingSessionCard extends StatelessWidget {
   /// training focus, schedule, venue, and age category.
   final bool showPlayerDetails;
 
+  /// True while saved attendance is being prepared before opening the coach's
+  /// roll call. Prevents duplicate taps and gives immediate action feedback.
+  final bool isLoading;
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -51,7 +56,7 @@ class TrainingSessionCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         margin: const EdgeInsets.symmetric(vertical: 8),
         child: InkWell(
-          onTap: onTap,
+          onTap: isLoading ? null : onTap,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -186,7 +191,7 @@ class TrainingSessionCard extends StatelessWidget {
                           // outside that window, so the coach sees it exists and
                           // why it's not available (a future session) or closed.
                           TextButton.icon(
-                            onPressed: session.isAttendanceOpen
+                            onPressed: session.isAttendanceOpen && !isLoading
                                 ? onLogAttendance
                                 : null,
                             style: TextButton.styleFrom(
@@ -196,16 +201,25 @@ class TrainingSessionCard extends StatelessWidget {
                               ),
                             ),
                             icon: Text(
-                              session.isAttendanceOpen
+                              isLoading
+                                  ? 'Opening attendance...'
+                                  : session.isAttendanceOpen
                                   ? 'Log Attendance'
                                   : 'Log on the day',
                             ),
-                            label: Icon(
-                              session.isAttendanceOpen
-                                  ? Icons.chevron_right
-                                  : Icons.lock_clock,
-                              size: 18,
-                            ),
+                            label: isLoading
+                                ? const SizedBox.square(
+                                    dimension: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Icon(
+                                    session.isAttendanceOpen
+                                        ? Icons.chevron_right
+                                        : Icons.lock_clock,
+                                    size: 18,
+                                  ),
                           ),
                         ],
                       ),

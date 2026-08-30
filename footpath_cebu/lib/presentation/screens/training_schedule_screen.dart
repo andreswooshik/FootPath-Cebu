@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
+import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/presentation/providers/attendance_log_providers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/log_attendance_screen.dart';
@@ -33,6 +35,7 @@ class TrainingScheduleScreen extends ConsumerStatefulWidget {
 class _TrainingScheduleScreenState
     extends ConsumerState<TrainingScheduleScreen> {
   bool _showPast = false;
+  final Set<String> _openingSessionIds = {};
 
   void _openScheduleForm() {
     Navigator.of(context).push<bool>(
@@ -89,11 +92,38 @@ class _TrainingScheduleScreenState
     );
   }
 
-  void _logAttendance(TrainingSession session) {
-    Navigator.of(context).push<bool>(
+  Future<void> _logAttendance(TrainingSession session) async {
+    if (_openingSessionIds.contains(session.id)) return;
+    setState(() => _openingSessionIds.add(session.id));
+
+    List<Attendance> existing;
+    try {
+      existing = await ref.read(sessionAttendanceProvider(session.id).future);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(
+              error,
+              'Could not load the saved attendance. Please try again.',
+            ),
+          ),
+        ),
+      );
+      return;
+    } finally {
+      if (mounted) setState(() => _openingSessionIds.remove(session.id));
+    }
+
+    if (!mounted) return;
+    await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) =>
-            LogAttendanceScreen(session: session, profile: widget.profile),
+        builder: (_) => LogAttendanceScreen(
+          session: session,
+          profile: widget.profile,
+          initialAttendance: existing,
+        ),
       ),
     );
   }
@@ -186,13 +216,26 @@ class _TrainingScheduleScreenState
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             itemCount: list.length,
-            itemBuilder: (context, i) => TrainingSessionCard(
-              session: list[i],
-              onTap: () => _logAttendance(list[i]),
-              onLogAttendance: () => _logAttendance(list[i]),
-              onEdit: () => _editSession(list[i]),
-              onCancelSession: () => _cancelSession(list[i]),
-            ).animateListItem(key: ValueKey(list[i].id), index: i),
+            itemBuilder: (context, i) {
+              final session = list[i];
+              // A visible card warms its saved-attendance request before the
+              // coach taps it. The route still awaits and passes the snapshot,
+              // so even a very fast tap cannot paint a false blank roll call.
+              ref.watch(sessionAttendanceProvider(session.id));
+              return TrainingSessionCard(
+                session: session,
+                isLoading: _openingSessionIds.contains(session.id),
+                onTap: () => _logAttendance(session),
+                onLogAttendance: () => _logAttendance(session),
+                // Completed sessions are historical records. Keep attendance
+                // access where its grace window allows it, but only future and
+                // today's sessions may be changed or cancelled.
+                onEdit: _showPast ? null : () => _editSession(session),
+                onCancelSession: _showPast
+                    ? null
+                    : () => _cancelSession(session),
+              ).animateListItem(key: ValueKey(session.id), index: i);
+            },
           ),
         );
       },
