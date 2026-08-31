@@ -16,8 +16,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install dependencies
@@ -62,7 +62,7 @@ jobs:
     name: Production container
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Validate production Compose configuration
         env:
           DJANGO_SECRET_KEY: ci-only-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz
@@ -78,7 +78,7 @@ jobs:
       run:
         working-directory: footpath_cebu
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
