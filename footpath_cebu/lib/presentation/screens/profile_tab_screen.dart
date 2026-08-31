@@ -34,8 +34,6 @@ class ProfileTabScreen extends ConsumerWidget {
   final bool isGuardian;
   final bool showGuardianPlayerDetails;
 
-  bool get _isGoalkeeper => player.position?.group == PositionGroup.goalkeeper;
-
   Future<void> _pickAndUploadOwnPhoto(
     BuildContext context,
     WidgetRef ref,
@@ -228,7 +226,7 @@ class ProfileTabScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Attributes',
+                    'Development assessment',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 8),
@@ -236,49 +234,70 @@ class ProfileTabScreen extends ConsumerWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Column(
-                        children: _isGoalkeeper
-                            ? [
-                                _attributeRow('Diving', player.ratings.diving),
-                                _attributeRow(
-                                  'Handling',
-                                  player.ratings.handling,
-                                ),
-                                _attributeRow(
-                                  'Kicking',
-                                  player.ratings.kicking,
-                                ),
-                                _attributeRow(
-                                  'Reflexes',
-                                  player.ratings.reflexes,
-                                ),
-                                _attributeRow('Speed', player.ratings.speed),
-                                _attributeRow(
-                                  'Positioning',
-                                  player.ratings.positioning,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: player.developmentAssessment == null
+                            ? const [
+                                Text(
+                                  'No development assessment yet. Your coach will record Technical, Tactical, Physical, Mental, and Social/Values observations here.',
                                 ),
                               ]
                             : [
-                                _attributeRow('Pace', player.ratings.pace),
-                                _attributeRow(
-                                  'Shooting',
-                                  player.ratings.shooting,
+                                _developmentRow(
+                                  'Technical',
+                                  player
+                                      .developmentAssessment!
+                                      .domainScores['technical'],
                                 ),
-                                _attributeRow(
-                                  'Passing',
-                                  player.ratings.passing,
+                                _developmentRow(
+                                  'Tactical',
+                                  player
+                                      .developmentAssessment!
+                                      .domainScores['tactical'],
                                 ),
-                                _attributeRow(
-                                  'Dribbling',
-                                  player.ratings.dribbling,
-                                ),
-                                _attributeRow(
-                                  'Defending',
-                                  player.ratings.defending,
-                                ),
-                                _attributeRow(
+                                _developmentRow(
                                   'Physical',
-                                  player.ratings.physical,
+                                  player
+                                      .developmentAssessment!
+                                      .domainScores['physical'],
                                 ),
+                                _developmentRow(
+                                  'Mental',
+                                  player
+                                      .developmentAssessment!
+                                      .domainScores['mental'],
+                                ),
+                                _developmentRow(
+                                  'Social / Values',
+                                  player
+                                      .developmentAssessment!
+                                      .domainScores['socialValues'],
+                                ),
+                                const Divider(height: 24),
+                                Text(
+                                  'Observed strength',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                Text(player.developmentAssessment!.strengths),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Next development target',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                Text(
+                                  player
+                                      .developmentAssessment!
+                                      .developmentTargets,
+                                ),
+                                if (player.coachNotes.trim().isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Additional coach notes',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleSmall,
+                                  ),
+                                  Text(player.coachNotes),
+                                ],
                               ],
                       ),
                     ),
@@ -321,7 +340,7 @@ class ProfileTabScreen extends ConsumerWidget {
     ).animateScreenEntrance();
   }
 
-  Widget _attributeRow(String label, int value) {
+  Widget _developmentRow(String label, double? value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -330,11 +349,20 @@ class ProfileTabScreen extends ConsumerWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(value: value / 100, minHeight: 8),
+              child: LinearProgressIndicator(
+                value: value == null ? 0 : value / 5,
+                minHeight: 8,
+              ),
             ),
           ),
           const SizedBox(width: 8),
-          SizedBox(width: 28, child: Text('$value', textAlign: TextAlign.end)),
+          SizedBox(
+            width: 28,
+            child: Text(
+              value?.toStringAsFixed(1) ?? '—',
+              textAlign: TextAlign.end,
+            ),
+          ),
         ],
       ),
     );

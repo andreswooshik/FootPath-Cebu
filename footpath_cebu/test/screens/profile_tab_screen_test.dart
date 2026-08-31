@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/presentation/screens/profile_tab_screen.dart';
@@ -25,27 +26,21 @@ Player _outfield() => const Player(
   ),
 );
 
-Player _goalkeeper() => const Player(
-  id: 'p7',
-  name: 'Test Keeper',
-  age: 16,
-  classYear: 'Class of 2026',
-  ageTier: AgeTier.pathway,
-  position: PlayerPosition.goalkeeper,
-  eligibility: EligibilityStatus.notEligible,
-  ratings: PlayerRatings(
-    pace: 1,
-    shooting: 1,
-    passing: 1,
-    dribbling: 1,
-    defending: 1,
-    physical: 1,
-    diving: 88,
-    handling: 85,
-    kicking: 70,
-    reflexes: 92,
-    speed: 62,
-    positioning: 86,
+Player _assessedPlayer() => _outfield().copyWith(
+  coachNotes: 'Good response to feedback.',
+  developmentAssessment: CurrentDevelopmentAssessment(
+    frameworkVersion: 1,
+    ratings: DevelopmentScores(const {}),
+    domainScores: const {
+      'technical': 4,
+      'tactical': 3.5,
+      'physical': 3,
+      'mental': 4,
+      'socialValues': 5,
+    },
+    strengths: 'Scans before receiving.',
+    developmentTargets: 'Use the weaker foot under pressure.',
+    assessedAt: DateTime(2026, 8, 30),
   ),
 );
 
@@ -59,65 +54,47 @@ Future<void> _pump(WidgetTester tester, Player player) async {
 }
 
 void main() {
-  group('ProfileTabScreen attributes', () {
+  group('ProfileTabScreen development assessment', () {
     testWidgets('a player can choose their own profile photo', (tester) async {
       await _pump(tester, _outfield());
 
       expect(find.byKey(const Key('upload-own-player-photo')), findsOneWidget);
     });
 
-    testWidgets('an outfield player sees full-word outfield labels', (
+    testWidgets('shows an honest empty state instead of legacy ratings', (
       tester,
     ) async {
       await _pump(tester, _outfield());
 
-      for (final label in [
-        'Pace',
-        'Shooting',
-        'Passing',
-        'Dribbling',
-        'Defending',
-        'Physical',
-      ]) {
-        expect(find.text(label), findsOneWidget);
-      }
-      for (final label in [
-        'Diving',
-        'Handling',
-        'Kicking',
-        'Reflexes',
-        'Speed',
-        'Positioning',
-      ]) {
-        expect(find.text(label), findsNothing);
-      }
+      expect(find.text('Development assessment'), findsOneWidget);
+      expect(
+        find.textContaining('No development assessment yet'),
+        findsOneWidget,
+      );
+      expect(find.text('Pace'), findsNothing);
+      expect(find.text('Diving'), findsNothing);
     });
 
-    testWidgets('a goalkeeper sees full-word GK labels, not outfield labels', (
+    testWidgets('shows five domains with strength, target, and coach notes', (
       tester,
     ) async {
-      await _pump(tester, _goalkeeper());
+      await _pump(tester, _assessedPlayer());
 
       for (final label in [
-        'Diving',
-        'Handling',
-        'Kicking',
-        'Reflexes',
-        'Speed',
-        'Positioning',
+        'Technical',
+        'Tactical',
+        'Physical',
+        'Mental',
+        'Social / Values',
       ]) {
         expect(find.text(label), findsOneWidget);
       }
-      for (final label in [
-        'Pace',
-        'Shooting',
-        'Passing',
-        'Dribbling',
-        'Defending',
-        'Physical',
-      ]) {
-        expect(find.text(label), findsNothing);
-      }
+      expect(find.text('Observed strength'), findsOneWidget);
+      expect(find.text('Scans before receiving.'), findsOneWidget);
+      expect(find.text('Next development target'), findsOneWidget);
+      expect(find.text('Use the weaker foot under pressure.'), findsOneWidget);
+      expect(find.text('Additional coach notes'), findsOneWidget);
+      expect(find.text('Good response to feedback.'), findsOneWidget);
     });
   });
 }

@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_date
 from rest_framework.exceptions import ValidationError
 
+from .assessment_framework import DOMAIN_META, rounded_mean
 from .match_statistics import build_performance_summary
 
 
@@ -155,6 +156,82 @@ def build_assessment_growth(snapshots):
             threshold=2,
             minimum_per_window=1,
         ),
+    }
+
+
+def build_development_assessment_growth(assessments):
+    """Compare the latest two five-domain assessments without an overall.
+
+    Domain display scores use all observed indicators from that snapshot.
+    Trend deltas use only indicators observed in both snapshots, preventing a
+    Not-observed value or a position change from manufacturing improvement.
+    """
+    rows = list(assessments)
+    latest = rows[0] if rows else None
+    previous = rows[1] if len(rows) > 1 else None
+    summaries = []
+    for domain_key, meta in DOMAIN_META.items():
+        latest_values = (
+            latest.scores.get(domain_key, {})
+            if latest and isinstance(latest.scores, dict)
+            else {}
+        )
+        previous_values = (
+            previous.scores.get(domain_key, {})
+            if previous and isinstance(previous.scores, dict)
+            else {}
+        )
+        latest_values = latest_values if isinstance(latest_values, dict) else {}
+        previous_values = (
+            previous_values if isinstance(previous_values, dict) else {}
+        )
+        latest_score = rounded_mean(latest_values.values())
+        previous_score = rounded_mean(previous_values.values())
+        comparable_keys = [
+            key for key in latest_values.keys() & previous_values.keys()
+            if latest_values[key] is not None
+            and previous_values[key] is not None
+        ]
+        comparable_latest = rounded_mean(
+            [latest_values[key] for key in comparable_keys],
+            digits=2,
+        )
+        comparable_previous = rounded_mean(
+            [previous_values[key] for key in comparable_keys],
+            digits=2,
+        )
+        delta = (
+            round(comparable_latest - comparable_previous, 2)
+            if comparable_latest is not None
+            and comparable_previous is not None
+            else None
+        )
+        summaries.append({
+            'key': domain_key,
+            'label': meta['label'],
+            'latestScore': latest_score,
+            'previousScore': previous_score,
+            'comparableLatestScore': comparable_latest,
+            'comparablePreviousScore': comparable_previous,
+            'delta': delta,
+            'comparableIndicatorCount': len(comparable_keys),
+            'indicatorDeltas': {
+                key: latest_values[key] - previous_values[key]
+                for key in comparable_keys
+            },
+            'classification': classify_delta(
+                delta,
+                recent_count=len(comparable_keys),
+                previous_count=len(comparable_keys),
+                threshold=0.25,
+                minimum_per_window=2,
+            ),
+        })
+    return {
+        'sampleSize': len(rows),
+        'latestAssessmentId': str(latest.id) if latest else None,
+        'previousAssessmentId': str(previous.id) if previous else None,
+        'domains': summaries,
     }
 
 

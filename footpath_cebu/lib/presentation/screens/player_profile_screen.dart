@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
-import 'package:footpath_cebu/domain/entities/card_tier.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
@@ -15,10 +15,8 @@ import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_growth_screen.dart';
-import 'package:footpath_cebu/presentation/widgets/attribute_radar_chart.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/position_picker_sheet.dart';
-import 'package:footpath_cebu/presentation/widgets/tier_badge.dart';
 
 /// Coach Portal — one player's profile, opened by tapping a card on the squad
 /// roster. Shows the FUT card, the six technical attributes, the player's
@@ -45,8 +43,6 @@ class PlayerProfileScreen extends ConsumerStatefulWidget {
 
 class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   late Player _player = widget.player;
-
-  bool get _isGoalkeeper => _player.position?.group == PositionGroup.goalkeeper;
 
   Future<void> _pickAndUploadPhoto() async {
     XFile? picked;
@@ -195,8 +191,6 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final r = _player.ratings;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Player Profile'),
@@ -231,8 +225,6 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
               child: PlayerCard(player: _player),
             ),
           ),
-          const SizedBox(height: 12),
-          Center(child: TierBadge(tier: CardTier.forPlayer(_player))),
           if (widget.profile.isCoach) ...[
             const SizedBox(height: 12),
             Center(
@@ -255,56 +247,6 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 24),
-          Text(
-            'Attribute Web',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: AttributeRadarChart(
-              ratings: r,
-              isGoalkeeper: _isGoalkeeper,
-              size: 240,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Technical Performance',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.05,
-            children: _isGoalkeeper
-                ? [
-                    _AttributeTile(label: 'DIV', value: r.diving),
-                    _AttributeTile(label: 'HAN', value: r.handling),
-                    _AttributeTile(label: 'KIC', value: r.kicking),
-                    _AttributeTile(label: 'REF', value: r.reflexes),
-                    _AttributeTile(label: 'SPD', value: r.speed),
-                    _AttributeTile(label: 'POS', value: r.positioning),
-                  ]
-                : [
-                    _AttributeTile(label: 'PAC', value: r.pace),
-                    _AttributeTile(label: 'SHO', value: r.shooting),
-                    _AttributeTile(label: 'PAS', value: r.passing),
-                    _AttributeTile(label: 'DRI', value: r.dribbling),
-                    _AttributeTile(label: 'DEF', value: r.defending),
-                    _AttributeTile(label: 'PHY', value: r.physical),
-                  ],
-          ),
           const SizedBox(height: 16),
           _PlayerPositionCard(
             position: _player.position,
@@ -315,7 +257,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             isSaving: ref.watch(playerPositionControllerProvider).isLoading,
           ),
           const SizedBox(height: 16),
-          _CoachEvaluationCard(notes: _player.coachNotes),
+          _DevelopmentFeedbackCard(
+            assessment: _player.developmentAssessment,
+            coachNotes: _player.coachNotes,
+          ),
           const SizedBox(height: 16),
           _AcademicStandingCard(
             status: _player.eligibility,
@@ -372,7 +317,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             FilledButton.icon(
               onPressed: _openEditor,
               icon: const Icon(Icons.edit_outlined),
-              label: const Text('Update Performance Data'),
+              label: const Text('Create Development Assessment'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
@@ -487,71 +432,23 @@ class _PlayerPositionCard extends StatelessWidget {
   }
 }
 
-/// One of the six attributes: its short code, the value, and a fill bar.
-class _AttributeTile extends StatelessWidget {
-  const _AttributeTile({required this.label, required this.value});
-
-  final String label;
-  final int value;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-                color: Colors.grey.shade600,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '$value',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                color: theme.colorScheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: value / 99,
-                minHeight: 4,
-                backgroundColor: Colors.grey.shade300,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// The coach's standing written evaluation, saved with the assessment.
 ///
 /// Always rendered, even with no note yet: an empty state tells the coach the
 /// evaluation exists and is theirs to fill, where a hidden card would read as a
 /// missing feature.
-class _CoachEvaluationCard extends StatelessWidget {
-  const _CoachEvaluationCard({required this.notes});
+class _DevelopmentFeedbackCard extends StatelessWidget {
+  const _DevelopmentFeedbackCard({
+    required this.assessment,
+    required this.coachNotes,
+  });
 
-  final String notes;
+  final CurrentDevelopmentAssessment? assessment;
+  final String coachNotes;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hasNotes = notes.trim().isNotEmpty;
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -562,13 +459,13 @@ class _CoachEvaluationCard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  Icons.rate_review_outlined,
+                  Icons.psychology_alt_outlined,
                   size: 18,
                   color: theme.colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Coach Evaluation',
+                  'Development feedback',
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.bold,
@@ -576,21 +473,67 @@ class _CoachEvaluationCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              hasNotes ? notes : 'No written evaluation yet.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontStyle: hasNotes ? FontStyle.normal : FontStyle.italic,
-                color: hasNotes
-                    ? null
-                    : theme.textTheme.bodySmall?.color?.withValues(alpha: 0.7),
+            const SizedBox(height: 10),
+            if (assessment == null)
+              const Text(
+                'No development assessment yet. Legacy ratings remain available in Player Growth history.',
+              )
+            else ...[
+              _FeedbackSection(
+                icon: Icons.star_outline,
+                label: 'Observed strength',
+                value: assessment!.strengths,
               ),
-            ),
+              const SizedBox(height: 12),
+              _FeedbackSection(
+                icon: Icons.flag_outlined,
+                label: 'Next development target',
+                value: assessment!.developmentTargets,
+              ),
+              if (coachNotes.trim().isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _FeedbackSection(
+                  icon: Icons.notes_outlined,
+                  label: 'Additional coach notes',
+                  value: coachNotes,
+                ),
+              ],
+            ],
           ],
         ),
       ),
     );
   }
+}
+
+class _FeedbackSection extends StatelessWidget {
+  const _FeedbackSection({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 18),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text(value),
+          ],
+        ),
+      ),
+    ],
+  );
 }
 
 /// The academic gate set by School Staff — read-only for the coach.

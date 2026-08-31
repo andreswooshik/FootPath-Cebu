@@ -7,6 +7,7 @@ import 'package:footpath_cebu/data/repositories/api_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/register_device.dart';
 import 'package:footpath_cebu/domain/usecases/save_player_assessment.dart';
 import 'package:footpath_cebu/presentation/providers/edit_performance_controller.dart';
@@ -124,29 +125,28 @@ void main() {
       );
       final squad = await repo.fetchSquad();
 
-      const ratings = PlayerRatings(
-        pace: 60,
-        shooting: 60,
-        passing: 60,
-        dribbling: 60,
-        defending: 60,
-        physical: 60,
-      );
-      final ok = await controller.submit(
-        squad.first.id,
-        ratings,
+      final form = await repo.fetchDevelopmentAssessmentForm(squad.first.id);
+      var scores = DevelopmentScores.empty(form.framework);
+      for (final domain in form.framework.domains) {
+        for (final indicator in domain.indicators) {
+          scores = scores.withScore(domain.key, indicator.key, 3);
+        }
+      }
+      final draft = DevelopmentAssessmentDraft(
+        frameworkVersion: form.framework.version,
+        ratings: scores,
+        strengths: 'Strong session.',
+        developmentTargets: 'Keep scanning before receiving.',
         coachNotes: 'Strong session.',
+        assessmentReason: 'GENERAL_REVIEW',
       );
+      final ok = await controller.submit(squad.first.id, draft);
       expect(ok, isNotNull);
       expect(ok!.coachNotes, 'Strong session.');
       expect(sub.read().hasError, isFalse);
 
       // Unknown player id → error path, no throw.
-      final bad = await controller.submit(
-        'does-not-exist',
-        ratings,
-        coachNotes: '',
-      );
+      final bad = await controller.submit('does-not-exist', draft);
       expect(bad, isNull);
       expect(sub.read().hasError, isTrue);
     });

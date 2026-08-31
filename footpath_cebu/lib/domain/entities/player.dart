@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 /// Academic eligibility, mirroring the backend enum. Never stores grades —
@@ -152,6 +153,7 @@ class Player {
     this.academicEligibilityApplicable = true,
     this.photoUrl,
     this.coachNotes = '',
+    this.developmentAssessment,
   });
 
   final String id;
@@ -188,13 +190,16 @@ class Player {
   /// summary.
   final String coachNotes;
 
-  /// The overall rating shown on the card corner.
+  /// The current five-domain assessment. Null until a coach records one;
+  /// legacy 0-99 ratings are intentionally not converted into this value.
+  final CurrentDevelopmentAssessment? developmentAssessment;
+
+  /// The position-aware overall retained for read-only legacy history.
   ///
   /// Goalkeepers are judged on the GK six (diving/handling/kicking/reflexes/
   /// speed/positioning); every other position — and an unassigned player,
-  /// preserving prior behaviour — uses the outfield six. [CardTier] thresholds
-  /// apply identically to either number: it consumes [overall] without caring
-  /// which six produced it.
+  /// preserving the old contract — uses the outfield six. Active development
+  /// UI uses the five independent domain scores instead.
   int get overall => position?.group == PositionGroup.goalkeeper
       ? ratings.gkOverall
       : ratings.overall;
@@ -211,6 +216,7 @@ class Player {
     PlayerPosition? position,
     String? photoUrl,
     String? coachNotes,
+    CurrentDevelopmentAssessment? developmentAssessment,
   }) {
     return Player(
       id: id,
@@ -224,6 +230,8 @@ class Player {
       academicEligibilityApplicable: academicEligibilityApplicable,
       photoUrl: photoUrl ?? this.photoUrl,
       coachNotes: coachNotes ?? this.coachNotes,
+      developmentAssessment:
+          developmentAssessment ?? this.developmentAssessment,
     );
   }
 
@@ -245,6 +253,12 @@ class Player {
           json['academicEligibilityApplicable'] as bool? ?? true,
       photoUrl: json['photoUrl'] as String?,
       coachNotes: json['coachNotes'] as String? ?? '',
+      developmentAssessment:
+          json['developmentAssessment'] is Map<String, dynamic>
+          ? CurrentDevelopmentAssessment.fromJson(
+              json['developmentAssessment'] as Map<String, dynamic>,
+            )
+          : null,
     );
   }
 
@@ -260,5 +274,15 @@ class Player {
     'academicEligibilityApplicable': academicEligibilityApplicable,
     'photoUrl': photoUrl,
     'coachNotes': coachNotes,
+    'developmentAssessment': developmentAssessment == null
+        ? null
+        : {
+            'frameworkVersion': developmentAssessment!.frameworkVersion,
+            'ratings': developmentAssessment!.ratings.toJson(),
+            'domainScores': developmentAssessment!.domainScores,
+            'strengths': developmentAssessment!.strengths,
+            'developmentTargets': developmentAssessment!.developmentTargets,
+            'assessedAt': developmentAssessment!.assessedAt?.toIso8601String(),
+          },
   };
 }

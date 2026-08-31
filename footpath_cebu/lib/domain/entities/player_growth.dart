@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/match_performance.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 
@@ -365,6 +366,9 @@ class PlayerGrowth {
     required this.training,
     required this.regularMatches,
     required this.tournaments,
+    this.assessmentFramework,
+    this.developmentSummary,
+    this.developmentAssessments = const [],
   });
 
   final String playerId;
@@ -375,6 +379,9 @@ class PlayerGrowth {
   final List<TrainingGrowthGroup> training;
   final MatchGrowth? regularMatches;
   final List<TournamentGrowthGroup> tournaments;
+  final AssessmentFramework? assessmentFramework;
+  final DevelopmentGrowthSummary? developmentSummary;
+  final List<DevelopmentAssessmentSnapshot> developmentAssessments;
 
   factory PlayerGrowth.fromJson(Map<String, dynamic> json) {
     final assessment = json['assessments'] as Map<String, dynamic>?;
@@ -393,6 +400,22 @@ class PlayerGrowth {
           .cast<Map<String, dynamic>>()
           .map(AssessmentSnapshot.fromJson)
           .toList(growable: false),
+      assessmentFramework: assessment?['framework'] is Map<String, dynamic>
+          ? AssessmentFramework.fromJson(
+              assessment!['framework'] as Map<String, dynamic>,
+            )
+          : null,
+      developmentSummary:
+          assessment?['developmentSummary'] is Map<String, dynamic>
+          ? DevelopmentGrowthSummary.fromJson(
+              assessment!['developmentSummary'] as Map<String, dynamic>,
+            )
+          : null,
+      developmentAssessments:
+          (assessment?['developmentHistory'] as List? ?? const [])
+              .cast<Map<String, dynamic>>()
+              .map(DevelopmentAssessmentSnapshot.fromJson)
+              .toList(growable: false),
       training: (training?['groups'] as List? ?? const [])
           .cast<Map<String, dynamic>>()
           .map(TrainingGrowthGroup.fromJson)

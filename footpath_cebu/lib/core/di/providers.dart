@@ -47,6 +47,7 @@ import 'package:footpath_cebu/domain/repositories/age_tier_repository.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/device_repository.dart';
+import 'package:footpath_cebu/domain/repositories/development_assessment_repository.dart';
 import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 import 'package:footpath_cebu/domain/repositories/eligibility_history_repository.dart';
 import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
@@ -65,6 +66,7 @@ import 'package:footpath_cebu/domain/usecases/confirm_session.dart';
 import 'package:footpath_cebu/domain/usecases/create_football_match.dart';
 import 'package:footpath_cebu/domain/usecases/delete_match_performance.dart';
 import 'package:footpath_cebu/domain/usecases/delete_match_rating.dart';
+import 'package:footpath_cebu/domain/usecases/development_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/get_age_tier_bands.dart';
 import 'package:footpath_cebu/domain/usecases/delete_injury.dart';
 import 'package:footpath_cebu/domain/usecases/get_disputes.dart';
@@ -162,6 +164,13 @@ final playerRepositoryProvider = Provider<PlayerRepository>(
           unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
         ),
 );
+
+final developmentAssessmentRepositoryProvider =
+    Provider<DevelopmentAssessmentRepository>(
+      (ref) =>
+          ref.watch(playerRepositoryProvider)
+              as DevelopmentAssessmentRepository,
+    );
 
 /// Coach-only write capability exposed separately from the player read model.
 final playerPhotoWriterProvider = Provider<PlayerPhotoWriter>(
@@ -363,6 +372,19 @@ final resetPlayerPrivacyPinProvider = Provider<ResetPlayerPrivacyPin>(
 
 final savePlayerAssessmentProvider = Provider<SavePlayerAssessment>(
   (ref) => SavePlayerAssessment(ref.watch(playerRepositoryProvider)),
+);
+
+final getDevelopmentAssessmentFormProvider =
+    Provider<GetDevelopmentAssessmentForm>(
+      (ref) => GetDevelopmentAssessmentForm(
+        ref.watch(developmentAssessmentRepositoryProvider),
+      ),
+    );
+
+final saveDevelopmentAssessmentProvider = Provider<SaveDevelopmentAssessment>(
+  (ref) => SaveDevelopmentAssessment(
+    ref.watch(developmentAssessmentRepositoryProvider),
+  ),
 );
 
 final savePlayerPositionProvider = Provider<SavePlayerPosition>(
