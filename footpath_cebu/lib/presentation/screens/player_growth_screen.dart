@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/utils/date_format.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/domain/entities/match_performance.dart';
 import 'package:footpath_cebu/domain/entities/player_growth.dart';
@@ -106,7 +107,7 @@ class _OverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final assessment = growth.assessmentSummary;
+    final development = growth.developmentSummary;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -119,16 +120,24 @@ class _OverviewTab extends StatelessWidget {
           'Each category keeps its own scale. Assessment, effort, training quality, and match rates are never mixed into one unexplained score.',
         ),
         const SizedBox(height: 16),
-        _TrendCard(
-          title: 'Performance assessments',
-          value: assessment?.latestOverall?.toString() ?? '—',
-          detail: assessment == null
-              ? 'No assessment data'
-              : '${assessment.sampleSize} snapshots · ${_delta(assessment.overallDelta)} overall',
-          classification:
-              assessment?.classification ??
-              GrowthClassification.insufficientData,
-        ),
+        if (development == null || development.domains.isEmpty)
+          const _TrendCard(
+            title: 'Player development',
+            value: '—',
+            detail: 'No five-domain assessment data',
+            classification: GrowthClassification.insufficientData,
+          )
+        else
+          for (final domain in development.domains)
+            _TrendCard(
+              title: domain.label,
+              value: domain.latestScore?.toStringAsFixed(1) ?? '—',
+              detail:
+                  '${development.sampleSize} assessments · ${_doubleDelta(domain.delta)}',
+              classification: GrowthClassificationInfo.fromWire(
+                domain.classification,
+              ),
+            ),
         for (final group in growth.training)
           _TrendCard(
             title: '${_title(group.focus)} training',
@@ -200,51 +209,164 @@ class _AssessmentsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rows = growth.assessments;
-    if (rows.isEmpty) {
+    final developmentRows = growth.developmentAssessments;
+    final legacyRows = growth.assessments;
+    if (developmentRows.isEmpty && legacyRows.isEmpty) {
       return const DashboardEmptyState(
         icon: Icons.assessment_outlined,
         title: 'No assessment history',
-        message: 'A baseline or coach review will appear here when recorded.',
+        message:
+            'A coach development assessment will appear here when recorded.',
       );
     }
-    return ListView.builder(
+    return ListView(
       padding: const EdgeInsets.all(16),
-      itemCount: rows.length,
-      itemBuilder: (context, index) {
-        final row = rows[index];
-        final previous = index + 1 < rows.length ? rows[index + 1] : null;
-        return Card(
-          child: ExpansionTile(
-            leading: CircleAvatar(child: Text('${row.overall}')),
-            title: Text(row.reason.label),
-            subtitle: Text(
-              '${formatFullDate(row.createdAt)} · ${row.position.isEmpty ? 'No position' : row.position}',
-            ),
-            trailing: Text(
-              previous == null
-                  ? 'Baseline'
-                  : _delta(row.overall - previous.overall),
-              style: TextStyle(
-                color: _deltaColor(
-                  context,
-                  previous == null ? 0 : row.overall - previous.overall,
-                ),
-                fontWeight: FontWeight.w800,
+      children: [
+        Text(
+          'FootPath Development Framework',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Five domains remain separate. Not observed indicators are excluded, and no combined overall score is created.',
+        ),
+        const SizedBox(height: 12),
+        if (developmentRows.isEmpty)
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.hourglass_empty_outlined),
+              title: Text('No development assessment yet'),
+              subtitle: Text(
+                'Legacy ratings are not converted into the 1–5 framework.',
               ),
             ),
-            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            expandedCrossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(row.coachNotes.isEmpty ? 'No coach notes.' : row.coachNotes),
-              const SizedBox(height: 8),
-              Text('Sample ${rows.length} · position-aware overall'),
-            ],
           ),
-        );
-      },
+        for (final row in developmentRows)
+          _DevelopmentAssessmentCard(
+            row: row,
+            framework: growth.assessmentFramework,
+          ),
+        if (legacyRows.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Card(
+            child: ExpansionTile(
+              key: const Key('legacyAssessmentsSection'),
+              leading: const Icon(Icons.archive_outlined),
+              title: Text('Legacy 0–99 assessments (${legacyRows.length})'),
+              subtitle: const Text(
+                'Archived history; excluded from five-domain trends.',
+              ),
+              children: [
+                for (var index = 0; index < legacyRows.length; index++)
+                  _LegacyAssessmentTile(
+                    row: legacyRows[index],
+                    previous: index + 1 < legacyRows.length
+                        ? legacyRows[index + 1]
+                        : null,
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
+}
+
+class _DevelopmentAssessmentCard extends StatelessWidget {
+  const _DevelopmentAssessmentCard({
+    required this.row,
+    required this.framework,
+  });
+
+  final DevelopmentAssessmentSnapshot row;
+  final AssessmentFramework? framework;
+
+  String _label(String key) {
+    for (final domain in framework?.domains ?? const <DevelopmentDomain>[]) {
+      if (domain.key == key) return domain.label;
+    }
+    return switch (key) {
+      'technical' => 'Technical',
+      'tactical' => 'Tactical / Game Intelligence',
+      'physical' => 'Physical / Coordinative',
+      'mental' => 'Mental / Emotional',
+      'socialValues' => 'Social / Values',
+      _ => key,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: ExpansionTile(
+      leading: const CircleAvatar(child: Icon(Icons.insights_outlined)),
+      title: Text(AssessmentReasonInfo.fromWire(row.assessmentReason).label),
+      subtitle: Text(
+        '${formatFullDate(row.createdAt)} · ${row.ageTier} · ${row.position.isEmpty ? 'No position' : row.position}',
+      ),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final domain in row.domainScores.entries)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Expanded(child: Text(_label(domain.key))),
+                Text(domain.value?.toStringAsFixed(1) ?? '—'),
+              ],
+            ),
+          ),
+        const Divider(),
+        Text(
+          'Observed strength',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        Text(row.strengths),
+        const SizedBox(height: 10),
+        Text(
+          'Next development target',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        Text(row.developmentTargets),
+        if (row.coachNotes.trim().isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Additional coach notes',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          Text(row.coachNotes),
+        ],
+      ],
+    ),
+  );
+}
+
+class _LegacyAssessmentTile extends StatelessWidget {
+  const _LegacyAssessmentTile({required this.row, required this.previous});
+
+  final AssessmentSnapshot row;
+  final AssessmentSnapshot? previous;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    leading: CircleAvatar(child: Text('${row.overall}')),
+    title: Text(row.reason.label),
+    subtitle: Text(
+      '${formatFullDate(row.createdAt)} · ${row.position.isEmpty ? 'No position' : row.position}\n${row.coachNotes.isEmpty ? 'No legacy notes.' : row.coachNotes}',
+    ),
+    isThreeLine: true,
+    trailing: Text(
+      previous == null ? 'Baseline' : _delta(row.overall - previous!.overall),
+      style: TextStyle(
+        color: _deltaColor(
+          context,
+          previous == null ? 0 : row.overall - previous!.overall,
+        ),
+        fontWeight: FontWeight.w800,
+      ),
+    ),
+  );
 }
 
 class _TrainingTab extends StatelessWidget {
@@ -576,6 +698,12 @@ String _delta(int? value) => value == null
     : value > 0
     ? '+$value'
     : '$value';
+
+String _doubleDelta(double? value) => value == null
+    ? 'insufficient comparison data'
+    : value == 0
+    ? 'no comparable change'
+    : '${value > 0 ? '+' : ''}${value.toStringAsFixed(2)} change';
 String _decimalDelta(double? value) => value == null
     ? '—'
     : value > 0

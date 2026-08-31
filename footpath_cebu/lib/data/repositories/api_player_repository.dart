@@ -2,13 +2,19 @@ import 'dart:convert';
 
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/repositories/development_assessment_repository.dart';
 
 /// Live player data backed by the authenticated Django REST API.
 class ApiPlayerRepository
-    implements PlayerRepository, PlayerDetailsReader, PlayerPhotoWriter {
+    implements
+        PlayerRepository,
+        PlayerDetailsReader,
+        PlayerPhotoWriter,
+        DevelopmentAssessmentRepository {
   ApiPlayerRepository({this.unlockTokenFor, AuthenticatedApiClient? api})
     : _api = api ?? AuthenticatedApiClient.shared;
 
@@ -72,6 +78,31 @@ class ApiPlayerRepository
           'coachNotes': coachNotes,
           'assessmentReason': assessmentReason.wire,
         }),
+      );
+      return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    } on ApiException catch (error) {
+      throw PlayerRepositoryException(error.message);
+    }
+  }
+
+  @override
+  Future<DevelopmentAssessmentFormData> fetchDevelopmentAssessmentForm(
+    String playerId,
+  ) async {
+    final json = await _get('/api/players/$playerId/assessment/');
+    return DevelopmentAssessmentFormData.fromJson(json);
+  }
+
+  @override
+  Future<Player> saveDevelopmentAssessment(
+    String playerId,
+    DevelopmentAssessmentDraft draft,
+  ) async {
+    try {
+      final response = await _api.put(
+        '/api/players/$playerId/assessment/',
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(draft.toJson()),
       );
       return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
     } on ApiException catch (error) {

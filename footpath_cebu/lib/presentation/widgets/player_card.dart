@@ -1,170 +1,122 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 
-/// A FUT-style squad card. The ornate frame is an SVG asset
-/// (`assets/cards/card_frame.svg`); the live values — overall, position,
-/// photo, name, the six stats and the applicable eligibility badge — are overlaid on
-/// top, positioned in the frame's 600x850 coordinate space so they line up
-/// at any card size. Change a rating in the coach's assessment and the card
-/// updates automatically.
+/// Primary player identity card using the five independent development domains.
 class PlayerCard extends StatelessWidget {
   const PlayerCard({super.key, required this.player, this.onTap});
 
   final Player player;
   final VoidCallback? onTap;
 
-  // The frame's design canvas. All overlay coordinates below are in these
-  // units and scaled to the real card width at build time.
-  static const double _canvasW = 600;
-  static const double _canvasH = 850;
-
-  static const Color _gold = Color(0xFFE7C86A);
-  static const Color _bannerInk = Color(0xFF072A1F);
+  static const _domainLabels = {
+    'technical': 'Technical',
+    'tactical': 'Tactical',
+    'physical': 'Physical',
+    'mental': 'Mental',
+    'socialValues': 'Values',
+  };
 
   @override
   Widget build(BuildContext context) {
-    final r = player.ratings;
+    final assessment = player.developmentAssessment;
     final position = player.position?.labelWithCode ?? 'Position not assigned';
-    final semanticsParts = [
-      player.name,
-      position,
-      player.ageTier.label,
-      'overall rating ${player.overall}',
-      if (player.academicEligibilityApplicable) player.eligibility.label,
-    ];
+    final positionCode = player.position?.code ?? 'Position not assigned';
     return MotionPress(
       child: Semantics(
         container: true,
         button: onTap != null,
-        label: semanticsParts.join(', '),
-        excludeSemantics: true,
-        child: Material(
-          type: MaterialType.transparency,
+        label: [
+          player.name,
+          position,
+          player.ageTier.label,
+          assessment == null
+              ? 'no development assessment yet'
+              : 'five development domains assessed',
+        ].join(', '),
+        child: Card(
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(24),
-            child: AspectRatio(
-              aspectRatio: _canvasW / _canvasH,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  // Pixels per design unit — everything scales from this.
-                  final s = constraints.maxWidth / _canvasW;
-                  return Stack(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Positioned.fill(
-                        child: SvgPicture.asset(
-                          'assets/cards/card_frame.svg',
-                          fit: BoxFit.fill,
-                        ),
-                      ),
-
-                      // Player photo (behind the rating corner).
-                      _place(
-                        s,
-                        x: 170,
-                        y: 140,
-                        w: 260,
-                        h: 260,
-                        child: _Photo(photoUrl: player.photoUrl),
-                      ),
-
-                      // Overall rating + position, top-left.
-                      _place(
-                        s,
-                        x: 46,
-                        y: 148,
-                        w: 148,
-                        h: 104,
+                      _Photo(photoUrl: player.photoUrl, name: player.name),
+                      const SizedBox(width: 14),
+                      Expanded(
                         child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${player.overall}',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 58 * s,
-                                height: 1,
-                              ),
+                              player.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w900),
                             ),
+                            const SizedBox(height: 2),
+                            Text(positionCode),
                             Text(
-                              player.position?.code ?? '--',
-                              style: TextStyle(
-                                color: _gold,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 22 * s,
-                              ),
+                              player.ageTier.label,
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
                         ),
                       ),
-
-                      // Name banner text.
-                      _place(
-                        s,
-                        x: 128,
-                        y: 430,
-                        w: 344,
-                        h: 58,
-                        child: Center(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              player.name,
-                              maxLines: 1,
-                              style: TextStyle(
-                                color: _bannerInk,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 26 * s,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Six stats, two columns astride the frame's divider.
-                      _place(
-                        s,
-                        x: 84,
-                        y: 516,
-                        w: 432,
-                        h: 188,
-                        child: _StatsPanel(
-                          ratings: r,
-                          scale: s,
-                          isGoalkeeper:
-                              player.position?.group ==
-                              PositionGroup.goalkeeper,
-                        ),
-                      ),
-
-                      if (player.academicEligibilityApplicable)
-                        // Academic-standing badge for school clubs only.
-                        _place(
-                          s,
-                          x: 120,
-                          y: 712,
-                          w: 360,
-                          h: 44,
-                          child: Center(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: _EligibilityBadge(
-                                status: player.eligibility,
-                                scale: s,
-                              ),
-                            ),
-                          ),
-                        ),
                     ],
-                  );
-                },
+                  ),
+                  const Divider(height: 20),
+                  if (assessment == null)
+                    const Row(
+                      children: [
+                        Icon(Icons.hourglass_empty_outlined),
+                        SizedBox(width: 10),
+                        Expanded(child: Text('No development assessment yet')),
+                      ],
+                    )
+                  else ...[
+                    Text(
+                      'Development domains',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    LayoutBuilder(
+                      builder: (context, constraints) => Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final entry in _domainLabels.entries)
+                            SizedBox(
+                              width: (constraints.maxWidth - 8) / 2,
+                              child: _DomainBadge(
+                                label: entry.value,
+                                score: assessment.domainScores[entry.key],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (player.academicEligibilityApplicable) ...[
+                    const SizedBox(height: 12),
+                    Chip(
+                      avatar: Icon(
+                        _eligibilityIcon(player.eligibility),
+                        size: 16,
+                      ),
+                      label: Text(player.eligibility.label),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -172,220 +124,62 @@ class PlayerCard extends StatelessWidget {
       ),
     );
   }
-
-  /// Places [child] in the frame's coordinate space, scaled to real pixels.
-  Widget _place(
-    double s, {
-    required double x,
-    required double y,
-    required double w,
-    required double h,
-    required Widget child,
-  }) {
-    return Positioned(
-      left: x * s,
-      top: y * s,
-      width: w * s,
-      height: h * s,
-      child: child,
-    );
-  }
 }
 
-/// The circular player photo, or a person icon when none is set.
 class _Photo extends StatelessWidget {
-  const _Photo({required this.photoUrl});
+  const _Photo({required this.photoUrl, required this.name});
 
   final String? photoUrl;
+  final String name;
 
   @override
-  Widget build(BuildContext context) {
-    final url = photoUrl;
-    return ClipOval(
-      child: (url != null && url.isNotEmpty)
-          ? Image.network(
-              url,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              // Decode at roster-card size rather than full resolution — the
-              // grid shows many small photos (audit finding F10).
-              cacheWidth: 300,
-              errorBuilder: (context, error, stack) => const _PhotoFallback(),
-            )
-          : const _PhotoFallback(),
-    );
-  }
+  Widget build(BuildContext context) => CircleAvatar(
+    radius: 30,
+    backgroundImage: photoUrl == null ? null : NetworkImage(photoUrl!),
+    child: photoUrl == null ? Text(name.isEmpty ? '?' : name[0]) : null,
+  );
 }
 
-class _PhotoFallback extends StatelessWidget {
-  const _PhotoFallback();
+class _DomainBadge extends StatelessWidget {
+  const _DomainBadge({required this.label, required this.score});
+
+  final String label;
+  final double? score;
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) =>
-          Icon(Icons.person, color: Colors.white38, size: c.maxWidth * 0.62),
-    );
-  }
-}
-
-/// Two columns of three attributes each — the outfield six or, for a
-/// goalkeeper, the GK six.
-class _StatsPanel extends StatelessWidget {
-  const _StatsPanel({
-    required this.ratings,
-    required this.scale,
-    required this.isGoalkeeper,
-  });
-
-  final PlayerRatings ratings;
-  final double scale;
-  final bool isGoalkeeper;
-
-  @override
-  Widget build(BuildContext context) {
-    // Same "first three left, last three right" split as the outfield card,
-    // applied to the GK six in their declared order (DIV/HAN/KIC/REF/SPD/POS).
-    final left = isGoalkeeper
-        ? [
-            ('DIV', ratings.diving),
-            ('HAN', ratings.handling),
-            ('KIC', ratings.kicking),
-          ]
-        : [
-            ('PAC', ratings.pace),
-            ('SHO', ratings.shooting),
-            ('PAS', ratings.passing),
-          ];
-    final right = isGoalkeeper
-        ? [
-            ('REF', ratings.reflexes),
-            ('SPD', ratings.speed),
-            ('POS', ratings.positioning),
-          ]
-        : [
-            ('DRI', ratings.dribbling),
-            ('DEF', ratings.defending),
-            ('PHY', ratings.physical),
-          ];
-    return Row(
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Row(
       children: [
         Expanded(
-          child: _StatColumn(scale: scale, stats: left),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
         ),
-        Container(
-          width: 2 * scale,
-          margin: EdgeInsets.symmetric(vertical: 8 * scale),
-          color: PlayerCard._gold.withValues(alpha: 0.4),
-        ),
-        Expanded(
-          child: _StatColumn(scale: scale, stats: right),
+        const SizedBox(width: 5),
+        Text(
+          score?.toStringAsFixed(1) ?? '—',
+          style: Theme.of(
+            context,
+          ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900),
         ),
       ],
-    );
-  }
+    ),
+  );
 }
 
-class _StatColumn extends StatelessWidget {
-  const _StatColumn({required this.stats, required this.scale});
-
-  final List<(String, int)> stats;
-  final double scale;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        for (final (label, value) in stats)
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '$value',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 30 * scale,
-                  ),
-                ),
-                SizedBox(width: 6 * scale),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: PlayerCard._gold,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 20 * scale,
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// A translucent academic-standing pill sized for the dark card face.
-class _EligibilityBadge extends StatelessWidget {
-  const _EligibilityBadge({required this.status, required this.scale});
-
-  final EligibilityStatus status;
-  final double scale;
-
-  @override
-  Widget build(BuildContext context) {
-    late final Color color;
-    late final IconData icon;
-    switch (status) {
-      case EligibilityStatus.eligible:
-        color = const Color(0xFF8FE3A6);
-        icon = Icons.check_circle;
-        break;
-      case EligibilityStatus.academicWarning:
-        color = const Color(0xFFFFC65C);
-        icon = Icons.warning_amber_rounded;
-        break;
-      case EligibilityStatus.notEligible:
-        color = const Color(0xFFFF8A80);
-        icon = Icons.cancel;
-        break;
-      case EligibilityStatus.pending:
-        color = const Color(0xFFB0BEC5);
-        icon = Icons.hourglass_bottom;
-        break;
-    }
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: 14 * scale,
-        vertical: 6 * scale,
-      ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(24 * scale),
-        border: Border.all(
-          color: color.withValues(alpha: 0.7),
-          width: 1.5 * scale,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16 * scale, color: color),
-          SizedBox(width: 6 * scale),
-          Text(
-            status.label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 15 * scale,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+IconData _eligibilityIcon(EligibilityStatus status) => switch (status) {
+  EligibilityStatus.eligible => Icons.check_circle_outline,
+  EligibilityStatus.notEligible => Icons.cancel_outlined,
+  EligibilityStatus.pending => Icons.schedule_outlined,
+  EligibilityStatus.academicWarning => Icons.warning_amber_outlined,
+};

@@ -1,40 +1,37 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
-import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/presentation/providers/growth_providers.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 
 /// Drives the coach's Edit Performance Data form.
 ///
-/// Owns only the submit state ([AsyncValue] loading/error); the slider values
-/// live in the screen and are handed over as a [PlayerRatings] draft.
+/// Owns only the submit state ([AsyncValue] loading/error); the observed
+/// indicator values live in the screen and are submitted as one draft.
 class EditPerformanceController extends AsyncNotifier<void> {
   @override
   Future<void> build() async {}
 
-  /// Persists [ratings] and [coachNotes] for [playerId]. Returns the updated
+  /// Persists a five-domain [draft] for [playerId]. Returns the updated
   /// player on success, or null on failure (with the error in [state] for the
-  /// View to show). On success the squad roster is invalidated so the card's
-  /// overall rating refreshes wherever it is shown.
+  /// View to show). On success, roster and growth providers are invalidated so
+  /// all five-domain summaries refresh immediately.
   Future<Player?> submit(
     String playerId,
-    PlayerRatings ratings, {
-    required String coachNotes,
-    AssessmentReason assessmentReason = AssessmentReason.generalReview,
-  }) async {
+    DevelopmentAssessmentDraft draft,
+  ) async {
     state = const AsyncLoading();
     try {
-      final updated = await ref.read(savePlayerAssessmentProvider)(
+      final updated = await ref.read(saveDevelopmentAssessmentProvider)(
         playerId,
-        ratings,
-        coachNotes: coachNotes,
-        assessmentReason: assessmentReason,
+        draft,
       );
       state = const AsyncData(null);
       ref.invalidate(squadProvider);
       ref.invalidate(playerGrowthProvider);
+      ref.invalidate(developmentAssessmentFormProvider(playerId));
       return updated;
     } catch (e, st) {
       state = AsyncError(e, st);

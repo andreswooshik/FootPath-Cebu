@@ -2,14 +2,10 @@ import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
-import 'package:footpath_cebu/domain/entities/card_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 
-/// A minimized "Ultimate Team" card for the roster list: a tier-tinted strip
-/// with the overall rating, the player's photo, name, position and applicable
-/// academic dot, and a quick-action affordance. Denser than the full [PlayerCard] so a
-/// coach can scan the whole squad at once.
+/// Compact roster card with the player's development-assessment status.
 class MiniPlayerCard extends StatelessWidget {
   const MiniPlayerCard({
     super.key,
@@ -25,8 +21,7 @@ class MiniPlayerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tier = CardTier.forPlayer(player);
-    final tierColor = Color(tier.argb);
+    final assessment = player.developmentAssessment;
 
     return MotionPress(
       child: Card(
@@ -38,7 +33,6 @@ class MiniPlayerCard extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             child: Row(
               children: [
-                // Overall + tier medallion.
                 Container(
                   width: 52,
                   height: 52,
@@ -48,33 +42,17 @@ class MiniPlayerCard extends StatelessWidget {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        tierColor,
-                        Color.lerp(tierColor, Colors.black, 0.25)!,
+                        theme.colorScheme.primary,
+                        theme.colorScheme.primaryContainer,
                       ],
                     ),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${player.overall}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 20,
-                          height: 1,
-                        ),
-                      ),
-                      Text(
-                        player.position?.code ?? '--',
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
+                  child: Icon(
+                    assessment == null
+                        ? Icons.hourglass_empty_outlined
+                        : Icons.insights_outlined,
+                    color: theme.colorScheme.onPrimary,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -105,10 +83,14 @@ class MiniPlayerCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                           ],
-                          Text(
-                            '${player.ageTier.label} · ${tier.label}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                          Expanded(
+                            child: Text(
+                              '${player.ageTier.label} · ${player.position?.code ?? 'Unassigned'} · ${assessment == null ? 'Awaiting assessment' : '5 domains assessed'}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         ],

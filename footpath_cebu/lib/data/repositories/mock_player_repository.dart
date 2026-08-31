@@ -1,12 +1,20 @@
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/repositories/development_assessment_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_development_assessment.dart';
 
 /// In-memory squad roster for UI development without a backend.
 class MockPlayerRepository
-    implements PlayerRepository, PlayerDetailsReader, PlayerPhotoWriter {
+    implements
+        PlayerRepository,
+        PlayerDetailsReader,
+        PlayerPhotoWriter,
+        DevelopmentAssessmentRepository {
+  final Map<String, DevelopmentAssessmentSnapshot> _developmentHistory = {};
   static final List<Player> _squad = [
     const Player(
       id: 'p1',
@@ -258,6 +266,69 @@ class MockPlayerRepository
       coachNotes: coachNotes,
     );
     _squad[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<DevelopmentAssessmentFormData> fetchDevelopmentAssessmentForm(
+    String playerId,
+  ) async {
+    await Future.delayed(const Duration(milliseconds: 120));
+    final player = _squad.firstWhere(
+      (candidate) => candidate.id == playerId,
+      orElse: () => throw PlayerRepositoryException('No such player.'),
+    );
+    return DevelopmentAssessmentFormData(
+      framework: mockDevelopmentFramework(player),
+      latestAssessment: _developmentHistory[playerId],
+    );
+  }
+
+  @override
+  Future<Player> saveDevelopmentAssessment(
+    String playerId,
+    DevelopmentAssessmentDraft draft,
+  ) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    final index = _squad.indexWhere((player) => player.id == playerId);
+    if (index == -1) {
+      throw PlayerRepositoryException('No such player.');
+    }
+    final now = DateTime.now();
+    final domainScores = {
+      for (final domain in draft.ratings.values.keys)
+        domain: draft.ratings.average(domain),
+    };
+    final current = CurrentDevelopmentAssessment(
+      frameworkVersion: draft.frameworkVersion,
+      ratings: draft.ratings,
+      domainScores: domainScores,
+      strengths: draft.strengths,
+      developmentTargets: draft.developmentTargets,
+      assessedAt: now,
+    );
+    final player = _squad[index];
+    final updated = player.copyWith(
+      coachNotes: draft.coachNotes,
+      developmentAssessment: current,
+    );
+    _squad[index] = updated;
+    _developmentHistory[playerId] = DevelopmentAssessmentSnapshot(
+      id: 'mock-${now.microsecondsSinceEpoch}',
+      playerId: playerId,
+      position: player.position?.wire ?? '',
+      ageTier: player.ageTier.wire,
+      ageAtAssessment: player.age,
+      frameworkVersion: draft.frameworkVersion,
+      ratings: draft.ratings,
+      domainScores: domainScores,
+      strengths: draft.strengths,
+      developmentTargets: draft.developmentTargets,
+      coachNotes: draft.coachNotes,
+      assessmentReason: draft.assessmentReason,
+      createdAt: now,
+      assessedByRole: 'Coach',
+    );
     return updated;
   }
 
