@@ -5,7 +5,7 @@ import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
-import 'package:footpath_cebu/presentation/widgets/mini_player_card.dart';
+import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 
 const _coach = UserProfile(
   id: 'c1',
@@ -48,8 +48,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Active Squad Roster'), findsOneWidget);
-    // The roster defaults to the compact mini-card list.
-    expect(find.byType(MiniPlayerCard), findsWidgets);
+    // The roster defaults to the full FUT-style player-card grid.
+    expect(find.byType(PlayerCard), findsWidgets);
     expect(find.text('Rhobert Ronaldo'), findsOneWidget);
   });
 

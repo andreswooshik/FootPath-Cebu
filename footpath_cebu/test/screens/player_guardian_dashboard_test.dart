@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
@@ -31,6 +32,7 @@ void main() {
 
     expect(find.text('My Profile'), findsOneWidget);
     expect(find.byType(PlayerCard), findsOneWidget);
+    expect(find.byType(SvgPicture), findsOneWidget);
     // The shared portal shell's four tabs.
     expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Schedule'), findsOneWidget);

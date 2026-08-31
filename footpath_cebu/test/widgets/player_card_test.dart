@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
@@ -123,18 +124,31 @@ Future<void> _pump(
 }
 
 void main() {
-  group('PlayerCard stats panel', () {
-    testWidgets('exposes a concise accessible action', (tester) async {
+  group('FUT-style PlayerCard development panel', () {
+    testWidgets('flips before exposing the coach profile action', (
+      tester,
+    ) async {
       final semantics = tester.ensureSemantics();
       var tapped = false;
 
       await _pump(tester, _outfield(), onTap: () => tapped = true);
 
       final card = find.bySemanticsLabel(
-        'Test Striker, Striker (ST), Pathway, no development assessment yet',
+        'Test Striker, Striker (ST), assessment side, not assessed yet',
       );
       expect(card, findsOneWidget);
       await tester.tap(card);
+      await tester.pumpAndSettle();
+
+      expect(tapped, isFalse);
+      expect(find.text('OUTFIELD ATTRIBUTES · 0–99'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Test Striker, Striker (ST), outfield attributes shown',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('view-profile-p1')));
       expect(tapped, isTrue);
       semantics.dispose();
     });
@@ -149,7 +163,7 @@ void main() {
       expect(find.text('Eligibility N/A'), findsNothing);
       expect(
         find.bySemanticsLabel(
-          'Club Player, Striker (ST), Pathway, no development assessment yet',
+          'Club Player, Striker (ST), assessment side, not assessed yet',
         ),
         findsOneWidget,
       );
@@ -161,14 +175,15 @@ void main() {
     ) async {
       await _pump(tester, _goalkeeper());
 
-      expect(find.text('No development assessment yet'), findsOneWidget);
+      expect(find.byType(SvgPicture), findsOneWidget);
+      expect(find.text('AWAITING ASSESSMENT'), findsOneWidget);
+      expect(find.text('Pathway'), findsNothing);
       for (final code in [
         'PAC',
         'SHO',
         'PAS',
         'DRI',
         'DEF',
-        'PHY',
         'DIV',
         'HAN',
         'KIC',
@@ -180,19 +195,53 @@ void main() {
       }
     });
 
+    testWidgets('flips to all six outfield legacy attributes', (tester) async {
+      await _pump(tester, _outfield());
+
+      await tester.tap(find.byType(PlayerCard));
+      await tester.pumpAndSettle();
+
+      expect(find.text('OUTFIELD ATTRIBUTES · 0–99'), findsOneWidget);
+      for (final code in ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']) {
+        expect(find.text(code), findsOneWidget);
+      }
+      for (final value in ['91', '82', '73', '64', '55', '46']) {
+        expect(find.text(value), findsOneWidget);
+      }
+      expect(find.text('${_outfield().overall}'), findsNothing);
+      expect(find.text('Pathway'), findsNothing);
+    });
+
+    testWidgets('uses the goalkeeper-specific six on the legacy side', (
+      tester,
+    ) async {
+      await _pump(tester, _goalkeeper());
+
+      await tester.tap(find.byType(PlayerCard));
+      await tester.pumpAndSettle();
+
+      expect(find.text('GOALKEEPER ATTRIBUTES · 0–99'), findsOneWidget);
+      for (final code in ['DIV', 'HAN', 'KIC', 'REF', 'SPD', 'POS']) {
+        expect(find.text(code), findsOneWidget);
+      }
+      for (final value in ['88', '85', '70', '92', '62', '86']) {
+        expect(find.text(value), findsOneWidget);
+      }
+      for (final code in ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']) {
+        expect(find.text(code), findsNothing);
+      }
+      expect(find.text('${_goalkeeper().overall}'), findsNothing);
+    });
+
     testWidgets('shows five independent development domains without overall', (
       tester,
     ) async {
       await _pump(tester, _assessedPlayer());
 
-      expect(find.text('Development domains'), findsOneWidget);
-      for (final label in [
-        'Technical',
-        'Tactical',
-        'Physical',
-        'Mental',
-        'Values',
-      ]) {
+      expect(find.byType(SvgPicture), findsOneWidget);
+      expect(find.text('ASSESSMENT DOMAINS · 1–5'), findsOneWidget);
+      expect(find.text('Development'), findsNothing);
+      for (final label in ['TEC', 'TAC', 'PHYS', 'MEN', 'VAL']) {
         expect(find.text(label), findsOneWidget);
       }
       for (final value in ['4.0', '3.5', '3.0', '4.5', '5.0']) {

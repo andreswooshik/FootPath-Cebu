@@ -39,7 +39,7 @@ class CoachDashboardScreen extends ConsumerStatefulWidget {
 
 class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
   /// Compact list of mini cards vs. the full FUT-card grid.
-  bool _compact = true;
+  bool _compact = false;
 
   void _openProfile(Player player) {
     Navigator.of(context).push(
