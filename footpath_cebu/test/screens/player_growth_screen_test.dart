@@ -160,6 +160,10 @@ void main() {
     await tester.tap(find.text('Assessments'));
     await tester.pumpAndSettle();
     expect(find.text('Monthly review'), findsOneWidget);
+    expect(find.text('FootPath Development Framework'), findsOneWidget);
+    expect(find.text('Baseline'), findsNothing);
+    await tester.tap(find.byKey(const Key('legacyAssessmentsSection')));
+    await tester.pumpAndSettle();
     expect(find.text('Baseline'), findsWidgets);
 
     await tester.tap(find.text('Training'));

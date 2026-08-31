@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
+import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
@@ -68,6 +69,38 @@ Player _independentClubPlayer() => const Player(
   ),
 );
 
+Player _assessedPlayer() => Player(
+  id: 'p10',
+  name: 'Assessed Player',
+  age: 15,
+  classYear: 'Class of 2027',
+  ageTier: AgeTier.development,
+  position: PlayerPosition.centralMidfielder,
+  eligibility: EligibilityStatus.eligible,
+  ratings: const PlayerRatings(
+    pace: 0,
+    shooting: 0,
+    passing: 0,
+    dribbling: 0,
+    defending: 0,
+    physical: 0,
+  ),
+  developmentAssessment: CurrentDevelopmentAssessment(
+    frameworkVersion: 1,
+    ratings: DevelopmentScores(const {}),
+    domainScores: const {
+      'technical': 4,
+      'tactical': 3.5,
+      'physical': 3,
+      'mental': 4.5,
+      'socialValues': 5,
+    },
+    strengths: 'Scans before receiving.',
+    developmentTargets: 'Use the weaker foot.',
+    assessedAt: DateTime(2026, 8, 30),
+  ),
+);
+
 Future<void> _pump(
   WidgetTester tester,
   Player player, {
@@ -98,7 +131,7 @@ void main() {
       await _pump(tester, _outfield(), onTap: () => tapped = true);
 
       final card = find.bySemanticsLabel(
-        'Test Striker, Striker (ST), Pathway, overall rating 69, Eligible',
+        'Test Striker, Striker (ST), Pathway, no development assessment yet',
       );
       expect(card, findsOneWidget);
       await tester.tap(card);
@@ -116,63 +149,56 @@ void main() {
       expect(find.text('Eligibility N/A'), findsNothing);
       expect(
         find.bySemanticsLabel(
-          'Club Player, Striker (ST), Pathway, overall rating 70',
+          'Club Player, Striker (ST), Pathway, no development assessment yet',
         ),
         findsOneWidget,
       );
       semantics.dispose();
     });
 
-    testWidgets('an outfield player shows the outfield six, not the GK six', (
+    testWidgets('does not present legacy ratings as current development data', (
       tester,
     ) async {
-      final player = _outfield();
-      await _pump(tester, player);
+      await _pump(tester, _goalkeeper());
 
-      final expected = {
-        'PAC': player.ratings.pace,
-        'SHO': player.ratings.shooting,
-        'PAS': player.ratings.passing,
-        'DRI': player.ratings.dribbling,
-        'DEF': player.ratings.defending,
-        'PHY': player.ratings.physical,
-      };
-      for (final entry in expected.entries) {
-        expect(find.text(entry.key), findsWidgets);
-        expect(find.text('${entry.value}'), findsOneWidget);
-      }
-      for (final code in ['DIV', 'HAN', 'KIC', 'REF', 'SPD', 'POS']) {
+      expect(find.text('No development assessment yet'), findsOneWidget);
+      for (final code in [
+        'PAC',
+        'SHO',
+        'PAS',
+        'DRI',
+        'DEF',
+        'PHY',
+        'DIV',
+        'HAN',
+        'KIC',
+        'REF',
+        'SPD',
+        'POS',
+      ]) {
         expect(find.text(code), findsNothing);
       }
-      // Corner badge shows the outfield overall.
-      expect(find.text('${player.overall}'), findsOneWidget);
     });
 
-    testWidgets('a goalkeeper shows the GK six, not the outfield six', (
+    testWidgets('shows five independent development domains without overall', (
       tester,
     ) async {
-      final player = _goalkeeper();
-      await _pump(tester, player);
+      await _pump(tester, _assessedPlayer());
 
-      final expected = {
-        'DIV': player.ratings.diving,
-        'HAN': player.ratings.handling,
-        'KIC': player.ratings.kicking,
-        'REF': player.ratings.reflexes,
-        'SPD': player.ratings.speed,
-        'POS': player.ratings.positioning,
-      };
-      for (final entry in expected.entries) {
-        expect(find.text(entry.key), findsWidgets);
-        expect(find.text('${entry.value}'), findsOneWidget);
+      expect(find.text('Development domains'), findsOneWidget);
+      for (final label in [
+        'Technical',
+        'Tactical',
+        'Physical',
+        'Mental',
+        'Values',
+      ]) {
+        expect(find.text(label), findsOneWidget);
       }
-      for (final code in ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']) {
-        expect(find.text(code), findsNothing);
+      for (final value in ['4.0', '3.5', '3.0', '4.5', '5.0']) {
+        expect(find.text(value), findsOneWidget);
       }
-      // Corner badge shows gkOverall (81), never the deliberately-bad
-      // outfield-six average.
-      expect(player.overall, player.ratings.gkOverall);
-      expect(find.text('${player.overall}'), findsOneWidget);
+      expect(find.textContaining('overall'), findsNothing);
     });
   });
 }
