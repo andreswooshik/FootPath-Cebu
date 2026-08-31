@@ -14,6 +14,7 @@ class MockTournamentScheduleRepository implements TournamentScheduleRepository {
       TournamentSchedule(
         id: 'schedule-1',
         title: 'Cebu Youth Cup',
+        venue: 'Cebu City Sports Center',
         startsOn: now.add(const Duration(days: 5)),
         isPublished: true,
         documentUrl: null,
@@ -77,6 +78,7 @@ class MockTournamentScheduleRepository implements TournamentScheduleRepository {
   @override
   Future<TournamentSchedule> createTournament({
     required String title,
+    required String venue,
     required DateTime startsOn,
   }) async {
     await fetchSchedules();
@@ -84,6 +86,7 @@ class MockTournamentScheduleRepository implements TournamentScheduleRepository {
     final created = TournamentSchedule(
       id: 'schedule-${_schedules.length + 1}',
       title: title,
+      venue: venue,
       startsOn: startsOn,
       isPublished: false,
       publishedAt: null,

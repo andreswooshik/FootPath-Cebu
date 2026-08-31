@@ -46,12 +46,17 @@ class ApiTournamentScheduleRepository implements TournamentScheduleRepository {
   @override
   Future<TournamentSchedule> createTournament({
     required String title,
+    required String venue,
     required DateTime startsOn,
   }) => _write(
     () => _api.post(
       '/api/tournament-schedules/',
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'title': title, 'startsOn': _dateOnly(startsOn)}),
+      body: jsonEncode({
+        'title': title,
+        'venue': venue,
+        'startsOn': _dateOnly(startsOn),
+      }),
       expectedStatuses: const {201},
     ),
   );
@@ -64,6 +69,7 @@ class ApiTournamentScheduleRepository implements TournamentScheduleRepository {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'title': tournament.title,
+            'venue': tournament.venue,
             'startsOn': _dateOnly(tournament.startsOn),
           }),
         ),

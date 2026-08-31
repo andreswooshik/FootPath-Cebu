@@ -4,7 +4,7 @@
 {% block page_title %}
   <div>
     <h1 class="text-xl font-bold text-gray-900">{{ schedule.title }}</h1>
-    <p class="mt-0.5 text-sm text-gray-500">Official document and structured fixtures</p>
+    <p class="mt-0.5 text-sm text-gray-500">{{ schedule.starts_on|date:'M j, Y' }} &middot; {{ schedule.venue }}</p>
   </div>
 {% endblock %}
 {% block breadcrumb %}<a href="{% url 'portal:dashboard' %}" class="hover:text-gray-900">Home</a> <span aria-hidden="true">/</span> <a href="{% url 'portal:tournaments' %}" class="hover:text-gray-900">Tournaments</a> <span aria-hidden="true">/</span> <span>{{ schedule.title }}</span>{% endblock %}

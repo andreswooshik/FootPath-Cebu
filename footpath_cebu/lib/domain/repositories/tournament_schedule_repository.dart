@@ -4,6 +4,7 @@ abstract interface class TournamentScheduleRepository {
   Future<List<TournamentSchedule>> fetchSchedules();
   Future<TournamentSchedule> createTournament({
     required String title,
+    required String venue,
     required DateTime startsOn,
   });
   Future<TournamentSchedule> updateTournament(TournamentSchedule tournament);

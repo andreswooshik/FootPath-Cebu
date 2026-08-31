@@ -281,12 +281,14 @@ class TournamentSquadAdmin(admin.ModelAdmin):
 @admin.register(TournamentSchedule)
 class TournamentScheduleAdmin(admin.ModelAdmin):
     list_display = (
-        'title', 'club', 'starts_on', 'is_published', 'published_at', 'uploaded_by',
+        'title', 'club', 'venue', 'starts_on', 'is_published', 'published_at',
+        'uploaded_by',
     )
     list_filter = ('is_published', 'club')
     search_fields = ('title', 'club__name')
     readonly_fields = (
-        'club', 'title', 'starts_on', 'document_path', 'uploaded_by', 'is_published',
+        'club', 'title', 'venue', 'starts_on', 'document_path', 'uploaded_by',
+        'is_published',
         'published_at', 'created_at', 'updated_at',
     )
     inlines = [TournamentAgeBracketInline, TournamentFixtureInline]

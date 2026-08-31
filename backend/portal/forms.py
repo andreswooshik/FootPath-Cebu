@@ -246,6 +246,13 @@ class TournamentScheduleForm(forms.Form):
         label='Tournament start date',
         widget=forms.DateInput(attrs={'type': 'date'}),
     )
+    venue = forms.CharField(
+        max_length=160,
+        label='Tournament venue',
+        widget=forms.TextInput(
+            attrs={'placeholder': 'e.g. Cebu City Sports Center'}
+        ),
+    )
     document = forms.FileField(
         label='Official schedule document',
         help_text='Optional. PDF, JPG, or PNG, up to 5 MB.',
@@ -255,6 +262,9 @@ class TournamentScheduleForm(forms.Form):
 
     def clean_title(self):
         return self.cleaned_data['title'].strip()
+
+    def clean_venue(self):
+        return self.cleaned_data['venue'].strip()
 
 
 class TournamentDocumentForm(forms.Form):

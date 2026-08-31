@@ -633,6 +633,7 @@ class TournamentSchedule(models.Model):
         related_name='tournament_schedules',
     )
     title = models.CharField(max_length=120)
+    venue = models.CharField(max_length=160, blank=True)
     starts_on = models.DateField(default=timezone.localdate)
     document_path = models.CharField(max_length=500, blank=True)
     uploaded_by = models.ForeignKey(
@@ -650,6 +651,7 @@ class TournamentSchedule(models.Model):
     def clean(self):
         super().clean()
         self.title = self.title.strip()
+        self.venue = self.venue.strip()
         if not self.title:
             raise ValidationError({'title': 'Tournament title is required.'})
 
@@ -679,7 +681,7 @@ class TournamentAgeBracket(models.Model):
         related_name='age_brackets',
     )
     max_age = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(3), MaxValueValidator(25)],
+        validators=[MinValueValidator(3), MaxValueValidator(21)],
     )
     scheduled_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
