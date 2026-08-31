@@ -2,7 +2,7 @@
 Django>=5.2.17,<5.3
 django-jazzmin~=3.0
 djangorestframework~=3.16
-firebase-admin>=6.5,<8
+firebase-admin>=7.5.0,<8
 django-cors-headers~=4.7
 # Brute-force / credential-stuffing lockout for the session logins.
 django-axes~=8.0
@@ -13,12 +13,12 @@ python-dotenv~=1.1
 httpx~=0.28
 # Postgres driver — used when DB_* points at Supabase/Postgres.
 # SQLite (local dev + tests) needs no driver.
-psycopg[binary]~=3.2
+psycopg[binary]~=3.3
 # Production WSGI server, static assets, shared Redis cache, and optional
 # SENTRY_DSN-driven error monitoring.
-gunicorn>=22,<24
-whitenoise>=6,<7
-redis>=5,<7
+gunicorn>=26.2.0,<27
+whitenoise>=6.12.0,<7
+redis>=8.1.0,<9
 sentry-sdk[django]>=2,<3
 
 # Security floors for transitive Firebase/HTTP/Django dependencies. Declaring
