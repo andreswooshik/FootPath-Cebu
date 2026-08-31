@@ -538,7 +538,7 @@ class TournamentScheduleSerializer(serializers.ModelSerializer):
     class Meta:
         model = TournamentSchedule
         fields = [
-            'id', 'title', 'startsOn', 'isPublished', 'documentUrl',
+            'id', 'title', 'venue', 'startsOn', 'isPublished', 'documentUrl',
             'publishedAt', 'updatedAt', 'ageBrackets', 'fixtures',
         ]
 
@@ -548,15 +548,16 @@ class TournamentScheduleSerializer(serializers.ModelSerializer):
 
 class TournamentScheduleWriteSerializer(serializers.ModelSerializer):
     startsOn = serializers.DateField(source='starts_on')
+    venue = serializers.CharField(max_length=160, trim_whitespace=True)
 
     class Meta:
         model = TournamentSchedule
-        fields = ['title', 'startsOn']
+        fields = ['title', 'venue', 'startsOn']
 
 
 class TournamentAgeBracketWriteSerializer(serializers.ModelSerializer):
     maxAge = serializers.IntegerField(
-        source='max_age', min_value=3, max_value=25,
+        source='max_age', min_value=3, max_value=21,
     )
     scheduledAt = serializers.DateTimeField(
         source='scheduled_at', required=False, allow_null=True,

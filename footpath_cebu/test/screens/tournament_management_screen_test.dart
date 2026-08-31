@@ -10,6 +10,7 @@ import 'package:footpath_cebu/presentation/screens/tournament_schedule_screen.da
 TournamentSchedule _draft() => TournamentSchedule(
   id: 'draft-1',
   title: 'Sinulog Cup',
+  venue: 'Cebu City Sports Center',
   startsOn: DateTime(2026, 9, 20),
   isPublished: false,
   publishedAt: null,
@@ -21,6 +22,7 @@ TournamentSchedule _draft() => TournamentSchedule(
 TournamentSchedule _completed() => TournamentSchedule(
   id: 'cup-1',
   title: 'Cebu Youth Cup',
+  venue: 'Dynamic Herb Sports Stadium',
   startsOn: DateTime(2026, 8, 27),
   isPublished: true,
   publishedAt: DateTime(2026, 8, 1),
@@ -94,6 +96,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Tournament draft'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextField, 'Cebu City Sports Center'),
+      findsOneWidget,
+    );
     expect(find.text('U8 division'), findsOneWidget);
     expect(find.text('Add bracket'), findsOneWidget);
     expect(find.text('Publish tournament'), findsOneWidget);
@@ -119,8 +125,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Add age bracket'), findsOneWidget);
-    expect(find.text('Maximum age'), findsOneWidget);
+    expect(find.text('Age bracket'), findsOneWidget);
+    expect(find.text('Choose U3 through U21.'), findsOneWidget);
     expect(find.text('Add optional schedule date and time'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('tournament-age-bracket-dropdown')));
+    await tester.pumpAndSettle();
+    expect(find.text('U3'), findsOneWidget);
+    expect(find.text('U21'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -140,6 +151,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('vs Mandaue FC'), findsOneWidget);
+    expect(find.text('Dynamic Herb Sports Stadium'), findsOneWidget);
     expect(find.text('U16 - Final'), findsOneWidget);
     expect(find.text('2-1 · Win'), findsOneWidget);
     expect(find.text('Cebu Youth Cup · U16 · Final'), findsOneWidget);

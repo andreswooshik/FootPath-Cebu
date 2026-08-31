@@ -164,6 +164,25 @@ class _ScheduleCard extends StatelessWidget {
                         formatFullDate(schedule.startsOn),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
+                      if (schedule.venue.trim().isNotEmpty)
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 16,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                schedule.venue,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),

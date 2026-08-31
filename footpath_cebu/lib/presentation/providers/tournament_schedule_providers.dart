@@ -14,11 +14,12 @@ class TournamentManagementController extends AsyncNotifier<void> {
 
   Future<TournamentSchedule?> create({
     required String title,
+    required String venue,
     required DateTime startsOn,
   }) => _run(
     () => ref
         .read(tournamentScheduleRepositoryProvider)
-        .createTournament(title: title, startsOn: startsOn),
+        .createTournament(title: title, venue: venue, startsOn: startsOn),
   );
 
   Future<TournamentSchedule?> saveTournament(TournamentSchedule tournament) =>

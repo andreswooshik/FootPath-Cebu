@@ -20,6 +20,7 @@ void main() {
             {
               'id': 'schedule-1',
               'title': 'Cebu Youth Cup',
+              'venue': 'Cebu City Sports Center',
               'startsOn': '2026-08-27',
               'isPublished': true,
               'documentUrl': 'https://storage.example/signed-schedule',
@@ -77,6 +78,7 @@ void main() {
     expect(captured.method, 'GET');
     expect(captured.url.path, '/api/tournament-schedules/');
     expect(rows.single.title, 'Cebu Youth Cup');
+    expect(rows.single.venue, 'Cebu City Sports Center');
     expect(rows.single.ageBrackets.single.label, 'U12');
     expect(
       rows.single.ageBrackets.single.squad!.entries.single.playerName,
@@ -101,6 +103,7 @@ void main() {
           jsonEncode({
             'id': 'schedule-2',
             'title': 'Sinulog Cup',
+            'venue': 'Abellana Field',
             'startsOn': '2026-09-20',
             'isPublished': false,
             'documentUrl': null,
@@ -114,16 +117,21 @@ void main() {
       }),
     );
 
-    final created = await ApiTournamentScheduleRepository(
-      api: api,
-    ).createTournament(title: 'Sinulog Cup', startsOn: DateTime(2026, 9, 20));
+    final created = await ApiTournamentScheduleRepository(api: api)
+        .createTournament(
+          title: 'Sinulog Cup',
+          venue: 'Abellana Field',
+          startsOn: DateTime(2026, 9, 20),
+        );
 
     expect(captured.method, 'POST');
     expect(captured.url.path, '/api/tournament-schedules/');
     expect(jsonDecode(captured.body), {
       'title': 'Sinulog Cup',
+      'venue': 'Abellana Field',
       'startsOn': '2026-09-20',
     });
+    expect(created.venue, 'Abellana Field');
     expect(created.isPublished, isFalse);
     expect(created.publishedAt, isNull);
   });

@@ -136,6 +136,7 @@ class TournamentPortalTests(TestCase):
         response = self.client.post(reverse('portal:tournaments'), {
             'title': 'Cebu Youth Cup',
             'starts_on': '2026-09-15',
+            'venue': 'Cebu City Sports Center',
             'document': _pdf(),
         })
         schedule = TournamentSchedule.objects.get()
@@ -145,6 +146,7 @@ class TournamentPortalTests(TestCase):
         )
         self.assertEqual(schedule.club, self.club)
         self.assertEqual(schedule.uploaded_by, self.coordinator)
+        self.assertEqual(schedule.venue, 'Cebu City Sports Center')
         self.assertTrue(
             AuditLog.objects.filter(action='tournament.created').exists()
         )
@@ -220,6 +222,7 @@ class TournamentPortalTests(TestCase):
         response = self.client.post(reverse('portal:tournaments'), {
             'title': 'Fixture Later Cup',
             'starts_on': '2026-10-02',
+            'venue': 'Abellana Field',
         })
         schedule = TournamentSchedule.objects.get(title='Fixture Later Cup')
         self.assertRedirects(
@@ -253,6 +256,7 @@ class TournamentScheduleApiTests(APITestCase):
         self.schedule = TournamentSchedule.objects.create(
             club=self.club,
             title='Mobile Tournament',
+            venue='Dynamic Herb Sports Stadium',
             document_path='tournament-schedules/1/1.pdf',
         )
         TournamentFixture.objects.create(
@@ -278,6 +282,9 @@ class TournamentScheduleApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['title'], 'Mobile Tournament')
+        self.assertEqual(
+            response.data[0]['venue'], 'Dynamic Herb Sports Stadium'
+        )
         self.assertEqual(
             response.data[0]['documentUrl'],
             'https://signed.example/schedule',
@@ -314,6 +321,7 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
         self.client.force_authenticate(self.coordinator)
         response = self.client.post(reverse('tournament-schedules'), {
             'title': 'Sinulog Cup',
+            'venue': 'Cebu City Sports Center',
             'startsOn': '2026-09-20',
         })
         self.assertEqual(response.status_code, 201)
@@ -324,6 +332,7 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
         self.assertFalse(schedule.is_published)
         self.assertIsNone(schedule.published_at)
         self.assertEqual(str(schedule.starts_on), '2026-09-20')
+        self.assertEqual(schedule.venue, 'Cebu City Sports Center')
         self.assertEqual(schedule.document_path, '')
         self.assertTrue(
             AuditLog.objects.filter(action='tournament.draft_created').exists()
@@ -385,6 +394,10 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
         )
         self.assertEqual(
             self.client.post(url, {'maxAge': 8}, format='json').status_code,
+            400,
+        )
+        self.assertEqual(
+            self.client.post(url, {'maxAge': 22}, format='json').status_code,
             400,
         )
         other_url = reverse(

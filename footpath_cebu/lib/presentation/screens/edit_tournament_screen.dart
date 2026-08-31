@@ -23,6 +23,9 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
   late final TextEditingController _titleController = TextEditingController(
     text: widget.existing?.title ?? '',
   );
+  late final TextEditingController _venueController = TextEditingController(
+    text: widget.existing?.venue ?? '',
+  );
   late DateTime? _startsOn = widget.existing?.startsOn;
   late TournamentSchedule? _current = widget.existing;
   String? _formError;
@@ -30,6 +33,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _venueController.dispose();
     super.dispose();
   }
 
@@ -46,17 +50,24 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
 
   Future<void> _saveDetails() async {
     final title = _titleController.text.trim();
-    if (title.isEmpty || _startsOn == null) {
-      setState(() => _formError = 'Enter a tournament name and start date.');
+    final venue = _venueController.text.trim();
+    if (title.isEmpty || venue.isEmpty || _startsOn == null) {
+      setState(
+        () => _formError = 'Enter a tournament name, venue, and start date.',
+      );
       return;
     }
     final controller = ref.read(
       tournamentManagementControllerProvider.notifier,
     );
     final saved = _current == null
-        ? await controller.create(title: title, startsOn: _startsOn!)
+        ? await controller.create(
+            title: title,
+            venue: venue,
+            startsOn: _startsOn!,
+          )
         : await controller.saveTournament(
-            _current!.copyWith(title: title, startsOn: _startsOn),
+            _current!.copyWith(title: title, venue: venue, startsOn: _startsOn),
           );
     if (!mounted) return;
     if (saved == null) {
@@ -237,6 +248,17 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
               ),
             ),
             const SizedBox(height: 16),
+            TextField(
+              controller: _venueController,
+              enabled: !isSaving,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Tournament venue',
+                hintText: 'e.g. Cebu City Sports Center',
+                prefixIcon: Icon(Icons.location_on_outlined),
+              ),
+            ),
+            const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: isSaving ? null : _pickStartDate,
               icon: const Icon(Icons.calendar_month_outlined),
@@ -393,17 +415,9 @@ class _BracketEditor extends StatefulWidget {
 }
 
 class _BracketEditorState extends State<_BracketEditor> {
-  late final TextEditingController _ageController = TextEditingController(
-    text: widget.existing?.maxAge.toString() ?? '',
-  );
+  late int? _maxAge = widget.existing?.maxAge;
   late DateTime? _scheduledAt = widget.existing?.scheduledAt?.toLocal();
   String? _error;
-
-  @override
-  void dispose() {
-    _ageController.dispose();
-    super.dispose();
-  }
 
   Future<void> _pickSchedule() async {
     final now = DateTime.now();
@@ -433,9 +447,9 @@ class _BracketEditorState extends State<_BracketEditor> {
   }
 
   void _submit() {
-    final age = int.tryParse(_ageController.text.trim());
-    if (age == null || age < 3 || age > 25) {
-      setState(() => _error = 'Enter a U-age from 3 to 25.');
+    final age = _maxAge;
+    if (age == null) {
+      setState(() => _error = 'Choose an age bracket.');
       return;
     }
     Navigator.pop(context, (maxAge: age, scheduledAt: _scheduledAt));
@@ -452,15 +466,23 @@ class _BracketEditorState extends State<_BracketEditor> {
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 20),
-        TextField(
-          controller: _ageController,
-          keyboardType: TextInputType.number,
+        DropdownButtonFormField<int>(
+          key: const Key('tournament-age-bracket-dropdown'),
+          initialValue: _maxAge,
+          isExpanded: true,
           decoration: InputDecoration(
-            labelText: 'Maximum age',
-            prefixText: 'U',
-            helperText: 'Example: enter 8 for U8.',
+            labelText: 'Age bracket',
+            helperText: 'Choose U3 through U21.',
             errorText: _error,
           ),
+          items: [
+            for (var age = 3; age <= 21; age++)
+              DropdownMenuItem(value: age, child: Text('U$age')),
+          ],
+          onChanged: (value) => setState(() {
+            _maxAge = value;
+            _error = null;
+          }),
         ),
         const SizedBox(height: 16),
         OutlinedButton.icon(

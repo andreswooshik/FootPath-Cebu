@@ -532,6 +532,7 @@ def tournament_schedules(request):
                 schedule = TournamentSchedule.objects.create(
                     club=request.user.club,
                     title=form.cleaned_data['title'],
+                    venue=form.cleaned_data['venue'],
                     starts_on=form.cleaned_data['starts_on'],
                     uploaded_by=request.user,
                 )

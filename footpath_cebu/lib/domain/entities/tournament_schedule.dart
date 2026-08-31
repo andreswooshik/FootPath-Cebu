@@ -126,6 +126,7 @@ class TournamentSchedule {
   const TournamentSchedule({
     required this.id,
     required this.title,
+    required this.venue,
     required this.startsOn,
     required this.isPublished,
     required this.publishedAt,
@@ -137,6 +138,7 @@ class TournamentSchedule {
 
   final String id;
   final String title;
+  final String venue;
   final DateTime startsOn;
   final bool isPublished;
   final String? documentUrl;
@@ -147,6 +149,7 @@ class TournamentSchedule {
 
   TournamentSchedule copyWith({
     String? title,
+    String? venue,
     DateTime? startsOn,
     bool? isPublished,
     DateTime? publishedAt,
@@ -156,6 +159,7 @@ class TournamentSchedule {
   }) => TournamentSchedule(
     id: id,
     title: title ?? this.title,
+    venue: venue ?? this.venue,
     startsOn: startsOn ?? this.startsOn,
     isPublished: isPublished ?? this.isPublished,
     documentUrl: documentUrl,
@@ -169,6 +173,7 @@ class TournamentSchedule {
       TournamentSchedule(
         id: json['id'].toString(),
         title: json['title'] as String? ?? '',
+        venue: json['venue'] as String? ?? '',
         startsOn: DateTime.parse(json['startsOn'] as String),
         isPublished: json['isPublished'] as bool? ?? true,
         documentUrl: json['documentUrl'] as String?,
