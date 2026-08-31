@@ -25,6 +25,7 @@ from accounts.services import (
     provision_player,
 )
 
+from .assessment_framework import framework_for
 from .models import (
     AgeTierSetting,
     AssessmentReason,
@@ -47,6 +48,7 @@ from .models import (
     NotificationRecord,
     PlayerMatchPerformance,
     PlayerAssessmentSnapshot,
+    PlayerDevelopmentAssessment,
     PlayerProfile,
     PlayerPrivacyPin,
     SessionConfirmation,
@@ -80,6 +82,7 @@ from .serializers import (
     AdminCreatePlayerSerializer,
     AgeTierSettingSerializer,
     AssessmentSerializer,
+    DevelopmentAssessmentWriteSerializer,
     AttendanceSerializer,
     DisputeCreateSerializer,
     DisputeResponseCreateSerializer,
@@ -92,6 +95,7 @@ from .serializers import (
     NotificationRecordSerializer,
     PlayerMatchPerformanceSerializer,
     PlayerAssessmentSnapshotSerializer,
+    PlayerDevelopmentAssessmentSerializer,
     PlayerMatchStatisticsWriteSerializer,
     PlayerPositionSerializer,
     PlayerSerializer,
@@ -108,6 +112,7 @@ from .serializers import (
 from .match_statistics import build_performance_summary
 from .growth import (
     build_assessment_growth,
+    build_development_assessment_growth,
     build_match_growth,
     build_tournament_groups,
     build_training_groups,
@@ -466,6 +471,30 @@ class PlayerPrivacyPinResetView(APIView):
 class PlayerAssessmentView(APIView):
     """PUT /api/players/<id>/assessment/ — coach updates the six ratings."""
 
+    @staticmethod
+    def _profile_for_coach(user, player_id):
+        if user.role != Roles.COACH:
+            raise PermissionDenied('Only coaches can assess players.')
+        profile = get_object_or_404(
+            PlayerProfile.objects.select_related('user'), user_id=player_id
+        )
+        if user.club_id is None or profile.user.club_id != user.club_id:
+            raise PermissionDenied('That player is not in your club.')
+        return profile
+
+    def get(self, request, player_id):
+        profile = self._profile_for_coach(request.user, player_id)
+        latest = PlayerDevelopmentAssessment.objects.select_related(
+            'player', 'assessed_by'
+        ).filter(player_id=player_id).first()
+        return Response({
+            'framework': framework_for(profile.age_tier, profile.position),
+            'latestAssessment': (
+                PlayerDevelopmentAssessmentSerializer(latest).data
+                if latest else None
+            ),
+        })
+
     def put(self, request, player_id):
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can assess players.')
@@ -478,6 +507,8 @@ class PlayerAssessmentView(APIView):
             or profile.user.club_id != request.user.club_id
         ):
             raise PermissionDenied('That player is not in your club.')
+        if 'developmentRatings' in request.data:
+            return self._put_development(request, profile)
         with transaction.atomic():
             profile = PlayerProfile.objects.select_for_update().select_related(
                 'user'
@@ -511,6 +542,66 @@ class PlayerAssessmentView(APIView):
                 # snapshot are durable. A no-op produces neither duplicate
                 # history nor a misleading notification.
                 transaction.on_commit(lambda: notify_assessment_saved(profile))
+        return Response(PlayerSerializer(profile).data)
+
+    def _put_development(self, request, profile):
+        legacy_fields = {
+            'ratings', 'pace', 'shooting', 'passing', 'dribbling',
+            'defending', 'physical', 'diving', 'handling', 'kicking',
+            'reflexes', 'speed', 'positioning',
+        }
+        if legacy_fields.intersection(request.data):
+            raise ValidationError({
+                'developmentRatings': (
+                    'Do not mix legacy 0-99 ratings with a development assessment.'
+                ),
+            })
+        with transaction.atomic():
+            profile = PlayerProfile.objects.select_for_update().select_related(
+                'user'
+            ).get(pk=profile.pk)
+            serializer = DevelopmentAssessmentWriteSerializer(
+                data=request.data,
+                context={'profile': profile},
+            )
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+            reason = data['assessmentReason']
+            new_notes = data.get('coachNotes', profile.coach_notes)
+            changed = any((
+                profile.development_framework_version
+                != data['frameworkVersion'],
+                profile.development_scores != data['developmentRatings'],
+                profile.development_strengths != data['strengths'],
+                profile.development_targets != data['developmentTargets'],
+                profile.coach_notes != new_notes,
+            ))
+            if changed:
+                profile.development_framework_version = data['frameworkVersion']
+                profile.development_scores = data['developmentRatings']
+                profile.development_strengths = data['strengths']
+                profile.development_targets = data['developmentTargets']
+                profile.development_assessed_at = timezone.now()
+                profile.coach_notes = new_notes
+                profile.save(update_fields=[
+                    'development_framework_version', 'development_scores',
+                    'development_strengths', 'development_targets',
+                    'development_assessed_at', 'coach_notes',
+                ])
+                PlayerDevelopmentAssessment.from_profile(
+                    profile,
+                    assessed_by=request.user,
+                    reason=reason,
+                )
+                AuditLog.record(
+                    request.user,
+                    'development_assessment.saved',
+                    target=profile.user.email,
+                    detail=reason,
+                )
+                transaction.on_commit(
+                    lambda profile=profile: notify_assessment_saved(profile)
+                )
         return Response(PlayerSerializer(profile).data)
 
 
@@ -1749,6 +1840,7 @@ class PlayerGrowthView(APIView):
             return category in ('all', name)
 
         assessment_rows = []
+        development_rows = []
         if include('assessment'):
             snapshots = PlayerAssessmentSnapshot.objects.select_related(
                 'player', 'assessed_by'
@@ -1758,6 +1850,16 @@ class PlayerGrowthView(APIView):
             if to_date:
                 snapshots = snapshots.filter(created_at__date__lte=to_date)
             assessment_rows = limited(snapshots, limit)
+            development = PlayerDevelopmentAssessment.objects.select_related(
+                'player', 'assessed_by'
+            ).filter(player=player)
+            if from_date:
+                development = development.filter(
+                    created_at__date__gte=from_date
+                )
+            if to_date:
+                development = development.filter(created_at__date__lte=to_date)
+            development_rows = limited(development, limit)
 
         training_rows = []
         if include('training'):
@@ -1810,6 +1912,16 @@ class PlayerGrowthView(APIView):
             'summary': build_assessment_growth(assessment_rows),
             'history': PlayerAssessmentSnapshotSerializer(
                 assessment_rows, many=True
+            ).data,
+            'framework': framework_for(
+                player.player_profile.age_tier,
+                player.player_profile.position,
+            ),
+            'developmentSummary': build_development_assessment_growth(
+                development_rows
+            ),
+            'developmentHistory': PlayerDevelopmentAssessmentSerializer(
+                development_rows, many=True
             ).data,
         } if include('assessment') else None
 

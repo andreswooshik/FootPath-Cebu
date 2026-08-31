@@ -102,7 +102,7 @@ class SquadEndpointTests(APITestCase):
             set(row.keys()),
             {'id', 'name', 'age', 'classYear', 'ageTier', 'position',
              'ratings', 'eligibility', 'academicEligibilityApplicable',
-             'photoUrl', 'coachNotes'},
+             'photoUrl', 'coachNotes', 'developmentAssessment'},
         )
         self.assertEqual(
             set(row['ratings'].keys()),
@@ -113,6 +113,7 @@ class SquadEndpointTests(APITestCase):
         # keys off the same value as a hard String).
         self.assertIsInstance(row['id'], str)
         self.assertEqual(row['ageTier'], 'DEVELOPMENT')  # uppercase wire value
+        self.assertIsNone(row['developmentAssessment'])
 
 
 class MyProfileTests(APITestCase):

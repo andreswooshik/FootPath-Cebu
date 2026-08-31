@@ -8,6 +8,11 @@ from rest_framework import serializers
 
 from accounts.models import Roles, User
 
+from .assessment_framework import (
+    AssessmentFrameworkError,
+    domain_scores,
+    validate_scores,
+)
 from .models import (
     AgeTier,
     AgeTierSetting,
@@ -32,6 +37,7 @@ from .models import (
     PLAYER_POSITION_CODES,
     PlayerMatchPerformance,
     PlayerAssessmentSnapshot,
+    PlayerDevelopmentAssessment,
     PlayerProfile,
     SessionConfirmation,
     SessionFocus,
@@ -69,13 +75,14 @@ class PlayerSerializer(serializers.ModelSerializer):
     photoUrl = serializers.SerializerMethodField()
     coachNotes = serializers.CharField(source='coach_notes', read_only=True)
     academicEligibilityApplicable = serializers.SerializerMethodField()
+    developmentAssessment = serializers.SerializerMethodField()
 
     class Meta:
         model = PlayerProfile
         fields = [
             'id', 'name', 'age', 'classYear', 'ageTier', 'position',
             'ratings', 'eligibility', 'academicEligibilityApplicable',
-            'photoUrl', 'coachNotes',
+            'photoUrl', 'coachNotes', 'developmentAssessment',
         ]
 
     def get_name(self, obj):
@@ -104,6 +111,23 @@ class PlayerSerializer(serializers.ModelSerializer):
     def get_academicEligibilityApplicable(self, obj):
         club = obj.user.club
         return club is None or club.allows_academic_eligibility
+
+    def get_developmentAssessment(self, obj):
+        if (
+            obj.development_framework_version is None
+            or not obj.development_scores
+        ):
+            return None
+        return {
+            'frameworkVersion': obj.development_framework_version,
+            'ratings': obj.development_scores,
+            'domainScores': domain_scores(obj.development_scores),
+            'strengths': obj.development_strengths,
+            'developmentTargets': obj.development_targets,
+            'assessedAt': serializers.DateTimeField().to_representation(
+                obj.development_assessed_at
+            ),
+        }
 
 
 class PlayerSelectorSerializer(serializers.ModelSerializer):
@@ -217,6 +241,77 @@ class PlayerAssessmentSnapshotSerializer(serializers.ModelSerializer):
             else ('pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical')
         )
         return round(sum(getattr(obj, name) for name in names) / len(names))
+
+
+class DevelopmentAssessmentWriteSerializer(serializers.Serializer):
+    frameworkVersion = serializers.IntegerField(min_value=1)
+    developmentRatings = serializers.JSONField()
+    strengths = serializers.CharField(max_length=1000, allow_blank=False)
+    developmentTargets = serializers.CharField(max_length=1000, allow_blank=False)
+    coachNotes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=2000,
+    )
+    assessmentReason = serializers.ChoiceField(
+        choices=AssessmentReason.choices,
+    )
+
+    def validate(self, attrs):
+        if attrs['assessmentReason'] == AssessmentReason.BASELINE:
+            raise serializers.ValidationError({
+                'assessmentReason': 'Baseline is reserved for migrated legacy records.',
+            })
+        profile = self.context['profile']
+        try:
+            attrs['developmentRatings'] = validate_scores(
+                attrs['developmentRatings'],
+                age_tier=profile.age_tier,
+                position=profile.position,
+                version=attrs['frameworkVersion'],
+            )
+        except AssessmentFrameworkError as error:
+            raise serializers.ValidationError(error.errors) from error
+        return attrs
+
+
+class PlayerDevelopmentAssessmentSerializer(serializers.ModelSerializer):
+    id = serializers.CharField(read_only=True)
+    playerId = serializers.CharField(source='player_id', read_only=True)
+    assessedByRole = serializers.SerializerMethodField()
+    ageTier = serializers.CharField(source='age_tier', read_only=True)
+    ageAtAssessment = serializers.IntegerField(
+        source='age_at_assessment',
+        read_only=True,
+    )
+    frameworkVersion = serializers.IntegerField(
+        source='framework_version',
+        read_only=True,
+    )
+    ratings = serializers.JSONField(source='scores', read_only=True)
+    domainScores = serializers.SerializerMethodField()
+    developmentTargets = serializers.CharField(
+        source='development_targets',
+        read_only=True,
+    )
+    coachNotes = serializers.CharField(source='coach_notes', read_only=True)
+    assessmentReason = serializers.CharField(source='reason', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+
+    class Meta:
+        model = PlayerDevelopmentAssessment
+        fields = [
+            'id', 'playerId', 'assessedByRole', 'position', 'ageTier',
+            'ageAtAssessment', 'frameworkVersion', 'ratings', 'domainScores',
+            'strengths', 'developmentTargets', 'coachNotes',
+            'assessmentReason', 'createdAt',
+        ]
+
+    def get_assessedByRole(self, obj):
+        return obj.assessed_by.get_role_display() if obj.assessed_by_id else None
+
+    def get_domainScores(self, obj):
+        return domain_scores(obj.scores)
 
 
 class PlayerPositionSerializer(serializers.ModelSerializer):
