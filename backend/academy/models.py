@@ -6,6 +6,7 @@ FOUNDATION / PRESENT) mirror the Flutter entities in
 `footpath_cebu/lib/domain/entities/` so the JSON contract needs no translation
 layer on the client.
 """
+import copy
 import re
 from datetime import date
 
@@ -175,6 +176,20 @@ class PlayerProfile(models.Model):
     # player) — the per-session running commentary lives on Attendance.note.
     coach_notes = models.TextField(blank=True, default='')
 
+    # Current FootPath Development Framework assessment. These fields mirror
+    # the latest immutable PlayerDevelopmentAssessment so roster/profile reads
+    # do not need one query per player. Empty values deliberately mean that no
+    # five-domain assessment has been recorded; legacy 0-99 values are never
+    # converted into this scale.
+    development_framework_version = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+    )
+    development_scores = models.JSONField(default=dict, blank=True)
+    development_strengths = models.TextField(blank=True, default='')
+    development_targets = models.TextField(blank=True, default='')
+    development_assessed_at = models.DateTimeField(null=True, blank=True)
+
     eligibility = models.CharField(
         max_length=20, choices=Eligibility.choices, default=Eligibility.PENDING
     )
@@ -222,6 +237,7 @@ class PlayerAssessmentSnapshot(models.Model):
     speed = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
     positioning = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
     coach_notes = models.TextField(blank=True, default='')
+
     reason = models.CharField(
         max_length=24,
         choices=AssessmentReason.choices,
@@ -262,6 +278,75 @@ class PlayerAssessmentSnapshot(models.Model):
 
     def __str__(self):
         return f'{self.player.email} assessment ({self.created_at:%Y-%m-%d})'
+
+
+class PlayerDevelopmentAssessment(models.Model):
+    """Immutable five-domain evidence captured for one coach assessment.
+
+    This is intentionally separate from PlayerAssessmentSnapshot. The latter
+    is the historical FUT-style 0-99 contract; keeping separate tables makes
+    it impossible to mistake legacy baseline values for framework scores.
+    """
+
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='development_assessments',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    assessed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='player_development_assessments',
+        limit_choices_to={'role': Roles.COACH},
+    )
+    position = models.CharField(max_length=8, blank=True)
+    age_tier = models.CharField(max_length=20, choices=AgeTier.choices)
+    age_at_assessment = models.PositiveSmallIntegerField()
+    framework_version = models.PositiveSmallIntegerField()
+    scores = models.JSONField(default=dict)
+    strengths = models.TextField()
+    development_targets = models.TextField()
+    coach_notes = models.TextField(blank=True, default='')
+    reason = models.CharField(
+        max_length=24,
+        choices=AssessmentReason.choices,
+        default=AssessmentReason.GENERAL_REVIEW,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(
+                fields=['player', '-created_at'],
+                name='academy_dev_player_date_idx',
+            ),
+        ]
+
+    @classmethod
+    def from_profile(cls, profile, *, assessed_by, reason):
+        return cls.objects.create(
+            player=profile.user,
+            assessed_by=assessed_by,
+            position=profile.position,
+            age_tier=profile.age_tier,
+            age_at_assessment=profile.age,
+            framework_version=profile.development_framework_version,
+            scores=copy.deepcopy(profile.development_scores),
+            strengths=profile.development_strengths,
+            development_targets=profile.development_targets,
+            coach_notes=profile.coach_notes,
+            reason=reason,
+        )
+
+    def __str__(self):
+        return (
+            f'{self.player.email} development assessment '
+            f'({self.created_at:%Y-%m-%d})'
+        )
 
 
 class PlayerPrivacyPin(models.Model):
