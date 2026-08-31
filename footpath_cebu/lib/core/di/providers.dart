@@ -11,6 +11,7 @@ import 'package:footpath_cebu/data/repositories/api_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_injury_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_growth_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_match_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_notification_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
@@ -29,6 +30,7 @@ import 'package:footpath_cebu/data/repositories/mock_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_eligibility_history_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_injury_repository.dart';
+import 'package:footpath_cebu/data/repositories/mock_growth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_match_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_notification_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
@@ -48,6 +50,7 @@ import 'package:footpath_cebu/domain/repositories/device_repository.dart';
 import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 import 'package:footpath_cebu/domain/repositories/eligibility_history_repository.dart';
 import 'package:footpath_cebu/domain/repositories/injury_repository.dart';
+import 'package:footpath_cebu/domain/repositories/growth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/match_repository.dart';
 import 'package:footpath_cebu/domain/repositories/notification_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
@@ -233,6 +236,14 @@ final injuryRepositoryProvider = Provider<InjuryRepository>(
 
 final progressRepositoryProvider = Provider<ProgressRepository>(
   (ref) => useMockData ? MockProgressRepository() : ApiProgressRepository(),
+);
+
+final growthRepositoryProvider = Provider<GrowthRepository>(
+  (ref) => useMockData
+      ? MockGrowthRepository()
+      : ApiGrowthRepository(
+          unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
+        ),
 );
 
 final matchRepositoryProvider = Provider<MatchRepository>(

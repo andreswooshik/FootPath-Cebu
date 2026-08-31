@@ -308,6 +308,54 @@ class MatchPerformanceSummary {
         cleanSheets: _asInt(json['cleanSheets']),
         averageRating: _asNullableDouble(json['averageRating']),
       );
+
+  /// Builds a summary for exactly the rows currently shown by a range filter.
+  /// The API still supplies the uncapped "All" summary, while shorter ranges
+  /// use this helper so their totals and graph describe the same matches.
+  factory MatchPerformanceSummary.fromPerformances(
+    Iterable<MatchPerformance> performances,
+  ) {
+    final rows = performances.toList(growable: false);
+    final passesAttempted = rows.fold<int>(
+      0,
+      (total, row) => total + row.passesAttempted,
+    );
+    final passesCompleted = rows.fold<int>(
+      0,
+      (total, row) => total + row.passesCompleted,
+    );
+    final ratings = rows
+        .map((row) => row.coachRating)
+        .whereType<double>()
+        .toList(growable: false);
+    int sum(int Function(MatchPerformance row) value) =>
+        rows.fold<int>(0, (total, row) => total + value(row));
+
+    return MatchPerformanceSummary(
+      matchesPlayed: rows.length,
+      starts: rows.where((row) => row.starter).length,
+      minutesPlayed: sum((row) => row.minutesPlayed),
+      goals: sum((row) => row.goals),
+      assists: sum((row) => row.assists),
+      shots: sum((row) => row.shots),
+      shotsOnTarget: sum((row) => row.shotsOnTarget),
+      passesAttempted: passesAttempted,
+      passesCompleted: passesCompleted,
+      passCompletionRate: passesAttempted == 0
+          ? null
+          : passesCompleted * 100 / passesAttempted,
+      tackles: sum((row) => row.tackles),
+      interceptions: sum((row) => row.interceptions),
+      yellowCards: sum((row) => row.yellowCards),
+      redCards: sum((row) => row.redCards),
+      saves: sum((row) => row.saves),
+      goalsConceded: sum((row) => row.goalsConceded),
+      cleanSheets: rows.where((row) => row.cleanSheet).length,
+      averageRating: ratings.isEmpty
+          ? null
+          : ratings.reduce((left, right) => left + right) / ratings.length,
+    );
+  }
 }
 
 class PlayerMatchStatistics {

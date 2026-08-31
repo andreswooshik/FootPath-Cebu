@@ -224,7 +224,8 @@ class AttendanceAuthorizationTests(APITestCase):
         self.assertEqual(
             set(row.keys()),
             {'playerId', 'sessionId', 'status', 'effort', 'note',
-             'updatedAt', 'sessionName', 'coachUid'},
+             'performanceScore', 'updatedAt', 'sessionName', 'sessionFocus',
+             'sessionDate', 'coachUid'},
         )
 
 
@@ -310,7 +311,8 @@ class SessionAttendanceTests(APITestCase):
         self.assertEqual(
             set(row.keys()),
             {'playerId', 'sessionId', 'status', 'effort', 'note',
-             'updatedAt', 'sessionName', 'coachUid'},
+             'performanceScore', 'updatedAt', 'sessionName', 'sessionFocus',
+             'sessionDate', 'coachUid'},
         )
 
     def test_invalid_status_rejected(self):

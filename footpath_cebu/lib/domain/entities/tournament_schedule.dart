@@ -63,6 +63,10 @@ class TournamentFixture {
     this.matchId,
     this.ageBracketId,
     this.ageBracketLabel,
+    this.ourScore,
+    this.opponentScore,
+    this.outcome,
+    this.linkedMatch,
   });
 
   final String id;
@@ -77,6 +81,10 @@ class TournamentFixture {
   final String? matchId;
   final String? ageBracketId;
   final String? ageBracketLabel;
+  final int? ourScore;
+  final int? opponentScore;
+  final String? outcome;
+  final FootballMatch? linkedMatch;
 
   bool get hasResult =>
       matchId != null || status == TournamentFixtureStatus.completed;
@@ -89,21 +97,29 @@ class TournamentFixture {
     return !kickoffDay.isAfter(today) && opponent.trim().toUpperCase() != 'TBD';
   }
 
-  factory TournamentFixture.fromJson(Map<String, dynamic> json) =>
-      TournamentFixture(
-        id: json['id'].toString(),
-        scheduleId: json['scheduleId'].toString(),
-        tournament: json['tournament'] as String? ?? '',
-        stage: json['stage'] as String? ?? '',
-        opponent: json['opponent'] as String? ?? 'TBD',
-        kickoffAt: DateTime.parse(json['kickoffAt'] as String),
-        venue: MatchVenueInfo.fromWire(json['venue'] as String?),
-        location: json['location'] as String? ?? '',
-        status: TournamentFixtureStatusInfo.fromWire(json['status'] as String?),
-        matchId: json['matchId']?.toString(),
-        ageBracketId: json['ageBracketId']?.toString(),
-        ageBracketLabel: json['ageBracketLabel'] as String?,
-      );
+  factory TournamentFixture.fromJson(Map<String, dynamic> json) {
+    final result = json['result'] as Map<String, dynamic>?;
+    return TournamentFixture(
+      id: json['id'].toString(),
+      scheduleId: json['scheduleId'].toString(),
+      tournament: json['tournament'] as String? ?? '',
+      stage: json['stage'] as String? ?? '',
+      opponent: json['opponent'] as String? ?? 'TBD',
+      kickoffAt: DateTime.parse(json['kickoffAt'] as String),
+      venue: MatchVenueInfo.fromWire(json['venue'] as String?),
+      location: json['location'] as String? ?? '',
+      status: TournamentFixtureStatusInfo.fromWire(json['status'] as String?),
+      matchId: json['matchId']?.toString(),
+      ageBracketId: json['ageBracketId']?.toString(),
+      ageBracketLabel: json['ageBracketLabel'] as String?,
+      ourScore: _asNullableInt(result?['ourScore']),
+      opponentScore: _asNullableInt(result?['opponentScore']),
+      outcome: result?['outcome'] as String?,
+      linkedMatch: result?['match'] is Map<String, dynamic>
+          ? FootballMatch.fromJson(result!['match'] as Map<String, dynamic>)
+          : null,
+    );
+  }
 }
 
 class TournamentSchedule {
@@ -170,3 +186,10 @@ class TournamentSchedule {
             .toList(growable: false),
       );
 }
+
+int? _asNullableInt(dynamic value) => switch (value) {
+  int number => number,
+  num number => number.toInt(),
+  String text => int.tryParse(text),
+  _ => null,
+};

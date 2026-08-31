@@ -27,6 +27,7 @@ from accounts.services import (
 
 from .models import (
     AgeTierSetting,
+    AssessmentReason,
     Attendance,
     AttendanceStatus,
     AuditLog,
@@ -37,6 +38,7 @@ from .models import (
     EligibilityHistory,
     FixtureStatus,
     FootballMatch,
+    MatchCategory,
     InjuryRecord,
     InjuryReportStatus,
     InjuryStatus,
@@ -44,6 +46,7 @@ from .models import (
     InjuryUpdateReviewStatus,
     NotificationRecord,
     PlayerMatchPerformance,
+    PlayerAssessmentSnapshot,
     PlayerProfile,
     PlayerPrivacyPin,
     SessionConfirmation,
@@ -88,6 +91,7 @@ from .serializers import (
     InjuryStatusUpdateRequestSerializer,
     NotificationRecordSerializer,
     PlayerMatchPerformanceSerializer,
+    PlayerAssessmentSnapshotSerializer,
     PlayerMatchStatisticsWriteSerializer,
     PlayerPositionSerializer,
     PlayerSerializer,
@@ -102,6 +106,14 @@ from .serializers import (
     TournamentSquadWriteSerializer,
 )
 from .match_statistics import build_performance_summary
+from .growth import (
+    build_assessment_growth,
+    build_match_growth,
+    build_tournament_groups,
+    build_training_groups,
+    limited,
+    resolve_growth_filter,
+)
 from .player_unlock import issue_player_unlock, require_player_unlock
 from .storage import (
     delete_photo,
@@ -466,16 +478,56 @@ class PlayerAssessmentView(APIView):
             or profile.user.club_id != request.user.club_id
         ):
             raise PermissionDenied('That player is not in your club.')
-        serializer = AssessmentSerializer(profile, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        AuditLog.record(
-            request.user, 'assessment.saved', target=profile.user.email
-        )
-        # Notify the player + guardians only after the ratings are durably
-        # committed (same pattern as session scheduling).
-        transaction.on_commit(lambda: notify_assessment_saved(profile))
+        with transaction.atomic():
+            profile = PlayerProfile.objects.select_for_update().select_related(
+                'user'
+            ).get(pk=profile.pk)
+            serializer = AssessmentSerializer(
+                profile, data=request.data, partial=True
+            )
+            serializer.is_valid(raise_exception=True)
+            reason = serializer.validated_data.get(
+                'assessmentReason', AssessmentReason.GENERAL_REVIEW
+            )
+            changed = any(
+                getattr(profile, field) != value
+                for field, value in serializer.validated_data.items()
+                if field != 'assessmentReason'
+            )
+            if changed:
+                profile = serializer.save()
+                PlayerAssessmentSnapshot.from_profile(
+                    profile,
+                    assessed_by=request.user,
+                    reason=reason,
+                )
+                AuditLog.record(
+                    request.user,
+                    'assessment.saved',
+                    target=profile.user.email,
+                    detail=reason,
+                )
+                # Notify only after both the current view and its immutable
+                # snapshot are durable. A no-op produces neither duplicate
+                # history nor a misleading notification.
+                transaction.on_commit(lambda: notify_assessment_saved(profile))
         return Response(PlayerSerializer(profile).data)
+
+
+class PlayerAssessmentHistoryView(APIView):
+    """Authorized, privacy-gated immutable assessment history."""
+
+    def get(self, request, player_id):
+        if not _may_read_match_statistics(request.user, player_id):
+            raise PermissionDenied('You may not view this player.')
+        _require_unlock_when_pin_exists(request, player_id)
+        get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
+        rows = PlayerAssessmentSnapshot.objects.select_related(
+            'player', 'assessed_by'
+        ).filter(player_id=player_id)
+        return Response(
+            PlayerAssessmentSnapshotSerializer(rows, many=True).data
+        )
 
 
 class PlayerPositionView(APIView):
@@ -588,6 +640,7 @@ class SessionAttendanceView(APIView):
                     defaults={
                         'status': record['status'],
                         'effort': record.get('effort'),
+                        'performance_score': record.get('performanceScore'),
                         'note': record.get('note') or '',
                         'recorded_by': request.user,
                     },
@@ -664,7 +717,7 @@ class TournamentScheduleListView(APIView):
                 Prefetch(
                     'fixtures',
                     queryset=TournamentFixture.objects.select_related(
-                        'age_bracket',
+                        'age_bracket', 'completed_match',
                     ),
                 ),
                 'age_brackets__squad__entries__player__player_profile',
@@ -716,7 +769,9 @@ def _coordinator_mobile_schedule(user, schedule_id):
         TournamentSchedule.objects.prefetch_related(
             Prefetch(
                 'fixtures',
-                queryset=TournamentFixture.objects.select_related('age_bracket'),
+                queryset=TournamentFixture.objects.select_related(
+                    'age_bracket', 'completed_match',
+                ),
             ),
             'age_brackets__squad__entries__player__player_profile',
         ),
@@ -1176,6 +1231,7 @@ class FootballMatchListCreateView(APIView):
                     'venue': fixture.venue,
                     'ourScore': request.data.get('ourScore'),
                     'opponentScore': request.data.get('opponentScore'),
+                    'category': MatchCategory.TOURNAMENT,
                 }
             else:
                 match_data = request.data.copy()
@@ -1633,24 +1689,179 @@ class PlayerMatchStatisticsView(APIView):
         if from_text and to_text and from_date > to_date:
             raise ValidationError({'to': 'End date must not precede start date.'})
 
-        try:
-            limit = int(request.query_params.get('limit', self._MAX_ROWS))
-        except (TypeError, ValueError) as exc:
-            raise ValidationError({'limit': 'Use a whole number.'}) from exc
-        if not 1 <= limit <= self._MAX_ROWS:
-            raise ValidationError({
-                'limit': f'Choose a value from 1 to {self._MAX_ROWS}.'
-            })
+        selected_range = request.query_params.get('range')
+        selected_limit = None
+        if selected_range is not None:
+            selected_range = selected_range.lower()
+            if selected_range not in ('last5', 'last10', 'all'):
+                raise ValidationError({'range': 'Use last5, last10, or all.'})
+            selected_limit = {'last5': 5, 'last10': 10}.get(selected_range)
+        elif 'limit' in request.query_params:
+            try:
+                selected_limit = int(request.query_params['limit'])
+            except (TypeError, ValueError) as exc:
+                raise ValidationError({'limit': 'Use a whole number.'}) from exc
+            if not 1 <= selected_limit <= self._MAX_ROWS:
+                raise ValidationError({
+                    'limit': f'Choose a value from 1 to {self._MAX_ROWS}.'
+                })
 
-        records = list(rows[:limit])
+        # The summary uses the complete selected range. Only the history
+        # payload is capped, so an "All" total is never silently truncated by
+        # the response-size safeguard.
+        summary_records = list(
+            rows[:selected_limit] if selected_limit is not None else rows
+        )
+        records = summary_records[:self._MAX_ROWS]
         name = f'{player.first_name} {player.last_name}'.strip()
         return Response({
             'playerId': str(player.id),
             'playerName': name or player.email.split('@')[0],
-            'summary': build_performance_summary(records),
+            'range': selected_range or (
+                f'last{selected_limit}' if selected_limit is not None else 'all'
+            ),
+            'summary': build_performance_summary(summary_records),
             'performances': PlayerMatchPerformanceSerializer(
                 records, many=True, context={'request': request},
             ).data,
+        })
+
+
+class PlayerGrowthView(APIView):
+    """Categorized historical growth for one authorized player."""
+
+    def get(self, request, player_id):
+        if not _may_read_match_statistics(request.user, player_id):
+            raise PermissionDenied('You may not view this player.')
+        _require_unlock_when_pin_exists(request, player_id)
+        player = get_object_or_404(
+            User.objects.select_related('player_profile'),
+            pk=player_id,
+            role=Roles.PLAYER,
+        )
+        selected = resolve_growth_filter(request.query_params)
+        category = selected['category']
+        from_date = selected['from']
+        to_date = selected['to']
+        limit = selected['limit']
+
+        def include(name):
+            return category in ('all', name)
+
+        assessment_rows = []
+        if include('assessment'):
+            snapshots = PlayerAssessmentSnapshot.objects.select_related(
+                'player', 'assessed_by'
+            ).filter(player=player)
+            if from_date:
+                snapshots = snapshots.filter(created_at__date__gte=from_date)
+            if to_date:
+                snapshots = snapshots.filter(created_at__date__lte=to_date)
+            assessment_rows = limited(snapshots, limit)
+
+        training_rows = []
+        if include('training'):
+            attendance = Attendance.objects.select_related(
+                'session', 'recorded_by', 'player'
+            ).filter(player=player, session__isnull=False)
+            if from_date:
+                attendance = attendance.filter(session__date__gte=from_date)
+            if to_date:
+                attendance = attendance.filter(session__date__lte=to_date)
+            all_training = list(attendance.order_by('-session__date', '-id'))
+            if limit is None:
+                training_rows = all_training
+            else:
+                counts = {}
+                for row in all_training:
+                    focus = row.session.focus
+                    counts.setdefault(focus, 0)
+                    if counts[focus] < limit:
+                        training_rows.append(row)
+                        counts[focus] += 1
+
+        match_base = PlayerMatchPerformance.objects.select_related(
+            'player', 'match', 'match__club',
+            'match__source_fixture__schedule',
+            'match__source_fixture__age_bracket',
+        ).filter(player=player)
+        if from_date:
+            match_base = match_base.filter(match__played_on__gte=from_date)
+        if to_date:
+            match_base = match_base.filter(match__played_on__lte=to_date)
+
+        regular_rows = []
+        if include('regular_match'):
+            regular_rows = limited(
+                match_base.exclude(match__category=MatchCategory.TOURNAMENT),
+                limit,
+            )
+        tournament_rows = []
+        if include('tournament'):
+            tournament_rows = limited(
+                match_base.filter(
+                    match__category=MatchCategory.TOURNAMENT,
+                    match__source_fixture__isnull=False,
+                ),
+                limit,
+            )
+
+        assessment_data = {
+            'summary': build_assessment_growth(assessment_rows),
+            'history': PlayerAssessmentSnapshotSerializer(
+                assessment_rows, many=True
+            ).data,
+        } if include('assessment') else None
+
+        training_groups = build_training_groups(training_rows)
+        if include('training'):
+            for group in training_groups:
+                rows = [
+                    row for row in training_rows
+                    if row.session.focus == group['focus']
+                ]
+                group['history'] = AttendanceSerializer(rows, many=True).data
+
+        regular_data = {
+            **build_match_growth(regular_rows),
+            'history': PlayerMatchPerformanceSerializer(
+                regular_rows, many=True, context={'request': request}
+            ).data,
+        } if include('regular_match') else None
+
+        tournament_groups = build_tournament_groups(tournament_rows)
+        if include('tournament'):
+            for group in tournament_groups:
+                rows = [
+                    row for row in tournament_rows
+                    if str(row.match.source_fixture.schedule_id)
+                    == group['tournamentId']
+                    and (
+                        str(row.match.source_fixture.age_bracket_id)
+                        if row.match.source_fixture.age_bracket_id else None
+                    ) == group['ageBracketId']
+                ]
+                group['growth'] = build_match_growth(rows)
+                group['history'] = PlayerMatchPerformanceSerializer(
+                    rows, many=True, context={'request': request}
+                ).data
+
+        name = f'{player.first_name} {player.last_name}'.strip()
+        return Response({
+            'playerId': str(player.id),
+            'playerName': name or player.email.split('@')[0],
+            'position': player.player_profile.position,
+            'filter': {
+                'range': selected['range'],
+                'from': from_date.isoformat() if from_date else None,
+                'to': to_date.isoformat() if to_date else None,
+                'category': category,
+            },
+            'assessments': assessment_data,
+            'training': {'groups': training_groups} if include('training') else None,
+            'regularMatches': regular_data,
+            'tournaments': {'groups': tournament_groups}
+            if include('tournament') else None,
         })
 
 

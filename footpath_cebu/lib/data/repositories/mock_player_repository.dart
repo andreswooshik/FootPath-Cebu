@@ -1,6 +1,7 @@
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 
 /// In-memory squad roster for UI development without a backend.
@@ -243,6 +244,7 @@ class MockPlayerRepository
     String playerId,
     PlayerRatings ratings, {
     required String coachNotes,
+    AssessmentReason assessmentReason = AssessmentReason.generalReview,
   }) async {
     await Future.delayed(const Duration(milliseconds: 300));
     final index = _squad.indexWhere((p) => p.id == playerId);

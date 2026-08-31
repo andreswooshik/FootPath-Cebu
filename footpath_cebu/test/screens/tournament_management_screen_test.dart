@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
+import 'package:footpath_cebu/presentation/providers/tournament_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/edit_tournament_screen.dart';
 import 'package:footpath_cebu/presentation/screens/tournament_schedule_screen.dart';
 
@@ -14,6 +16,47 @@ TournamentSchedule _draft() => TournamentSchedule(
   updatedAt: DateTime(2026, 8, 29),
   ageBrackets: const [TournamentAgeBracket(id: 'u8', maxAge: 8, label: 'U8')],
   fixtures: const [],
+);
+
+TournamentSchedule _completed() => TournamentSchedule(
+  id: 'cup-1',
+  title: 'Cebu Youth Cup',
+  startsOn: DateTime(2026, 8, 27),
+  isPublished: true,
+  publishedAt: DateTime(2026, 8, 1),
+  updatedAt: DateTime(2026, 8, 27),
+  ageBrackets: const [
+    TournamentAgeBracket(id: 'u16', maxAge: 16, label: 'U16'),
+  ],
+  fixtures: [
+    TournamentFixture(
+      id: 'fixture-1',
+      scheduleId: 'cup-1',
+      tournament: 'Cebu Youth Cup',
+      stage: 'Final',
+      opponent: 'Mandaue FC',
+      kickoffAt: DateTime(2026, 8, 27, 14),
+      venue: MatchVenue.neutral,
+      location: 'Cebu City Sports Center',
+      status: TournamentFixtureStatus.completed,
+      matchId: 'match-1',
+      ageBracketId: 'u16',
+      ageBracketLabel: 'U16',
+      ourScore: 2,
+      opponentScore: 1,
+      outcome: 'WIN',
+      linkedMatch: FootballMatch(
+        id: 'match-1',
+        opponent: 'Mandaue FC',
+        competition: 'Cebu Youth Cup',
+        playedOn: DateTime(2026, 8, 27),
+        venue: MatchVenue.neutral,
+        ourScore: 2,
+        opponentScore: 1,
+        category: MatchCategory.tournament,
+      ),
+    ),
+  ],
 );
 
 void main() {
@@ -79,5 +122,27 @@ void main() {
     expect(find.text('Maximum age'), findsOneWidget);
     expect(find.text('Add optional schedule date and time'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('completed fixture shows score, outcome, and linked details', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          tournamentSchedulesProvider.overrideWith((ref) => [_completed()]),
+        ],
+        child: const MaterialApp(home: TournamentScheduleScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('vs Mandaue FC'), findsOneWidget);
+    expect(find.text('U16 - Final'), findsOneWidget);
+    expect(find.text('2-1 · Win'), findsOneWidget);
+    expect(find.text('Cebu Youth Cup · U16 · Final'), findsOneWidget);
+    expect(find.text('Linked match Neutral · Tournament'), findsOneWidget);
   });
 }

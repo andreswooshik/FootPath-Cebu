@@ -4,10 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/edit_performance_controller.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
+import 'package:footpath_cebu/presentation/providers/growth_providers.dart';
+import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
 /// Coach Portal — the player assessment form.
 ///
@@ -50,6 +53,13 @@ class _EditPerformanceDataScreenState
   late int _reflexes = widget.player.ratings.reflexes;
   late int _speed = widget.player.ratings.speed;
   late int _positioning = widget.player.ratings.positioning;
+  AssessmentReason _reason = AssessmentReason.generalReview;
+
+  GrowthQuery get _historyQuery => GrowthQuery(
+    playerId: widget.player.id,
+    range: GrowthRange.all,
+    category: GrowthCategory.assessment,
+  );
 
   /// Seeded with the note already on file so the form opens showing the
   /// current evaluation. Starting it empty would let a coach who only came to
@@ -90,12 +100,58 @@ class _EditPerformanceDataScreenState
   int get _draftOverall => widget.player.copyWith(ratings: _draft).overall;
 
   Future<void> _save() async {
+    final currentOverall = widget.player.overall;
+    final visibleDeltas = _isGoalkeeper
+        ? [
+            _diving - widget.player.ratings.diving,
+            _handling - widget.player.ratings.handling,
+            _kicking - widget.player.ratings.kicking,
+            _reflexes - widget.player.ratings.reflexes,
+            _speed - widget.player.ratings.speed,
+            _positioning - widget.player.ratings.positioning,
+          ]
+        : [
+            _pace - widget.player.ratings.pace,
+            _shooting - widget.player.ratings.shooting,
+            _passing - widget.player.ratings.passing,
+            _dribbling - widget.player.ratings.dribbling,
+            _defending - widget.player.ratings.defending,
+            _physical - widget.player.ratings.physical,
+          ];
+    final unusuallyLarge =
+        visibleDeltas.any((delta) => delta.abs() >= 20) ||
+        (_draftOverall - currentOverall).abs() >= 15;
+    if (unusuallyLarge) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Confirm large assessment change'),
+          content: Text(
+            'The draft overall changes from $currentOverall to '
+            '$_draftOverall. Confirm that these unusually large changes are '
+            'intentional.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Review values'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Confirm & save'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
     final saved = await ref
         .read(editPerformanceControllerProvider.notifier)
         .submit(
           widget.player.id,
           _draft,
           coachNotes: _notesController.text.trim(),
+          assessmentReason: _reason,
         );
     if (!mounted) return;
     if (saved != null) {
@@ -122,6 +178,11 @@ class _EditPerformanceDataScreenState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isSaving = ref.watch(editPerformanceControllerProvider).isLoading;
+    final history = ref.watch(playerGrowthProvider(_historyQuery));
+    AssessmentSnapshot? previous;
+    history.whenData((growth) {
+      if (growth.assessments.isNotEmpty) previous = growth.assessments.first;
+    });
     return Scaffold(
       appBar: AppBar(
         title: const Text('Update Performance Data'),
@@ -136,6 +197,51 @@ class _EditPerformanceDataScreenState
         padding: const EdgeInsets.all(16),
         children: [
           _PlayerHeader(player: widget.player, overall: _draftOverall),
+          const SizedBox(height: 12),
+          history.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (error, _) => DashboardErrorState(
+              message: friendlyErrorMessage(
+                error,
+                'Could not load previous assessment values.',
+              ),
+              onRetry: () =>
+                  ref.invalidate(playerGrowthProvider(_historyQuery)),
+            ),
+            data: (growth) => growth.assessments.isEmpty
+                ? const Card(
+                    child: ListTile(
+                      leading: Icon(Icons.history_toggle_off),
+                      title: Text('No previous assessment history'),
+                      subtitle: Text(
+                        'Current profile values will be used as the baseline.',
+                      ),
+                    ),
+                  )
+                : Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.history),
+                      title: Text(
+                        'Previous assessment · ${growth.assessments.first.reason.label}',
+                      ),
+                      subtitle: Text(
+                        '${MaterialLocalizations.of(context).formatMediumDate(growth.assessments.first.createdAt)} · Overall ${growth.assessments.first.overall}',
+                      ),
+                      trailing: Text(
+                        _signed(
+                          _draftOverall - growth.assessments.first.overall,
+                        ),
+                        style: TextStyle(
+                          color: _deltaColor(
+                            context,
+                            _draftOverall - growth.assessments.first.overall,
+                          ),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
           const SizedBox(height: 24),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -163,65 +269,112 @@ class _EditPerformanceDataScreenState
             _AttributeSlider(
               label: 'DIV (Diving)',
               value: _diving,
+              previous:
+                  previous?.ratings.diving ?? widget.player.ratings.diving,
               onChanged: (v) => setState(() => _diving = v),
             ),
             _AttributeSlider(
               label: 'HAN (Handling)',
               value: _handling,
+              previous:
+                  previous?.ratings.handling ?? widget.player.ratings.handling,
               onChanged: (v) => setState(() => _handling = v),
             ),
             _AttributeSlider(
               label: 'KIC (Kicking)',
               value: _kicking,
+              previous:
+                  previous?.ratings.kicking ?? widget.player.ratings.kicking,
               onChanged: (v) => setState(() => _kicking = v),
             ),
             _AttributeSlider(
               label: 'REF (Reflexes)',
               value: _reflexes,
+              previous:
+                  previous?.ratings.reflexes ?? widget.player.ratings.reflexes,
               onChanged: (v) => setState(() => _reflexes = v),
             ),
             _AttributeSlider(
               label: 'SPD (Speed)',
               value: _speed,
+              previous: previous?.ratings.speed ?? widget.player.ratings.speed,
               onChanged: (v) => setState(() => _speed = v),
             ),
             _AttributeSlider(
               label: 'POS (Positioning)',
               value: _positioning,
+              previous:
+                  previous?.ratings.positioning ??
+                  widget.player.ratings.positioning,
               onChanged: (v) => setState(() => _positioning = v),
             ),
           ] else ...[
             _AttributeSlider(
               label: 'PAC (Pace)',
               value: _pace,
+              previous: previous?.ratings.pace ?? widget.player.ratings.pace,
               onChanged: (v) => setState(() => _pace = v),
             ),
             _AttributeSlider(
               label: 'SHO (Shooting)',
               value: _shooting,
+              previous:
+                  previous?.ratings.shooting ?? widget.player.ratings.shooting,
               onChanged: (v) => setState(() => _shooting = v),
             ),
             _AttributeSlider(
               label: 'PAS (Passing)',
               value: _passing,
+              previous:
+                  previous?.ratings.passing ?? widget.player.ratings.passing,
               onChanged: (v) => setState(() => _passing = v),
             ),
             _AttributeSlider(
               label: 'DRI (Dribbling)',
               value: _dribbling,
+              previous:
+                  previous?.ratings.dribbling ??
+                  widget.player.ratings.dribbling,
               onChanged: (v) => setState(() => _dribbling = v),
             ),
             _AttributeSlider(
               label: 'DEF (Defending)',
               value: _defending,
+              previous:
+                  previous?.ratings.defending ??
+                  widget.player.ratings.defending,
               onChanged: (v) => setState(() => _defending = v),
             ),
             _AttributeSlider(
               label: 'PHY (Physicality)',
               value: _physical,
+              previous:
+                  previous?.ratings.physical ?? widget.player.ratings.physical,
               onChanged: (v) => setState(() => _physical = v),
             ),
           ],
+          const SizedBox(height: 16),
+          DropdownButtonFormField<AssessmentReason>(
+            initialValue: _reason,
+            decoration: const InputDecoration(
+              labelText: 'Assessment reason',
+              prefixIcon: Icon(Icons.fact_check_outlined),
+            ),
+            items: AssessmentReason.values
+                .where((reason) => reason != AssessmentReason.baseline)
+                .map(
+                  (reason) => DropdownMenuItem(
+                    value: reason,
+                    child: Text(reason.label),
+                  ),
+                )
+                .toList(growable: false),
+            onChanged: isSaving
+                ? null
+                : (value) {
+                    if (value != null) setState(() => _reason = value);
+                  },
+          ),
           const SizedBox(height: 16),
           Text(
             'Coach Evaluation',
@@ -364,11 +517,13 @@ class _AttributeSlider extends StatelessWidget {
   const _AttributeSlider({
     required this.label,
     required this.value,
+    required this.previous,
     required this.onChanged,
   });
 
   final String label;
   final int value;
+  final int previous;
   final ValueChanged<int> onChanged;
 
   @override
@@ -408,6 +563,18 @@ class _AttributeSlider extends StatelessWidget {
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 72,
+                  child: Text(
+                    'Prev $previous\n${_signed(value - previous)}',
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: _deltaColor(context, value - previous),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
               ],
             ),
             Slider(
@@ -423,4 +590,12 @@ class _AttributeSlider extends StatelessWidget {
       ),
     );
   }
+}
+
+String _signed(int delta) => delta > 0 ? '+$delta' : '$delta';
+
+Color _deltaColor(BuildContext context, int delta) {
+  if (delta > 0) return Colors.green.shade700;
+  if (delta < 0) return Theme.of(context).colorScheme.error;
+  return Theme.of(context).colorScheme.onSurfaceVariant;
 }

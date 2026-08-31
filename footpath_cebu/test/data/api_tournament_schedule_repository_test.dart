@@ -128,6 +128,47 @@ void main() {
     expect(created.publishedAt, isNull);
   });
 
+  test('parses a completed fixture result and linked tournament match', () {
+    final fixture = TournamentFixture.fromJson({
+      'id': 'fixture-1',
+      'scheduleId': 'schedule-1',
+      'tournament': 'Cebu Youth Cup',
+      'stage': 'Final',
+      'opponent': 'Mandaue FC',
+      'kickoffAt': '2026-08-27T06:00:00Z',
+      'venue': 'NEUTRAL',
+      'location': 'Cebu City Sports Center',
+      'status': 'COMPLETED',
+      'matchId': 'match-4',
+      'ageBracketId': 'b12',
+      'ageBracketLabel': 'U12',
+      'result': {
+        'ourScore': 2,
+        'opponentScore': 1,
+        'outcome': 'WIN',
+        'match': {
+          'id': 'match-4',
+          'opponent': 'Mandaue FC',
+          'competition': 'Cebu Youth Cup',
+          'playedOn': '2026-08-27',
+          'venue': 'NEUTRAL',
+          'ourScore': 2,
+          'opponentScore': 1,
+          'category': 'TOURNAMENT',
+          'recordSource': 'SCHEDULED',
+          'fixtureId': 'fixture-1',
+        },
+      },
+    });
+
+    expect(fixture.ourScore, 2);
+    expect(fixture.opponentScore, 1);
+    expect(fixture.outcome, 'WIN');
+    expect(fixture.linkedMatch, isNotNull);
+    expect(fixture.linkedMatch!.category.name, 'tournament');
+    expect(fixture.linkedMatch!.outcome, 'Win');
+  });
+
   test('adds a bracket with an optional division schedule', () async {
     late http.Request captured;
     final api = AuthenticatedApiClient(

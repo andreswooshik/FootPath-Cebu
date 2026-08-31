@@ -3,6 +3,25 @@ enum MatchVenue { home, away, neutral }
 
 enum MatchRecordSource { scheduled, adHoc }
 
+enum MatchCategory { friendly, league, tournament, other }
+
+extension MatchCategoryInfo on MatchCategory {
+  String get wire => name.toUpperCase();
+
+  String get label => switch (this) {
+    MatchCategory.friendly => 'Friendly',
+    MatchCategory.league => 'League',
+    MatchCategory.tournament => 'Tournament',
+    MatchCategory.other => 'Other',
+  };
+
+  static MatchCategory fromWire(String? value) =>
+      MatchCategory.values.firstWhere(
+        (category) => category.wire == value?.toUpperCase(),
+        orElse: () => MatchCategory.other,
+      );
+}
+
 extension MatchVenueInfo on MatchVenue {
   String get wire => name.toUpperCase();
 
@@ -32,6 +51,7 @@ class FootballMatch {
     this.recordSource = MatchRecordSource.adHoc,
     this.ageBracketId,
     this.ageBracketLabel,
+    this.category = MatchCategory.other,
   });
 
   final String id;
@@ -45,6 +65,7 @@ class FootballMatch {
   final MatchRecordSource recordSource;
   final String? ageBracketId;
   final String? ageBracketLabel;
+  final MatchCategory category;
 
   bool get isAgeBracketMatch => ageBracketId != null;
 
@@ -70,6 +91,7 @@ class FootballMatch {
         : MatchRecordSource.adHoc,
     ageBracketId: json['ageBracketId']?.toString(),
     ageBracketLabel: json['ageBracketLabel'] as String?,
+    category: MatchCategoryInfo.fromWire(json['category'] as String?),
   );
 }
 
@@ -83,6 +105,7 @@ class FootballMatchDraft {
     required this.ourScore,
     required this.opponentScore,
     this.fixtureId,
+    this.category = MatchCategory.other,
   });
 
   final String opponent;
@@ -92,6 +115,7 @@ class FootballMatchDraft {
   final int ourScore;
   final int opponentScore;
   final String? fixtureId;
+  final MatchCategory category;
 
   Map<String, dynamic> toJson() => {
     'opponent': opponent.trim(),
@@ -101,6 +125,7 @@ class FootballMatchDraft {
     'ourScore': ourScore,
     'opponentScore': opponentScore,
     if (fixtureId != null) 'fixtureId': fixtureId,
+    'category': category.wire,
   };
 }
 

@@ -11,6 +11,7 @@ from accounts.models import Roles, User
 from .models import (
     AgeTier,
     AgeTierSetting,
+    AssessmentReason,
     Attendance,
     AttendanceStatus,
     Dispute,
@@ -25,10 +26,12 @@ from .models import (
     InjuryStatus,
     InjuryStatusUpdateRequest,
     InjuryUpdateReviewStatus,
+    MatchCategory,
     MatchVenue,
     NotificationRecord,
     PLAYER_POSITION_CODES,
     PlayerMatchPerformance,
+    PlayerAssessmentSnapshot,
     PlayerProfile,
     SessionConfirmation,
     SessionFocus,
@@ -142,6 +145,11 @@ class AssessmentSerializer(serializers.ModelSerializer):
     coachNotes = serializers.CharField(
         source='coach_notes', required=False, allow_blank=True, max_length=2000,
     )
+    assessmentReason = serializers.ChoiceField(
+        choices=AssessmentReason.choices,
+        required=False,
+        write_only=True,
+    )
 
     class Meta:
         model = PlayerProfile
@@ -149,6 +157,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
             'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical',
             'diving', 'handling', 'kicking', 'reflexes', 'speed', 'positioning',
             'coachNotes',
+            'assessmentReason',
         ]
 
     def to_internal_value(self, data):
@@ -161,8 +170,53 @@ class AssessmentSerializer(serializers.ModelSerializer):
             # exactly how the note used to get dropped.
             if 'coachNotes' in data:
                 flattened['coachNotes'] = data['coachNotes']
+            if 'assessmentReason' in data:
+                flattened['assessmentReason'] = data['assessmentReason']
             data = flattened
         return super().to_internal_value(data)
+
+    def update(self, instance, validated_data):
+        validated_data.pop('assessmentReason', None)
+        return super().update(instance, validated_data)
+
+
+class PlayerAssessmentSnapshotSerializer(serializers.ModelSerializer):
+    id = serializers.CharField(read_only=True)
+    playerId = serializers.CharField(source='player_id', read_only=True)
+    assessedByRole = serializers.SerializerMethodField()
+    coachNotes = serializers.CharField(source='coach_notes', read_only=True)
+    assessmentReason = serializers.CharField(source='reason', read_only=True)
+    createdAt = serializers.DateTimeField(source='created_at', read_only=True)
+    ratings = serializers.SerializerMethodField()
+    overall = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PlayerAssessmentSnapshot
+        fields = [
+            'id', 'playerId', 'assessedByRole', 'position', 'ratings',
+            'overall', 'coachNotes', 'assessmentReason', 'createdAt',
+        ]
+
+    def get_assessedByRole(self, obj):
+        return obj.assessed_by.get_role_display() if obj.assessed_by_id else None
+
+    def get_ratings(self, obj):
+        return {
+            field: getattr(obj, field)
+            for field in (
+                'pace', 'shooting', 'passing', 'dribbling', 'defending',
+                'physical', 'diving', 'handling', 'kicking', 'reflexes',
+                'speed', 'positioning',
+            )
+        }
+
+    def get_overall(self, obj):
+        names = (
+            ('diving', 'handling', 'kicking', 'reflexes', 'speed', 'positioning')
+            if obj.position == 'GK'
+            else ('pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical')
+        )
+        return round(sum(getattr(obj, name) for name in names) / len(names))
 
 
 class PlayerPositionSerializer(serializers.ModelSerializer):
@@ -200,13 +254,18 @@ class FootballMatchSerializer(serializers.ModelSerializer):
     recordSource = serializers.SerializerMethodField()
     ageBracketId = serializers.SerializerMethodField()
     ageBracketLabel = serializers.SerializerMethodField()
+    category = serializers.ChoiceField(
+        choices=MatchCategory.choices,
+        required=False,
+        default=MatchCategory.OTHER,
+    )
 
     class Meta:
         model = FootballMatch
         fields = [
             'id', 'opponent', 'competition', 'playedOn', 'venue',
             'ourScore', 'opponentScore', 'fixtureId', 'recordSource',
-            'ageBracketId', 'ageBracketLabel',
+            'ageBracketId', 'ageBracketLabel', 'category',
         ]
 
     def validate_opponent(self, value):
@@ -268,6 +327,7 @@ class TournamentFixtureSerializer(serializers.ModelSerializer):
     ageBracketLabel = serializers.CharField(
         source='age_bracket.label', read_only=True, allow_null=True,
     )
+    result = serializers.SerializerMethodField()
 
     class Meta:
         model = TournamentFixture
@@ -275,7 +335,23 @@ class TournamentFixtureSerializer(serializers.ModelSerializer):
             'id', 'scheduleId', 'tournament', 'stage', 'opponent',
             'kickoffAt', 'venue', 'location', 'status', 'matchId',
             'ageBracketId', 'ageBracketLabel',
+            'result',
         ]
+
+    def get_result(self, obj):
+        match = obj.completed_match
+        if match is None:
+            return None
+        return {
+            'ourScore': match.our_score,
+            'opponentScore': match.opponent_score,
+            'outcome': (
+                'WIN' if match.our_score > match.opponent_score
+                else 'LOSS' if match.our_score < match.opponent_score
+                else 'DRAW'
+            ),
+            'match': FootballMatchSerializer(match).data,
+        }
 
 
 class TournamentSquadEntrySerializer(serializers.ModelSerializer):
@@ -685,12 +761,26 @@ class AttendanceSerializer(serializers.ModelSerializer):
     sessionName = serializers.SerializerMethodField()
     coachUid = serializers.SerializerMethodField()
     note = serializers.SerializerMethodField()
+    performanceScore = serializers.DecimalField(
+        source='performance_score',
+        max_digits=3,
+        decimal_places=1,
+        coerce_to_string=False,
+        allow_null=True,
+        read_only=True,
+    )
+    sessionFocus = serializers.CharField(
+        source='session.focus', read_only=True, allow_null=True,
+    )
+    sessionDate = serializers.DateField(
+        source='session.date', read_only=True, allow_null=True,
+    )
 
     class Meta:
         model = Attendance
         fields = [
-            'playerId', 'sessionId', 'status', 'effort', 'note',
-            'updatedAt', 'sessionName', 'coachUid',
+            'playerId', 'sessionId', 'status', 'effort', 'performanceScore', 'note',
+            'updatedAt', 'sessionName', 'sessionFocus', 'sessionDate', 'coachUid',
         ]
 
     def get_sessionId(self, obj):
@@ -1074,6 +1164,14 @@ class SessionAttendanceRecordSerializer(serializers.Serializer):
     effort = serializers.IntegerField(
         min_value=0, max_value=100, required=False, allow_null=True,
     )
+    performanceScore = serializers.DecimalField(
+        max_digits=3,
+        decimal_places=1,
+        min_value=0,
+        max_value=10,
+        required=False,
+        allow_null=True,
+    )
     note = serializers.CharField(
         max_length=1000, required=False, allow_blank=True,
     )
@@ -1088,6 +1186,13 @@ class SessionAttendanceRecordSerializer(serializers.Serializer):
         if v not in set(AttendanceStatus.values):
             raise serializers.ValidationError(f'Unknown status: {value}')
         return v
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs['status'] != AttendanceStatus.PRESENT:
+            attrs['effort'] = None
+            attrs['performanceScore'] = None
+        return attrs
 
 
 class NotificationRecordSerializer(serializers.ModelSerializer):

@@ -91,6 +91,15 @@ class AttendanceStatus(models.TextChoices):
     EXCUSED = 'EXCUSED', 'Excused'
 
 
+class AssessmentReason(models.TextChoices):
+    GENERAL_REVIEW = 'GENERAL_REVIEW', 'General review'
+    MONTHLY_REVIEW = 'MONTHLY_REVIEW', 'Monthly review'
+    POST_TOURNAMENT = 'POST_TOURNAMENT', 'Post-tournament'
+    RETURN_FROM_INJURY = 'RETURN_FROM_INJURY', 'Return from injury'
+    BASELINE = 'BASELINE', 'Baseline'
+    OTHER = 'OTHER', 'Other'
+
+
 class ConfirmationStatus(models.TextChoices):
     CONFIRMED = 'CONFIRMED', 'Confirmed'
     DECLINED = 'DECLINED', 'Declined'
@@ -100,6 +109,13 @@ class MatchVenue(models.TextChoices):
     HOME = 'HOME', 'Home'
     AWAY = 'AWAY', 'Away'
     NEUTRAL = 'NEUTRAL', 'Neutral'
+
+
+class MatchCategory(models.TextChoices):
+    FRIENDLY = 'FRIENDLY', 'Friendly'
+    LEAGUE = 'LEAGUE', 'League'
+    TOURNAMENT = 'TOURNAMENT', 'Tournament'
+    OTHER = 'OTHER', 'Other'
 
 
 class FixtureStatus(models.TextChoices):
@@ -173,6 +189,79 @@ class PlayerProfile(models.Model):
 
     def __str__(self):
         return f'{self.user.email} · {self.get_age_tier_display()}'
+
+
+class PlayerAssessmentSnapshot(models.Model):
+    """Immutable evidence captured whenever a standing assessment changes."""
+
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='assessment_snapshots',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    assessed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='player_assessment_snapshots',
+        limit_choices_to={'role': Roles.COACH},
+    )
+    position = models.CharField(max_length=8, blank=True)
+    pace = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    shooting = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    passing = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    dribbling = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    defending = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    physical = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    diving = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    handling = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    kicking = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    reflexes = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    speed = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    positioning = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    coach_notes = models.TextField(blank=True, default='')
+    reason = models.CharField(
+        max_length=24,
+        choices=AssessmentReason.choices,
+        default=AssessmentReason.GENERAL_REVIEW,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(
+                fields=['player', '-created_at'],
+                name='academy_assess_player_date_idx',
+            ),
+        ]
+
+    @classmethod
+    def from_profile(cls, profile, *, assessed_by=None, reason=None):
+        return cls.objects.create(
+            player=profile.user,
+            assessed_by=assessed_by,
+            position=profile.position,
+            pace=profile.pace,
+            shooting=profile.shooting,
+            passing=profile.passing,
+            dribbling=profile.dribbling,
+            defending=profile.defending,
+            physical=profile.physical,
+            diving=profile.diving,
+            handling=profile.handling,
+            kicking=profile.kicking,
+            reflexes=profile.reflexes,
+            speed=profile.speed,
+            positioning=profile.positioning,
+            coach_notes=profile.coach_notes,
+            reason=reason or AssessmentReason.GENERAL_REVIEW,
+        )
+
+    def __str__(self):
+        return f'{self.player.email} assessment ({self.created_at:%Y-%m-%d})'
 
 
 class PlayerPrivacyPin(models.Model):
@@ -391,6 +480,11 @@ class FootballMatch(models.Model):
         choices=MatchVenue.choices,
         default=MatchVenue.HOME,
     )
+    category = models.CharField(
+        max_length=20,
+        choices=MatchCategory.choices,
+        default=MatchCategory.OTHER,
+    )
     our_score = models.PositiveSmallIntegerField(
         validators=[MaxValueValidator(99)]
     )
@@ -428,6 +522,10 @@ class FootballMatch(models.Model):
             models.Index(
                 fields=['club', '-played_on'],
                 name='academy_match_club_date_idx',
+            ),
+            models.Index(
+                fields=['club', 'category', '-played_on'],
+                name='academy_match_category_idx',
             ),
         ]
 
@@ -884,6 +982,14 @@ class Attendance(models.Model):
     # scoped, unlike the long-lived profile ratings. Null when not recorded
     # (e.g. the player was absent).
     effort = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Quality of the player's performance, intentionally separate from effort.
+    performance_score = models.DecimalField(
+        max_digits=3,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+    )
     # The coach's short remark about this player on this day.
     note = models.CharField(max_length=1000, blank=True)
     recorded_by = models.ForeignKey(
@@ -904,6 +1010,39 @@ class Attendance(models.Model):
             models.Index(
                 fields=['session', 'status'],
                 name='academy_att_session_status_idx',
+            ),
+            models.Index(
+                fields=['player', '-updated_at'],
+                name='academy_att_player_date_idx',
+            ),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(status=AttendanceStatus.PRESENT)
+                    | (
+                        models.Q(effort__isnull=True)
+                        & models.Q(performance_score__isnull=True)
+                    )
+                ),
+                name='attendance_scores_require_present',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(effort__isnull=True)
+                    | models.Q(effort__gte=0, effort__lte=100)
+                ),
+                name='attendance_effort_0_100',
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(performance_score__isnull=True)
+                    | models.Q(
+                        performance_score__gte=0,
+                        performance_score__lte=10,
+                    )
+                ),
+                name='attendance_performance_0_10',
             ),
         ]
 

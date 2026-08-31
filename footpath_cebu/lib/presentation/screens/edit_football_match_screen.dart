@@ -27,6 +27,7 @@ class _EditFootballMatchScreenState
   late final TextEditingController _opponentScore;
   late DateTime _playedOn;
   late MatchVenue _venue;
+  late MatchCategory _category;
 
   bool get _editing => widget.existing != null;
   bool get _scheduled =>
@@ -51,6 +52,9 @@ class _EditFootballMatchScreenState
         widget.fixture?.kickoffAt.toLocal() ??
         DateTime.now();
     _venue = match?.venue ?? widget.fixture?.venue ?? MatchVenue.home;
+    _category = _scheduled
+        ? MatchCategory.tournament
+        : match?.category ?? MatchCategory.other;
   }
 
   @override
@@ -82,6 +86,7 @@ class _EditFootballMatchScreenState
       ourScore: int.parse(_ourScore.text),
       opponentScore: int.parse(_opponentScore.text),
       fixtureId: widget.fixture?.id,
+      category: _category,
     );
     final controller = ref.read(matchManagementControllerProvider.notifier);
     final saved = _editing
@@ -154,6 +159,29 @@ class _EditFootballMatchScreenState
               subtitle: Text(date),
               trailing: const Icon(Icons.edit_calendar_outlined),
               onTap: saving || _scheduled ? null : _pickDate,
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<MatchCategory>(
+              initialValue: _category,
+              decoration: const InputDecoration(
+                labelText: 'Match category',
+                prefixIcon: Icon(Icons.category_outlined),
+              ),
+              items: MatchCategory.values
+                  .map(
+                    (category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(category.label),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: saving || _scheduled
+                  ? null
+                  : (value) {
+                      if (value != null) {
+                        setState(() => _category = value);
+                      }
+                    },
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<MatchVenue>(

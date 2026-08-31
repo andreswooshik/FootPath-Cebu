@@ -9,6 +9,7 @@ Attendance _record(String playerId, {AttendanceStatus? status}) => Attendance(
   updatedAt: DateTime(2026, 7, 17, 16, 30),
   sessionId: 's1',
   effort: 85,
+  performanceScore: 8.4,
   note: 'Sharp today.',
 );
 
@@ -35,6 +36,7 @@ void main() {
     expect(batch.records.map((r) => r.playerId), ['p1', 'p2']);
     expect(batch.records.first.status, AttendanceStatus.present);
     expect(batch.records.first.effort, 85);
+    expect(batch.records.first.performanceScore, 8.4);
     expect(batch.records.first.note, 'Sharp today.');
   });
 

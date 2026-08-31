@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_growth.dart';
+import 'package:footpath_cebu/presentation/providers/growth_providers.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 
 /// Drives the coach's Edit Performance Data form.
@@ -20,6 +22,7 @@ class EditPerformanceController extends AsyncNotifier<void> {
     String playerId,
     PlayerRatings ratings, {
     required String coachNotes,
+    AssessmentReason assessmentReason = AssessmentReason.generalReview,
   }) async {
     state = const AsyncLoading();
     try {
@@ -27,9 +30,11 @@ class EditPerformanceController extends AsyncNotifier<void> {
         playerId,
         ratings,
         coachNotes: coachNotes,
+        assessmentReason: assessmentReason,
       );
       state = const AsyncData(null);
       ref.invalidate(squadProvider);
+      ref.invalidate(playerGrowthProvider);
       return updated;
     } catch (e, st) {
       state = AsyncError(e, st);

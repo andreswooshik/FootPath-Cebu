@@ -8,20 +8,31 @@ class PerformanceTrendChart extends StatelessWidget {
     super.key,
     required this.ratings,
     this.height = 160,
+    this.maxValue = 10,
+    this.pointLabels = const [],
+    this.metricLabel = 'Coach rating',
   });
 
-  final List<double> ratings;
+  final List<double?> ratings;
   final double height;
+  final double maxValue;
+  final List<String> pointLabels;
+  final String metricLabel;
 
   @override
   Widget build(BuildContext context) {
+    final safeMax = maxValue <= 0 ? 1.0 : maxValue;
     final values = ratings
-        .map((value) => value.clamp(0, 10).toDouble())
+        .map((value) => value?.clamp(0, safeMax).toDouble())
         .toList();
     final description = values.isEmpty
         ? 'No performance trend available'
-        : 'Coach ratings from oldest to newest: '
-              '${values.map((value) => value.toStringAsFixed(1)).join(', ')}';
+        : '$metricLabel from oldest to newest: '
+              '${List.generate(values.length, (index) {
+                final value = values[index];
+                final date = index < pointLabels.length ? '${pointLabels[index]}: ' : '';
+                return '$date${value?.toStringAsFixed(1) ?? 'missing'}';
+              }).join(', ')}';
     return Semantics(
       label: description,
       image: true,
@@ -31,6 +42,7 @@ class PerformanceTrendChart extends StatelessWidget {
         child: CustomPaint(
           painter: _TrendPainter(
             values: values,
+            maxValue: safeMax,
             lineColor: Theme.of(context).colorScheme.primary,
             gridColor: Theme.of(context).dividerColor,
           ),
@@ -45,9 +57,11 @@ class _TrendPainter extends CustomPainter {
     required this.values,
     required this.lineColor,
     required this.gridColor,
+    required this.maxValue,
   });
 
-  final List<double> values;
+  final List<double?> values;
+  final double maxValue;
   final Color lineColor;
   final Color gridColor;
 
@@ -66,12 +80,14 @@ class _TrendPainter extends CustomPainter {
       ..color = gridColor.withValues(alpha: 0.55)
       ..strokeWidth = 1;
 
-    for (final rating in [0, 5, 10]) {
-      final y = chart.bottom - chart.height * rating / 10;
+    for (final rating in [0.0, maxValue / 2, maxValue]) {
+      final y = chart.bottom - chart.height * rating / maxValue;
       canvas.drawLine(Offset(chart.left, y), Offset(chart.right, y), gridPaint);
       final label = TextPainter(
         text: TextSpan(
-          text: '$rating',
+          text: rating == rating.roundToDouble()
+              ? '${rating.round()}'
+              : rating.toStringAsFixed(1),
           style: TextStyle(color: gridColor, fontSize: 10),
         ),
         textDirection: TextDirection.ltr,
@@ -91,11 +107,18 @@ class _TrendPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
     final path = Path();
     final divisor = math.max(1, values.length - 1);
+    var segmentStarted = false;
     for (var index = 0; index < values.length; index++) {
+      final value = values[index];
+      if (value == null) {
+        segmentStarted = false;
+        continue;
+      }
       final x = chart.left + chart.width * index / divisor;
-      final y = chart.bottom - chart.height * values[index] / 10;
-      if (index == 0) {
+      final y = chart.bottom - chart.height * value / maxValue;
+      if (!segmentStarted) {
         path.moveTo(x, y);
+        segmentStarted = true;
       } else {
         path.lineTo(x, y);
       }
@@ -124,6 +147,7 @@ class _TrendPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _TrendPainter oldDelegate) =>
       oldDelegate.values != values ||
+      oldDelegate.maxValue != maxValue ||
       oldDelegate.lineColor != lineColor ||
       oldDelegate.gridColor != gridColor;
 }

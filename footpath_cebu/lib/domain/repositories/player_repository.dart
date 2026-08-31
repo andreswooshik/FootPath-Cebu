@@ -1,5 +1,6 @@
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/domain/entities/player_growth.dart';
 
 /// Squad roster reads — used by the Coach dashboard.
 abstract class SquadRepository {
@@ -36,6 +37,7 @@ abstract class AssessmentWriter {
     String playerId,
     PlayerRatings ratings, {
     required String coachNotes,
+    AssessmentReason assessmentReason = AssessmentReason.generalReview,
   });
 }
 

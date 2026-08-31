@@ -39,7 +39,10 @@ class Attendance {
     this.sessionName,
     this.coachUid,
     this.effort,
+    this.performanceScore,
     this.note,
+    this.sessionFocus,
+    this.sessionDate,
   });
 
   final String playerId;
@@ -62,8 +65,14 @@ class Attendance {
   /// player's long-lived [PlayerRatings].
   final int? effort;
 
+  /// Quality of the player's training performance, 0.0-10.0. This is not an
+  /// effort score: a player can work hard while execution quality is lower.
+  final double? performanceScore;
+
   /// The coach's short remark about this player on this day.
   final String? note;
+  final String? sessionFocus;
+  final DateTime? sessionDate;
 
   Attendance copyWith({
     AttendanceStatus? status,
@@ -71,7 +80,10 @@ class Attendance {
     String? sessionId,
     String? sessionName,
     int? effort,
+    double? performanceScore,
     String? note,
+    bool clearParticipationValues = false,
+    bool clearPerformanceScore = false,
   }) {
     return Attendance(
       playerId: playerId,
@@ -80,8 +92,15 @@ class Attendance {
       sessionId: sessionId ?? this.sessionId,
       sessionName: sessionName ?? this.sessionName,
       coachUid: coachUid,
-      effort: effort ?? this.effort,
+      effort: clearParticipationValues ? null : effort ?? this.effort,
+      performanceScore: clearParticipationValues
+          ? null
+          : clearPerformanceScore
+          ? null
+          : performanceScore ?? this.performanceScore,
       note: note ?? this.note,
+      sessionFocus: sessionFocus,
+      sessionDate: sessionDate,
     );
   }
 
@@ -94,7 +113,12 @@ class Attendance {
       sessionName: json['sessionName'] as String?,
       coachUid: json['coachUid'] as String?,
       effort: json['effort'] as int?,
+      performanceScore: _asNullableDouble(json['performanceScore']),
       note: json['note'] as String?,
+      sessionFocus: json['sessionFocus'] as String?,
+      sessionDate: json['sessionDate'] == null
+          ? null
+          : DateTime.parse(json['sessionDate'] as String),
     );
   }
 
@@ -106,6 +130,13 @@ class Attendance {
     if (sessionName != null) 'sessionName': sessionName,
     if (coachUid != null) 'coachUid': coachUid,
     if (effort != null) 'effort': effort,
+    if (performanceScore != null) 'performanceScore': performanceScore,
     if (note != null) 'note': note,
   };
 }
+
+double? _asNullableDouble(dynamic value) => switch (value) {
+  num number => number.toDouble(),
+  String text => double.tryParse(text),
+  _ => null,
+};

@@ -1,5 +1,6 @@
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
+import 'package:footpath_cebu/domain/repositories/growth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 
@@ -12,6 +13,7 @@ String friendlyErrorMessage(Object? error, String fallback) => switch (error) {
   PlayerRepositoryException e => e.message,
   AttendanceRepositoryException e => e.message,
   TrainingRepositoryException e => e.message,
+  GrowthRepositoryException e => e.message,
   AuthException e => e.message,
   _ => fallback,
 };

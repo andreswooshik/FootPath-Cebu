@@ -45,7 +45,7 @@ void main() {
     await tester.pumpWidget(_app('p1'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Season Summary'), findsOneWidget);
+    expect(find.text('Last 5 Summary'), findsOneWidget);
     expect(find.text('MATCHES'), findsOneWidget);
     expect(find.byType(PerformanceTrendChart), findsOneWidget);
     expect(find.textContaining('Cebu United'), findsOneWidget);
@@ -86,7 +86,7 @@ void main() {
     expect(tabBar.indicatorColor, Colors.black);
     expect(find.text('Matches'), findsOneWidget);
     expect(find.text('Training Feedback'), findsOneWidget);
-    expect(find.text('Season Summary'), findsOneWidget);
+    expect(find.text('Last 5 Summary'), findsOneWidget);
 
     await tester.tap(find.text('Training Feedback'));
     await tester.pumpAndSettle();

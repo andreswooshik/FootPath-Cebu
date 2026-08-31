@@ -32,9 +32,19 @@ urlpatterns = [
         name='player-assessment',
     ),
     path(
+        'players/<int:player_id>/assessment-history/',
+        views.PlayerAssessmentHistoryView.as_view(),
+        name='player-assessment-history',
+    ),
+    path(
         'players/<int:player_id>/match-statistics/',
         views.PlayerMatchStatisticsView.as_view(),
         name='player-match-statistics',
+    ),
+    path(
+        'players/<int:player_id>/growth/',
+        views.PlayerGrowthView.as_view(),
+        name='player-growth',
     ),
     path(
         'players/<int:player_id>/position/',

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
@@ -28,6 +29,7 @@ class _FakePlayerRepository implements PlayerRepository {
     String playerId,
     PlayerRatings ratings, {
     required String coachNotes,
+    AssessmentReason assessmentReason = AssessmentReason.generalReview,
   }) async =>
       _players
           .firstWhere((p) => p.id == playerId)
@@ -57,6 +59,7 @@ class _FailingPlayerRepository implements PlayerRepository {
     String playerId,
     PlayerRatings ratings, {
     required String coachNotes,
+    AssessmentReason assessmentReason = AssessmentReason.generalReview,
   }) async =>
       throw PlayerRepositoryException('boom');
 

@@ -108,8 +108,10 @@ class _PlayerMatchStatisticsViewState
       );
     }
 
-    final summary = statistics.summary;
-    final hasGoalkeeperRow = all.any((row) => row.position == 'GK');
+    final summary = _range == MatchHistoryRange.all
+        ? statistics.summary
+        : MatchPerformanceSummary.fromPerformances(visible);
+    final hasGoalkeeperRow = visible.any((row) => row.position == 'GK');
     return RefreshIndicator(
       onRefresh: () =>
           ref.refresh(playerMatchStatisticsProvider(widget.playerId).future),
@@ -117,7 +119,7 @@ class _PlayerMatchStatisticsViewState
         padding: const EdgeInsets.all(16),
         children: [
           Text(
-            'Season Summary',
+            '${_range.label} Summary',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 12),
@@ -179,13 +181,23 @@ class _PlayerMatchStatisticsViewState
               child: PerformanceTrendChart(
                 ratings: visible.reversed
                     .map((row) => row.coachRating)
-                    .whereType<double>()
+                    .toList(growable: false),
+                pointLabels: visible.reversed
+                    .map((row) => formatShortDate(row.match.playedOn))
                     .toList(growable: false),
               ),
             ),
           ),
           const SizedBox(height: 20),
           Text('Match History', style: Theme.of(context).textTheme.titleMedium),
+          if (_range == MatchHistoryRange.all &&
+              summary.matchesPlayed > visible.length) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Showing the newest ${visible.length} of ${summary.matchesPlayed} matches. The summary includes all matches.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
           const SizedBox(height: 8),
           for (final performance in visible)
             _MatchPerformanceCard(performance: performance),

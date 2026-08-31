@@ -90,7 +90,14 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
                   ? kDefaultEffort
                   : null,
             )
-          : existing.copyWith(status: status, updatedAt: DateTime.now());
+          : existing.copyWith(
+              status: status,
+              updatedAt: DateTime.now(),
+              effort: status == AttendanceStatus.present
+                  ? existing.effort ?? kDefaultEffort
+                  : null,
+              clearParticipationValues: status != AttendanceStatus.present,
+            );
     });
   }
 
@@ -127,6 +134,16 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     final draft = _marks[playerId];
     if (draft == null) return;
     _marks[playerId] = draft.copyWith(note: note);
+    _dirtySince = true;
+  }
+
+  void _setPerformanceScore(String playerId, double? score) {
+    final draft = _marks[playerId];
+    if (draft == null) return;
+    _marks[playerId] = draft.copyWith(
+      performanceScore: score,
+      clearPerformanceScore: score == null,
+    );
     _dirtySince = true;
   }
 
@@ -381,9 +398,13 @@ class _Body extends StatelessWidget {
                       player: player,
                       status: state._marks[player.id]?.status,
                       effort: state._marks[player.id]?.effort ?? kDefaultEffort,
+                      performanceScore:
+                          state._marks[player.id]?.performanceScore,
                       note: state._marks[player.id]?.note ?? '',
                       onMark: (s) => state._mark(player.id, s),
                       onEffort: (v) => state._setEffort(player.id, v),
+                      onPerformanceScore: (v) =>
+                          state._setPerformanceScore(player.id, v),
                       onNote: (v) => state._setNote(player.id, v),
                       onOpenAssessment: () => state._openAssessment(player),
                     );
@@ -539,9 +560,11 @@ class _PlayerAttendanceCard extends StatelessWidget {
     required this.player,
     required this.status,
     required this.effort,
+    required this.performanceScore,
     required this.note,
     required this.onMark,
     required this.onEffort,
+    required this.onPerformanceScore,
     required this.onNote,
     required this.onOpenAssessment,
   });
@@ -549,9 +572,11 @@ class _PlayerAttendanceCard extends StatelessWidget {
   final Player player;
   final AttendanceStatus? status;
   final int effort;
+  final double? performanceScore;
   final String note;
   final ValueChanged<AttendanceStatus?> onMark;
   final ValueChanged<int> onEffort;
+  final ValueChanged<double?> onPerformanceScore;
   final ValueChanged<String> onNote;
   final VoidCallback onOpenAssessment;
 
@@ -628,8 +653,10 @@ class _PlayerAttendanceCard extends StatelessWidget {
                       // map when a mark toggles back to present.
                       key: ValueKey('${player.id}-present'),
                       effort: effort,
+                      performanceScore: performanceScore,
                       note: note,
                       onEffort: onEffort,
+                      onPerformanceScore: onPerformanceScore,
                       onNote: onNote,
                       onOpenAssessment: onOpenAssessment,
                     )
@@ -720,15 +747,19 @@ class _SessionEvaluation extends StatelessWidget {
   const _SessionEvaluation({
     super.key,
     required this.effort,
+    required this.performanceScore,
     required this.note,
     required this.onEffort,
+    required this.onPerformanceScore,
     required this.onNote,
     required this.onOpenAssessment,
   });
 
   final int effort;
+  final double? performanceScore;
   final String note;
   final ValueChanged<int> onEffort;
+  final ValueChanged<double?> onPerformanceScore;
   final ValueChanged<String> onNote;
   final VoidCallback onOpenAssessment;
 
@@ -742,6 +773,11 @@ class _SessionEvaluation extends StatelessWidget {
         Divider(height: 1, color: cs.outlineVariant),
         const SizedBox(height: 10),
         _EffortSlider(initialValue: effort, onChanged: onEffort),
+        const SizedBox(height: 8),
+        _PerformanceScoreInput(
+          initialValue: performanceScore,
+          onChanged: onPerformanceScore,
+        ),
         const SizedBox(height: 8),
         _NoteField(initialValue: note, onChanged: onNote),
         Align(
@@ -816,6 +852,77 @@ class _EffortSliderState extends State<_EffortSlider> {
             },
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Optional 0.0-10.0 execution-quality score. A switch makes the missing state
+/// explicit instead of silently treating "not rated" as zero.
+class _PerformanceScoreInput extends StatefulWidget {
+  const _PerformanceScoreInput({
+    required this.initialValue,
+    required this.onChanged,
+  });
+
+  final double? initialValue;
+  final ValueChanged<double?> onChanged;
+
+  @override
+  State<_PerformanceScoreInput> createState() => _PerformanceScoreInputState();
+}
+
+class _PerformanceScoreInputState extends State<_PerformanceScoreInput> {
+  late bool _enabled = widget.initialValue != null;
+  late double _value = widget.initialValue ?? 7.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      children: [
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: const Text('Training performance score'),
+          subtitle: const Text(
+            'Optional execution quality, separate from effort',
+          ),
+          value: _enabled,
+          onChanged: (enabled) {
+            setState(() => _enabled = enabled);
+            widget.onChanged(enabled ? _value : null);
+          },
+        ),
+        if (_enabled)
+          Row(
+            children: [
+              Expanded(
+                child: Slider(
+                  value: _value,
+                  min: 0,
+                  max: 10,
+                  divisions: 100,
+                  label: _value.toStringAsFixed(1),
+                  onChanged: (value) {
+                    setState(() => _value = value);
+                    widget.onChanged(double.parse(value.toStringAsFixed(1)));
+                  },
+                ),
+              ),
+              SizedBox(
+                width: 42,
+                child: Text(
+                  _value.toStringAsFixed(1),
+                  textAlign: TextAlign.end,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }

@@ -9,7 +9,7 @@ import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/progress_providers.dart';
 import 'package:footpath_cebu/presentation/screens/coach_matches_screen.dart';
-import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
+import 'package:footpath_cebu/presentation/screens/player_growth_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
 /// Coach Portal — the Progress tab: per-player attendance and effort
@@ -74,7 +74,7 @@ class CoachProgressScreen extends ConsumerWidget {
                     progress: players[i],
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => PlayerMatchStatisticsScreen(
+                        builder: (_) => PlayerGrowthScreen(
                           playerId: players[i].id,
                           playerName: players[i].name,
                         ),

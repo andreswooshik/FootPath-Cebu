@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 
 /// Live player data backed by the authenticated Django REST API.
@@ -60,6 +61,7 @@ class ApiPlayerRepository
     String playerId,
     PlayerRatings ratings, {
     required String coachNotes,
+    AssessmentReason assessmentReason = AssessmentReason.generalReview,
   }) async {
     try {
       final response = await _api.put(
@@ -68,6 +70,7 @@ class ApiPlayerRepository
         body: jsonEncode({
           'ratings': ratings.toJson(),
           'coachNotes': coachNotes,
+          'assessmentReason': assessmentReason.wire,
         }),
       );
       return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);

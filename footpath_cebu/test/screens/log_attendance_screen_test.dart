@@ -55,6 +55,29 @@ class _DelayedAttendanceRepository implements AttendanceRepository {
   ) async => records;
 }
 
+class _RecordingAttendanceRepository implements AttendanceRepository {
+  List<Attendance>? savedRecords;
+
+  @override
+  Future<List<Attendance>> fetchAttendanceForSession(String sessionId) async =>
+      const [];
+
+  @override
+  Future<List<Attendance>> fetchAttendanceForPlayer(
+    String playerId, {
+    String? unlockToken,
+  }) async => const [];
+
+  @override
+  Future<List<Attendance>> saveSessionAttendance(
+    String sessionId,
+    List<Attendance> records,
+  ) async {
+    savedRecords = records;
+    return records;
+  }
+}
+
 void main() {
   /// Tall surface: the roster is a lazy ListView, so cards below the fold are
   /// never built and can't be found. Repository providers default to the
@@ -161,6 +184,54 @@ void main() {
     expect(find.text('Effort / Intensity'), findsOneWidget);
     expect(find.text('Full assessment'), findsOneWidget);
     expect(find.text('1 of 2 marked'), findsOneWidget);
+  });
+
+  testWidgets('records an optional performance score separately from effort', (
+    tester,
+  ) async {
+    final repository = _RecordingAttendanceRepository();
+    await tester.binding.setSurfaceSize(const Size(520, 2200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [attendanceRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: FilledButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => LogAttendanceScreen(
+                      session: _session({AgeTier.foundation}),
+                      profile: _coach,
+                    ),
+                  ),
+                ),
+                child: const Text('Open attendance'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open attendance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mark all present'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Training performance score'), findsNWidgets(2));
+    await tester.tap(find.text('Training performance score').first);
+    await tester.pumpAndSettle();
+    final performanceSlider = tester.widget<Slider>(find.byType(Slider).at(1));
+    performanceSlider.onChanged!(8.4);
+    await tester.pump();
+    await tester.tap(find.textContaining('Complete Training Session'));
+    await tester.pumpAndSettle();
+
+    expect(repository.savedRecords, isNotNull);
+    expect(repository.savedRecords!.first.performanceScore, 8.4);
+    expect(repository.savedRecords!.first.effort, 70);
+    expect(repository.savedRecords!.last.performanceScore, isNull);
   });
 
   testWidgets('an absent player gets no evaluation', (tester) async {

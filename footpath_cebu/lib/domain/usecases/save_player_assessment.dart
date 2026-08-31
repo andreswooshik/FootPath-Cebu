@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 
 /// Use case: persist a coach's performance assessment for one player.
@@ -14,5 +15,11 @@ class SavePlayerAssessment {
     String playerId,
     PlayerRatings ratings, {
     required String coachNotes,
-  }) => _repository.saveAssessment(playerId, ratings, coachNotes: coachNotes);
+    AssessmentReason assessmentReason = AssessmentReason.generalReview,
+  }) => _repository.saveAssessment(
+    playerId,
+    ratings,
+    coachNotes: coachNotes,
+    assessmentReason: assessmentReason,
+  );
 }

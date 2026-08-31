@@ -328,6 +328,46 @@ class _FixtureTile extends StatelessWidget {
             ].join(' - '),
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          if (fixture.ourScore != null && fixture.opponentScore != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.sports_score,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${fixture.ourScore}-${fixture.opponentScore} · ${_outcomeLabel(fixture.outcome)}',
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          '${fixture.tournament}${fixture.ageBracketLabel == null ? '' : ' · ${fixture.ageBracketLabel}'}${fixture.stage.isEmpty ? '' : ' · ${fixture.stage}'}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        if (fixture.linkedMatch != null)
+                          Text(
+                            'Linked match ${fixture.linkedMatch!.venue.label} · ${fixture.linkedMatch!.category.label}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (canRecordResults && fixture.canRecordResult) ...[
             const SizedBox(height: 10),
             Align(
@@ -350,3 +390,10 @@ class _FixtureTile extends StatelessWidget {
     );
   }
 }
+
+String _outcomeLabel(String? value) => switch (value) {
+  'WIN' => 'Win',
+  'LOSS' => 'Loss',
+  'DRAW' => 'Draw',
+  _ => 'Completed',
+};

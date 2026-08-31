@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/data/repositories/mock_growth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
@@ -53,6 +55,9 @@ Future<void> _pump(WidgetTester tester, Player player) async {
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     ProviderScope(
+      overrides: [
+        growthRepositoryProvider.overrideWithValue(MockGrowthRepository()),
+      ],
       child: MaterialApp(
         home: EditPerformanceDataScreen(player: player, profile: _coach),
       ),
@@ -121,11 +126,30 @@ void main() {
     });
 
     testWidgets('the Coach Evaluation notes box is unchanged for a goalkeeper',
-        (tester) async {
-      await _pump(tester, _goalkeeper());
+      (tester) async {
+        await _pump(tester, _goalkeeper());
 
-      expect(find.text('Coach Evaluation'), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget);
+        expect(find.text('Coach Evaluation'), findsOneWidget);
+        expect(find.byType(TextField), findsOneWidget);
+    });
+
+    testWidgets('shows live previous deltas and allows a review reason', (
+      tester,
+    ) async {
+      await _pump(tester, _outfield());
+
+      expect(find.textContaining('Previous assessment'), findsOneWidget);
+      expect(find.textContaining('Prev 76'), findsNWidgets(6));
+      final pace = tester.widget<Slider>(find.byType(Slider).first);
+      pace.onChanged!(80);
+      await tester.pump();
+      expect(find.text('Prev 76\n+4'), findsOneWidget);
+
+      await tester.tap(find.text('General review'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Monthly review').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Monthly review'), findsOneWidget);
     });
   });
 
