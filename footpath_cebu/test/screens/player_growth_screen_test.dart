@@ -141,6 +141,10 @@ void main() {
     ]) {
       expect(find.text(label), findsOneWidget);
     }
+    final tabBar = tester.widget<TabBar>(find.byType(TabBar));
+    expect(tabBar.labelColor, Colors.black);
+    expect(tabBar.unselectedLabelColor, const Color(0xFF31453E));
+    expect(tabBar.indicatorColor, Colors.white);
     expect(find.text('Last 10 overview'), findsOneWidget);
     expect(find.text('Technical training'), findsOneWidget);
     expect(find.text('Insufficient data'), findsWidgets);

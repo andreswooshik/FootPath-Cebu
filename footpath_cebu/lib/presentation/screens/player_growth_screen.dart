@@ -62,6 +62,9 @@ class _PlayerGrowthScreenState extends ConsumerState<PlayerGrowthScreen> {
           ],
           bottom: const TabBar(
             isScrollable: true,
+            labelColor: Colors.black,
+            unselectedLabelColor: Color(0xFF31453E),
+            indicatorColor: Colors.white,
             tabs: [
               Tab(text: 'Overview'),
               Tab(text: 'Assessments'),
