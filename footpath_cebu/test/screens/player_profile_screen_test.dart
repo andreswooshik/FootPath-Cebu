@@ -90,7 +90,7 @@ void main() {
       ]) {
         expect(find.text(code), findsNothing);
       }
-      expect(find.text('No development assessment yet'), findsWidgets);
+      expect(find.text('AWAITING ASSESSMENT'), findsOneWidget);
       expect(find.text('Development feedback'), findsOneWidget);
       expect(find.byKey(const Key('upload-player-photo')), findsOneWidget);
       expect(find.text('Create Development Assessment'), findsOneWidget);
@@ -101,13 +101,8 @@ void main() {
     ) async {
       await _pump(tester, _assessedPlayer());
 
-      for (final label in [
-        'Technical',
-        'Tactical',
-        'Physical',
-        'Mental',
-        'Values',
-      ]) {
+      expect(find.text('ASSESSMENT DOMAINS · 1–5'), findsOneWidget);
+      for (final label in ['TEC', 'TAC', 'PHYS', 'MEN', 'VAL']) {
         expect(find.text(label), findsOneWidget);
       }
       expect(find.text('Observed strength'), findsOneWidget);
