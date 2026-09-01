@@ -1,189 +1,167 @@
-# FootPath-Cebu — Development Setup
+# FootPath Cebu — Simple Setup Guide
 
-Two parts: the Django backend (`backend/`) and the Flutter app
-(`footpath_cebu/`). Both need one shared secret file — ask whoever gave you
-this repo link for it (see step 0).
+FootPath Cebu has two parts:
 
-## 0. Get the shared secret file
+- `backend/` — Django API and web portal
+- `footpath_cebu/` — Flutter mobile app
 
-Download **`firebase-service-account.json`** from the team Google Drive and
-save it as:
+These commands are for Windows PowerShell. Open the project folder in VS Code,
+then use **Terminal → New Terminal** so PowerShell starts in the correct folder.
 
-```
+## 1. First-time setup
+
+### Firebase credentials
+
+Get `firebase-service-account.json` from the project owner and place it here:
+
+```text
 backend/secrets/firebase-service-account.json
 ```
 
-That's the only file you need from outside the repo. It's gitignored —
-never commit it or share it outside the team.
+Never commit or share this private file.
 
-## 1. Backend
+From the project folder, create the backend environment file:
+
+```powershell
+Copy-Item backend\.env.example backend\.env
+```
+
+Open `backend\.env`, set a private `DJANGO_SECRET_KEY`, and keep this line:
+
+```text
+FIREBASE_CREDENTIALS=secrets/firebase-service-account.json
+```
+
+The Flutter Android Firebase configuration is already included.
+
+### Install the backend
 
 ```powershell
 cd backend
-py -m venv .venv                                  # first time only
+py -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-copy .env.example .env                            # first time only
 .\.venv\Scripts\python.exe manage.py migrate
-.\.venv\Scripts\python.exe manage.py seed_users
+```
+
+### Install Flutter packages
+
+```powershell
+cd ..\footpath_cebu
+flutter pub get
+```
+
+## 2. Run the backend
+
+Open PowerShell terminal 1:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe manage.py migrate
 .\.venv\Scripts\python.exe manage.py runserver 0.0.0.0:8000
 ```
 
-Open `backend\.env` and set `DJANGO_SECRET_KEY` to any random string (or
-generate one: `python -c "from django.core.management.utils import get_random_secret_key as k; print(k())"`).
-Everything else in `.env.example` can stay commented out — no database
-setup needed, it defaults to a local SQLite file.
+Keep this terminal open. Available sites:
 
-`0.0.0.0` matters because it makes the development server reachable from an
-emulator or a physical tablet. The Android emulator reaches the host via
-`10.0.2.2`; a physical tablet must use the computer's LAN IP instead.
+- Portal: <http://127.0.0.1:8000/portal/>
+- Django Admin: <http://127.0.0.1:8000/admin/>
+- API health check: <http://127.0.0.1:8000/api/health/>
 
-`seed_users` creates one Firebase + local account per role (idempotent,
-default password `FootPath!2026`, override with `--password`):
-
-| Email | Role |
-|---|---|
-| admin@footpathcebu.test | Admin |
-| coach@footpathcebu.test | Coach |
-| player@footpathcebu.test | Player |
-| staff@footpathcebu.test | School Staff |
-| guardian@footpathcebu.test | Guardian |
-
-These five log into the **Flutter app** and the custom **admin console**
-(`http://localhost:8000/console/`) with their email + the password above —
-the console requires the ADMIN role.
-
-The **Django admin site** (`http://localhost:8000/admin/`) is separate: it
-needs a Django superuser, not a seeded account:
+Create a Django Admin login if needed:
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py createsuperuser
 ```
 
-Log in there with the **username** you set (not an email). Use it for Super
-Admin Club and Coordinator setup—see section 2.
+## 3. Run on the SM-X200 tablet using USB
 
-## 2. Web portal — club coordinators & school staff
+Enable **Developer options** and **USB debugging**, connect the tablet, and
+approve the debugging prompt.
 
-The portal (`http://localhost:8000/portal/`) is the multi-club admin surface,
-separate from the Flutter app. It is server-rendered and uses **Django session
-login** (email + password), **not** Firebase — its users never touch the mobile
-app.
-
-**Super Admin setup, then Club Coordinator provisioning:**
-
-1. Super Admin opens `/admin/` → **Clubs**, creates the Club, and selects School
-   or Independent using the existing school-affiliation field.
-2. Super Admin creates the Club's single `COORDINATOR` user, assigns that Club,
-   and relays the generated/selected portal password. The protected API
-   equivalents are `POST /api/admin/clubs/` and
-   `POST /api/admin/coordinators/`.
-3. The coordinator logs in at `/portal/login/` and, from **Create accounts**,
-   provisions **players, coaches and guardians**—and **School Staff only for a
-   School Club**. The server always stamps the Coordinator's own Club.
-
-**School staff** — log in at `/portal/` and open **Academic eligibility** to set
-their club's players' eligibility (Eligible / Not Eligible / Pending / Academic
-Warning). Each change is recorded in the append-only eligibility history.
-Independent Clubs receive Not Applicable behavior and cannot create School
-Staff. FootPath Cebu never stores raw student grades.
-
-> Everything is isolated per club: a coordinator, coach or staff member only
-> ever sees their own club's players, roster, sessions and eligibility. Django
-> superusers / the ADMIN role are the only cross-club view.
-
-## 3. Flutter app
+Open PowerShell terminal 2:
 
 ```powershell
+adb devices
+adb reverse tcp:8000 tcp:8000
+
 cd footpath_cebu
-flutter pub get
-flutter run -d chrome
+flutter run -d R9YTB0B22JM --dart-define=API_BASE_URL=http://127.0.0.1:8000
 ```
 
-Normal debug and release runs use Firebase + Django. For isolated UI work
-without a backend, opt into in-memory data explicitly with
-`--dart-define=USE_MOCK=true`; release builds ignore that flag and always use
-the live backend.
-
-The app picks the backend URL automatically: `http://localhost:8000` on
-web/desktop, `http://10.0.2.2:8000` on the Android emulator. Override with
-`--dart-define=API_BASE_URL=http://<computer-lan-ip>:8000` for a physical
-device on the same Wi-Fi. Use the computer's IP, not the tablet's IP.
-
-### Physical Android tablet
-
-First pair the tablet through Android **Developer options → Wireless
-debugging**, then confirm that Flutter sees it:
+If that device ID does not match your tablet, run:
 
 ```powershell
 flutter devices
+flutter run -d <device-id> --dart-define=API_BASE_URL=http://127.0.0.1:8000
 ```
 
-For wireless debugging, the pairing port and debug port are different:
+Keep both terminals open while testing.
+
+## 4. Run on an Android emulator
+
+Start Django first, then run:
 
 ```powershell
-adb pair <tablet-ip>:<pairing-port>
-adb connect <tablet-ip>:<debug-port>
+cd footpath_cebu
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8000
 ```
 
-Then run the live Flutter app using the tablet device ID and the computer's
-LAN IP:
+## 5. Run with mock data
+
+Mock mode does not require Django or Firebase:
 
 ```powershell
-flutter run -d <tablet-ip>:<debug-port> `
-  --dart-define=API_BASE_URL=http://<computer-lan-ip>:8000
+cd footpath_cebu
+flutter run --dart-define=USE_MOCK=true
 ```
 
-Example, where the tablet is `10.0.0.30:44107` and the computer is
-`10.0.0.4`:
+## Common fixes
+
+### Tablet cannot connect to Django
+
+Run this again before starting Flutter:
 
 ```powershell
-flutter run -d 10.0.0.30:44107 `
-  --dart-define=API_BASE_URL=http://10.0.0.4:8000
+adb reverse tcp:8000 tcp:8000
 ```
 
-The tablet and computer must be on the same Wi-Fi network, and Windows
-Firewall must allow inbound TCP traffic on port `8000`. The Flutter app needs
-an actual Firebase account with a matching provisioned Django user. Mock/demo
-credentials work only when `USE_MOCK=true` is explicitly supplied.
+Also confirm Django is still running on port `8000`.
 
-## Troubleshooting
+### Firebase login fails
 
-- **"Token used too early"** on the Android emulator: clock drift — cold-boot
-  the emulator (the backend already tolerates 10 s of skew).
-- **Connection errors from the emulator**: confirm the server runs on
-  `0.0.0.0:8000` and the manifest has `android:usesCleartextTraffic="true"`
-  (dev-only; production uses HTTPS).
-- **"Could not sign in" on a physical tablet**: confirm the app was launched
-  with `API_BASE_URL=http://<computer-lan-ip>:8000`.
-  `10.0.2.2` is for the Android emulator and `localhost` points to the tablet
-  itself.
-- **Debug APK signing error**: use `flutter run` or build with
-  `flutter build apk --debug`. Release signing variables are intentionally
-  required only for release builds.
-- **`seed_users` fails / Firebase errors**: the service-account JSON is
-  missing or in the wrong place — re-check step 0.
-- **`Bad state: databaseFactory not initialized`** in the browser console when
-  running the app on **Chrome/desktop**: the offline attendance queue uses
-  `sqflite`, which only ships a platform database on Android/iOS. It is
-  **non-fatal** — login and every screen still work; only the *offline*
-  attendance sync is unavailable on web. Run on an Android emulator to exercise
-  offline attendance.
-- **Pylance/IDE import warnings in `backend/`**: point VS Code's Python
-  interpreter at `backend\.venv\Scripts\python.exe`
-  (Ctrl+Shift+P → "Python: Select Interpreter").
+Check that:
 
-## No access to the shared file? Set up your own Firebase project
+1. `backend/secrets/firebase-service-account.json` exists.
+2. `backend/.env` points to that file.
+3. The user exists in Firebase Authentication.
+4. The same user exists in Django with the correct role and club.
 
-Only needed if you don't have the Drive file and can't get it — this spins
-up a completely separate Firebase project for yourself.
+There is no public registration. An authorized Admin or Coordinator must
+provision accounts.
 
-1. <https://console.firebase.google.com> → **Add project** → any name.
-2. **Build → Authentication → Sign-in method → Email/Password → Enable**.
-3. **Project settings → Service accounts → Generate new private key** → save
-   as `backend/secrets/firebase-service-account.json`.
-4. `npm install -g firebase-tools && dart pub global activate flutterfire_cli`,
-   then from `footpath_cebu/`: `flutterfire configure --project=<your-project>`
-   (overwrites `lib/firebase_options.dart` — select at least android + web).
-5. Continue from step 1 above. Note you'll only be able to log in with
-   accounts `seed_users` creates in *your* project — you won't share
-   accounts/data with teammates on the real project.
+### Flutter or VS Code shows old errors
+
+```powershell
+cd footpath_cebu
+flutter clean
+flutter pub get
+flutter analyze
+```
+
+In VS Code, press `Ctrl+Shift+P` and run **Dart: Restart Analysis Server**.
+
+## Run tests
+
+Backend:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe manage.py test
+```
+
+Flutter:
+
+```powershell
+cd footpath_cebu
+flutter test
+flutter analyze
+```
