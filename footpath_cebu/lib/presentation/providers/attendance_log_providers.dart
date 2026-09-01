@@ -18,7 +18,7 @@ final sessionAttendanceProvider = FutureProvider.autoDispose
       (ref, sessionId) => ref.watch(getSessionAttendanceProvider)(sessionId),
     );
 
-/// Drives the "Complete Training Session" action.
+/// Drives both the first attendance save and later "Update Changes" action.
 ///
 /// Owns only the submit state ([AsyncValue] loading/error), mirroring
 /// [ScheduleSessionController]. The per-player marks are transient form state

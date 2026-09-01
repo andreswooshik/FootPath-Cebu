@@ -143,7 +143,50 @@ void main() {
     expect(find.text('1 of 2 marked'), findsOneWidget);
     expect(find.text('1 still unmarked'), findsOneWidget);
     expect(find.text('Effort / Intensity'), findsOneWidget);
+    expect(find.text('Update Changes'), findsOneWidget);
+    expect(find.textContaining('Complete Training Session'), findsNothing);
   });
+
+  testWidgets(
+    'saved roll call uses Update Changes instead of completing again',
+    (tester) async {
+      final now = DateTime.now();
+      await tester.binding.setSurfaceSize(const Size(520, 2200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: LogAttendanceScreen(
+              session: _session({AgeTier.foundation}),
+              profile: _coach,
+              initialAttendance: [
+                Attendance(
+                  playerId: 'p9',
+                  status: AttendanceStatus.present,
+                  updatedAt: now,
+                  sessionId: 't1',
+                  sessionName: 'Technical Drills',
+                  effort: 80,
+                ),
+                Attendance(
+                  playerId: 'p10',
+                  status: AttendanceStatus.absent,
+                  updatedAt: now,
+                  sessionId: 't1',
+                  sessionName: 'Technical Drills',
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 of 2 marked'), findsOneWidget);
+      expect(find.text('Update Changes'), findsOneWidget);
+      expect(find.textContaining('Complete Training Session'), findsNothing);
+    },
+  );
 
   testWidgets('shows the session details in the header', (tester) async {
     await pump(tester, date: DateTime(2026, 6, 28));

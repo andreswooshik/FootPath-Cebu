@@ -60,6 +60,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   /// Existing saved marks are copied into [_marks] exactly once, the first time
   /// the roster and saved attendance are both available.
   bool _seeded = false;
+  bool _hasSavedAttendance = false;
 
   bool get _dirty => _dirtySince;
   bool _dirtySince = false;
@@ -269,6 +270,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   void _seedOnce(List<Player> roster, List<Attendance> existing) {
     if (_seeded) return;
     _seeded = true;
+    _hasSavedAttendance = existing.isNotEmpty;
     for (final record in existing) {
       if (roster.any((p) => p.id == record.playerId)) {
         _marks[record.playerId] = record;
@@ -340,6 +342,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
                 unmarkedCount: roster.length - _marks.length,
                 isSaving: isSaving,
                 canLog: widget.session.isAttendanceOpen,
+                hasSavedAttendance: _hasSavedAttendance,
                 onFinalize: () => _finalize(roster),
               );
             },
@@ -975,6 +978,7 @@ class _FinalizeBar extends StatelessWidget {
     required this.unmarkedCount,
     required this.isSaving,
     required this.canLog,
+    required this.hasSavedAttendance,
     required this.onFinalize,
   });
 
@@ -985,6 +989,7 @@ class _FinalizeBar extends StatelessWidget {
 
   /// Whether attendance may be logged now — false unless it's the session day.
   final bool canLog;
+  final bool hasSavedAttendance;
   final VoidCallback onFinalize;
 
   @override
@@ -1038,12 +1043,20 @@ class _FinalizeBar extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Icon(canLog ? Icons.how_to_reg : Icons.lock_clock),
+                  : Icon(
+                      !canLog
+                          ? Icons.lock_clock
+                          : hasSavedAttendance
+                          ? Icons.save_as_outlined
+                          : Icons.how_to_reg,
+                    ),
               label: Text(
                 isSaving
                     ? 'Saving…'
                     : !canLog
                     ? 'Available on the session day'
+                    : hasSavedAttendance
+                    ? 'Update Changes'
                     : 'Complete Training Session'
                           '${markedCount > 0 ? ' ($presentCount present)' : ''}',
               ),
