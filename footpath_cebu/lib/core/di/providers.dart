@@ -15,6 +15,7 @@ import 'package:footpath_cebu/data/repositories/api_growth_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_match_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_notification_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
+import 'package:footpath_cebu/data/repositories/api_player_stats_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_progress_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_profile_photo_repository.dart';
@@ -55,6 +56,7 @@ import 'package:footpath_cebu/domain/repositories/growth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/match_repository.dart';
 import 'package:footpath_cebu/domain/repositories/notification_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
+import 'package:footpath_cebu/domain/repositories/player_stats_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/domain/repositories/progress_repository.dart';
 import 'package:footpath_cebu/domain/repositories/profile_photo_repository.dart';
@@ -163,6 +165,10 @@ final playerRepositoryProvider = Provider<PlayerRepository>(
       : ApiPlayerRepository(
           unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
         ),
+);
+
+final playerStatsRepositoryProvider = Provider<PlayerStatsRepository>(
+  (ref) => ApiPlayerStatsRepository(),
 );
 
 final developmentAssessmentRepositoryProvider =

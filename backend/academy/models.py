@@ -84,6 +84,9 @@ class SessionFocus(models.TextChoices):
     TECHNICAL = 'TECHNICAL', 'Technical'
     PHYSICAL = 'PHYSICAL', 'Physical'
     MENTAL = 'MENTAL', 'Mental'
+    TACTICAL = 'TACTICAL', 'Tactical'
+    RECOVERY = 'RECOVERY', 'Recovery'
+    MATCH_PREPARATION = 'MATCH_PREPARATION', 'Match Preparation'
 
 
 class TrainingSessionStatus(models.TextChoices):
@@ -355,6 +358,32 @@ class PlayerDevelopmentAssessment(models.Model):
         )
 
 
+class PlayerStatsAssessment(models.Model):
+    """Append-only gamified 0–99 assessment; never a development assessment."""
+    player = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='player_stats_assessments', limit_choices_to={'role': Roles.PLAYER})
+    assessed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='assessed_player_stats_assessments',
+        limit_choices_to={'role': Roles.COACH})
+    position = models.CharField(max_length=8)
+    role_group = models.CharField(max_length=20)
+    catalog_version = models.PositiveSmallIntegerField(default=1)
+    scores = models.JSONField()
+    overall = models.PositiveSmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(99)])
+    reason = models.CharField(max_length=100)
+    coach_notes = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['player', 'role_group', 'catalog_version', '-created_at'], name='academy_stats_compat_idx')]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError('Player Stats assessments are immutable.')
+        return super().save(*args, **kwargs)
+
+
 class PlayerPrivacyPin(models.Model):
     """Salted privacy PIN state for a player account.
 
@@ -453,6 +482,11 @@ class TrainingSession(models.Model):
     focus = models.CharField(
         max_length=20, choices=SessionFocus.choices, default=SessionFocus.TECHNICAL
     )
+    # Existing ``focus`` remains the primary focus for legacy clients/rows.
+    additional_focuses = models.JSONField(default=list, blank=True)
+    session_objectives = models.TextField(blank=True, default='')
+    equipment_requirements = models.TextField(blank=True, default='')
+    coach_instructions = models.TextField(blank=True, default='')
     # Explicit set of tiers the session targets, as wire strings — a new tier
     # never silently absorbs existing sessions (mirrors the client rationale).
     age_tiers = models.JSONField(default=list)

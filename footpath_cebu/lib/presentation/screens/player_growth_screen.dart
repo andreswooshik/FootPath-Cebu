@@ -11,6 +11,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/growth_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/performance_trend_chart.dart';
+import 'package:footpath_cebu/presentation/screens/player_stats_screen.dart';
 
 class PlayerGrowthScreen extends ConsumerStatefulWidget {
   const PlayerGrowthScreen({
@@ -87,7 +88,11 @@ class _PlayerGrowthScreenState extends ConsumerState<PlayerGrowthScreen> {
           data: (data) => TabBarView(
             children: [
               _OverviewTab(growth: data, range: _range),
-              _AssessmentsTab(growth: data),
+              _AssessmentsTab(
+                growth: data,
+                playerId: widget.playerId,
+                playerName: widget.playerName,
+              ),
               _TrainingTab(groups: data.training),
               _MatchesTab(growth: data.regularMatches, position: data.position),
               _TournamentsTab(groups: data.tournaments),
@@ -203,25 +208,35 @@ class _TrendCard extends StatelessWidget {
 }
 
 class _AssessmentsTab extends StatelessWidget {
-  const _AssessmentsTab({required this.growth});
+  const _AssessmentsTab({
+    required this.growth,
+    required this.playerId,
+    required this.playerName,
+  });
 
   final PlayerGrowth growth;
+  final String playerId;
+  final String playerName;
 
   @override
   Widget build(BuildContext context) {
     final developmentRows = growth.developmentAssessments;
     final legacyRows = growth.assessments;
-    if (developmentRows.isEmpty && legacyRows.isEmpty) {
-      return const DashboardEmptyState(
-        icon: Icons.assessment_outlined,
-        title: 'No assessment history',
-        message:
-            'A coach development assessment will appear here when recorded.',
-      );
-    }
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        PlayerStatsSummaryCard(
+          playerId: playerId,
+          onOpen: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  PlayerStatsScreen(playerId: playerId, playerName: playerName),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text('Player Stats use a separate gamified 0–99 scale.'),
+        const SizedBox(height: 20),
         Text(
           'FootPath Development Framework',
           style: Theme.of(context).textTheme.titleLarge,

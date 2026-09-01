@@ -73,6 +73,32 @@ def conflicting_fixture_for_training(*, club_id, tiers, start, end):
     )
 
 
+def training_conflicts_for_training(*, club_id, tiers, location, start, end, exclude_id=None):
+    """Return all non-tournament booking conflicts for a proposed session."""
+    if start is None or end is None:
+        return []
+    sessions = TrainingSession.objects.filter(
+        club_id=club_id, status=TrainingSessionStatus.SCHEDULED, date=start.date(),
+    )
+    if exclude_id:
+        sessions = sessions.exclude(pk=exclude_id)
+    conflicts = []
+    for session in sessions.select_for_update():
+        other_start, other_end = session.interval()
+        if other_start is None or not intervals_overlap(start, end, other_start, other_end):
+            continue
+        same_tier = bool(set(tiers).intersection(session.age_tiers))
+        same_location = bool(location.strip()) and location.strip().casefold() == session.location.strip().casefold()
+        if same_tier or same_location:
+            conflicts.append({
+                'type': 'SAME_AGE_TIERS' if same_tier else 'LOCATION',
+                'title': session.title, 'ageTiers': session.age_tiers,
+                'date': session.date.isoformat(), 'startTime': session.start_time,
+                'endTime': session.end_time, 'location': session.location,
+            })
+    return conflicts
+
+
 def conflicting_training_for_fixtures(fixtures, *, lock=False):
     """Return one authoritative fixture conflict per cancellable session."""
     fixtures = [

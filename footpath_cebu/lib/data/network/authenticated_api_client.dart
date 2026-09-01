@@ -93,6 +93,7 @@ class AuthenticatedApiClient {
     Map<String, String> headers = const {},
     Set<int> expectedStatuses = const {200},
     bool cache = false,
+    bool cacheFirst = false,
     bool forceRefreshToken = false,
   }) => _request(
     'GET',
@@ -100,6 +101,7 @@ class AuthenticatedApiClient {
     headers: headers,
     expectedStatuses: expectedStatuses,
     cacheGet: cache,
+    cacheFirst: cacheFirst,
     forceRefreshToken: forceRefreshToken,
   );
 
@@ -253,6 +255,7 @@ class AuthenticatedApiClient {
     Object? body,
     required Set<int> expectedStatuses,
     bool cacheGet = false,
+    bool cacheFirst = false,
     bool forceRefreshToken = false,
   }) async {
     final uri = _resolveApiUri(path);
@@ -266,6 +269,17 @@ class AuthenticatedApiClient {
     // boundary. Do not persist either that token or the protected response.
     final mayCache = cacheGet && !_containsPrivacyUnlock(headers);
     final cacheKey = _cacheKey(uri, headers);
+
+    if (mayCache && cacheFirst) {
+      final cached = await _readBestEffort(identity.uid, cacheKey);
+      if (cached != null) {
+        return http.Response(
+          cached.body,
+          cached.statusCode,
+          headers: {...cached.headers, cachedResponseHeader: 'true'},
+        );
+      }
+    }
 
     final String token;
     try {

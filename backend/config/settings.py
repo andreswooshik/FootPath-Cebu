@@ -56,6 +56,10 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.0.2.2']
 _extra_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
 if _extra_hosts:
     ALLOWED_HOSTS += [h.strip() for h in _extra_hosts.split(',') if h.strip()]
+if DEBUG:
+    # Local device testing may use a changing LAN address. Production always
+    # uses the explicit host allow-list below.
+    ALLOWED_HOSTS = ['*']
 if not DEBUG and not _extra_hosts:
     raise ImproperlyConfigured(
         'DJANGO_ALLOWED_HOSTS must be set when DJANGO_DEBUG=0.'

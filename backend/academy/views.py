@@ -50,6 +50,7 @@ from .models import (
     PlayerMatchPerformance,
     PlayerAssessmentSnapshot,
     PlayerDevelopmentAssessment,
+    PlayerStatsAssessment,
     PlayerProfile,
     PlayerPrivacyPin,
     SessionConfirmation,
@@ -99,6 +100,8 @@ from .serializers import (
     PlayerMatchPerformanceSerializer,
     PlayerAssessmentSnapshotSerializer,
     PlayerDevelopmentAssessmentSerializer,
+    PlayerStatsAssessmentSerializer,
+    PlayerStatsAssessmentWriteSerializer,
     PlayerMatchStatisticsWriteSerializer,
     PlayerPositionSerializer,
     PlayerSerializer,
@@ -142,7 +145,9 @@ from .schedule_conflicts import (
     conflicting_fixture_for_training,
     conflicting_training_for_fixtures,
     fixture_conflict_payload,
+    training_conflicts_for_training,
 )
+from .player_stats import catalog_for, overall, role_group_for
 
 # Roles that participate in the dispute process: the coach flags, School
 # Staff and Admin review/respond. Players and guardians have no access.
@@ -667,6 +672,76 @@ class PlayerAssessmentHistoryView(APIView):
         )
 
 
+class PlayerStatsView(APIView):
+    """Separate, append-only 0–99 Player Stats history and creation API."""
+
+    def _profile(self, player_id):
+        return get_object_or_404(PlayerProfile.objects.select_related('user'), user_id=player_id)
+
+    def _payload(self, profile):
+        group, attributes = catalog_for(profile.position)
+        compatible = PlayerStatsAssessment.objects.select_related('assessed_by').filter(
+            player=profile.user, role_group=group, catalog_version=1,
+        )
+        latest = compatible.first()
+        legacy = PlayerAssessmentSnapshot.objects.select_related('assessed_by').filter(player=profile.user)
+        return {
+            'catalog': {'version': 1, 'position': profile.position, 'roleGroup': group, 'attributes': attributes},
+            'latestCompatibleStats': PlayerStatsAssessmentSerializer(latest).data if latest else None,
+            'comparison': self._comparison(latest, None),
+            'history': PlayerStatsAssessmentSerializer(compatible, many=True).data,
+            'legacyStatsHistory': PlayerAssessmentSnapshotSerializer(legacy, many=True).data,
+            'isBaseline': latest is None,
+        }
+
+    @staticmethod
+    def _comparison(previous, new_scores):
+        if previous is None:
+            return {'baseline': True, 'previousOverall': None, 'newOverall': overall(new_scores) if new_scores else None, 'overallDelta': None, 'attributes': {}}
+        new_overall = overall(new_scores) if new_scores else previous.overall
+        changes = {} if new_scores is None else {
+            key: {'previous': previous.scores[key], 'new': value, 'delta': value - previous.scores[key]}
+            for key, value in new_scores.items()
+        }
+        return {'baseline': False, 'previousOverall': previous.overall, 'newOverall': new_overall,
+                'overallDelta': new_overall - previous.overall, 'attributes': changes}
+
+    def get(self, request, player_id):
+        if not _may_read_match_statistics(request.user, player_id):
+            raise PermissionDenied('You may not view this player.')
+        _require_unlock_when_pin_exists(request, player_id)
+        return Response(self._payload(self._profile(player_id)))
+
+    def post(self, request, player_id):
+        if request.user.role != Roles.COACH:
+            raise PermissionDenied('Only coaches can create Player Stats assessments.')
+        profile = self._profile(player_id)
+        if request.user.club_id is None or profile.user.club_id != request.user.club_id:
+            raise PermissionDenied('That player is not in your club.')
+        with transaction.atomic():
+            profile = PlayerProfile.objects.select_for_update().select_related('user').get(pk=profile.pk)
+            serializer = PlayerStatsAssessmentWriteSerializer(data=request.data, context={'profile': profile})
+            serializer.is_valid(raise_exception=True)
+            data = serializer.validated_data
+            group = role_group_for(profile.position)
+            previous = PlayerStatsAssessment.objects.select_for_update().filter(
+                player=profile.user, role_group=group, catalog_version=data['catalogVersion'],
+            ).first()
+            if previous and previous.scores == data['scores']:
+                raise ValidationError({'scores': 'This is unchanged from the latest compatible Player Stats assessment.'})
+            record = PlayerStatsAssessment.objects.create(
+                player=profile.user, assessed_by=request.user, position=profile.position,
+                role_group=group, catalog_version=data['catalogVersion'], scores=data['scores'],
+                overall=overall(data['scores']), reason=data['reason'], coach_notes=data['coachNotes'],
+            )
+            AuditLog.record(request.user, 'player_stats.saved', target=profile.user.email, detail=data['reason'])
+            transaction.on_commit(lambda profile=profile: notify_assessment_saved(profile))
+        return Response({
+            'assessment': PlayerStatsAssessmentSerializer(record).data,
+            'comparison': self._comparison(previous, record.scores),
+        }, status=status.HTTP_201_CREATED)
+
+
 class PlayerPositionView(APIView):
     """PUT /api/players/<id>/position/ — coach assigns or changes a player's
     position. Was a client-side stub (ApiPlayerRepository.savePosition threw
@@ -818,34 +893,29 @@ class TrainingSessionListCreateView(APIView):
             raise PermissionDenied('Only coaches can schedule sessions.')
         if request.user.club_id is None:
             raise PermissionDenied('Coach account must belong to a club.')
-        serializer = TrainingSessionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        draft = TrainingSession(**serializer.validated_data)
-        session_start, session_end = draft.interval()
-        fixture = conflicting_fixture_for_training(
-            club_id=request.user.club_id,
-            tiers=draft.age_tiers,
-            start=session_start,
-            end=session_end,
-        )
-        if fixture is not None:
-            conflict = fixture_conflict_payload(fixture)
-            raise WorkflowConflict(
-                'TOURNAMENT_SCHEDULE_CONFLICT',
-                conflict['message'],
-                conflict=conflict,
+        with transaction.atomic():
+            serializer = TrainingSessionSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            draft = TrainingSession(**serializer.validated_data)
+            session_start, session_end = draft.interval()
+            fixture = conflicting_fixture_for_training(
+                club_id=request.user.club_id, tiers=draft.age_tiers,
+                start=session_start, end=session_end,
             )
-        # Tenancy: the session belongs to the scheduling coach's club (set
-        # server-side; the client never supplies it).
-        session = serializer.save(
-            created_by=request.user, club=request.user.club
-        )
-        AuditLog.record(
-            request.user, 'session.scheduled',
-            target=session.title, detail=str(session.date),
-        )
-        # Fan out the push only after the row is durably committed.
-        transaction.on_commit(lambda: notify_session_scheduled(session))
+            if fixture is not None:
+                conflict = fixture_conflict_payload(fixture)
+                raise WorkflowConflict('TOURNAMENT_SCHEDULE_CONFLICT', conflict['message'], conflict=conflict)
+            conflicts = training_conflicts_for_training(
+                club_id=request.user.club_id, tiers=draft.age_tiers,
+                location=draft.location, start=session_start, end=session_end,
+            )
+            if conflicts:
+                raise WorkflowConflict('TRAINING_SCHEDULE_CONFLICT', 'This session overlaps an existing training session.', conflicts=conflicts)
+            # The conflict queries take row locks while this transaction is open,
+            # so the final check and insertion are one authoritative operation.
+            session = serializer.save(created_by=request.user, club=request.user.club)
+            AuditLog.record(request.user, 'session.scheduled', target=session.title, detail=str(session.date))
+            transaction.on_commit(lambda: notify_session_scheduled(session))
         return Response(
             TrainingSessionSerializer(session).data, status=status.HTTP_201_CREATED
         )
@@ -2186,6 +2256,7 @@ class PlayerGrowthView(APIView):
 
         assessment_rows = []
         development_rows = []
+        player_stats_rows = []
         if include('assessment'):
             snapshots = PlayerAssessmentSnapshot.objects.select_related(
                 'player', 'assessed_by'
@@ -2205,6 +2276,12 @@ class PlayerGrowthView(APIView):
             if to_date:
                 development = development.filter(created_at__date__lte=to_date)
             development_rows = limited(development, limit)
+            player_stats = PlayerStatsAssessment.objects.select_related('assessed_by').filter(player=player)
+            if from_date:
+                player_stats = player_stats.filter(created_at__date__gte=from_date)
+            if to_date:
+                player_stats = player_stats.filter(created_at__date__lte=to_date)
+            player_stats_rows = limited(player_stats, limit)
 
         training_rows = []
         if include('training'):
@@ -2267,6 +2344,11 @@ class PlayerGrowthView(APIView):
             ),
             'developmentHistory': PlayerDevelopmentAssessmentSerializer(
                 development_rows, many=True
+            ).data,
+            # Player Stats deliberately remains a separate 0–99, gamified
+            # stream; the formal 1–5 framework above is never combined with it.
+            'playerStatsHistory': PlayerStatsAssessmentSerializer(
+                player_stats_rows, many=True
             ).data,
         } if include('assessment') else None
 
@@ -2421,6 +2503,10 @@ class TrainingSessionDetailView(APIView):
                 location=values.get('location', session.location),
                 focus=values.get('focus', session.focus),
                 age_tiers=values.get('age_tiers', session.age_tiers),
+                additional_focuses=values.get('additional_focuses', session.additional_focuses),
+                session_objectives=values.get('session_objectives', session.session_objectives),
+                equipment_requirements=values.get('equipment_requirements', session.equipment_requirements),
+                coach_instructions=values.get('coach_instructions', session.coach_instructions),
             )
             session_start, session_end = draft.interval()
             fixture = conflicting_fixture_for_training(
@@ -2436,6 +2522,13 @@ class TrainingSessionDetailView(APIView):
                     conflict['message'],
                     conflict=conflict,
                 )
+            conflicts = training_conflicts_for_training(
+                club_id=request.user.club_id, tiers=draft.age_tiers,
+                location=draft.location, start=session_start, end=session_end,
+                exclude_id=session.id,
+            )
+            if conflicts:
+                raise WorkflowConflict('TRAINING_SCHEDULE_CONFLICT', 'This session overlaps an existing training session.', conflicts=conflicts)
             session = serializer.save()
             AuditLog.record(
                 request.user, 'session.updated',

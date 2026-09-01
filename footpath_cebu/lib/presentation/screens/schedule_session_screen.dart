@@ -42,6 +42,9 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   TimeOfDay? _startTime;
   TimeOfDay? _endTime;
   late SessionFocus _focus = widget.existing?.focus ?? SessionFocus.technical;
+  late final Set<SessionFocus> _additionalFocuses = {
+    ...?widget.existing?.additionalFocuses,
+  };
   String? _formError;
 
   bool get _isEditing => widget.existing != null;
@@ -115,6 +118,21 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     if (_formError != null) setState(() => _formError = null);
   }
 
+  int? get _durationMinutes {
+    if (_startTime == null || _endTime == null) return null;
+    final start = _startTime!.hour * 60 + _startTime!.minute;
+    final end = _endTime!.hour * 60 + _endTime!.minute;
+    return end > start ? end - start : null;
+  }
+
+  void _applyDuration(int minutes) {
+    if (_startTime == null) return;
+    final total = _startTime!.hour * 60 + _startTime!.minute + minutes;
+    setState(
+      () => _endTime = TimeOfDay(hour: (total ~/ 60) % 24, minute: total % 60),
+    );
+  }
+
   Future<void> _submit() async {
     final title = _titleController.text.trim();
     final location = _locationController.text.trim();
@@ -138,6 +156,10 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
       });
       return;
     }
+    if (_durationMinutes == null) {
+      setState(() => _formError = 'End time must be later than start time.');
+      return;
+    }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     if (_date!.isBefore(today) && !_isEditing) {
@@ -155,6 +177,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
       location: location,
       focus: _focus,
       attendeeCount: widget.existing?.attendeeCount ?? 0,
+      additionalFocuses: Set.of(_additionalFocuses),
     );
 
     final controller = ref.read(scheduleSessionControllerProvider.notifier);
@@ -219,7 +242,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                 const SizedBox(height: 16),
               ],
 
-              const _FieldLabel('Session Title'),
+              const _FieldLabel('Session Title *'),
               TextField(
                 controller: _titleController,
                 textCapitalization: TextCapitalization.words,
@@ -232,7 +255,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
               ),
               const SizedBox(height: 18),
 
-              const _FieldLabel('Date'),
+              const _FieldLabel('Date *'),
               _PickerField(
                 text: _date == null ? 'Select a date' : _formatDate(_date!),
                 placeholder: _date == null,
@@ -278,9 +301,27 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                   );
                 },
               ),
+              if (_durationMinutes != null) ...[
+                const SizedBox(height: 8),
+                Text('Duration: $_durationMinutes minutes'),
+              ],
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [60, 90, 120]
+                    .map(
+                      (minutes) => OutlinedButton(
+                        onPressed: _startTime == null
+                            ? null
+                            : () => _applyDuration(minutes),
+                        child: Text('$minutes min'),
+                      ),
+                    )
+                    .toList(),
+              ),
               const SizedBox(height: 18),
 
-              const _FieldLabel('Location'),
+              const _FieldLabel('Location *'),
               TextField(
                 controller: _locationController,
                 textCapitalization: TextCapitalization.words,
@@ -294,7 +335,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
               ),
               const SizedBox(height: 18),
 
-              const _FieldLabel('Age Tiers'),
+              const _FieldLabel('Age Tiers *'),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -319,7 +360,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
               _TierSelectionHint(tiers: _tiers),
               const SizedBox(height: 18),
 
-              const _FieldLabel('Session Focus'),
+              const _FieldLabel('Primary Focus *'),
               Wrap(
                 spacing: 10,
                 children: [
@@ -328,6 +369,25 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                       label: Text(focus.label),
                       selected: _focus == focus,
                       onSelected: (_) => setState(() => _focus = focus),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const _FieldLabel('Additional Focuses'),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final focus in SessionFocus.values.where(
+                    (f) => f != _focus,
+                  ))
+                    FilterChip(
+                      label: Text(focus.label),
+                      selected: _additionalFocuses.contains(focus),
+                      onSelected: (selected) => setState(() {
+                        selected
+                            ? _additionalFocuses.add(focus)
+                            : _additionalFocuses.remove(focus);
+                      }),
                     ),
                 ],
               ),
@@ -345,7 +405,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                 label: Text(
                   isSaving
                       ? 'Saving…'
-                      : (_isEditing ? 'Save Changes' : 'Create Schedule'),
+                      : (_isEditing ? 'Save Changes' : 'Schedule Session'),
                 ),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(50),

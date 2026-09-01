@@ -28,6 +28,39 @@ void main() {
 
   tearDown(() => cache.close());
 
+  test(
+    'cache-first GET returns the owner-scoped response without a token request',
+    () async {
+      final online = AuthenticatedApiClient(
+        httpClient: MockClient(
+          (_) async => http.Response('{"value":"cached"}', 200),
+        ),
+        cache: cache,
+        identityProvider: identity,
+      );
+      await online.get('/api/core/', cache: true);
+
+      final cached = AuthenticatedApiClient(
+        httpClient: MockClient(
+          (_) async => throw StateError('network should not run'),
+        ),
+        cache: cache,
+        identityProvider: identity,
+      );
+      final response = await cached.get(
+        '/api/core/',
+        cache: true,
+        cacheFirst: true,
+      );
+
+      expect(response.body, '{"value":"cached"}');
+      expect(
+        response.headers[AuthenticatedApiClient.cachedResponseHeader],
+        'true',
+      );
+    },
+  );
+
   test('a timed-out GET returns that user cached successful JSON', () async {
     final online = AuthenticatedApiClient(
       httpClient: MockClient((request) async {

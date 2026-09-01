@@ -414,6 +414,12 @@ IconData _focusIcon(SessionFocus focus) {
       return Icons.fitness_center;
     case SessionFocus.mental:
       return Icons.psychology_outlined;
+    case SessionFocus.tactical:
+      return Icons.extension_outlined;
+    case SessionFocus.recovery:
+      return Icons.self_improvement_outlined;
+    case SessionFocus.matchPreparation:
+      return Icons.event_available_outlined;
   }
 }
 

@@ -1,7 +1,14 @@
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 
 /// The primary emphasis of a training session.
-enum SessionFocus { technical, physical, mental }
+enum SessionFocus {
+  technical,
+  physical,
+  mental,
+  tactical,
+  recovery,
+  matchPreparation,
+}
 
 enum TrainingSessionStatus { scheduled, completed, cancelled }
 
@@ -29,10 +36,17 @@ extension SessionFocusLabel on SessionFocus {
         return 'Physical';
       case SessionFocus.mental:
         return 'Mental';
+      case SessionFocus.tactical:
+        return 'Tactical';
+      case SessionFocus.recovery:
+        return 'Recovery';
+      case SessionFocus.matchPreparation:
+        return 'Match Preparation';
     }
   }
 
-  String get wire => name.toUpperCase();
+  String get wire =>
+      name == 'matchPreparation' ? 'MATCH_PREPARATION' : name.toUpperCase();
 
   static SessionFocus fromWire(String value) {
     return SessionFocus.values.firstWhere(
@@ -61,6 +75,11 @@ class TrainingSession {
     this.conflictingTournamentId,
     this.conflictingFixtureId,
     this.cancelledAt,
+    this.additionalFocuses = const {},
+    this.sessionObjectives = '',
+    this.equipmentRequirements = '',
+    this.coachInstructions = '',
+    this.eligiblePlayerCount = 0,
   });
 
   final String id;
@@ -86,6 +105,11 @@ class TrainingSession {
   final String? conflictingTournamentId;
   final String? conflictingFixtureId;
   final DateTime? cancelledAt;
+  final Set<SessionFocus> additionalFocuses;
+  final String sessionObjectives;
+  final String equipmentRequirements;
+  final String coachInstructions;
+  final int eligiblePlayerCount;
 
   bool get isCancelled => status == TrainingSessionStatus.cancelled;
 
@@ -178,6 +202,13 @@ class TrainingSession {
       cancelledAt: json['cancelledAt'] == null
           ? null
           : DateTime.parse(json['cancelledAt'] as String),
+      additionalFocuses: (json['additionalFocuses'] as List? ?? const [])
+          .map((value) => SessionFocusLabel.fromWire(value.toString()))
+          .toSet(),
+      sessionObjectives: json['sessionObjectives'] as String? ?? '',
+      equipmentRequirements: json['equipmentRequirements'] as String? ?? '',
+      coachInstructions: json['coachInstructions'] as String? ?? '',
+      eligiblePlayerCount: json['eligiblePlayerCount'] as int? ?? 0,
     );
   }
 
@@ -201,6 +232,11 @@ class TrainingSession {
     'endTime': endTime,
     'location': location,
     'focus': focus.wire,
+    'primaryFocus': focus.wire,
+    'additionalFocuses': additionalFocuses.map((f) => f.wire).toList(),
+    'sessionObjectives': sessionObjectives,
+    'equipmentRequirements': equipmentRequirements,
+    'coachInstructions': coachInstructions,
     'attendeeCount': attendeeCount,
   };
 }

@@ -15,6 +15,7 @@ import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_growth_screen.dart';
+import 'package:footpath_cebu/presentation/screens/player_stats_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
 import 'package:footpath_cebu/presentation/widgets/position_picker_sheet.dart';
@@ -262,6 +263,19 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           _DevelopmentFeedbackCard(
             assessment: _player.developmentAssessment,
             coachNotes: _player.coachNotes,
+          ),
+          const SizedBox(height: 16),
+          PlayerStatsSummaryCard(
+            playerId: _player.id,
+            onOpen: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => PlayerStatsScreen(
+                  playerId: _player.id,
+                  playerName: _player.name,
+                  canAssess: widget.profile.isCoach,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 16),
           _AcademicStandingCard(
