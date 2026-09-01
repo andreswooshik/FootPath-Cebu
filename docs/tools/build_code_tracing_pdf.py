@@ -276,12 +276,12 @@ class TracingDocTemplate(BaseDocTemplate):
             canvas.setFillColor(colors.white)
             canvas.drawString(LEFT, PAGE_H - 7.5 * mm, "FOOTPATH CEBU | DEEP CODE TRACING")
             canvas.setFont(REGULAR, 7.7)
-            canvas.drawRightString(PAGE_W - RIGHT, PAGE_H - 7.5 * mm, "Updated: 50% Defense Integrated Trace")
+            canvas.drawRightString(PAGE_W - RIGHT, PAGE_H - 7.5 * mm, "Updated: Tournament Squads and Enforcement Trace")
         canvas.setStrokeColor(GRID)
         canvas.line(LEFT, 10.5 * mm, PAGE_W - RIGHT, 10.5 * mm)
         canvas.setFont(REGULAR, 7.4)
         canvas.setFillColor(MUTED)
-        canvas.drawString(LEFT, 6.5 * mm, "Repository-backed defense reference | Baseline 532446a")
+        canvas.drawString(LEFT, 6.5 * mm, "Repository-backed defense reference | Baseline 6586553")
         canvas.drawRightString(PAGE_W - RIGHT, 6.5 * mm, f"Page {doc.page}")
         canvas.restoreState()
 
@@ -485,8 +485,8 @@ def build() -> None:
         Table(
             [
                 [Paragraph("Revision", styles["table_head"]), Paragraph("50% defense integrated-system trace", styles["table"])],
-                [Paragraph("Source commit", styles["table_head"]), Paragraph("532446a - live Supabase persistence baseline", styles["table"])],
-                [Paragraph("Verified suites", styles["table_head"]), Paragraph("321 Django tests | 276 Flutter tests | clean Flutter analysis | no migration drift", styles["table"])],
+                [Paragraph("Source commit", styles["table_head"]), Paragraph("6586553 - tournament squads, enforcement, and coordinator UI", styles["table"])],
+                [Paragraph("Verified suites", styles["table_head"]), Paragraph("352 Django tests | 295 Flutter tests | clean Flutter analysis | no migration drift | 3/3 CI jobs", styles["table"])],
                 [Paragraph("Primary audience", styles["table_head"]), Paragraph("Capstone defense, code review, and implementation tracing", styles["table"])],
             ],
             colWidths=[42 * mm, 145 * mm],

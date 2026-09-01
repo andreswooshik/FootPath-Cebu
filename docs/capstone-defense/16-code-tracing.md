@@ -4,7 +4,7 @@ This execution map follows only verified repository connections. Approximate loc
 
 ## 50% defense implementation snapshot
 
-This reviewer describes the current repository at commit `532446a`. For the 50% defense, the defensible claim is that the implemented core is integrated and testable: authenticated role routing, Club-scoped account management, player profiles, privacy PINs, training and attendance, assessments, eligibility rules, disputes, notifications, tournament schedules, completed-match statistics and ratings, injury confirmation, and private uploads all have executable Flutter/Django paths. The normal Flutter build uses live Firebase and Django repositories; mock repositories remain available only for isolated development and automated Flutter tests.
+This reviewer describes the current repository at commit `6586553`. For the 50% defense, the defensible claim is that the implemented core is integrated and testable: authenticated role routing, Club-scoped account management, player profiles, privacy PINs, training and attendance, assessments, eligibility rules, disputes, notifications, Coordinator-managed tournament brackets, Coach-managed tournament squads, match-squad eligibility enforcement, completed-match statistics and ratings, injury confirmation, and private uploads all have executable Flutter/Django paths. The normal Flutter build uses live Firebase and Django repositories; mock repositories remain available only for isolated development and automated Flutter tests.
 
 "Done for the 50% defense" does not mean that every possible future feature or production operation is complete. Scout reports and AI recommendations are explicitly not implemented. Real-device FCM/APNs delivery, a public deployment, production alerting, and a restore drill remain environment-dependent verification items. This wording lets the team defend what exists without claiming more than the repository proves.
 
@@ -44,7 +44,7 @@ Flutter screen
 5. Django uses the local `User.role`, `User.club`, guardian links, privacy unlock header, and object queries for authorization. The Firebase token proves identity but does not choose permissions.
 6. Serializers validate input and shape JSON output. Server-owned fields such as Club, actor, player, creator, and recorder are derived from the authenticated request or a scoped URL lookup.
 
-Typical calls include `GET /api/auth/me/`, `GET /api/tournament-schedules/`, `POST /api/training-sessions/`, `PUT /api/matches/{matchId}/performances/{playerId}/`, and `POST /api/injuries/{id}/review/`. Successful reads usually return HTTP 200; creates normally return 201; successful deletes return 204; validation, authentication, permission, missing-object, conflict, and server failures use 400, 401, 403, 404, 409, and 5xx responses respectively.
+Typical calls include `GET /api/auth/me/`, `GET /api/tournament-schedules/`, `POST /api/tournament-schedules/{id}/brackets/`, `PUT /api/tournament-brackets/{id}/squad/`, `GET /api/matches/{id}/roster/`, and `PUT /api/matches/{matchId}/performances/{playerId}/`. Successful reads usually return HTTP 200; creates normally return 201; successful deletes return 204; validation, authentication, permission, missing-object, conflict, and server failures use 400, 401, 403, 404, 409, and 5xx responses respectively.
 
 ### Why use an API boundary
 
@@ -90,14 +90,15 @@ Supabase has two server-side roles here. PostgreSQL/Supabase can host the relati
 | Authentication trace | Workflows 2, 4, 5, and Authorization Trace |
 | Navigation trace | Workflow 7 and Screen-to-Screen Navigation Traces |
 | Role authorization trace | Workflow 6 and Authorization Trace |
-| Player workflow trace | Workflows 8, 9, 16, 18, 25, 26, 28, 32, and 35 |
-| Coach workflow trace | Workflows 13–17, 27, 31, 32, 34, and Button-to-Database Traces |
-| Coordinator workflow trace | Workflows 24, 26, 30, 31, 33–35 and Button-to-Database Traces |
+| Player workflow trace | Workflows 8, 9, 16, 18, 25, 26, 28, 32, 35, and 37 |
+| Coach workflow trace | Workflows 13-17, 27, 31, 32, 34, 37, and Button-to-Database Traces |
+| Coordinator workflow trace | Workflows 24, 26, 30, 31, 33-36, 38, and Button-to-Database Traces |
 | Scout workflow trace | Workflows 10–12: `NOT IMPLEMENTED IN CURRENT REPOSITORY` |
 | Scouting-report trace | Workflows 10–12: `NOT IMPLEMENTED IN CURRENT REPOSITORY` |
 | Training trace | Workflows 13, 14, and 28 |
 | Attendance trace | Workflow 14 and attendance lifecycle/query/variable traces |
-| Performance trace | Workflows 15–17 and 30–34 |
+| Performance trace | Workflows 15-17, 30-34, and 38 |
+| Tournament bracket/squad trace | Workflows 33, 36-38; QRY-23 through QRY-26; tournament lifecycle |
 | Academic eligibility trace | Workflows 18–19 |
 | AI trace | Workflow 23: `NOT IMPLEMENTED IN CURRENT REPOSITORY` |
 | File-upload trace | Workflow 21 |
@@ -106,7 +107,7 @@ Supabase has two server-side roles here. PostgreSQL/Supabase can host the relati
 | Object/model traces | Object / Model Traces section |
 | Async traces | Async Code Traces section |
 | Failure/error traces | Failure / Error Path Matrix and workflow failure paths |
-| Top 27 important function call chains | Top 27 Important Function Call Chains section |
+| Top 31 important function call chains | Top 31 Important Function Call Chains section |
 | Shared HTTP/offline-read trace | Cross-Cutting Trace: Shared Authenticated API Client and Owner-Scoped Cache |
 | Production hardening trace | Repository Production Hardening Trace |
 | Flutter/Django API communication | How the applications communicate and Cross-Cutting Trace |
@@ -1765,6 +1766,148 @@ The academic section is hidden or labeled N/A for independent Clubs while school
 
 **Failure path:** changing Flutter UI or URL parameters cannot enable the feature because the backend rechecks the Player's stored Club type before returning data.
 
+## Workflow 36: Coordinator Creates and Publishes Mobile Tournament Brackets
+
+### Trigger
+
+A Coordinator opens the mobile Schedule tab, taps **Create tournament** or the edit icon, enters the tournament name/start date, adds U-age brackets with optional schedule times, and publishes the configured tournament.
+
+### Step 1 - UI
+
+`TournamentScheduleScreen` exposes management actions only when `canManage` is true. `EditTournamentScreen._saveDetails()`, `_editBracket()`, `_removeBracket()`, and `_publish()` collect the tournament and bracket data, show validation feedback, and disable conflicting actions while a mutation is pending.
+
+### Step 2 - State / Controller Layer
+
+`TournamentManagementController` sets `AsyncLoading`, calls `create`, `saveTournament`, `addBracket`, `updateBracket`, `deleteBracket`, or `publish`, records `AsyncData`/`AsyncError`, and invalidates `tournamentSchedulesProvider` after a successful write.
+
+### Step 3 - Service / Repository Layer
+
+`ApiTournamentScheduleRepository` converts dates to the API wire format and calls `AuthenticatedApiClient`: `POST /api/tournament-schedules/`, `PATCH /api/tournament-schedules/{id}/`, `POST /api/tournament-schedules/{id}/brackets/`, `PATCH`/`DELETE /api/tournament-brackets/{id}/`, and `POST /api/tournament-schedules/{id}/publish/`.
+
+### Step 4 - Backend / API
+
+`TournamentScheduleListView`, `TournamentScheduleDetailView`, `TournamentSchedulePublishView`, `TournamentAgeBracketCreateView`, and `TournamentAgeBracketDetailView` require a Coordinator with a Club and resolve every schedule/bracket through that stored Club. Write serializers validate the title, date, unique U-age value, and optional schedule time. Publishing requires at least one bracket.
+
+### Step 5 - Database
+
+Django inserts or updates `academy_tournamentschedule` and `academy_tournamentagebracket` inside the authenticated Club and records `academy_auditlog`. The bracket has a database-unique `(schedule_id,max_age)` key. Changing a tournament date or bracket age is rejected if it would make stored squad members overage or incomplete; bracket deletion is blocked after publication or while fixtures/roster entries depend on it.
+
+### Step 6 - Backend Response
+
+The API returns the complete nested schedule JSON, including `startsOn`, `isPublished`, `ageBrackets`, optional nested squads, and fixtures. Create/bracket-create returns 201, delete returns 204, and validation or authorization failures remain explicit 400/403/404 responses.
+
+### Step 7 - Model Conversion
+
+`TournamentSchedule.fromJson()` creates `TournamentSchedule` and nested `TournamentAgeBracket`/`TournamentSquad` entities. UTC bracket timestamps become local display values in Flutter while writes send ISO-8601 UTC.
+
+### Step 8 - State Update
+
+The controller replaces its mutation state, invalidates `tournamentSchedulesProvider`, and the screen keeps `_current` synchronized with the returned authoritative object rather than assuming the submitted draft was accepted unchanged.
+
+### Step 9 - UI Update
+
+The refreshed Schedule tab shows Draft/Published status, bracket chips, bracket times, and roster state. Other Club roles see only published tournaments, while Coordinator and Coach can see drafts required for their management workflow.
+
+**Call chain:** Coordinator Schedule tab -> `EditTournamentScreen` -> `TournamentManagementController` -> `ApiTournamentScheduleRepository` -> authenticated REST call -> Club-scoped DRF APIView -> serializer/model/transaction -> schedule/bracket/audit rows -> nested JSON -> provider invalidation -> refreshed cards.
+
+**Failure path:** duplicate U-age, missing title/date, no bracket at publish time, cross-Club ID, invalidating a stored roster, or deleting a bracket with fixtures/entries stops the write; the controller exposes the error and the previous database state remains authoritative.
+
+## Workflow 37: Coach Builds and Publishes an Age-Bracket Tournament Squad
+
+### Trigger
+
+A Coach opens a tournament's U-age division, searches the candidate list, selects eligible Players, optionally assigns tournament-specific positions, saves a draft, and publishes it after the Coordinator has published the tournament.
+
+### Step 1 - UI
+
+`TournamentScheduleScreen` opens `TournamentSquadScreen(canEdit: true)` for Coaches. `_buildCoachEditor()` renders eligibility icons/reasons, search, selection count, and position dropdowns. `_save(publish: false)` saves a draft; `_save(publish: true)` first saves the current selection and then publishes it.
+
+### Step 2 - State / Controller Layer
+
+`tournamentRosterCandidatesProvider(bracketId)` loads Coach-only candidate data. `TournamentRosterManagementController.save()`/`.publish()` owns loading/error state and invalidates both tournament schedules and the bracket candidate provider after success.
+
+### Step 3 - Service / Repository Layer
+
+`ApiTournamentRosterRepository.fetchCandidates()`, `saveSquad()`, and `publishSquad()` send authenticated GET/PUT/POST requests to `/api/tournament-brackets/{bracketId}/squad/...`. `TournamentRosterSelection.toJson()` sends only `playerId` and an optional event position.
+
+### Step 4 - Backend / API
+
+`TournamentSquadCandidatesView` requires a Coach and returns same-Club active Players with privacy-safe `ELIGIBLE`, `WARNING`, or `BLOCKED` outcomes. `TournamentSquadDetailView.put()` accepts only Coach writes, validates duplicate IDs/positions and same-Club active Player accounts, reruns `roster_eligibility()`, then atomically reconciles added, removed, and changed entries. `TournamentSquadPublishView` requires a published tournament, at least one entry, and no currently blocked member.
+
+### Step 5 - Database
+
+`TournamentSquad` is one-to-one with the bracket; `TournamentSquadEntry` is unique per `(squad_id,player_id)`. An atomic transaction and `select_for_update()` serialize concurrent roster changes. Django stores the event position and verified Coach actor, changes status from `DRAFT` to `PUBLISHED`, stamps `published_at`, and records auditable save/publish events.
+
+### Step 6 - Backend Response
+
+The nested squad JSON contains bracket/status/publish time and entries. Manager roles receive availability reasons; Player/Guardian output omits those care-sensitive details. A missing manager draft is represented as an empty Draft response, while ordinary roles cannot read an unpublished roster.
+
+### Step 7 - Model Conversion
+
+`TournamentSquad.fromJson()`, `TournamentSquadEntry.fromJson()`, and `TournamentRosterCandidate.fromJson()` convert wire status and eligibility strings into Dart enums/typed fields.
+
+### Step 8 - State Update
+
+The screen replaces `_squad` with the server response; Riverpod invalidation refetches the tournament card and candidate selections so the status/count cannot drift from the database.
+
+### Step 9 - UI Update
+
+The Coach sees Draft or Published confirmation and updated membership. Coordinator/Admin can inspect the roster; Player/Guardian can open only a published tournament/roster and see the selected names and positions.
+
+**Call chain:** bracket tap -> `TournamentSquadScreen` -> candidates provider -> Coach chooses Players -> controller save/publish -> API roster repository -> DRF roster endpoints -> eligibility policy + atomic reconciliation -> squad/entry/audit rows -> typed JSON -> invalidation -> updated roster card.
+
+**Failure path:** blocked age/injury/profile candidates cannot be newly selected, cross-Club/inactive/duplicate IDs fail validation, an empty published roster is forbidden, and roster publication waits for the Coordinator's tournament publication. Pending injury is a visible warning, not a silent hard block.
+
+## Workflow 38: Tournament Squad Enforcement During Match Statistics Entry
+
+### Trigger
+
+A Coordinator opens the roster for a match linked to a tournament age bracket and records objective statistics for a squad member, or deliberately adds an eligible Player who is outside the published squad with a required reason.
+
+### Step 1 - UI
+
+`MatchRosterScreen` normally displays published-squad members and existing historical rows. For an age-bracket match, the Coordinator may tap **Add eligible squad exception**; `_addOutOfSquadPlayer()` loads selectable out-of-squad candidates, collects a required reason of at most 500 characters, and passes it to `EditMatchPerformanceScreen`.
+
+### Step 2 - State / Controller Layer
+
+`matchRosterProvider(matchId)` requests the normal roster. `outOfSquadMatchCandidatesProvider(matchId)` requests `includeOutOfSquad=true` and retains only rows that require an override, have no existing performance, and remain selectable. `MatchManagementController.savePerformance()` invalidates roster, candidates, match performance, and Player trend providers after success.
+
+### Step 3 - Service / Repository Layer
+
+`ApiMatchRepository.fetchMatchRoster()` calls `GET /api/matches/{matchId}/roster/` with the optional query flag. `savePerformance()` sends objective data plus `squadOverrideReason` through `PUT /api/matches/{matchId}/performances/{playerId}/`.
+
+### Step 4 - Backend / API
+
+`MatchRosterView.get()` derives the bracket from the match's source fixture. It joins the published squad, eligibility policy, active injury status, and any existing performance. Only a Coordinator may request out-of-squad candidates. `MatchPerformanceDetailView.put()` locks the match/performance, blocks hard-ineligible Players, requires and preserves a reason for an eligible non-squad Player, then runs the existing objective-statistics checks.
+
+### Step 5 - Database
+
+Normal writes use the unique `academy_playermatchperformance(match_id,player_id)` row. A squad exception stores `squad_override_reason`, verified `squad_override_by_id`, and `squad_override_at`; a database check requires the reason/timestamp pair to agree. The action also creates a `match.squad_override` audit event.
+
+### Step 6 - Backend Response
+
+Roster JSON identifies `inTournamentSquad`, `requiresSquadOverride`, `isSelectable`, availability/reason, tournament position, injury status, and existing performance. The saved performance reports its squad-exception state and returns 200/201; missing reason or blocked eligibility returns structured 400 validation data.
+
+### Step 7 - Model Conversion
+
+`MatchRosterPlayer.fromJson()` and `MatchPerformance.fromJson()` preserve membership/override metadata so Flutter can show an **Approved squad exception** chip and keep historical evidence distinguishable from ordinary squad selection.
+
+### Step 8 - State Update
+
+Successful save invalidates every affected provider; a failed write leaves the local editor open and the server roster unchanged. Previously recorded historical rows remain visible even if current squad eligibility later changes.
+
+### Step 9 - UI Update
+
+The Coordinator sees the saved Player in the match roster with the exception label. Coaches can rate only after objective statistics exist, and authorized Player/Guardian/Coach trend views receive the same historical row without gaining access to the private override reason.
+
+**Call chain:** match roster -> normal/expanded roster provider -> `MatchRosterView` -> squad + eligibility filter -> exception modal when needed -> `EditMatchPerformanceScreen` -> `MatchManagementController.savePerformance()` -> API PUT -> locked enforcement/audit -> typed response -> provider refresh.
+
+**Failure path:** Flutter cannot make a blocked Player selectable by changing UI state. Django recomputes age/profile/injury eligibility, checks published membership, requires the Coordinator-only reason, validates statistics, and rolls the transaction back on any failure.
+
+## Cross-Cutting Trace: Coordinator Responsive UI Consistency
+
+The newest Coordinator screens share `ResponsiveContent`/`ConstrainedBox` widths, `AdaptiveFormModal`, `AppStatusChip`, and reusable dashboard loading/error/empty states. Bottom navigation and wider layouts keep the same Tournament, Matches, Injuries, and Account destinations, while form buttons observe Riverpod loading state and `mounted` checks. This is a presentation consistency layer: it improves phone/tablet usability and error clarity, but it never replaces Django's role, Club, eligibility, or transaction checks.
+
 ## Cross-Cutting Trace: Shared Authenticated API Client and Owner-Scoped Cache
 
 Live academy REST adapters delegate authentication, the 15-second timeout, accepted-status checks, safe server-error extraction, and multipart handling to `data/network/authenticated_api_client.dart` instead of duplicating those policies in each repository. `FirebaseAuthRepository` keeps the `/api/auth/me/` login/restore boundary separate because it creates or restores the identity that the shared client later consumes.
@@ -2053,6 +2196,54 @@ Operational flow: container start → migrations/static collection → Gunicorn 
 - **Error Handling:** non-test production without `DB_HOST` raises `ImproperlyConfigured` instead of silently using SQLite.
 - **Allowed Role:** deployment configuration only; Flutter has no database credentials.
 
+## QRY-23: Create, Edit, Delete, or Publish Mobile Tournament Brackets
+
+- **Source File:** `backend/academy/views.py`, `backend/academy/serializers.py`, `backend/academy/models.py`.
+- **Function:** `TournamentScheduleListView.post()`, `TournamentScheduleDetailView.patch()`, `TournamentSchedulePublishView.post()`, `TournamentAgeBracketCreateView.post()`, `TournamentAgeBracketDetailView.patch()`/`.delete()`.
+- **Query:** insert/update Club tournament and U-age rows; dependency and current-roster eligibility reads; publish timestamp/status update; audit insert.
+- **Table:** `academy_tournamentschedule`, `academy_tournamentagebracket`, `academy_tournamentsquad`, `academy_tournamentsquadentry`, `academy_tournamentfixture`, `academy_auditlog`.
+- **Filter:** verified Coordinator role and `schedule__club_id=request.user.club_id`; unique `(schedule_id,max_age)`.
+- **Data Sent:** title, start date, bracket maximum age, optional UTC schedule timestamp; no writable Club/actor/status.
+- **Data Returned:** complete nested `TournamentScheduleSerializer` map or 204 on safe bracket deletion.
+- **Error Handling:** missing/duplicate bracket, no bracket on publish, cross-Club ID, or change/delete that conflicts with fixtures, publication, or roster eligibility returns 400/403/404 and preserves prior state.
+- **Allowed Role:** same-Club Coordinator for mutations; role-scoped readers through the schedule GET.
+
+## QRY-24: Read and Save Coach Tournament Squad
+
+- **Source File:** `backend/academy/views.py`, `backend/academy/tournament_rosters.py`, `backend/academy/serializers.py`.
+- **Function:** `TournamentSquadCandidatesView.get()`, `TournamentSquadDetailView.get()`/`.put()`.
+- **Query:** same-Club active Player candidate read; eligibility/injury lookups; locked create/update of squad; reconcile entry insert/update/delete; audit insert.
+- **Table:** `accounts_user`, `academy_playerprofile`, `academy_injuryrecord`, `academy_tournamentsquad`, `academy_tournamentsquadentry`, `academy_auditlog`.
+- **Filter:** bracket belongs to authenticated Club; Coach-only candidate/write actions; unique bracket squad and unique squad/player entry.
+- **Data Sent:** bracket URL ID plus entry `playerId` and optional tournament position; Club/Coach actor is server-derived.
+- **Data Returned:** privacy-safe candidate list or nested typed squad JSON.
+- **Error Handling:** duplicate/unknown/inactive/cross-Club/blocked Player or invalid position returns 400; wrong role 403; atomic transaction prevents partial roster replacement.
+- **Allowed Role:** same-Club Coach writes/selects; Coordinator/Admin inspect; Player/Guardian read only published tournament rosters.
+
+## QRY-25: Publish Coach Tournament Squad
+
+- **Source File:** `backend/academy/views.py`, `backend/academy/tournament_rosters.py`.
+- **Function:** `TournamentSquadPublishView.post()`, `roster_eligibility()`.
+- **Query:** lock squad, load entries/profiles/injuries, update status/publish time/actor, insert audit row.
+- **Table:** `academy_tournamentsquad`, `academy_tournamentsquadentry`, `academy_playerprofile`, `academy_injuryrecord`, `academy_auditlog`.
+- **Filter:** same-Club Coach, published parent tournament, non-empty squad, no hard-blocked current member.
+- **Data Sent:** bracket URL ID only; publish status, time, and actor are server-controlled.
+- **Data Returned:** published `TournamentSquadSerializer` map.
+- **Error Handling:** tournament still Draft, missing/empty squad, or newly blocked entry returns 400/404; the row lock protects concurrent publication/change.
+- **Allowed Role:** same-Club Coach.
+
+## QRY-26: Enforce Tournament Squad During Match-Performance Save
+
+- **Source File:** `backend/academy/views.py`, `backend/academy/tournament_rosters.py`, `backend/academy/models.py`.
+- **Function:** `MatchRosterView.get()`, `MatchPerformanceDetailView.put()`, `_match_age_bracket()`.
+- **Query:** resolve fixture bracket; read published squad, eligibility, injury, and existing performance; lock match/performance; insert/update performance and optional override metadata/audit.
+- **Table:** `academy_tournamentfixture`, `academy_tournamentsquad`, `academy_tournamentsquadentry`, `academy_playermatchperformance`, `academy_injuryrecord`, `academy_auditlog`.
+- **Filter:** same-Club role-scoped match; Coordinator-only expanded candidates/write; published membership or eligible exception with required reason.
+- **Data Sent:** objective statistics and optional `squadOverrideReason`; membership, eligibility, override actor/time, and Club are server-derived.
+- **Data Returned:** membership-aware roster rows or serialized saved performance.
+- **Error Handling:** hard-blocked eligibility, missing/oversize reason, cross-Club Player, inconsistent statistics, or constraint failure returns 400/403/404 and rolls back.
+- **Allowed Role:** Coordinator enforces/selects/writes; Coach/Admin can read the normal roster; other trend reads retain their existing object/privacy rules.
+
 # Variable Traces
 
 ## Variable: User ID / Firebase UID
@@ -2094,6 +2285,18 @@ Coach form decimal 0.0-10.0 -> `MatchRatingDraft.coachRating` -> rating-only JSO
 ## Variable: Tournament Fixture ID
 
 `TournamentFixtureSerializer.id` -> `TournamentFixture.id` -> Coordinator result-selection UI -> `FootballMatchDraft.fixtureId` -> JSON `fixtureId` -> same-Club locked fixture lookup -> `TournamentFixture.completed_match_id` -> fixture status `COMPLETED`. The server derives opponent/date/venue/competition from the fixture rather than trusting repeated client fields.
+
+## Variable: Tournament and Age-Bracket ID
+
+`TournamentScheduleSerializer.id`/nested bracket ID -> Dart `TournamentSchedule.id`/`TournamentAgeBracket.id` -> Schedule card/editor route -> repository REST path -> same-Club schedule/bracket lookup -> `TournamentAgeBracket.schedule_id`. The U-age label is derived from validated `max_age`; Flutter cannot choose the owning Club through either ID.
+
+## Variable: Tournament Squad Eligibility
+
+Stored Player date of birth, tournament year/U-age limit, profile existence, and confirmed/pending injury rows -> `roster_eligibility(player,bracket)` -> `ELIGIBLE`, `WARNING`, or `BLOCKED` plus stable code/reason -> candidate JSON -> Dart enum -> enabled/disabled selection and warning icon. The server recomputes the result on save and publish, so the UI value is informative rather than authoritative.
+
+## Variable: Squad Override Reason
+
+Coordinator exception form text -> `MatchPerformanceDraft.squadOverrideReason` -> JSON `squadOverrideReason` -> trimmed 1-500 character server validation -> `academy_playermatchperformance.squad_override_reason` with verified `squad_override_by_id` and `squad_override_at` -> audit event and serialized exception flag. The private justification is evidence, not a client-selected permission grant.
 
 ## Variable: Injury Review Status
 
@@ -2184,10 +2387,18 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 ## Object: TournamentSchedule
 
 - **Created from:** Coordinator portal forms or `/api/tournament-schedules/` JSON.
-- **Converted using:** `TournamentSchedule.fromJson()` with nested `TournamentFixture.fromJson()`.
-- **Stored in:** `academy_tournamentschedule`, `academy_tournamentfixture`, private object storage path; transient Riverpod provider.
-- **Consumed by:** Coordinator portal management, mobile schedule cards, and fixture-backed result entry.
-- **Key fields:** Club-owned title/private document path/publish timestamps plus stage/opponent/kickoff/venue/location/status/completed match.
+- **Converted using:** `TournamentSchedule.fromJson()` with nested `TournamentAgeBracket.fromJson()`, `TournamentSquad.fromJson()`, and `TournamentFixture.fromJson()`.
+- **Stored in:** `academy_tournamentschedule`, `academy_tournamentagebracket`, `academy_tournamentfixture`, private object storage path; transient Riverpod provider.
+- **Consumed by:** Coordinator portal/mobile management, Coach roster workflow, Club schedule cards, and fixture-backed result entry.
+- **Key fields:** Club-owned title/start date/private document path/publish timestamps, U-age brackets/times/squads, and fixture stage/opponent/kickoff/venue/location/status/completed match.
+
+## Object: TournamentSquad and TournamentRosterCandidate
+
+- **Created from:** Coach candidate/squad APIs and Coach `TournamentRosterSelection` input.
+- **Converted using:** `TournamentRosterCandidate.fromJson()`, `TournamentSquad.fromJson()`, `TournamentSquadEntry.fromJson()`, and selection `toJson()`.
+- **Stored in:** one `academy_tournamentsquad` per bracket plus unique `academy_tournamentsquadentry` rows; provider/screen selection state is transient.
+- **Consumed by:** Coach roster editor, Coordinator/Admin inspection, published Player/Guardian roster view, and match-roster enforcement.
+- **Key fields:** bracket ID, Draft/Published status/time, selected Player ID/name/event position, and manager-visible privacy-safe availability state/code/reason.
 
 ## Object: InjuryRecord
 
@@ -2249,6 +2460,11 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 | 24 | Publish tournament | Coordinator portal form | Django form/storage helpers | portal POST + Supabase Storage REST | schedule/private path/audit | portal redirect; mobile schedule available |
 | 25 | Add fixture | Coordinator portal fixture form | Django ModelForm/view | portal POST | structured fixture/audit | schedule detail refresh |
 | 26 | Archive injury | Coordinator confirmation | controller `.archive` | `POST /api/injuries/{id}/archive/` | Confirmed Recovered -> Archived + audit | removed from normal queue |
+| 27 | Create/edit mobile tournament | `EditTournamentScreen._saveDetails()` | `TournamentManagementController` | POST/PATCH tournament schedule API | Club schedule/audit row | nested Draft schedule refresh |
+| 28 | Add/edit/remove U-age bracket | `_editBracket()` / `_removeBracket()` | tournament controller | bracket POST/PATCH/DELETE APIs | bracket/dependency validation/audit | chips, time, and divisions refresh |
+| 29 | Publish mobile tournament | `EditTournamentScreen._publish()` | controller `.publish()` | schedule publish POST | status/time/audit update | visible to Club roles; Coach can publish roster |
+| 30 | Save/publish tournament squad | `TournamentSquadScreen._save()` | `TournamentRosterManagementController` | squad PUT then optional publish POST | atomic squad/entry reconciliation + audit | Draft/Published membership refresh |
+| 31 | Add eligible squad exception | `MatchRosterScreen._addOutOfSquadPlayer()` | roster candidate provider -> performance controller | expanded roster GET + performance PUT | reason/verified actor/time + objective row/audit | approved-exception chip and trends refresh |
 
 # Screen-to-Screen Navigation Traces
 
@@ -2261,6 +2477,8 @@ There is no assessment/evaluation entity ID. Evaluations overwrite the player pr
 - Player card → `Navigator.push` player-profile screen; `Player` object/ID passed.
 - Player profile edit assessment → `Navigator.push(EditPerformanceDataScreen(player))`; saved `Player?` returns through pop.
 - Coordinator adaptive shell -> Tournament tab (`TournamentScheduleScreen`) / Matches (`CoordinatorMatchesScreen`) / Injuries (`CoordinatorInjuriesScreen`) / Account. Fixture result or match card opens `EditFootballMatchScreen`/`MatchRosterScreen`; selecting a Player opens `EditMatchPerformanceScreen`.
+- Coordinator Tournament tab -> **Create tournament** or edit icon -> `EditTournamentScreen`; save/add bracket/publish returns to an invalidated schedule list. Coach/authorized Club-role bracket tap -> `TournamentSquadScreen`; only Coach receives edit controls, while published-roster readers receive the read-only list.
+- Coordinator age-bracket match roster -> **Add eligible squad exception** -> `AdaptiveFormModal` candidate/reason sheet -> `EditMatchPerformanceScreen`; the saved result returns to the same roster and refetches normal/expanded providers.
 - Coach match roster -> Player with existing statistics -> `EditMatchRatingScreen`; Coach Progress player card/profile trend -> `PlayerMatchStatisticsScreen(playerId,...)`.
 - Player Progress tab -> embedded `PlayerMatchStatisticsView(playerId: currentPlayer.id)`; linked Guardian protected child destinations can open the same authorized statistics view after PIN unlock.
 - Eligibility tile → `Navigator.push(EligibilityHistoryScreen(playerId,...))`.
@@ -2288,6 +2506,8 @@ Riverpod `FutureProvider` runs HTTP asynchronously and exposes loading/data/erro
 ## Mutations
 
 Async controllers disable save buttons while awaiting to reduce duplicate writes. `mounted`/`context.mounted` checks prevent navigation or `setState` on disposed UI after completion.
+
+Tournament mutation ordering is intentional. `TournamentSquadScreen._save(publish: true)` awaits the squad PUT before the publish POST, so publication validates the exact persisted entries. Each success invalidates schedules/candidates; a partial outcome is reported explicitly as "draft saved, publish failed" rather than pretending the two requests were one client-side action.
 
 ## Attendance synchronization
 
@@ -2330,6 +2550,9 @@ This callback is asynchronous in event timing, not a Flutter `Future`: it defers
 | Confirmation | invalid today/status/session | non-player/cross-club | network/server | submit SnackBar or **Retry RSVP**; no false selected response |
 | Injury | invalid fields/dates/transition/rejection reason | relationship-scoped report; Coordinator-only review/archive | network/transaction | controller error, prior workflow state retained |
 | Tournament | invalid document/signature/size/fixture | Coordinator own Club manages; mobile reads own Club | storage/network/DB | form error/retry; completed history protected |
+| Mobile tournament/bracket | title/date/U-age duplicate/no bracket/dependent roster or fixture | only same-Club Coordinator mutates | transport/transaction | editor retains authoritative result; no partial invalid bracket state |
+| Tournament squad | duplicate/blocked/cross-Club/inactive/empty publish | only same-Club Coach writes; unpublished data hidden from ordinary roles | transport/row-lock/DB | Draft remains or prior Published roster survives; candidate error/retry shown |
+| Match squad enforcement | blocked Player or missing/long exception reason | expanded candidates and objective write require same-Club Coordinator | transaction/constraint | editor stays open; no unapproved performance row or false roster membership |
 | Dispute | summary/category/status invalid | role/club/scope | network/transaction | controller error, thread unchanged |
 | Photo | missing/size/MIME/signature | same-Club Coordinator portal; same-Club Coach/Super Admin API | storage config/network/DB | no path update; visible error/fallback |
 | Provisioning | duplicate/invalid role/link | coordinator/admin gate | Firebase/DB | compensation attempts Firebase cleanup |
@@ -2355,7 +2578,7 @@ Firebase email/password or restored user
 
 Access control is a combination of backend authentication, business/view authorization, and relational filters. Flutter role routing is UX only. There is no direct client database access and no Supabase RLS authorization layer. The backend prevents a user from pretending to be another role because the verified UID maps to the immutable-for-request local user role; client-supplied role/Club/actor fields are ignored, and each endpoint compares `request.user.role` with its explicit capability.
 
-Match-performance authorization is role-separated. The Coordinator creates results and objective statistics using a same-Club match and Player, while the Coach can change only rating/notes on an existing row. Neither accepts writable ownership. Statistics reads separately permit Admin, same-Club Coach, Player self, or linked Guardian; Guardian access still passes the Player PIN unlock check when configured. Tournament and injury workflows apply the same principle: the URL ID is always combined with stored role, Club, relationship, state transition, and sometimes a row lock.
+Match-performance authorization is role-separated. The Coordinator creates results and objective statistics using a same-Club match and Player, while the Coach can change only rating/notes on an existing row. Tournament ownership is also separated: the Coordinator defines/publishes the tournament and brackets; the Coach selects/publishes each bracket squad; the Coordinator may add only an eligible out-of-squad match exception with an auditable reason. None accepts writable ownership. Statistics reads separately permit Admin, same-Club Coach, Player self, or linked Guardian; Guardian access still passes the Player PIN unlock check when configured. Tournament and injury workflows apply the same principle: the URL ID is always combined with stored role, Club, relationship, state transition, eligibility policy, and sometimes a row lock.
 
 # Data Lifecycle Traces
 
@@ -2391,15 +2614,25 @@ Match-performance authorization is role-separated. The Coordinator creates resul
 
 ## 2B. Tournament Schedule / Fixture
 
-- **Create:** Coordinator portal uploads one official document and creates structured fixtures in the authenticated Club.
-- **Validate:** file size/MIME/signature; fixture date/time/venue/status; Club ownership.
-- **Store:** opaque private object path in `academy_tournamentschedule`; structured rows in `academy_tournamentfixture`; file bytes in Supabase Storage or development/test fallback.
-- **Retrieve:** portal Club query or published, Club-scoped mobile API with signed document URL.
-- **Display:** portal management pages and mobile tournament/fixture cards.
-- **Update:** replace document or edit an uncompleted fixture; result entry links exactly one completed match.
-- **Delete/archive:** uncompleted fixtures/schedules can be deleted; completed-history guards prevent deletion/edit that would orphan a result.
+- **Create:** Coordinator portal can upload one official document and create structured fixtures; the mobile Coordinator can create a Draft tournament and flexible U-age brackets in the authenticated Club.
+- **Validate:** title/start date, unique U-age 3-25, optional bracket time, file size/MIME/signature, fixture date/time/venue/status, Club ownership, and current-roster eligibility after date/age changes.
+- **Store:** opaque private object path in `academy_tournamentschedule`; bracket rows in `academy_tournamentagebracket`; fixtures in `academy_tournamentfixture`; file bytes in Supabase Storage or development/test fallback.
+- **Retrieve:** portal Club query or role-aware Club-scoped mobile API; ordinary roles receive only Published tournaments and private documents use signed URLs.
+- **Display:** portal management pages plus mobile Draft/Published tournament cards, bracket schedules/roster counts, and fixtures.
+- **Update:** mobile Coordinator edits name/date/brackets and publishes; portal can replace the document or edit an uncompleted fixture; result entry links exactly one completed match.
+- **Delete/archive:** a Draft bracket can be removed only without fixtures/roster entries; completed-history and Published-state guards prevent unsafe delete/edit.
 
-## 2C. Injury Report / Recovery Workflow
+## 2C. Tournament Squad / Match Exception
+
+- **Create:** same-Club Coach saves one Draft squad per U-age bracket and unique selected Player entries; Coach publishes only after the parent tournament is Published.
+- **Validate:** active same-Club Player role, unique IDs, valid event position, age/profile/injury eligibility, non-empty publication, and current tournament state.
+- **Store:** `academy_tournamentsquad`, `academy_tournamentsquadentry`, publish metadata, verified actor, and audit rows; eligible match exceptions add reason/actor/time to the historical performance row.
+- **Retrieve:** Coach-only candidate list; manager-visible Draft/Published squad; ordinary Club roles see only published tournament/roster data; match roster is filtered through published membership.
+- **Display:** Coach search/selection/position editor, manager/read-only roster list, and Coordinator approved-exception chip on the match roster.
+- **Update:** atomic entry reconciliation supports add/remove/position changes; publication reruns eligibility; Coordinator exception uses the existing objective-statistics save with a required reason.
+- **Delete/archive:** removing a Draft selection deletes its entry; published squads cannot be emptied; there is no separate archive endpoint, and historical match exceptions remain attached to their performance evidence.
+
+## 2D. Injury Report / Recovery Workflow
 
 - **Create:** authorized care-team relationship submits a Pending report; Player/Guardian/Coach can later submit one Pending recovery update on a Confirmed injury.
 - **Validate:** Player relationship/Club/PIN, dates, states, rejection reasons, and one-Pending-update rule.
@@ -2453,7 +2686,7 @@ Match-performance authorization is role-separated. The Coordinator creates resul
 
 `NOT IMPLEMENTED IN CURRENT REPOSITORY` at every lifecycle stage.
 
-# Top 27 Important Function Call Chains
+# Top 31 Important Function Call Chains
 
 1. **Startup:** `main()` → `Firebase.initializeApp()` → `runApp(ProviderScope)` → `_FootPathAppState.initState()` messaging listeners → `FootPathApp.build()` → `SessionBootstrapScreen`.
 2. **Restore:** `initState()` → `_restore()` → `RestoreSession.call()` → `FirebaseAuthRepository.restoreSession()` → `authStateChanges().first` → `/api/auth/me/` → `UserProfile.fromJson()` → `HomeScreen`.
@@ -2482,8 +2715,12 @@ Match-performance authorization is role-separated. The Coordinator creates resul
 25. **Read match trends:** Player, linked unlocked Guardian, or Coach route -> `playerMatchStatisticsProvider` -> API GET -> `_may_read_match_statistics()` + PIN gate -> scoped query -> derived summary -> typed chart/history.
 26. **Recovery request:** care-team action -> controller `.requestStatus()` -> status-update API -> Confirmed injury/relationship/one-Pending validation -> request row/audit -> Coordinator review -> atomic injury transition.
 27. **Live database selection:** Django settings load -> `DB_HOST` present -> PostgreSQL/Supabase connection; DEBUG/testing -> SQLite; non-test production without `DB_HOST` -> `ImproperlyConfigured` before serving traffic.
+28. **Mobile tournament/bracket management:** Coordinator Schedule tab -> `EditTournamentScreen` -> `TournamentManagementController` -> `ApiTournamentScheduleRepository` -> schedule/bracket DRF endpoint -> same-Club serializer/model/audit -> nested schedule -> provider invalidation.
+29. **Coach tournament squad:** bracket row -> `TournamentSquadScreen` + candidates provider -> `TournamentRosterManagementController.save/publish` -> roster repository -> Coach-only endpoint -> eligibility policy + atomic entry reconciliation/publish -> typed squad -> refresh.
+30. **Match squad filtering:** `MatchRosterScreen` -> `matchRosterProvider` -> `GetMatchRoster` -> API roster GET -> `_match_age_bracket()` -> published squad + eligibility + injury + performance join -> membership-aware rows -> roster cards.
+31. **Eligible squad exception:** Coordinator add-exception action -> expanded candidates provider -> reason modal -> performance editor -> `savePerformance` -> API PUT -> eligibility recompute + locked membership check -> reason/actor/time + audit/performance save -> approved-exception UI.
 
-# Code-Tracing Defense Questions (45)
+# Code-Tracing Defense Questions (50)
 
 ### T1. What happens after the user presses Login?
 
@@ -2665,7 +2902,27 @@ An initial report may come from several care-team roles, so it begins Pending ra
 
 Flutter defaults to Firebase plus `Api*Repository`; mocks require an explicit non-release `USE_MOCK=true` or the Flutter test runtime. Django uses PostgreSQL when `DB_HOST` is configured and refuses non-test production startup without it. SQLite is limited to DEBUG/testing, preventing silent local persistence in production.
 
-# Memorization Cards — Fifteen Critical Workflows
+### T46. Who controls each part of the tournament workflow?
+
+The Coordinator owns the tournament identity, start date, U-age brackets, bracket schedule times, and tournament publication. The Coach owns Player selection, event positions, and squad publication for each bracket. During a bracket-linked match, the Coordinator owns objective statistics and may add only an eligible out-of-squad exception with a required audited reason. Django uses separate role-gated endpoints for these capabilities.
+
+### T47. How is a Player's tournament eligibility calculated?
+
+`roster_eligibility()` loads the stored profile and bracket. Missing profile/DOB, an overage birth year, or a confirmed Active/Recovering injury is `BLOCKED`; a Pending injury is `WARNING`; otherwise the Player is `ELIGIBLE`. Candidate output is privacy-safe, and Django reruns the rule on squad save, squad publish, tournament/bracket edits, match roster reads, and performance writes.
+
+### T48. What prevents duplicate or cross-Club squad members?
+
+The roster serializer rejects duplicate submitted IDs; the view queries only active `PLAYER` accounts from `request.user.club_id`; model validation rechecks Club/role; and the database has a unique `(squad,player)` constraint. The squad itself is one-to-one with its bracket, and save reconciliation runs atomically under a row lock.
+
+### T49. Why allow a tournament squad exception?
+
+It handles legitimate late replacement or operational decisions without silently weakening eligibility. Only the Coordinator can request expanded candidates, hard-blocked Players remain forbidden, and an eligible out-of-squad Player requires a 1-500 character reason. Django stores the verified actor/time and audit event with the historical performance, making the exception visible and accountable.
+
+### T50. Can Flutter bypass tournament or squad rules?
+
+No. Hidden buttons and disabled candidates improve UX, but Django verifies the Firebase-mapped role and Club, resolves the bracket and published squad, recomputes profile/age/injury eligibility, locks affected rows, validates the exception reason/statistics, and applies model/database constraints. A modified client receives 400/403/404 rather than an unauthorized write.
+
+# Memorization Cards - Eighteen Critical Workflows
 
 ## Card 1: Login
 
@@ -3297,6 +3554,132 @@ The Coordinator owns objective statistics; the Coach owns rating and notes. Sepa
 
 The rating call resolves a same-Club match through `_role_match(..., COACH)` and requires an existing objective performance. A rating-only serializer accepts 0.0-10.0 plus notes, locks the row, stamps the verified Coach and time, and audits the change. It cannot change goals, minutes, Player, match, or recorder. Clearing the rating nulls only subjective fields, preserving the historical evidence.
 
+## Card 16: Mobile Tournament and Age-Bracket Management
+
+### What I click
+
+Coordinator Schedule tab -> **Create tournament** or edit icon -> save details/add bracket/publish.
+
+### First function called
+
+`EditTournamentScreen._saveDetails()`, `_editBracket()`, or `_publish()`.
+
+### Next function
+
+`TournamentManagementController` matching mutation method.
+
+### Service used
+
+`ApiTournamentScheduleRepository` through `AuthenticatedApiClient`.
+
+### Database/API operation
+
+Schedule/bracket POST/PATCH/DELETE/publish endpoints; write `TournamentSchedule`, `TournamentAgeBracket`, and audit rows under the verified Club.
+
+### Data returned
+
+Complete nested `TournamentSchedule` JSON with age brackets, squads, and fixtures.
+
+### State change
+
+Controller loading/error resolves and `tournamentSchedulesProvider` invalidates.
+
+### Screen result
+
+Draft/Published tournament card, bracket chips/times, and management actions reflect server state.
+
+### 20-second defense explanation
+
+The Coordinator can now create and publish tournament brackets from Flutter. Every request is Firebase-authenticated, Club-scoped in Django, validated against dependencies/current rosters, audited, and returned as typed nested schedule data.
+
+### 60-second technical explanation
+
+The screen calls an AsyncNotifier controller, which delegates to the API repository and shared authenticated client. DRF maps the route to a Coordinator-only schedule/bracket APIView and resolves the object through `request.user.club_id`. Serializers validate title, date, U3-U25 uniqueness, and optional bracket time. Transactions reject edits that would invalidate stored roster members, while deletion guards protect Published brackets, linked fixtures, and entries. Django writes schedule/bracket/audit rows and returns the full nested object; Riverpod invalidates and rebuilds the cards.
+
+## Card 17: Coach Tournament Squad
+
+### What I click
+
+Coach Schedule tab -> U-age division -> select Players/positions -> **Save draft** or **Publish roster**.
+
+### First function called
+
+`TournamentSquadScreen._save()` after candidates load through `tournamentRosterCandidatesProvider`.
+
+### Next function
+
+`TournamentRosterManagementController.save()` and optional `.publish()`.
+
+### Service used
+
+`ApiTournamentRosterRepository` through `AuthenticatedApiClient`.
+
+### Database/API operation
+
+`PUT /api/tournament-brackets/{id}/squad/` then optional publish POST; atomic reconcile of `TournamentSquadEntry` and status/audit update.
+
+### Data returned
+
+Typed `TournamentSquad` with Draft/Published state and selected Player entries.
+
+### State change
+
+Schedule and candidate providers invalidate; `_squad` takes the server response.
+
+### Screen result
+
+Selected roster, event positions, membership count, and publication state refresh for permitted roles.
+
+### 20-second defense explanation
+
+Only the Coach selects and publishes each age-bracket squad. Django computes age/profile/injury eligibility, blocks invalid Players, stores one unique entry per Player, and exposes unpublished details only to manager roles.
+
+### 60-second technical explanation
+
+The candidates provider calls a Coach-only endpoint that queries active same-Club Players and returns privacy-safe eligibility. The save request contains only Player IDs and optional event positions. Django rejects duplicates, cross-Club/inactive accounts, invalid positions, and hard-blocked candidates, then uses a transaction and row lock to add/remove/update entries and audit the differences. Publication requires a Published tournament, a non-empty squad, and a fresh eligibility pass. Typed JSON flows back through Riverpod invalidation to the Schedule and roster screens.
+
+## Card 18: Tournament Match Squad Enforcement
+
+### What I click
+
+Coordinator age-bracket match -> roster; either select a published-squad Player or tap **Add eligible squad exception**, choose a Player, enter a reason, and save statistics.
+
+### First function called
+
+`MatchRosterScreen._addOutOfSquadPlayer()` for an exception, otherwise the Player tile opens the statistics editor.
+
+### Next function
+
+Expanded roster provider -> reason modal -> `MatchManagementController.savePerformance()`.
+
+### Service used
+
+`ApiMatchRepository.fetchMatchRoster()`/`savePerformance()` through the shared client.
+
+### Database/API operation
+
+Roster GET joins bracket/published squad/eligibility; performance PUT locks and saves objective statistics plus optional reason/verified actor/time and audit.
+
+### Data returned
+
+Membership-aware `MatchRosterPlayer` rows and saved `MatchPerformance` with squad-exception metadata.
+
+### State change
+
+Roster, expanded candidates, match performances, and Player trend providers invalidate.
+
+### Screen result
+
+Normal squad members remain the default roster; an approved eligible exception appears with a clear status chip.
+
+### 20-second defense explanation
+
+Tournament matches default to the Coach's Published squad. An eligible late exception is possible only for the Coordinator with a written reason; age/profile/confirmed-injury blocks cannot be overridden, and the server records the actor, time, and audit event.
+
+### 60-second technical explanation
+
+`MatchRosterView` derives the bracket from the source fixture and normally returns Published squad members plus existing historical rows. Only a Coordinator can request expanded candidates. On save, `MatchPerformanceDetailView` locks the match and row, recomputes `roster_eligibility`, checks current Published membership, and requires a trimmed reason for a non-member. It stores override reason/by/at under a database consistency constraint, audits the exception, then validates all objective statistics. A failed rule rolls back; success returns typed data and Riverpod refetches every dependent screen.
+
 # Final Trace Verification Notes
 
 - Every connected chain above was checked against the referenced screen/provider/use-case/repository/view/model files.
@@ -3306,5 +3689,5 @@ The rating call resolves a same-Club match through `_role_match(..., COACH)` and
 - Notification persistence, current-user inbox/read APIs, device registration/unregister, foreground SnackBar handling, bell navigation, duplicate suppression, best-effort read marking, and role-aware session/profile/eligibility destinations are traceable and locally tested. Real Firebase/APNs delivery and presentation on a signed physical device are not claimed as verified.
 - Container/compose, health/readiness, optional Sentry, backup/restore scripts, runbook, and CI image-build paths are traceable repository artifacts; no live deployment, executed alert, scheduled backup, or successful restore drill is claimed.
 - The code comment in `PlayerAssessmentView` still says “six ratings,” while the executable entity/profile supports twelve (six outfield plus six goalkeeper); this trace follows the actual fields.
-- Current tracing reflects commit `532446a`, including Coordinator tournament/result/objective-statistics ownership, Coach-only ratings, Guardian-authorized trends, injury confirmation/recovery/archive, independent-Club eligibility suppression, and enforced live persistence.
-- Verification on 2026-08-28: 321 Django tests passed, 276 Flutter tests passed, Flutter analysis reported no issues, and `makemigrations --check --dry-run` reported no changes. `check --deploy` under the local DEBUG/default-secret environment produced the expected seven production-setting warnings; production environment/TLS configuration remains a deployment responsibility rather than claimed live evidence.
+- Current tracing reflects commit `6586553`, including mobile Coordinator tournament/bracket management, Coach age-bracket squad selection/publication, server-enforced match-squad eligibility and auditable exceptions, responsive Coordinator UI consistency, role-separated match evidence/ratings, injury workflows, independent-Club eligibility suppression, and enforced live persistence.
+- Verification on 2026-08-29: GitHub CI passed all three jobs. The Django job passed 352 tests, deployment checks, and migration-drift checks; the Flutter job passed 295 tests and reported no analysis issues; the production-container job passed. Production environment/TLS configuration and real-device/deployed-service evidence remain separate responsibilities rather than claimed live evidence.

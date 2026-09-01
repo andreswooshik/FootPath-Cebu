@@ -51,5 +51,6 @@ study-notes/
 # Local/generated working artifacts. Published documentation artifacts belong
 # under docs/; these paths should remain disposable.
 /tmp/
+/.tmp/
 /output/
 /.git-commit-msg.txt

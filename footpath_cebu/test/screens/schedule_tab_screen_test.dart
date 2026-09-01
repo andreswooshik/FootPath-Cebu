@@ -6,6 +6,7 @@ import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
+import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_tab_screen.dart';
 
 const _player = Player(
@@ -59,9 +60,13 @@ Future<void> _pumpSchedule(
   WidgetTester tester, {
   required bool isGuardian,
 }) async {
+  final today = DateTime.now();
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        scheduleNowProvider.overrideWithValue(
+          DateTime(today.year, today.month, today.day, 12),
+        ),
         trainingRepositoryProvider.overrideWithValue(
           _TodayTrainingRepository(),
         ),

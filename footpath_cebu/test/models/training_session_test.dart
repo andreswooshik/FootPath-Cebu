@@ -49,6 +49,60 @@ void main() {
       expect(tomorrow.isToday, isFalse);
     });
 
+    test('scheduledEndAt parses the local 12-hour end time', () {
+      final afternoon = _session({
+        AgeTier.foundation,
+      }, date: DateTime(2026, 9, 1));
+      final midnight = TrainingSession(
+        id: 'midnight',
+        title: 'Midnight recovery',
+        ageTiers: const {AgeTier.foundation},
+        date: DateTime(2026, 9, 1),
+        startTime: '12:00 AM',
+        endTime: '12:30 AM',
+        location: 'Gym',
+        focus: SessionFocus.physical,
+      );
+
+      expect(afternoon.scheduledEndAt, DateTime(2026, 9, 1, 18));
+      expect(midnight.scheduledEndAt, DateTime(2026, 9, 1, 0, 30));
+    });
+
+    test('a session becomes past at its end time, not at midnight', () {
+      final session = _session({
+        AgeTier.foundation,
+      }, date: DateTime(2026, 9, 1));
+
+      expect(session.hasEndedAt(DateTime(2026, 9, 1, 17, 59)), isFalse);
+      expect(session.hasEndedAt(DateTime(2026, 9, 1, 18)), isTrue);
+      expect(session.hasEndedAt(DateTime(2026, 9, 1, 22, 56)), isTrue);
+    });
+
+    test('completed and cancelled sessions are historical immediately', () {
+      TrainingSession withStatus(TrainingSessionStatus status) =>
+          TrainingSession(
+            id: status.name,
+            title: status.label,
+            ageTiers: const {AgeTier.foundation},
+            date: DateTime(2026, 9, 2),
+            startTime: '04:30 PM',
+            endTime: '06:00 PM',
+            location: 'Pitch',
+            focus: SessionFocus.technical,
+            status: status,
+          );
+
+      final now = DateTime(2026, 9, 1, 10);
+      expect(
+        withStatus(TrainingSessionStatus.completed).hasEndedAt(now),
+        isTrue,
+      );
+      expect(
+        withStatus(TrainingSessionStatus.cancelled).hasEndedAt(now),
+        isTrue,
+      );
+    });
+
     test('a multi-tier selection round-trips through JSON', () {
       final session = _session({AgeTier.pathway, AgeTier.foundation});
       final restored = TrainingSession.fromJson(session.toJson());

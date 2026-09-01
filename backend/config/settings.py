@@ -384,9 +384,6 @@ JAZZMIN_SETTINGS = {
     'copyright': 'FootPath Cebu',
     'search_model': ['accounts.User'],
     'user_avatar': None,
-    'topmenu_links': [
-        {'name': 'Emergency operations', 'url': '/console/'},
-    ],
     'icons': {
         'accounts.User': 'fas fa-user',
         'accounts.GuardianLink': 'fas fa-link',

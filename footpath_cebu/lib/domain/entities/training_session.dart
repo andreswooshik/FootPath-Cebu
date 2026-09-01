@@ -44,8 +44,7 @@ extension SessionFocusLabel on SessionFocus {
 
 /// A scheduled training session on the coach's calendar. Immutable Model —
 /// no UI, no I/O. Times are stored as display strings (e.g. "04:30 PM") set by
-/// the scheduling form; [date] carries the calendar day used to split the
-/// schedule into Upcoming and Past.
+/// the scheduling form and combined with [date] when calendar state is derived.
 class TrainingSession {
   const TrainingSession({
     required this.id,
@@ -89,6 +88,36 @@ class TrainingSession {
   final DateTime? cancelledAt;
 
   bool get isCancelled => status == TrainingSessionStatus.cancelled;
+
+  /// Local end date/time derived from the API's date-only + 12-hour clock
+  /// representation. Invalid legacy values stay null and fall back to
+  /// date-only classification in [hasEndedAt].
+  DateTime? get scheduledEndAt {
+    final match = RegExp(
+      r'^(0?[1-9]|1[0-2]):([0-5][0-9])\s*(AM|PM)$',
+      caseSensitive: false,
+    ).firstMatch(endTime.trim());
+    if (match == null) return null;
+
+    final hour = int.parse(match.group(1)!);
+    final minute = int.parse(match.group(2)!);
+    final period = match.group(3)!.toUpperCase();
+    final hour24 = hour % 12 + (period == 'PM' ? 12 : 0);
+    return DateTime(date.year, date.month, date.day, hour24, minute);
+  }
+
+  /// Whether this session belongs in Past Sessions at [now]. Completed and
+  /// cancelled records are historical immediately; scheduled sessions move
+  /// after their actual end time instead of remaining Upcoming all day.
+  bool hasEndedAt(DateTime now) {
+    if (status != TrainingSessionStatus.scheduled) return true;
+    final end = scheduledEndAt;
+    if (end != null) return !now.isBefore(end);
+
+    final today = DateTime(now.year, now.month, now.day);
+    final sessionDay = DateTime(date.year, date.month, date.day);
+    return sessionDay.isBefore(today);
+  }
 
   /// True only on the calendar day the session takes place.
   bool get isToday {
