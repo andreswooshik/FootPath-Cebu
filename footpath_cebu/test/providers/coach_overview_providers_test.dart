@@ -27,6 +27,16 @@ Player _independentPlayer(String id, EligibilityStatus eligibility) => Player(
   academicEligibilityApplicable: false,
 );
 
+Player _schoolPlayer(String id, EligibilityStatus eligibility) => Player(
+  id: id,
+  name: 'Player $id',
+  age: 12,
+  classYear: 'Class of 2032',
+  ageTier: AgeTier.foundation,
+  ratings: _ratings,
+  eligibility: eligibility,
+);
+
 void main() {
   test(
     'independent overview excludes academic readiness and grade alerts',
@@ -62,4 +72,38 @@ void main() {
       );
     },
   );
+
+  test('school overview uses status-only eligibility alerts', () async {
+    final players = [
+      _schoolPlayer('1', EligibilityStatus.notEligible),
+      _schoolPlayer('2', EligibilityStatus.academicWarning),
+    ];
+    final container = ProviderContainer(
+      overrides: [
+        squadProvider.overrideWith((ref) async => players),
+        upcomingSessionsProvider.overrideWith(
+          (ref) => const AsyncData(<TrainingSession>[]),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(teamOverviewProvider, (_, _) {});
+    addTearDown(subscription.close);
+
+    await container.read(squadProvider.future);
+    final alerts = container.read(teamOverviewProvider).value!.alerts;
+
+    expect(alerts[0].title, '1 player not currently eligible to play');
+    expect(alerts[0].detail, 'Eligibility review needed before selection.');
+    expect(alerts[1].title, '1 academic eligibility warning');
+    expect(alerts[1].detail, 'Eligibility review needed.');
+    expect(
+      alerts.expand((alert) => [alert.title, alert.detail]).join(' '),
+      isNot(
+        contains(
+          RegExp(r'grade|GPA|subject|report card', caseSensitive: false),
+        ),
+      ),
+    );
+  });
 }

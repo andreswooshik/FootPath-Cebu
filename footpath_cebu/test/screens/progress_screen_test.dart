@@ -79,6 +79,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Matches'), findsOneWidget);
+    expect(find.text('Training Feedback'), findsOneWidget);
+    expect(find.text('Growth'), findsOneWidget);
+    expect(find.byTooltip('Player Growth'), findsNothing);
+
     await tester.tap(find.text('Training Feedback'));
     await tester.pumpAndSettle();
 

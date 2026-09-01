@@ -7,6 +7,64 @@ import 'package:footpath_cebu/domain/repositories/player_repository.dart';
 import 'package:footpath_cebu/domain/repositories/development_assessment_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_development_assessment.dart';
 
+final _rhobertDevelopmentScores = DevelopmentScores({
+  'technical': {
+    'firstTouchBallControl': 4,
+    'passingReceiving': 4,
+    'finishing': 4,
+  },
+  'tactical': {
+    'scanningAwareness': 4,
+    'decisionMaking': 4,
+    'movementChanceCreation': 4,
+  },
+  'physical': {
+    'coordinationBalance': 4,
+    'agilityDirection': 4,
+    'attackingAcceleration': 4,
+  },
+  'mental': {
+    'focusLearning': 4,
+    'confidenceCreativity': 4,
+    'attackingInitiative': 4,
+  },
+  'socialValues': {'effortCommitment': 4, 'respect': 4, 'teamwork': 4},
+});
+
+const _rhobertDomainScores = {
+  'technical': 4.0,
+  'tactical': 4.0,
+  'physical': 4.0,
+  'mental': 4.0,
+  'socialValues': 4.0,
+};
+
+final _rhobertCurrentDevelopment = CurrentDevelopmentAssessment(
+  frameworkVersion: 1,
+  ratings: _rhobertDevelopmentScores,
+  domainScores: _rhobertDomainScores,
+  strengths: 'Scans early and supports teammates.',
+  developmentTargets: 'Receive on the weaker side more often.',
+  assessedAt: DateTime(2026, 8, 30),
+);
+
+final _rhobertDevelopmentSnapshot = DevelopmentAssessmentSnapshot(
+  id: 'mock-development-p1-latest',
+  playerId: 'p1',
+  position: 'ST',
+  ageTier: 'PATHWAY',
+  ageAtAssessment: 16,
+  frameworkVersion: 1,
+  ratings: _rhobertDevelopmentScores,
+  domainScores: _rhobertDomainScores,
+  strengths: 'Scans early and supports teammates.',
+  developmentTargets: 'Receive on the weaker side more often.',
+  coachNotes: 'Good month-to-month progress.',
+  assessmentReason: 'MONTHLY_REVIEW',
+  createdAt: DateTime(2026, 8, 30),
+  assessedByRole: 'Coach',
+);
+
 /// In-memory squad roster for UI development without a backend.
 class MockPlayerRepository
     implements
@@ -14,9 +72,11 @@ class MockPlayerRepository
         PlayerDetailsReader,
         PlayerPhotoWriter,
         DevelopmentAssessmentRepository {
-  final Map<String, DevelopmentAssessmentSnapshot> _developmentHistory = {};
+  final Map<String, DevelopmentAssessmentSnapshot> _developmentHistory = {
+    'p1': _rhobertDevelopmentSnapshot,
+  };
   static final List<Player> _squad = [
-    const Player(
+    Player(
       id: 'p1',
       name: 'Rhobert Ronaldo',
       age: 16,
@@ -24,7 +84,7 @@ class MockPlayerRepository
       ageTier: AgeTier.pathway,
       position: PlayerPosition.striker,
       eligibility: EligibilityStatus.eligible,
-      ratings: PlayerRatings(
+      ratings: const PlayerRatings(
         pace: 99,
         shooting: 97,
         passing: 88,
@@ -32,6 +92,8 @@ class MockPlayerRepository
         defending: 45,
         physical: 90,
       ),
+      coachNotes: 'Good month-to-month progress.',
+      developmentAssessment: _rhobertCurrentDevelopment,
     ),
     const Player(
       id: 'p2',

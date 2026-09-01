@@ -94,16 +94,16 @@ final teamOverviewProvider = Provider.autoDispose<AsyncValue<TeamOverview>>((
         TeamAlert(
           title:
               '${ineligible.length} player'
-              '${ineligible.length == 1 ? '' : 's'} benched by grades',
-          detail: 'Not cleared to play — review before selection.',
+              '${ineligible.length == 1 ? '' : 's'} not currently eligible to play',
+          detail: 'Eligibility review needed before selection.',
           severity: AlertSeverity.critical,
         ),
       if (warnings.isNotEmpty)
         TeamAlert(
           title:
-              '${warnings.length} academic warning'
+              '${warnings.length} academic eligibility warning'
               '${warnings.length == 1 ? '' : 's'}',
-          detail: 'Grades slipping — keep an eye on their progress.',
+          detail: 'Eligibility review needed.',
           severity: AlertSeverity.warning,
         ),
       if (unassigned.isNotEmpty)

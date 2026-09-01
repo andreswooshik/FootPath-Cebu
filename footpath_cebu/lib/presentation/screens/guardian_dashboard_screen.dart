@@ -17,6 +17,7 @@ import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
 import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
@@ -213,9 +214,9 @@ class _StatRow extends ConsumerWidget {
         ref.watch(childAttendanceProvider(child.id)).value ?? const [];
     final eligibility = StatTile(
       icon: Icons.school_outlined,
-      label: 'Academic Performance',
+      label: 'Academic Eligibility',
       value: child.academicEligibilityApplicable
-          ? child.eligibility.label
+          ? eligibilityStatusMessage(child.eligibility)
           : 'N/A',
       color: child.academicEligibilityApplicable ? Colors.orange : Colors.grey,
       subtitle: child.academicEligibilityApplicable

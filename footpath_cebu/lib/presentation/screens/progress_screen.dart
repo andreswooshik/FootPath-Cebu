@@ -8,7 +8,7 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
-import 'package:footpath_cebu/presentation/screens/player_growth_screen.dart';
+import 'package:footpath_cebu/presentation/screens/player_growth_tab.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
@@ -38,6 +38,7 @@ class ProgressScreen extends ConsumerWidget {
         children: [
           PlayerMatchStatisticsView(playerId: player.id),
           _TrainingFeedbackView(playerId: player.id),
+          PlayerGrowthTab(playerId: player.id, playerName: player.name),
         ],
       ),
     );
@@ -45,20 +46,6 @@ class ProgressScreen extends ConsumerWidget {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: const Text('Progress'),
-        actions: [
-          IconButton(
-            tooltip: 'Player Growth',
-            icon: const Icon(Icons.auto_graph),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => PlayerGrowthScreen(
-                  playerId: player.id,
-                  playerName: player.name,
-                ),
-              ),
-            ),
-          ),
-        ],
         bottom: const TabBar(
           labelColor: Colors.black,
           unselectedLabelColor: Colors.black87,
@@ -66,13 +53,14 @@ class ProgressScreen extends ConsumerWidget {
           tabs: [
             Tab(text: 'Matches'),
             Tab(text: 'Training Feedback'),
+            Tab(text: 'Growth'),
           ],
         ),
       ),
       body: content,
     );
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: scaffold,
     ).animateScreenEntrance();
   }

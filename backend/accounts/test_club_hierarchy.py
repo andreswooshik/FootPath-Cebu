@@ -318,6 +318,11 @@ class ApprovedClubHierarchyTests(APITestCase):
         }
         self.assertTrue(field_names.isdisjoint(forbidden))
         self.assertTrue(history_fields.isdisjoint(forbidden))
+        _player, profile = self._profile(
+            email='privacy18@footpath.test', club=self.school,
+        )
+        response_keys = {key.lower() for key in PlayerSerializer(profile).data}
+        self.assertTrue(response_keys.isdisjoint(forbidden))
         self.assertEqual(set(Eligibility.values), {
             'ELIGIBLE', 'NOT_ELIGIBLE', 'PENDING', 'ACADEMIC_WARNING',
         })

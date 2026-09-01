@@ -16,11 +16,13 @@ import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_growth_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
+import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
 import 'package:footpath_cebu/presentation/widgets/position_picker_sheet.dart';
 
 /// Coach Portal — one player's profile, opened by tapping a card on the squad
 /// roster. Shows the FUT card, the six technical attributes, the player's
-/// position and academic standing, and links to the assessment form.
+/// position and status-only academic eligibility, and links to the assessment
+/// form.
 ///
 /// Holds the player locally so ratings and the position edited here are
 /// reflected on the card as soon as the coach saves.
@@ -571,7 +573,7 @@ class _AcademicStandingCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Academic Standing',
+                  'Academic Eligibility',
                   style: theme.textTheme.titleSmall?.copyWith(
                     color: color,
                     fontWeight: FontWeight.bold,
@@ -580,7 +582,7 @@ class _AcademicStandingCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   applicable
-                      ? _standingDescription(status)
+                      ? eligibilityStatusMessage(status)
                       : 'Not applicable to an Independent club',
                   style: theme.textTheme.bodySmall,
                 ),
@@ -598,11 +600,4 @@ Color _eligibilityColor(EligibilityStatus status) => switch (status) {
   EligibilityStatus.notEligible => Colors.red,
   EligibilityStatus.pending => Colors.orange,
   EligibilityStatus.academicWarning => Colors.amber.shade800,
-};
-
-String _standingDescription(EligibilityStatus status) => switch (status) {
-  EligibilityStatus.eligible => 'Eligible for National Selection',
-  EligibilityStatus.notEligible => 'Not eligible for selection',
-  EligibilityStatus.pending => 'Academic standing pending review',
-  EligibilityStatus.academicWarning => 'Academic warning — review required',
 };

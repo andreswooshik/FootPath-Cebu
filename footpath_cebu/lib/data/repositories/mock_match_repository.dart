@@ -13,6 +13,7 @@ class MockMatchRepository implements MatchRepository {
       venue: MatchVenue.home,
       ourScore: 3,
       opponentScore: 1,
+      category: MatchCategory.league,
     ),
     FootballMatch(
       id: 'm2',
@@ -22,6 +23,17 @@ class MockMatchRepository implements MatchRepository {
       venue: MatchVenue.away,
       ourScore: 1,
       opponentScore: 1,
+      category: MatchCategory.league,
+    ),
+    FootballMatch(
+      id: 'm3',
+      opponent: 'Lapu-Lapu Academy',
+      competition: 'Cebu Youth Cup',
+      playedOn: DateTime.now().subtract(const Duration(days: 35)),
+      venue: MatchVenue.neutral,
+      ourScore: 1,
+      opponentScore: 2,
+      category: MatchCategory.tournament,
     ),
   ];
 
@@ -30,7 +42,24 @@ class MockMatchRepository implements MatchRepository {
   MockMatchRepository() {
     _performances.addAll([
       _sample(_matches[0], rating: 8.7, goals: 2, assists: 1),
-      _sample(_matches[1], rating: 7.4, goals: 0, assists: 1),
+      _sample(
+        _matches[1],
+        rating: 7.4,
+        goals: 0,
+        assists: 1,
+        passesAttempted: 30,
+        passesCompleted: 23,
+        tackles: 2,
+      ),
+      _sample(
+        _matches[2],
+        rating: 6.9,
+        goals: 0,
+        assists: 0,
+        passesAttempted: 27,
+        passesCompleted: 18,
+        tackles: 1,
+      ),
     ]);
   }
 
@@ -39,6 +68,9 @@ class MockMatchRepository implements MatchRepository {
     required double rating,
     required int goals,
     required int assists,
+    int passesAttempted = 28,
+    int passesCompleted = 22,
+    int tackles = 1,
   }) => MatchPerformance(
     id: 'perf-${match.id}-p1',
     playerId: 'p1',
@@ -51,9 +83,9 @@ class MockMatchRepository implements MatchRepository {
     assists: assists,
     shots: 5,
     shotsOnTarget: 3,
-    passesAttempted: 28,
-    passesCompleted: 22,
-    tackles: 1,
+    passesAttempted: passesAttempted,
+    passesCompleted: passesCompleted,
+    tackles: tackles,
     interceptions: 0,
     yellowCards: 0,
     redCards: 0,
@@ -84,6 +116,7 @@ class MockMatchRepository implements MatchRepository {
       recordSource: draft.fixtureId == null
           ? MatchRecordSource.adHoc
           : MatchRecordSource.scheduled,
+      category: draft.category,
     );
     _matches.add(match);
     return match;
@@ -108,6 +141,7 @@ class MockMatchRepository implements MatchRepository {
       recordSource: _matches[index].recordSource,
       ageBracketId: _matches[index].ageBracketId,
       ageBracketLabel: _matches[index].ageBracketLabel,
+      category: draft.category,
     );
     _matches[index] = updated;
     return updated;

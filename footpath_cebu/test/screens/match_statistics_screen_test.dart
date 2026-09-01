@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/data/repositories/mock_growth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_match_repository.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
@@ -45,10 +46,29 @@ void main() {
     await tester.pumpWidget(_app('p1'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Last 5 Summary'), findsOneWidget);
+    expect(find.text('All Matches Summary'), findsOneWidget);
+    expect(find.text('All Matches'), findsOneWidget);
+    expect(find.text('Regular Matches'), findsOneWidget);
+    expect(find.text('Tournaments'), findsOneWidget);
+    expect(find.text('Your Performance Over Time'), findsOneWidget);
+    expect(
+      find.text(
+        'See how your match rating and skills have changed from earlier matches to your most recent matches.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('MATCHES'), findsOneWidget);
     expect(find.byType(PerformanceTrendChart), findsOneWidget);
     expect(find.textContaining('Cebu United'), findsOneWidget);
+
+    await tester.tapAt(tester.getCenter(find.byType(PerformanceTrendChart)));
+    await tester.pump();
+    expect(find.byKey(const Key('trendTooltip')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('matchFilter-tournaments')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Lapu-Lapu Academy'), findsOneWidget);
+    expect(find.textContaining('Cebu United'), findsNothing);
   });
 
   testWidgets('shows a clear empty state before coach data exists', (
@@ -71,6 +91,7 @@ void main() {
       ProviderScope(
         overrides: [
           matchRepositoryProvider.overrideWithValue(MockMatchRepository()),
+          growthRepositoryProvider.overrideWithValue(MockGrowthRepository()),
         ],
         child: MaterialApp(
           theme: AppTheme.light(),
@@ -86,12 +107,21 @@ void main() {
     expect(tabBar.indicatorColor, Colors.black);
     expect(find.text('Matches'), findsOneWidget);
     expect(find.text('Training Feedback'), findsOneWidget);
-    expect(find.text('Last 5 Summary'), findsOneWidget);
+    expect(find.text('Growth'), findsOneWidget);
+    expect(tabBar.tabs.length, 3);
+    expect(find.byTooltip('Player Growth'), findsNothing);
+    expect(find.text('All Matches Summary'), findsOneWidget);
 
     await tester.tap(find.text('Training Feedback'));
     await tester.pumpAndSettle();
 
     expect(find.text('Matches'), findsOneWidget);
     expect(find.text('Training Feedback'), findsOneWidget);
+
+    await tester.tap(find.text('Growth'));
+    await tester.pumpAndSettle();
+    expect(find.text('Overall growth summary'), findsOneWidget);
+    expect(find.text('Then vs. Now'), findsOneWidget);
+    expect(find.text('Actionable training recommendations'), findsOneWidget);
   });
 }

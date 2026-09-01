@@ -16,6 +16,7 @@ import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
 import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
@@ -143,7 +144,7 @@ class _EligibilityTile extends StatelessWidget {
       icon: Icons.school_outlined,
       label: 'Academic Eligibility',
       value: player.academicEligibilityApplicable
-          ? _eligibilityHeadline(player.eligibility)
+          ? eligibilityStatusMessage(player.eligibility)
           : 'N/A',
       color: player.academicEligibilityApplicable
           ? _eligibilityColor(player.eligibility)
@@ -164,13 +165,6 @@ class _EligibilityTile extends StatelessWidget {
     );
   }
 }
-
-String _eligibilityHeadline(EligibilityStatus status) => switch (status) {
-  EligibilityStatus.eligible => 'Ready to Play! 🚀',
-  EligibilityStatus.academicWarning => 'Almost there — hit the books 📚',
-  EligibilityStatus.notEligible => 'Bench time — grades first 📖',
-  EligibilityStatus.pending => 'Check pending ⏳',
-};
 
 class _RecentAttendanceCard extends ConsumerWidget {
   const _RecentAttendanceCard({required this.player});

@@ -150,7 +150,10 @@ void main() {
     tester,
   ) async {
     final repo = MockPlayerRepository();
-    final player = (await _players(tester, repo)).first;
+    final player = (await _players(
+      tester,
+      repo,
+    )).firstWhere((candidate) => candidate.id == 'p2');
     await _pump(tester, player, repo);
 
     await _scrollTo(
