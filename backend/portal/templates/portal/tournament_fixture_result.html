@@ -1,0 +1,47 @@
+{% extends 'portal/base.html' %}
+{% block title %}Record result · FootPath{% endblock %}
+{% block page_title %}<h1 class="text-xl font-bold text-gray-900">Record tournament result</h1>{% endblock %}
+{% block breadcrumb %}<a href="{% url 'portal:tournaments' %}" class="hover:text-gray-900">Tournaments</a> <span aria-hidden="true">/</span> <a href="{% url 'portal:tournament-detail' fixture.schedule_id %}" class="hover:text-gray-900">{{ fixture.schedule.title }}</a> <span aria-hidden="true">/</span> <span>Record result</span>{% endblock %}
+
+{% block content %}
+<form method="post" class="space-y-6">
+  {% csrf_token %}
+  <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <p class="text-sm font-semibold text-emerald-700">{{ fixture.age_bracket.label }} · {{ fixture.stage }}</p>
+    <h2 class="mt-1 text-xl font-bold text-gray-900">FootPath Cebu vs {{ fixture.opponent }}</h2>
+    <p class="mt-1 text-sm text-gray-600">{{ fixture.kickoff_at|date:'M j, Y · g:i A' }} · {{ fixture.location }}</p>
+    {% if form.non_field_errors %}<div class="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="mt-5 grid gap-4 sm:grid-cols-2">
+      <div>{{ form.our_score.label_tag }}{{ form.our_score }}{{ form.our_score.errors }}</div>
+      <div>{{ form.opponent_score.label_tag }}{{ form.opponent_score }}{{ form.opponent_score.errors }}</div>
+    </div>
+  </section>
+
+  <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <h2 class="font-bold text-gray-900">Participating players and objective statistics</h2>
+    <p class="mt-1 text-sm text-gray-600">Select players from the Coach-published squad. Ratings and qualitative feedback remain in the Coach workflow.</p>
+    {% if form.participant_rows %}
+      <div class="mt-5 space-y-4">
+        {% for row in form.participant_rows %}
+          <fieldset class="rounded-xl border border-gray-200 p-4">
+            <legend class="px-2 font-semibold text-gray-900">{{ row.selected }} {{ row.selected.label }}</legend>
+            <div class="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>{{ row.position.label_tag }}{{ row.position }}{{ row.position.errors }}</div>
+              <div class="flex items-center gap-2 pt-7">{{ row.starter }} {{ row.starter.label_tag }}</div>
+              {% for field in row.statistics %}<div>{{ field.label_tag }}{{ field }}{{ field.errors }}</div>{% endfor %}
+              <div class="flex items-center gap-2 pt-7">{{ row.clean_sheet }} {{ row.clean_sheet.label_tag }}</div>
+            </div>
+          </fieldset>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="mt-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">The Coach must publish this age bracket's squad before a result can be recorded.</p>
+    {% endif %}
+  </section>
+
+  <div class="flex flex-wrap justify-end gap-3">
+    <a href="{% url 'portal:tournament-detail' fixture.schedule_id %}" class="portal-button-secondary">Cancel</a>
+    <button type="submit" class="portal-button-primary" {% if not form.participant_rows %}disabled{% endif %} data-loading-label="Recording…">Record result and player statistics</button>
+  </div>
+</form>
+{% endblock %}

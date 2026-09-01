@@ -78,6 +78,26 @@ urlpatterns = [
         name='tournament-schedule-publish',
     ),
     path(
+        'tournament-schedules/<int:schedule_id>/document/',
+        views.TournamentScheduleDocumentView.as_view(),
+        name='tournament-schedule-document',
+    ),
+    path(
+        'tournament-schedules/<int:schedule_id>/fixtures/',
+        views.TournamentFixtureCreateView.as_view(),
+        name='tournament-fixture-create',
+    ),
+    path(
+        'tournament-fixtures/<int:fixture_id>/',
+        views.TournamentFixtureDetailView.as_view(),
+        name='tournament-fixture-detail',
+    ),
+    path(
+        'tournament-fixtures/<int:fixture_id>/result/',
+        views.TournamentFixtureResultView.as_view(),
+        name='tournament-fixture-result',
+    ),
+    path(
         'tournament-schedules/<int:schedule_id>/brackets/',
         views.TournamentAgeBracketCreateView.as_view(),
         name='tournament-bracket-create',

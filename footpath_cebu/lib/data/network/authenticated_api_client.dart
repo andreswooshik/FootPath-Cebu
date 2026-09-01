@@ -39,10 +39,16 @@ class ApiNetworkException extends ApiException {
 
 /// The server responded outside the endpoint's explicitly accepted statuses.
 class ApiHttpException extends ApiException {
-  const ApiHttpException({required this.statusCode, required String message})
-    : super(message);
+  const ApiHttpException({
+    required this.statusCode,
+    required String message,
+    this.code,
+    this.details,
+  }) : super(message);
 
   final int statusCode;
+  final String? code;
+  final Map<String, dynamic>? details;
 }
 
 /// The server answered successfully but the promised JSON representation was
@@ -166,6 +172,7 @@ class AuthenticatedApiClient {
     required List<int> bytes,
     required String filename,
     required String contentType,
+    Map<String, String> fields = const {},
     Set<int> expectedStatuses = const {200},
     bool forceRefreshToken = false,
   }) async {
@@ -196,6 +203,7 @@ class AuthenticatedApiClient {
     final request = http.MultipartRequest('POST', uri)
       ..followRedirects = false
       ..headers['Authorization'] = 'Bearer $token'
+      ..fields.addAll(fields)
       ..files.add(
         http.MultipartFile.fromBytes(
           fieldName,
@@ -231,6 +239,8 @@ class AuthenticatedApiClient {
       throw ApiHttpException(
         statusCode: response.statusCode,
         message: _serverError(response),
+        code: _serverCode(response),
+        details: _serverDetails(response),
       );
     }
     return response;
@@ -333,6 +343,8 @@ class AuthenticatedApiClient {
       throw ApiHttpException(
         statusCode: response.statusCode,
         message: _serverError(response),
+        code: _serverCode(response),
+        details: _serverDetails(response),
       );
     }
 
@@ -458,6 +470,26 @@ class AuthenticatedApiClient {
       // Never expose arbitrary HTML/proxy bodies to the UI.
     }
     return 'Request failed (${response.statusCode}).';
+  }
+
+  String? _serverCode(http.Response response) {
+    try {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic>
+          ? decoded['code'] as String?
+          : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  Map<String, dynamic>? _serverDetails(http.Response response) {
+    try {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException {
+      return null;
+    }
   }
 
   String? _firstMessage(Object? value) {

@@ -25,6 +25,7 @@ from .models import (
     DisputeStatus,
     Eligibility,
     EligibilityHistory,
+    FixtureStatus,
     FootballMatch,
     InjuryRecord,
     InjuryReportStatus,
@@ -50,7 +51,10 @@ from .models import (
     TournamentSquadStatus,
 )
 from .tournament_rosters import roster_eligibility
-from .storage import signed_photo_url, signed_tournament_document_url
+from .storage import (
+    signed_photo_url,
+    signed_tournament_document_url,
+)
 
 
 def _display_name(user):
@@ -413,6 +417,9 @@ class TournamentFixtureSerializer(serializers.ModelSerializer):
     scheduleId = serializers.CharField(source='schedule_id', read_only=True)
     tournament = serializers.CharField(source='schedule.title', read_only=True)
     kickoffAt = serializers.DateTimeField(source='kickoff_at', read_only=True)
+    endsAt = serializers.DateTimeField(
+        source='effective_ends_at', read_only=True,
+    )
     matchId = serializers.CharField(
         source='completed_match_id', read_only=True, allow_null=True,
     )
@@ -428,7 +435,7 @@ class TournamentFixtureSerializer(serializers.ModelSerializer):
         model = TournamentFixture
         fields = [
             'id', 'scheduleId', 'tournament', 'stage', 'opponent',
-            'kickoffAt', 'venue', 'location', 'status', 'matchId',
+            'kickoffAt', 'endsAt', 'venue', 'location', 'status', 'matchId',
             'ageBracketId', 'ageBracketLabel',
             'result',
         ]
@@ -504,10 +511,15 @@ class TournamentAgeBracketSerializer(serializers.ModelSerializer):
     )
     label = serializers.CharField(read_only=True)
     squad = serializers.SerializerMethodField()
+    academyTiers = serializers.ListField(
+        source='academy_tiers', child=serializers.CharField(), read_only=True,
+    )
 
     class Meta:
         model = TournamentAgeBracket
-        fields = ['id', 'maxAge', 'label', 'scheduledAt', 'squad']
+        fields = [
+            'id', 'maxAge', 'label', 'academyTiers', 'scheduledAt', 'squad',
+        ]
 
     def get_squad(self, obj):
         try:
@@ -524,6 +536,10 @@ class TournamentAgeBracketSerializer(serializers.ModelSerializer):
 
 class TournamentScheduleSerializer(serializers.ModelSerializer):
     documentUrl = serializers.SerializerMethodField()
+    hasDocument = serializers.SerializerMethodField()
+    lifecycleStatus = serializers.CharField(
+        source='lifecycle_status', read_only=True,
+    )
     startsOn = serializers.DateField(source='starts_on', read_only=True)
     isPublished = serializers.BooleanField(source='is_published', read_only=True)
     publishedAt = serializers.DateTimeField(
@@ -539,11 +555,15 @@ class TournamentScheduleSerializer(serializers.ModelSerializer):
         model = TournamentSchedule
         fields = [
             'id', 'title', 'venue', 'startsOn', 'isPublished', 'documentUrl',
-            'publishedAt', 'updatedAt', 'ageBrackets', 'fixtures',
+            'hasDocument', 'lifecycleStatus', 'publishedAt', 'updatedAt',
+            'ageBrackets', 'fixtures',
         ]
 
     def get_documentUrl(self, obj):
         return signed_tournament_document_url(obj.document_path)
+
+    def get_hasDocument(self, obj):
+        return bool(obj.document_path)
 
 
 class TournamentScheduleWriteSerializer(serializers.ModelSerializer):
@@ -554,6 +574,80 @@ class TournamentScheduleWriteSerializer(serializers.ModelSerializer):
         model = TournamentSchedule
         fields = ['title', 'venue', 'startsOn']
 
+    def validate_title(self, value):
+        cleaned = value.strip()
+        if not cleaned:
+            raise serializers.ValidationError('Tournament name is required.')
+        return cleaned
+
+    def validate_venue(self, value):
+        cleaned = value.strip()
+        if not cleaned:
+            raise serializers.ValidationError('Main venue is required.')
+        return cleaned
+
+
+class TournamentFixtureWriteSerializer(serializers.ModelSerializer):
+    ageBracketId = serializers.IntegerField(source='age_bracket_id')
+    kickoffAt = serializers.DateTimeField(source='kickoff_at')
+    endsAt = serializers.DateTimeField(source='ends_at')
+    stage = serializers.CharField(max_length=80, trim_whitespace=True)
+    opponent = serializers.CharField(
+        max_length=120, trim_whitespace=True, required=False, default='TBD',
+    )
+    location = serializers.CharField(max_length=160, trim_whitespace=True)
+
+    class Meta:
+        model = TournamentFixture
+        fields = [
+            'ageBracketId', 'stage', 'opponent', 'kickoffAt', 'endsAt', 'venue',
+            'location', 'status',
+        ]
+
+    def validate_ageBracketId(self, value):
+        schedule = self.context['schedule']
+        if not TournamentAgeBracket.objects.filter(
+            pk=value, schedule=schedule,
+        ).exists():
+            raise serializers.ValidationError(
+                'Select an age bracket from this tournament.'
+            )
+        return value
+
+    def validate_stage(self, value):
+        if not value:
+            raise serializers.ValidationError('Stage or round is required.')
+        return value
+
+    def validate_opponent(self, value):
+        return value or 'TBD'
+
+    def validate_location(self, value):
+        if not value:
+            raise serializers.ValidationError(
+                'Location, pitch, or stadium is required.'
+            )
+        return value
+
+    def validate_status(self, value):
+        if value == FixtureStatus.COMPLETED:
+            raise serializers.ValidationError(
+                'Use Record Result to complete a fixture.'
+            )
+        return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        kickoff = attrs.get(
+            'kickoff_at', getattr(self.instance, 'kickoff_at', None),
+        )
+        ends_at = attrs.get('ends_at', getattr(self.instance, 'ends_at', None))
+        if kickoff and ends_at and ends_at <= kickoff:
+            raise serializers.ValidationError({
+                'endsAt': 'Expected end time must be later than kickoff.'
+            })
+        return attrs
+
 
 class TournamentAgeBracketWriteSerializer(serializers.ModelSerializer):
     maxAge = serializers.IntegerField(
@@ -562,10 +656,15 @@ class TournamentAgeBracketWriteSerializer(serializers.ModelSerializer):
     scheduledAt = serializers.DateTimeField(
         source='scheduled_at', required=False, allow_null=True,
     )
+    academyTiers = serializers.ListField(
+        source='academy_tiers',
+        child=serializers.ChoiceField(choices=AgeTier.choices),
+        required=False,
+    )
 
     class Meta:
         model = TournamentAgeBracket
-        fields = ['maxAge', 'scheduledAt']
+        fields = ['maxAge', 'academyTiers', 'scheduledAt']
 
     def validate(self, attrs):
         schedule = self.context['schedule']
@@ -579,6 +678,24 @@ class TournamentAgeBracketWriteSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'maxAge': f'{schedule.title} already has a U{max_age} bracket.'
             })
+        tiers = attrs.get(
+            'academy_tiers', getattr(self.instance, 'academy_tiers', None),
+        )
+        canonical = {
+            12: [AgeTier.FOUNDATION],
+            15: [AgeTier.DEVELOPMENT],
+            18: [AgeTier.PATHWAY],
+        }.get(max_age)
+        if tiers is None and canonical is not None:
+            attrs['academy_tiers'] = canonical
+            tiers = canonical
+        if not tiers:
+            raise serializers.ValidationError({
+                'academyTiers': (
+                    'Select at least one academy tier for this bracket.'
+                )
+            })
+        attrs['academy_tiers'] = list(dict.fromkeys(tiers))
         return attrs
 
 
@@ -757,6 +874,48 @@ class PlayerMatchStatisticsWriteSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class TournamentResultParticipantWriteSerializer(serializers.Serializer):
+    playerId = serializers.IntegerField(min_value=1)
+    statistics = PlayerMatchStatisticsWriteSerializer()
+
+
+class TournamentFixtureResultWriteSerializer(serializers.Serializer):
+    ourScore = serializers.IntegerField(min_value=0, max_value=99)
+    opponentScore = serializers.IntegerField(min_value=0, max_value=99)
+    participants = TournamentResultParticipantWriteSerializer(
+        many=True, allow_empty=False,
+    )
+
+    def validate_participants(self, value):
+        player_ids = [row['playerId'] for row in value]
+        if len(player_ids) != len(set(player_ids)):
+            raise serializers.ValidationError(
+                'A player can participate only once in a fixture result.'
+            )
+        return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        total_goals = sum(
+            row['statistics'].get('goals', 0)
+            for row in attrs['participants']
+        )
+        if total_goals > attrs['ourScore']:
+            raise serializers.ValidationError({
+                'participants': 'Recorded player goals exceed the team score.'
+            })
+        for row in attrs['participants']:
+            statistics = row['statistics']
+            if statistics.get('goals_conceded', 0) > attrs['opponentScore']:
+                raise serializers.ValidationError({
+                    'participants': (
+                        'A goalkeeper\'s goals conceded cannot exceed the '
+                        'opponent score.'
+                    )
+                })
+        return attrs
+
+
 class CoachMatchRatingSerializer(serializers.ModelSerializer):
     """Coach-owned subjective evaluation for existing objective statistics."""
 
@@ -788,13 +947,28 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
     startTime = serializers.CharField(source='start_time', required=False, allow_blank=True)
     endTime = serializers.CharField(source='end_time', required=False, allow_blank=True)
     attendeeCount = serializers.SerializerMethodField()
+    cancellationReason = serializers.CharField(
+        source='cancellation_reason', read_only=True,
+    )
+    conflictingTournamentId = serializers.CharField(
+        source='conflicting_tournament_id', read_only=True, allow_null=True,
+    )
+    conflictingFixtureId = serializers.CharField(
+        source='conflicting_fixture_id', read_only=True, allow_null=True,
+    )
+    cancelledAt = serializers.DateTimeField(
+        source='cancelled_at', read_only=True, allow_null=True,
+    )
 
     class Meta:
         model = TrainingSession
         fields = [
             'id', 'title', 'ageTiers', 'date', 'startTime', 'endTime',
-            'location', 'focus', 'attendeeCount',
+            'location', 'focus', 'status', 'cancellationReason',
+            'conflictingTournamentId', 'conflictingFixtureId', 'cancelledAt',
+            'attendeeCount',
         ]
+        read_only_fields = ['status']
 
     def get_attendeeCount(self, obj):
         # The list view annotates this value, avoiding one query per session.

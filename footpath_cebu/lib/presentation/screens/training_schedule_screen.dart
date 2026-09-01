@@ -225,13 +225,19 @@ class _TrainingScheduleScreenState
               return TrainingSessionCard(
                 session: session,
                 isLoading: _openingSessionIds.contains(session.id),
-                onTap: () => _logAttendance(session),
-                onLogAttendance: () => _logAttendance(session),
+                onTap: session.isCancelled
+                    ? null
+                    : () => _logAttendance(session),
+                onLogAttendance: session.isCancelled
+                    ? null
+                    : () => _logAttendance(session),
                 // Completed sessions are historical records. Keep attendance
                 // access where its grace window allows it, but only future and
                 // today's sessions may be changed or cancelled.
-                onEdit: _showPast ? null : () => _editSession(session),
-                onCancelSession: _showPast
+                onEdit: _showPast || session.isCancelled
+                    ? null
+                    : () => _editSession(session),
+                onCancelSession: _showPast || session.isCancelled
                     ? null
                     : () => _cancelSession(session),
               ).animateListItem(key: ValueKey(session.id), index: i);

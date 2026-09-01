@@ -30,6 +30,11 @@ class TournamentRosterManagementController extends AsyncNotifier<void> {
     () => ref.read(tournamentRosterRepositoryProvider).publishSquad(bracketId),
   );
 
+  Future<TournamentSquad?> refresh(String bracketId) => _run(
+    bracketId,
+    () => ref.read(tournamentRosterRepositoryProvider).fetchSquad(bracketId),
+  );
+
   Future<TournamentSquad?> _run(
     String bracketId,
     Future<TournamentSquad> Function() action,

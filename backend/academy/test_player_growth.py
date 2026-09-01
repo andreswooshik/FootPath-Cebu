@@ -310,8 +310,9 @@ class MatchCategoryAndGrowthApiTests(APITestCase):
             },
             format='json',
         )
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data['category'], 'TOURNAMENT')
+        self.assertEqual(response.status_code, 400)
+        fixture.refresh_from_db()
+        self.assertIsNone(fixture.completed_match_id)
 
     def test_growth_filters_group_tournaments_and_handle_zero_minutes(self):
         regular = self._match(1, category=MatchCategory.LEAGUE)

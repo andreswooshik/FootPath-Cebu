@@ -9,7 +9,7 @@ import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/tournament_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/edit_tournament_screen.dart';
-import 'package:footpath_cebu/presentation/screens/edit_football_match_screen.dart';
+import 'package:footpath_cebu/presentation/screens/record_tournament_result_screen.dart';
 import 'package:footpath_cebu/presentation/screens/tournament_squad_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/app_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
@@ -47,7 +47,7 @@ class TournamentScheduleScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: !asTab,
-        title: const Text('Schedule'),
+        title: const Text('Tournament Schedule'),
       ),
       floatingActionButton: canManage
           ? FloatingActionButton.extended(
@@ -60,7 +60,7 @@ class TournamentScheduleScreen extends ConsumerWidget {
                 ref.invalidate(tournamentSchedulesProvider);
               },
               icon: const Icon(Icons.add),
-              label: const Text('Create tournament'),
+              label: const Text('Create Tournament'),
             )
           : null,
       body: schedules.when(
@@ -72,56 +72,119 @@ class TournamentScheduleScreen extends ConsumerWidget {
           ),
           onRetry: () => ref.invalidate(tournamentSchedulesProvider),
         ),
-        data: (rows) => RefreshIndicator(
+        data: (rows) => _ScheduleCollection(
+          rows: rows,
+          canManage: canManage,
+          canRecordResults: canRecordResults,
+          canManageRosters: canManageRosters,
           onRefresh: () => ref.refresh(tournamentSchedulesProvider.future),
-          child: ResponsiveContent(
-            child: rows.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      DashboardEmptyState(
-                        icon: Icons.emoji_events_outlined,
-                        title: canManage
-                            ? 'No tournament plans yet'
-                            : 'No published tournaments',
-                        message: canManage
-                            ? 'Create a tournament draft, add its age brackets, and publish it when ready.'
-                            : 'Published tournament schedules will appear here.',
-                      ),
-                    ],
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-                    itemCount: rows.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) => _ScheduleCard(
-                      schedule: rows[index],
-                      canRecordResults: canRecordResults,
-                      canManageRosters: canManageRosters,
-                      onManage: canManage
-                          ? () async {
-                              await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => EditTournamentScreen(
-                                    existing: rows[index],
-                                  ),
-                                ),
-                              );
-                              ref.invalidate(tournamentSchedulesProvider);
-                            }
-                          : null,
-                      onOpenDocument:
-                          rows[index].documentUrl?.isNotEmpty == true
-                          ? () =>
-                                _openDocument(context, rows[index].documentUrl!)
-                          : null,
-                    ),
-                  ),
-          ),
+          onManage: (schedule) async {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EditTournamentScreen(existing: schedule),
+              ),
+            );
+            ref.invalidate(tournamentSchedulesProvider);
+          },
+          onOpenDocument: (url) => _openDocument(context, url),
         ),
       ),
     );
   }
+}
+
+class _ScheduleCollection extends StatelessWidget {
+  const _ScheduleCollection({
+    required this.rows,
+    required this.canManage,
+    required this.canRecordResults,
+    required this.canManageRosters,
+    required this.onRefresh,
+    required this.onManage,
+    required this.onOpenDocument,
+  });
+
+  final List<TournamentSchedule> rows;
+  final bool canManage;
+  final bool canRecordResults;
+  final bool canManageRosters;
+  final Future<void> Function() onRefresh;
+  final ValueChanged<TournamentSchedule> onManage;
+  final ValueChanged<String> onOpenDocument;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!canManage) return _list(rows);
+    final drafts = rows
+        .where((row) => row.lifecycleStatus == TournamentLifecycleStatus.draft)
+        .toList();
+    final published = rows
+        .where(
+          (row) =>
+              row.lifecycleStatus == TournamentLifecycleStatus.published ||
+              row.lifecycleStatus == TournamentLifecycleStatus.inProgress,
+        )
+        .toList();
+    final completed = rows
+        .where(
+          (row) => row.lifecycleStatus == TournamentLifecycleStatus.completed,
+        )
+        .toList();
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(text: 'Drafts'),
+              Tab(text: 'Published'),
+              Tab(text: 'Completed'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [_list(drafts), _list(published), _list(completed)],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _list(List<TournamentSchedule> values) => RefreshIndicator(
+    onRefresh: onRefresh,
+    child: ResponsiveContent(
+      child: values.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                DashboardEmptyState(
+                  icon: Icons.emoji_events_outlined,
+                  title: canManage
+                      ? 'No tournaments in this section'
+                      : 'No published tournaments',
+                  message: canManage
+                      ? 'Create a draft or complete the required tournament setup.'
+                      : 'Published tournament schedules will appear here.',
+                ),
+              ],
+            )
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+              itemCount: values.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, index) => _ScheduleCard(
+                schedule: values[index],
+                canRecordResults: canRecordResults,
+                canManageRosters: canManageRosters,
+                onManage: canManage ? () => onManage(values[index]) : null,
+                onOpenDocument: values[index].documentUrl?.isNotEmpty == true
+                    ? () => onOpenDocument(values[index].documentUrl!)
+                    : null,
+              ),
+            ),
+    ),
+  );
 }
 
 class _ScheduleCard extends StatelessWidget {
@@ -203,13 +266,20 @@ class _ScheduleCard extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 AppStatusChip(
-                  label: schedule.isPublished ? 'Published' : 'Draft',
-                  tone: schedule.isPublished
-                      ? AppStatusTone.success
-                      : AppStatusTone.neutral,
-                  icon: schedule.isPublished
-                      ? Icons.public_outlined
-                      : Icons.edit_note_outlined,
+                  label: schedule.lifecycleStatus.label,
+                  tone: switch (schedule.lifecycleStatus) {
+                    TournamentLifecycleStatus.draft => AppStatusTone.neutral,
+                    TournamentLifecycleStatus.published => AppStatusTone.info,
+                    TournamentLifecycleStatus.inProgress =>
+                      AppStatusTone.warning,
+                    TournamentLifecycleStatus.completed =>
+                      AppStatusTone.success,
+                  },
+                  icon:
+                      schedule.lifecycleStatus ==
+                          TournamentLifecycleStatus.draft
+                      ? Icons.edit_note_outlined
+                      : Icons.public_outlined,
                 ),
                 for (final bracket in schedule.ageBrackets)
                   Chip(label: Text(bracket.label)),
@@ -269,6 +339,7 @@ class _ScheduleCard extends StatelessWidget {
           else
             for (final fixture in schedule.fixtures)
               _FixtureTile(
+                tournament: schedule,
                 fixture: fixture,
                 canRecordResults: canRecordResults,
               ),
@@ -287,8 +358,13 @@ String _bracketScheduleLabel(BuildContext context, DateTime value) {
 }
 
 class _FixtureTile extends StatelessWidget {
-  const _FixtureTile({required this.fixture, required this.canRecordResults});
+  const _FixtureTile({
+    required this.tournament,
+    required this.fixture,
+    required this.canRecordResults,
+  });
 
+  final TournamentSchedule tournament;
   final TournamentFixture fixture;
   final bool canRecordResults;
 
@@ -387,7 +463,9 @@ class _FixtureTile extends StatelessWidget {
               ),
             ),
           ],
-          if (canRecordResults && fixture.canRecordResult) ...[
+          if (canRecordResults &&
+              tournament.isPublished &&
+              fixture.canRecordResult) ...[
             const SizedBox(height: 10),
             Align(
               alignment: Alignment.centerRight,
@@ -395,7 +473,10 @@ class _FixtureTile extends StatelessWidget {
                 onPressed: () async {
                   await Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => EditFootballMatchScreen(fixture: fixture),
+                      builder: (_) => RecordTournamentResultScreen(
+                        tournament: tournament,
+                        fixture: fixture,
+                      ),
                     ),
                   );
                 },

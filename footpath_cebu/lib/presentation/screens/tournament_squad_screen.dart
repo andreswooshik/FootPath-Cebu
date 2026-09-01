@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/tournament_roster.dart';
 import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
+import 'package:footpath_cebu/domain/repositories/tournament_roster_repository.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/tournament_roster_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
@@ -89,6 +90,16 @@ class _TournamentSquadScreenState extends ConsumerState<TournamentSquadScreen> {
     var saved = await controller.save(widget.bracket.id, _selections);
     if (!mounted) return;
     if (saved == null) {
+      final error = ref
+          .read(tournamentRosterManagementControllerProvider)
+          .error;
+      if (error is TournamentRosterRepositoryException &&
+          error.statusCode == 409) {
+        final refreshed = await controller.refresh(widget.bracket.id);
+        if (mounted && refreshed != null) {
+          setState(() => _squad = refreshed);
+        }
+      }
       _showError('Could not save the tournament roster.');
       return;
     }
@@ -96,6 +107,10 @@ class _TournamentSquadScreenState extends ConsumerState<TournamentSquadScreen> {
       saved = await controller.publish(widget.bracket.id);
       if (!mounted) return;
       if (saved == null) {
+        final refreshed = await controller.refresh(widget.bracket.id);
+        if (mounted && refreshed != null) {
+          setState(() => _squad = refreshed);
+        }
         _showError('The draft was saved, but it could not be published.');
         return;
       }
@@ -129,7 +144,8 @@ class _TournamentSquadScreenState extends ConsumerState<TournamentSquadScreen> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 860),
-          child: widget.canEdit
+          child:
+              widget.canEdit && _squad.status != TournamentSquadStatus.published
               ? _buildCoachEditor(context, isSaving)
               : _buildReadOnly(context),
         ),
@@ -329,6 +345,11 @@ class _RosterHeader extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 Text('$bracketLabel - ${squad.entries.length} players'),
+                if (squad.publishedAt != null)
+                  Text(
+                    'Published ${MaterialLocalizations.of(context).formatMediumDate(squad.publishedAt!.toLocal())}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
               ],
             ),
           ),

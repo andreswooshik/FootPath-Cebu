@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/data/repositories/api_tournament_schedule_repository.dart';
+import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -220,5 +221,127 @@ void main() {
       'scheduledAt': '2026-09-20T08:00:00.000Z',
     });
     expect(saved.ageBrackets.single.maxAge, 8);
+  });
+
+  test('creates a tournament with a secure multipart document', () async {
+    late http.Request captured;
+    final api = AuthenticatedApiClient(
+      identityProvider: () =>
+          ApiIdentity(uid: 'coordinator-1', getIdToken: (_) async => 'token'),
+      httpClient: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'id': 'schedule-3',
+            'title': 'Document Cup',
+            'venue': 'Abellana Field',
+            'startsOn': '2026-10-10',
+            'isPublished': false,
+            'hasDocument': true,
+            'lifecycleStatus': 'DRAFT',
+            'documentUrl': 'https://storage.example/document',
+            'publishedAt': null,
+            'updatedAt': '2026-09-01T08:00:00Z',
+            'ageBrackets': [],
+            'fixtures': [],
+          }),
+          201,
+        );
+      }),
+    );
+
+    final created = await ApiTournamentScheduleRepository(api: api)
+        .createTournament(
+          title: 'Document Cup',
+          venue: 'Abellana Field',
+          startsOn: DateTime(2026, 10, 10),
+          document: const TournamentDocumentUpload(
+            bytes: [37, 80, 68, 70, 45],
+            filename: 'schedule.pdf',
+            contentType: 'application/pdf',
+          ),
+        );
+
+    expect(captured.url.path, '/api/tournament-schedules/');
+    expect(captured.headers['content-type'], contains('multipart/form-data'));
+    expect(captured.body, contains('name="title"'));
+    expect(captured.body, contains('Document Cup'));
+    expect(captured.body, contains('filename="schedule.pdf"'));
+    expect(created.hasDocument, isTrue);
+    expect(created.lifecycleStatus, TournamentLifecycleStatus.draft);
+  });
+
+  test('writes a manual fixture and atomic result payload', () async {
+    final requests = <http.Request>[];
+    var count = 0;
+    Map<String, dynamic> responseBody({bool completed = false}) => {
+      'id': 'schedule-4',
+      'title': 'Fixture Cup',
+      'venue': 'Cebu Field',
+      'startsOn': '2026-09-01',
+      'isPublished': true,
+      'hasDocument': false,
+      'lifecycleStatus': completed ? 'COMPLETED' : 'PUBLISHED',
+      'documentUrl': null,
+      'publishedAt': '2026-08-20T08:00:00Z',
+      'updatedAt': '2026-09-01T08:00:00Z',
+      'ageBrackets': [],
+      'fixtures': [],
+    };
+    final api = AuthenticatedApiClient(
+      identityProvider: () =>
+          ApiIdentity(uid: 'coordinator-1', getIdToken: (_) async => 'token'),
+      httpClient: MockClient((request) async {
+        requests.add(request);
+        count++;
+        return http.Response(
+          jsonEncode(responseBody(completed: count == 2)),
+          count == 1 ? 201 : 200,
+        );
+      }),
+    );
+    final repository = ApiTournamentScheduleRepository(api: api);
+    await repository.addFixture(
+      'schedule-4',
+      TournamentFixtureDraft(
+        ageBracketId: '12',
+        stage: 'Semifinal',
+        opponent: 'Mandaue FC',
+        kickoffAt: DateTime.utc(2026, 9, 1, 8),
+        venue: MatchVenue.neutral,
+        location: 'Pitch 1',
+        status: TournamentFixtureStatus.scheduled,
+      ),
+    );
+    final completed = await repository.recordResult(
+      '44',
+      const TournamentResultDraft(
+        ourScore: 2,
+        opponentScore: 1,
+        participants: [
+          TournamentParticipantStatisticsDraft(
+            playerId: '9',
+            position: 'CM',
+            starter: true,
+            minutesPlayed: 80,
+            goals: 1,
+            shots: 2,
+            shotsOnTarget: 1,
+            passesAttempted: 20,
+            passesCompleted: 16,
+          ),
+        ],
+      ),
+    );
+
+    expect(
+      requests[0].url.path,
+      '/api/tournament-schedules/schedule-4/fixtures/',
+    );
+    expect(jsonDecode(requests[0].body)['stage'], 'Semifinal');
+    expect(requests[1].url.path, '/api/tournament-fixtures/44/result/');
+    final resultBody = jsonDecode(requests[1].body) as Map<String, dynamic>;
+    expect(resultBody['participants'], hasLength(1));
+    expect(completed.lifecycleStatus, TournamentLifecycleStatus.completed);
   });
 }

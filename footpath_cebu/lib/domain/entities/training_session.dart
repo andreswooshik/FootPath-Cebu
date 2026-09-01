@@ -3,6 +3,23 @@ import 'package:footpath_cebu/domain/entities/age_tier.dart';
 /// The primary emphasis of a training session.
 enum SessionFocus { technical, physical, mental }
 
+enum TrainingSessionStatus { scheduled, completed, cancelled }
+
+extension TrainingSessionStatusInfo on TrainingSessionStatus {
+  String get label => switch (this) {
+    TrainingSessionStatus.scheduled => 'Scheduled',
+    TrainingSessionStatus.completed => 'Completed',
+    TrainingSessionStatus.cancelled => 'Cancelled',
+  };
+
+  static TrainingSessionStatus fromWire(String? value) =>
+      switch (value?.toUpperCase()) {
+        'COMPLETED' => TrainingSessionStatus.completed,
+        'CANCELLED' => TrainingSessionStatus.cancelled,
+        _ => TrainingSessionStatus.scheduled,
+      };
+}
+
 extension SessionFocusLabel on SessionFocus {
   String get label {
     switch (this) {
@@ -40,6 +57,11 @@ class TrainingSession {
     required this.location,
     required this.focus,
     this.attendeeCount = 0,
+    this.status = TrainingSessionStatus.scheduled,
+    this.cancellationReason = '',
+    this.conflictingTournamentId,
+    this.conflictingFixtureId,
+    this.cancelledAt,
   });
 
   final String id;
@@ -60,6 +82,13 @@ class TrainingSession {
   final String location;
   final SessionFocus focus;
   final int attendeeCount;
+  final TrainingSessionStatus status;
+  final String cancellationReason;
+  final String? conflictingTournamentId;
+  final String? conflictingFixtureId;
+  final DateTime? cancelledAt;
+
+  bool get isCancelled => status == TrainingSessionStatus.cancelled;
 
   /// True only on the calendar day the session takes place.
   bool get isToday {
@@ -83,6 +112,7 @@ class TrainingSession {
   /// (a two-day grace covers a coach who couldn't finish the roll call on the
   /// day, then the window closes).
   bool get isAttendanceOpen {
+    if (isCancelled) return false;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final day = DateTime(date.year, date.month, date.day);
@@ -112,6 +142,13 @@ class TrainingSession {
       location: json['location'] as String? ?? '',
       focus: SessionFocusLabel.fromWire(json['focus'] as String? ?? ''),
       attendeeCount: json['attendeeCount'] as int? ?? 0,
+      status: TrainingSessionStatusInfo.fromWire(json['status'] as String?),
+      cancellationReason: json['cancellationReason'] as String? ?? '',
+      conflictingTournamentId: json['conflictingTournamentId']?.toString(),
+      conflictingFixtureId: json['conflictingFixtureId']?.toString(),
+      cancelledAt: json['cancelledAt'] == null
+          ? null
+          : DateTime.parse(json['cancelledAt'] as String),
     );
   }
 

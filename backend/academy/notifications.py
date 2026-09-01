@@ -10,7 +10,7 @@ import logging
 from firebase_admin import messaging
 
 from accounts.firebase import ensure_initialized
-from accounts.models import GuardianLink, User
+from accounts.models import GuardianLink, Roles, User
 
 from .models import DeviceToken, NotificationRecord, PlayerProfile
 
@@ -119,18 +119,64 @@ def notify_session_updated(session):
 
 
 def notify_session_cancelled(session, user_ids=None, session_id=None):
-    """Push after a coach cancels (deletes) a session. Called BEFORE the row
-    is deleted so the recipient query can still see it."""
+    """Push after a coach soft-cancels a retained training session."""
     return _send_to_users(
         user_ids if user_ids is not None else _recipients_for_session(session),
         title='Training session cancelled',
         body='A training session was cancelled. Sign in to view the schedule.',
         data={
             'type': 'session_cancelled',
-            # Django clears an instance's primary key after delete(). The
-            # caller snapshots it so the post-commit notification still links
-            # to the actual cancelled session rather than "None".
             'sessionId': str(session_id if session_id is not None else session.id),
+        },
+    )
+
+
+def notify_tournament_training_cancelled(session, fixture, user_ids=None):
+    recipients = set(
+        user_ids if user_ids is not None else _recipients_for_session(session)
+    )
+    recipients.update(
+        User.objects.filter(
+            club_id=session.club_id,
+            role=Roles.COACH,
+            is_active=True,
+        ).values_list('id', flat=True)
+    )
+    body = (
+        f'{session.title} on {session.date:%B %d} at {session.start_time} was '
+        f'cancelled because it conflicts with {fixture.schedule.title} '
+        f'{fixture.stage}.'
+    )
+    return _send_to_users(
+        recipients,
+        title='Training Cancelled',
+        body=body,
+        data={
+            'type': 'session_cancelled',
+            'sessionId': str(session.id),
+            'tournamentId': str(fixture.schedule_id),
+            'fixtureId': str(fixture.id),
+        },
+    )
+
+
+def notify_tournament_roster_published(squad):
+    player_ids = set(squad.entries.values_list('player_id', flat=True))
+    guardian_ids = set(
+        GuardianLink.objects.filter(player_id__in=player_ids)
+        .values_list('guardian_id', flat=True)
+    )
+    return _send_to_users(
+        player_ids | guardian_ids,
+        title='Tournament roster published',
+        body=(
+            f'The {squad.bracket.label} roster for '
+            f'{squad.bracket.schedule.title} is now available.'
+        ),
+        data={
+            'type': 'tournament_roster_published',
+            'tournamentId': str(squad.bracket.schedule_id),
+            'bracketId': str(squad.bracket_id),
         },
     )
 

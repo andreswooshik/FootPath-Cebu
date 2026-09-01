@@ -147,6 +147,36 @@ class TrainingSessionCard extends StatelessWidget {
                           ),
                       ],
                     ),
+                    if (session.isCancelled) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: cs.errorContainer,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Cancelled',
+                              style: TextStyle(
+                                color: cs.onErrorContainer,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (session.cancellationReason.isNotEmpty) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                session.cancellationReason,
+                                style: TextStyle(color: cs.onErrorContainer),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 10),
                     if (showPlayerDetails) ...[
                       _DetailRow(

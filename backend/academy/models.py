@@ -8,7 +8,7 @@ layer on the client.
 """
 import copy
 import re
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -84,6 +84,12 @@ class SessionFocus(models.TextChoices):
     TECHNICAL = 'TECHNICAL', 'Technical'
     PHYSICAL = 'PHYSICAL', 'Physical'
     MENTAL = 'MENTAL', 'Mental'
+
+
+class TrainingSessionStatus(models.TextChoices):
+    SCHEDULED = 'SCHEDULED', 'Scheduled'
+    COMPLETED = 'COMPLETED', 'Completed'
+    CANCELLED = 'CANCELLED', 'Cancelled'
 
 
 class AttendanceStatus(models.TextChoices):
@@ -450,6 +456,20 @@ class TrainingSession(models.Model):
     # Explicit set of tiers the session targets, as wire strings — a new tier
     # never silently absorbs existing sessions (mirrors the client rationale).
     age_tiers = models.JSONField(default=list)
+    status = models.CharField(
+        max_length=20,
+        choices=TrainingSessionStatus.choices,
+        default=TrainingSessionStatus.SCHEDULED,
+    )
+    cancellation_reason = models.CharField(max_length=500, blank=True)
+    conflicting_tournament_id = models.PositiveBigIntegerField(
+        null=True, blank=True,
+    )
+    conflicting_fixture_id = models.PositiveBigIntegerField(
+        null=True, blank=True,
+    )
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by_action = models.CharField(max_length=80, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -536,6 +556,23 @@ class TrainingSession(models.Model):
         # create/save does not. Enforce the same invariant on both paths.
         self.full_clean()
         return super().save(*args, **kwargs)
+
+    def interval(self):
+        """Return timezone-aware datetimes in the configured academy zone."""
+        start, end = self.validate_time_window(self.start_time, self.end_time)
+        if not start:
+            return None, None
+
+        def combine(value):
+            parsed = datetime.strptime(value, '%I:%M %p').time()
+            combined = datetime.combine(self.date, parsed)
+            return timezone.make_aware(combined, timezone.get_current_timezone())
+
+        return combine(start), combine(end)
+
+    @property
+    def is_cancelled(self):
+        return self.status == TrainingSessionStatus.CANCELLED
 
     class Meta:
         ordering = ['-date']
@@ -643,8 +680,8 @@ class TournamentSchedule(models.Model):
         blank=True,
         related_name='uploaded_tournament_schedules',
     )
-    is_published = models.BooleanField(default=True)
-    published_at = models.DateTimeField(null=True, blank=True, default=timezone.now)
+    is_published = models.BooleanField(default=False)
+    published_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -671,6 +708,71 @@ class TournamentSchedule(models.Model):
     def __str__(self):
         return f'{self.club.name} · {self.title}'
 
+    @property
+    def lifecycle_status(self):
+        """Return the shared web/mobile tournament lifecycle label.
+
+        Draft and Published are explicit. In Progress and Completed are
+        derived from the authoritative fixture rows so the two clients cannot
+        disagree about a second, independently-stored status value.
+        """
+        if not self.is_published:
+            return 'DRAFT'
+        fixture_states = list(self.fixtures.values_list('status', flat=True))
+        has_completed = FixtureStatus.COMPLETED in fixture_states
+        active_states = [
+            value for value in fixture_states if value != FixtureStatus.CANCELLED
+        ]
+        if active_states and all(
+            value == FixtureStatus.COMPLETED for value in active_states
+        ):
+            return 'COMPLETED'
+        if has_completed or self.starts_on <= timezone.localdate():
+            return 'IN_PROGRESS'
+        return 'PUBLISHED'
+
+    def publication_errors(self):
+        """Return lifecycle validation shared by the portal and REST API."""
+        errors = {}
+        if not self.title.strip():
+            errors['title'] = 'Tournament name is required.'
+        if self.starts_on is None:
+            errors['startsOn'] = 'Tournament start date is required.'
+        if not self.venue.strip():
+            errors['venue'] = 'Main venue is required.'
+        if not self.age_brackets.exists():
+            errors['ageBrackets'] = (
+                'Add at least one age bracket before publishing.'
+            )
+        elif self.age_brackets.filter(academy_tiers=[]).exists():
+            errors['ageBrackets'] = (
+                'Associate every age bracket with at least one academy tier.'
+            )
+        fixtures = list(self.fixtures.select_related('age_bracket'))
+        if not fixtures:
+            errors['fixtures'] = 'Add at least one fixture before publishing.'
+            return errors
+        incomplete = [
+            fixture for fixture in fixtures
+            if fixture.age_bracket_id is None
+            or not fixture.stage.strip()
+            or not fixture.location.strip()
+            or fixture.ends_at is None
+        ]
+        if incomplete:
+            errors['fixtures'] = (
+                'Every fixture needs an age bracket, stage, kickoff, venue, '
+                'and location before publishing.'
+            )
+        if not any(
+            fixture.status in (FixtureStatus.SCHEDULED, FixtureStatus.POSTPONED)
+            for fixture in fixtures
+        ):
+            errors['fixtures'] = (
+                'At least one scheduled or postponed fixture is required.'
+            )
+        return errors
+
 
 class TournamentAgeBracket(models.Model):
     """One flexible U-age division announced for a tournament."""
@@ -684,6 +786,7 @@ class TournamentAgeBracket(models.Model):
         validators=[MinValueValidator(3), MaxValueValidator(21)],
     )
     scheduled_at = models.DateTimeField(null=True, blank=True)
+    academy_tiers = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -822,6 +925,7 @@ class TournamentFixture(models.Model):
     stage = models.CharField(max_length=80, blank=True)
     opponent = models.CharField(max_length=120, default='TBD')
     kickoff_at = models.DateTimeField()
+    ends_at = models.DateTimeField(null=True, blank=True)
     venue = models.CharField(
         max_length=10,
         choices=MatchVenue.choices,
@@ -856,6 +960,10 @@ class TournamentFixture(models.Model):
             raise ValidationError({
                 'age_bracket': 'Age bracket must belong to this tournament.'
             })
+        if self.ends_at and self.kickoff_at and self.ends_at <= self.kickoff_at:
+            raise ValidationError({
+                'ends_at': 'Expected end time must be later than kickoff.'
+            })
         if self.completed_match_id:
             if self.completed_match.club_id != self.schedule.club_id:
                 raise ValidationError(
@@ -878,6 +986,28 @@ class TournamentFixture(models.Model):
 
     def __str__(self):
         return f'{self.schedule.title} · {self.opponent}'
+
+
+    @property
+    def effective_ends_at(self):
+        return self.ends_at or self.kickoff_at + timedelta(hours=2)
+
+    @property
+    def can_record_result(self):
+        if (
+            self.completed_match_id
+            or self.status != FixtureStatus.SCHEDULED
+            or not self.schedule.is_published
+            or self.opponent.strip().upper() == 'TBD'
+        ):
+            return False
+        kickoff = self.kickoff_at
+        kickoff_date = (
+            timezone.localtime(kickoff).date()
+            if timezone.is_aware(kickoff)
+            else kickoff.date()
+        )
+        return kickoff_date <= timezone.localdate()
 
 
 class PlayerMatchPerformance(models.Model):

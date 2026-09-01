@@ -9,12 +9,16 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.password_validation import validate_password
 
 from academy.models import (
+    AgeTier,
     DisputeStatus,
     Eligibility,
     FixtureStatus,
     PlayerProfile,
+    TournamentAgeBracket,
     TournamentFixture,
+    TournamentSquadStatus,
 )
+from academy.serializers import TournamentFixtureResultWriteSerializer
 from academy.storage import validate_tournament_document
 from accounts.models import Club, Roles, User
 from accounts.validators import (
@@ -275,9 +279,56 @@ class TournamentDocumentForm(forms.Form):
     )
 
 
+class TournamentAgeBracketForm(forms.ModelForm):
+    scheduled_at = forms.DateTimeField(
+        label='Optional division date and time',
+        required=False,
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(
+            format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}
+        ),
+    )
+    academy_tiers = forms.MultipleChoiceField(
+        label='Academy tiers',
+        choices=AgeTier.choices,
+        help_text='Select every academy tier represented by this bracket.',
+    )
+
+    class Meta:
+        model = TournamentAgeBracket
+        fields = ['max_age', 'academy_tiers', 'scheduled_at']
+        labels = {'max_age': 'Maximum age (U-age)'}
+
+    def __init__(self, *args, schedule=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.schedule = schedule
+        self.fields['max_age'].widget.attrs.update({'min': 3, 'max': 21})
+
+    def clean_max_age(self):
+        max_age = self.cleaned_data['max_age']
+        brackets = (
+            self.schedule.age_brackets.filter(max_age=max_age)
+            if self.schedule is not None else TournamentAgeBracket.objects.none()
+        )
+        if self.instance.pk:
+            brackets = brackets.exclude(pk=self.instance.pk)
+        if brackets.exists():
+            raise forms.ValidationError(
+                f'{self.schedule.title} already has a U{max_age} bracket.'
+            )
+        return max_age
+
+
 class TournamentFixtureForm(forms.ModelForm):
     kickoff_at = forms.DateTimeField(
         label='Kickoff',
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(
+            format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}
+        ),
+    )
+    ends_at = forms.DateTimeField(
+        label='Expected end',
         input_formats=['%Y-%m-%dT%H:%M'],
         widget=forms.DateTimeInput(
             format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}
@@ -292,8 +343,8 @@ class TournamentFixtureForm(forms.ModelForm):
     class Meta:
         model = TournamentFixture
         fields = [
-            'age_bracket', 'stage', 'opponent', 'kickoff_at', 'venue',
-            'location', 'status',
+            'age_bracket', 'stage', 'opponent', 'kickoff_at', 'ends_at',
+            'venue', 'location', 'status',
         ]
         labels = {
             'age_bracket': 'Age bracket',
@@ -302,7 +353,7 @@ class TournamentFixtureForm(forms.ModelForm):
             'venue': 'Home, away, or neutral',
         }
         help_texts = {
-            'age_bracket': 'Optional for legacy or mixed-age fixtures.',
+            'age_bracket': 'Required for new tournament fixtures.',
             'opponent': 'Use TBD when the knockout opponent is not known.',
             'location': 'Pitch, stadium, or meeting location.',
         }
@@ -314,8 +365,10 @@ class TournamentFixtureForm(forms.ModelForm):
         if self.schedule is not None:
             queryset = self.schedule.age_brackets.order_by('max_age', 'id')
         self.fields['age_bracket'].queryset = queryset
-        self.fields['age_bracket'].required = False
-        self.fields['age_bracket'].empty_label = 'No age bracket (legacy)'
+        self.fields['age_bracket'].required = True
+        self.fields['age_bracket'].empty_label = 'Choose an age bracket'
+        self.fields['stage'].required = True
+        self.fields['location'].required = True
 
     def clean_age_bracket(self):
         bracket = self.cleaned_data.get('age_bracket')
@@ -329,6 +382,138 @@ class TournamentFixtureForm(forms.ModelForm):
 
     def clean_opponent(self):
         return self.cleaned_data['opponent'].strip() or 'TBD'
+
+    def clean(self):
+        cleaned = super().clean()
+        kickoff = cleaned.get('kickoff_at')
+        ends_at = cleaned.get('ends_at')
+        if kickoff and ends_at and ends_at <= kickoff:
+            self.add_error(
+                'ends_at', 'Expected end time must be later than kickoff.',
+            )
+        return cleaned
+
+
+class TournamentFixtureResultForm(forms.Form):
+    """Dynamic result form limited to a fixture's Coach-published squad."""
+
+    our_score = forms.IntegerField(label='FootPath Cebu score', min_value=0,
+                                   max_value=99)
+    opponent_score = forms.IntegerField(label='Opponent score', min_value=0,
+                                        max_value=99)
+    statistic_fields = (
+        ('minutesPlayed', 'Minutes', 180),
+        ('goals', 'Goals', None),
+        ('assists', 'Assists', None),
+        ('shots', 'Shots', None),
+        ('shotsOnTarget', 'Shots on target', None),
+        ('passesAttempted', 'Passes attempted', None),
+        ('passesCompleted', 'Passes completed', None),
+        ('tackles', 'Tackles', None),
+        ('interceptions', 'Interceptions', None),
+        ('yellowCards', 'Yellow cards', 2),
+        ('redCards', 'Red cards', 1),
+        ('saves', 'Saves (GK)', None),
+        ('goalsConceded', 'Goals conceded (GK)', None),
+    )
+    positions = (
+        ('', 'Choose position'), ('GK', 'GK'), ('CB', 'CB'), ('LB', 'LB'),
+        ('RB', 'RB'), ('CDM', 'CDM'), ('CM', 'CM'), ('CAM', 'CAM'),
+        ('LW', 'LW'), ('RW', 'RW'), ('ST', 'ST'),
+    )
+
+    def __init__(self, *args, fixture, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fixture = fixture
+        self.entries = []
+        if fixture.age_bracket_id:
+            self.entries = list(
+                fixture.age_bracket.squad.entries.select_related(
+                    'player', 'player__player_profile',
+                ).filter(
+                    squad__status=TournamentSquadStatus.PUBLISHED,
+                ).order_by('player__last_name', 'player__first_name', 'player_id')
+            ) if hasattr(fixture.age_bracket, 'squad') else []
+        for entry in self.entries:
+            player_id = entry.player_id
+            position = entry.position
+            if not position:
+                position = getattr(entry.player.player_profile, 'position', '')
+            self.fields[f'participant_{player_id}'] = forms.BooleanField(
+                required=False,
+                label=entry.player.get_full_name().strip() or entry.player.email,
+            )
+            self.fields[f'position_{player_id}'] = forms.ChoiceField(
+                choices=self.positions,
+                initial=position,
+                required=False,
+                label='Position',
+            )
+            self.fields[f'starter_{player_id}'] = forms.BooleanField(
+                required=False, label='Starter',
+            )
+            for name, label, maximum in self.statistic_fields:
+                self.fields[f'{name}_{player_id}'] = forms.IntegerField(
+                    min_value=0,
+                    max_value=maximum,
+                    initial=0,
+                    required=False,
+                    label=label,
+                )
+            self.fields[f'cleanSheet_{player_id}'] = forms.BooleanField(
+                required=False, label='Clean sheet (GK)',
+            )
+
+    @property
+    def participant_rows(self):
+        rows = []
+        for entry in self.entries:
+            player_id = entry.player_id
+            rows.append({
+                'player': entry.player,
+                'selected': self[f'participant_{player_id}'],
+                'position': self[f'position_{player_id}'],
+                'starter': self[f'starter_{player_id}'],
+                'statistics': [
+                    self[f'{name}_{player_id}']
+                    for name, _label, _maximum in self.statistic_fields
+                ],
+                'clean_sheet': self[f'cleanSheet_{player_id}'],
+            })
+        return rows
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.errors:
+            return cleaned
+        participants = []
+        for entry in self.entries:
+            player_id = entry.player_id
+            if not cleaned.get(f'participant_{player_id}'):
+                continue
+            statistics = {
+                'position': cleaned.get(f'position_{player_id}', ''),
+                'starter': cleaned.get(f'starter_{player_id}', False),
+                'cleanSheet': cleaned.get(f'cleanSheet_{player_id}', False),
+            }
+            for name, _label, _maximum in self.statistic_fields:
+                statistics[name] = cleaned.get(f'{name}_{player_id}') or 0
+            participants.append({
+                'playerId': player_id,
+                'statistics': statistics,
+            })
+        serializer = TournamentFixtureResultWriteSerializer(data={
+            'ourScore': cleaned.get('our_score'),
+            'opponentScore': cleaned.get('opponent_score'),
+            'participants': participants,
+        })
+        if not serializer.is_valid():
+            messages = []
+            for value in serializer.errors.values():
+                messages.extend(str(item) for item in value)
+            raise forms.ValidationError(messages)
+        self.result_payload = serializer.validated_data
+        return cleaned
 
 
 class CoordinatorMobileAccessForm(forms.Form):

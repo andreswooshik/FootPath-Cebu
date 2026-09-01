@@ -65,6 +65,16 @@ urlpatterns = [
         name='tournament-fixture-delete',
     ),
     path(
+        'fixtures/<int:fixture_id>/result/',
+        views.tournament_fixture_result,
+        name='tournament-fixture-result',
+    ),
+    path(
+        'tournament-brackets/<int:bracket_id>/delete/',
+        views.tournament_bracket_delete,
+        name='tournament-bracket-delete',
+    ),
+    path(
         'guardians/links/<int:pk>/remove/',
         views.guardian_unlink,
         name='guardian-unlink',

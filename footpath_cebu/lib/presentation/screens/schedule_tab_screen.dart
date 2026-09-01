@@ -8,14 +8,13 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
-import 'package:footpath_cebu/presentation/widgets/session_confirmation_button.dart';
 import 'package:footpath_cebu/presentation/widgets/training_session_card.dart';
 import 'package:footpath_cebu/presentation/screens/tournament_schedule_screen.dart';
 
 /// Schedule tab — upcoming/past training sessions. Shared by the Player and
 /// Guardian portals (unlike the Coach's Training Schedule screen, there's no
-/// "Schedule New Session" action here). Confirmation is available only on
-/// the session day; players cannot confirm a future session.
+/// "Schedule New Session" action here). This view is read-only: the Coach
+/// records attendance through the separate attendance workflow.
 class ScheduleTabScreen extends ConsumerStatefulWidget {
   const ScheduleTabScreen({
     super.key,
@@ -103,12 +102,6 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
                           TrainingSessionCard(
                             session: sessions[i],
                             showPlayerDetails: true,
-                            trailing: _showPast || !sessions[i].isToday
-                                ? null
-                                : SessionConfirmationButton(
-                                    sessionId: sessions[i].id,
-                                    playerId: widget.player.id,
-                                  ),
                           ).animateListItem(
                             key: ValueKey(sessions[i].id),
                             index: i,

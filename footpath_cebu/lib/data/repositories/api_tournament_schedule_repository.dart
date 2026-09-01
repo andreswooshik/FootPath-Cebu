@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
 import 'package:footpath_cebu/domain/repositories/tournament_schedule_repository.dart';
 
@@ -48,18 +49,31 @@ class ApiTournamentScheduleRepository implements TournamentScheduleRepository {
     required String title,
     required String venue,
     required DateTime startsOn,
-  }) => _write(
-    () => _api.post(
+    TournamentDocumentUpload? document,
+  }) => _write(() {
+    final fields = {
+      'title': title,
+      'venue': venue,
+      'startsOn': _dateOnly(startsOn),
+    };
+    if (document != null) {
+      return _api.postMultipart(
+        '/api/tournament-schedules/',
+        fieldName: 'document',
+        bytes: document.bytes,
+        filename: document.filename,
+        contentType: document.contentType,
+        fields: fields,
+        expectedStatuses: const {201},
+      );
+    }
+    return _api.post(
       '/api/tournament-schedules/',
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'title': title,
-        'venue': venue,
-        'startsOn': _dateOnly(startsOn),
-      }),
+      body: jsonEncode(fields),
       expectedStatuses: const {201},
-    ),
-  );
+    );
+  });
 
   @override
   Future<TournamentSchedule> updateTournament(TournamentSchedule tournament) =>
@@ -80,6 +94,8 @@ class ApiTournamentScheduleRepository implements TournamentScheduleRepository {
     String tournamentId, {
     required int maxAge,
     DateTime? scheduledAt,
+    Set<AgeTier> academyTiers = const {},
+    bool confirmTrainingCancellations = false,
   }) => _write(
     () => _api.post(
       '/api/tournament-schedules/$tournamentId/brackets/',
@@ -87,6 +103,8 @@ class ApiTournamentScheduleRepository implements TournamentScheduleRepository {
       body: jsonEncode({
         'maxAge': maxAge,
         'scheduledAt': scheduledAt?.toUtc().toIso8601String(),
+        if (academyTiers.isNotEmpty)
+          'academyTiers': academyTiers.map((tier) => tier.wire).toList(),
       }),
       expectedStatuses: const {201},
     ),
@@ -97,6 +115,8 @@ class ApiTournamentScheduleRepository implements TournamentScheduleRepository {
     String bracketId, {
     required int maxAge,
     DateTime? scheduledAt,
+    Set<AgeTier> academyTiers = const {},
+    bool confirmTrainingCancellations = false,
   }) => _write(
     () => _api.patch(
       '/api/tournament-brackets/$bracketId/',
@@ -104,6 +124,9 @@ class ApiTournamentScheduleRepository implements TournamentScheduleRepository {
       body: jsonEncode({
         'maxAge': maxAge,
         'scheduledAt': scheduledAt?.toUtc().toIso8601String(),
+        if (academyTiers.isNotEmpty)
+          'academyTiers': academyTiers.map((tier) => tier.wire).toList(),
+        if (confirmTrainingCancellations) 'confirmTrainingCancellations': true,
       }),
     ),
   );
@@ -121,7 +144,111 @@ class ApiTournamentScheduleRepository implements TournamentScheduleRepository {
   }
 
   @override
-  Future<TournamentSchedule> publishTournament(String tournamentId) => _write(
-    () => _api.post('/api/tournament-schedules/$tournamentId/publish/'),
+  Future<TournamentSchedule> addFixture(
+    String tournamentId,
+    TournamentFixtureDraft fixture, {
+    bool confirmTrainingCancellations = false,
+  }) => _write(
+    () => _api.post(
+      '/api/tournament-schedules/$tournamentId/fixtures/',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        ...fixture.toJson(),
+        if (confirmTrainingCancellations) 'confirmTrainingCancellations': true,
+      }),
+      expectedStatuses: const {201},
+    ),
+  );
+
+  @override
+  Future<TournamentSchedule> updateFixture(
+    String fixtureId,
+    TournamentFixtureDraft fixture, {
+    bool confirmTrainingCancellations = false,
+  }) => _write(
+    () => _api.patch(
+      '/api/tournament-fixtures/$fixtureId/',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        ...fixture.toJson(),
+        if (confirmTrainingCancellations) 'confirmTrainingCancellations': true,
+      }),
+    ),
+  );
+
+  @override
+  Future<void> deleteFixture(String fixtureId) async {
+    try {
+      await _api.delete('/api/tournament-fixtures/$fixtureId/');
+    } on ApiException catch (error) {
+      throw TournamentScheduleRepositoryException(
+        error.message,
+        statusCode: error is ApiHttpException ? error.statusCode : null,
+      );
+    }
+  }
+
+  @override
+  Future<TournamentSchedule> uploadDocument(
+    String tournamentId,
+    TournamentDocumentUpload document,
+  ) => _write(
+    () => _api.postMultipart(
+      '/api/tournament-schedules/$tournamentId/document/',
+      fieldName: 'document',
+      bytes: document.bytes,
+      filename: document.filename,
+      contentType: document.contentType,
+    ),
+  );
+
+  @override
+  Future<void> removeDocument(String tournamentId) async {
+    try {
+      await _api.delete('/api/tournament-schedules/$tournamentId/document/');
+    } on ApiException catch (error) {
+      throw TournamentScheduleRepositoryException(
+        error.message,
+        statusCode: error is ApiHttpException ? error.statusCode : null,
+      );
+    }
+  }
+
+  @override
+  Future<void> deleteTournament(String tournamentId) async {
+    try {
+      await _api.delete('/api/tournament-schedules/$tournamentId/');
+    } on ApiException catch (error) {
+      throw TournamentScheduleRepositoryException(
+        error.message,
+        statusCode: error is ApiHttpException ? error.statusCode : null,
+      );
+    }
+  }
+
+  @override
+  Future<TournamentSchedule> publishTournament(
+    String tournamentId, {
+    bool confirmTrainingCancellations = false,
+  }) => _write(
+    () => _api.post(
+      '/api/tournament-schedules/$tournamentId/publish/',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        if (confirmTrainingCancellations) 'confirmTrainingCancellations': true,
+      }),
+    ),
+  );
+
+  @override
+  Future<TournamentSchedule> recordResult(
+    String fixtureId,
+    TournamentResultDraft result,
+  ) => _write(
+    () => _api.post(
+      '/api/tournament-fixtures/$fixtureId/result/',
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(result.toJson()),
+    ),
   );
 }

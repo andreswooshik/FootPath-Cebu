@@ -277,7 +277,7 @@ class MatchPerformanceApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 400)
 
-    def test_scheduled_fixture_converts_to_one_completed_match(self):
+    def test_scheduled_fixture_rejects_the_non_atomic_match_endpoint(self):
         schedule = TournamentSchedule.objects.create(
             club=self.club_a,
             title='One Day Cup',
@@ -297,20 +297,11 @@ class MatchPerformanceApiTests(APITestCase):
             {'fixtureId': fixture.id, 'ourScore': 2, 'opponentScore': 1},
             format='json',
         )
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data['fixtureId'], str(fixture.id))
-        self.assertEqual(response.data['recordSource'], 'SCHEDULED')
-        self.assertEqual(response.data['competition'], 'One Day Cup')
+        self.assertEqual(response.status_code, 400)
         fixture.refresh_from_db()
-        self.assertEqual(fixture.completed_match_id, int(response.data['id']))
-        self.assertEqual(fixture.status, 'COMPLETED')
-
-        duplicate = self.client.post(
-            reverse('football-matches'),
-            {'fixtureId': fixture.id, 'ourScore': 2, 'opponentScore': 1},
-            format='json',
-        )
-        self.assertEqual(duplicate.status_code, 400)
+        self.assertIsNone(fixture.completed_match_id)
+        self.assertEqual(fixture.status, 'SCHEDULED')
+        self.assertEqual(FootballMatch.objects.count(), 1)
 
     def test_coach_cannot_rate_before_coordinator_statistics_exist(self):
         self.client.force_authenticate(self.coach_a)

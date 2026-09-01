@@ -12,6 +12,47 @@
 {% block content %}
 <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
   <div class="space-y-6">
+    <section class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm" aria-labelledby="brackets-heading">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 id="brackets-heading" class="font-bold text-gray-900">Age brackets</h2>
+          <p class="mt-1 text-sm text-gray-500">The app and portal use these same tournament divisions.</p>
+        </div>
+        <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-800">
+          {% if lifecycle_status == 'IN_PROGRESS' %}In Progress{% elif lifecycle_status == 'COMPLETED' %}Completed{% elif lifecycle_status == 'PUBLISHED' %}Published{% else %}Draft{% endif %}
+        </span>
+      </div>
+      {% if schedule.age_brackets.all %}
+        <div class="mt-4 flex flex-wrap gap-2">
+          {% for bracket in schedule.age_brackets.all %}
+            <div class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
+              <span class="font-semibold text-gray-900">{{ bracket.label }}</span>
+              {% if not schedule.is_published %}
+                <form method="post" action="{% url 'portal:tournament-bracket-delete' bracket.id %}" data-confirm data-confirm-title="Remove age bracket?" data-confirm-message="Remove {{ bracket.label }} from this draft?" data-confirm-action="Remove bracket">
+                  {% csrf_token %}
+                  <button type="submit" class="text-xs font-semibold text-red-700">Remove</button>
+                </form>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="mt-4 text-sm text-gray-500">No age brackets have been added.</p>
+      {% endif %}
+      <form method="post" class="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add-bracket">
+        {% for field in bracket_form %}
+          <div>
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {{ field.errors }}
+          </div>
+        {% endfor %}
+        <div class="sm:col-span-2"><button type="submit" class="portal-button-secondary">Add age bracket</button></div>
+      </form>
+    </section>
+
     <section class="rounded-xl border border-gray-200 bg-white shadow-sm" aria-labelledby="fixtures-heading">
       <div class="border-b border-gray-200 px-5 py-4">
         <h2 id="fixtures-heading" class="font-bold text-gray-900">Fixtures</h2>
@@ -33,6 +74,9 @@
                 {% if fixture.completed_match_id %}
                   <span class="text-sm font-semibold text-green-700">Result recorded</span>
                 {% else %}
+                  {% if fixture.can_record_result %}
+                    <a href="{% url 'portal:tournament-fixture-result' fixture.id %}" class="portal-button-primary portal-button-compact">Record result</a>
+                  {% endif %}
                   <a href="{% url 'portal:tournament-fixture-edit' fixture.id %}" class="portal-button-secondary portal-button-compact">Edit</a>
                   <form method="post" action="{% url 'portal:tournament-fixture-delete' fixture.id %}" data-confirm data-confirm-title="Delete fixture?" data-confirm-message="{{ fixture.opponent }} will be removed from the published schedule." data-confirm-action="Delete fixture">
                     {% csrf_token %}
@@ -53,6 +97,12 @@
       <form method="post" class="mt-4 grid gap-4 sm:grid-cols-2">
         {% csrf_token %}
         <input type="hidden" name="action" value="add-fixture">
+        {% if conflict_confirmation_action == 'add-fixture' %}
+          <input type="hidden" name="confirmTrainingCancellations" value="true">
+          <p class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 sm:col-span-2">
+            Confirming will cancel {{ conflict_count }} conflicting future training session{{ conflict_count|pluralize }}. Cancelled sessions remain in history and attendance is disabled.
+          </p>
+        {% endif %}
         {% for field in fixture_form %}
           <div {% if field.name == 'location' %}class="sm:col-span-2"{% endif %}>
             <label for="{{ field.id_for_label }}">{{ field.label }}</label>
@@ -73,8 +123,13 @@
       <h2 id="document-heading" class="font-bold text-gray-900">Official document</h2>
       {% if document_url %}
         <a href="{{ document_url }}" target="_blank" rel="noopener" class="portal-button-secondary mt-4 w-full">Open document</a>
+        <form method="post" class="mt-2" data-confirm data-confirm-title="Remove official document?" data-confirm-message="The manual tournament schedule will remain available." data-confirm-action="Remove document">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="remove-document">
+          <button type="submit" class="portal-button-danger w-full">Remove document</button>
+        </form>
       {% else %}
-        <p class="mt-3 text-sm text-amber-800">The document is temporarily unavailable.</p>
+        <p class="mt-3 text-sm text-gray-600">No official document uploaded. Manual fixtures remain fully supported.</p>
       {% endif %}
       <form method="post" enctype="multipart/form-data" class="mt-5 border-t border-gray-100 pt-5">
         {% csrf_token %}
@@ -86,6 +141,24 @@
         <button type="submit" class="portal-button-primary mt-3 w-full" data-loading-label="Replacing…">Replace document</button>
       </form>
     </section>
+
+    {% if not schedule.is_published %}
+      <section class="rounded-xl border border-green-200 bg-green-50 p-5">
+        <h2 class="font-bold text-green-950">Publish tournament</h2>
+        <p class="mt-1 text-sm text-green-800">Publishing makes the schedule visible to Coaches, Players, and Guardians.</p>
+        <form method="post" class="mt-4" data-confirm data-confirm-title="Publish tournament?" data-confirm-message="The completed schedule will become visible to the club." data-confirm-action="Publish tournament">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="publish">
+          {% if conflict_confirmation_action == 'publish' %}
+            <input type="hidden" name="confirmTrainingCancellations" value="true">
+            <p class="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              Confirming will cancel {{ conflict_count }} conflicting future training session{{ conflict_count|pluralize }}. Those sessions will remain in history.
+            </p>
+          {% endif %}
+          <button type="submit" class="portal-button-primary w-full">Publish tournament</button>
+        </form>
+      </section>
+    {% endif %}
 
     <section class="rounded-xl border border-red-200 bg-red-50 p-5">
       <h2 class="font-bold text-red-950">Delete tournament</h2>

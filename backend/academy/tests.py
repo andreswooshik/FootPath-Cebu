@@ -38,6 +38,7 @@ from .models import (
     SessionConfirmation,
     SessionFocus,
     TrainingSession,
+    TrainingSessionStatus,
 )
 
 
@@ -877,10 +878,12 @@ class TrainingSessionTests(APITestCase):
                 reverse('training-session-detail', args=[session.id])
             )
         self.assertEqual(resp.status_code, 204)
-        self.assertFalse(TrainingSession.objects.filter(pk=session.pk).exists())
-        # Recorded history is never destroyed: the FK just goes null.
+        session.refresh_from_db()
+        self.assertEqual(session.status, TrainingSessionStatus.CANCELLED)
+        self.assertEqual(session.cancellation_reason, 'Cancelled by the Coach.')
+        # Recorded history remains linked to the retained cancelled session.
         record.refresh_from_db()
-        self.assertIsNone(record.session)
+        self.assertEqual(record.session_id, session.id)
         mock_notify.assert_called_once()
         self.assertEqual(
             mock_notify.call_args.kwargs['session_id'], original_session_id,
