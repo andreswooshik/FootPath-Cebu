@@ -237,6 +237,14 @@ class _AssessmentsTab extends StatelessWidget {
         const SizedBox(height: 8),
         const Text('Player Stats use a separate gamified 0–99 scale.'),
         const SizedBox(height: 20),
+        if (developmentRows.isEmpty && legacyRows.isEmpty)
+          const DashboardEmptyState(
+            icon: Icons.assessment_outlined,
+            title: 'No assessment history',
+            message:
+                'A coach development assessment will appear here when recorded.',
+            compact: true,
+          ),
         Text(
           'FootPath Development Framework',
           style: Theme.of(context).textTheme.titleLarge,

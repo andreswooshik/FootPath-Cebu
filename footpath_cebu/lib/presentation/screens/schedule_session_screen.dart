@@ -405,7 +405,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                 label: Text(
                   isSaving
                       ? 'Saving…'
-                      : (_isEditing ? 'Save Changes' : 'Schedule Session'),
+                      : (_isEditing ? 'Save Changes' : 'Create Schedule'),
                 ),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(50),
