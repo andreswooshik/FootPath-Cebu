@@ -24,7 +24,7 @@ sentry-sdk[django]>=2,<3
 # Security floors for transitive Firebase/HTTP/Django dependencies. Declaring
 # them here prevents a stale environment or image cache from resolving to
 # versions with known advisories.
-cryptography>=50,<51
+cryptography>=50.0.1,<51
 h2>=4.4.1,<5
 pyasn1>=0.6.4,<0.7
 sqlparse>=0.6,<1
