@@ -17,10 +17,11 @@ import 'package:footpath_cebu/presentation/providers/training_schedule_providers
 /// which refreshes by itself (the controller invalidates the schedule
 /// provider).
 class ScheduleSessionScreen extends ConsumerStatefulWidget {
-  const ScheduleSessionScreen({super.key, this.existing});
+  const ScheduleSessionScreen({super.key, this.existing, this.recentSessions});
 
   /// When set, the form edits this session instead of creating a new one.
   final TrainingSession? existing;
+  final List<TrainingSession>? recentSessions;
 
   @override
   ConsumerState<ScheduleSessionScreen> createState() =>
@@ -34,18 +35,35 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   late final _locationController = TextEditingController(
     text: widget.existing?.location ?? '',
   );
+  late final _objectivesController = TextEditingController(
+    text: widget.existing?.sessionObjectives ?? '',
+  );
+  late final _equipmentController = TextEditingController(
+    text: widget.existing?.equipmentRequirements ?? '',
+  );
+  late final _instructionsController = TextEditingController(
+    text: widget.existing?.coachInstructions ?? '',
+  );
 
   late DateTime? _date = widget.existing?.date;
   // Times are kept as display strings on the wire ("04:30 PM"), so an edit
   // keeps the original string until the coach re-picks; only a fresh pick
   // produces a TimeOfDay to format.
-  TimeOfDay? _startTime;
-  TimeOfDay? _endTime;
+  late TimeOfDay? _startTime;
+  late TimeOfDay? _endTime;
   late SessionFocus _focus = widget.existing?.focus ?? SessionFocus.technical;
   late final Set<SessionFocus> _additionalFocuses = {
     ...?widget.existing?.additionalFocuses,
   };
   String? _formError;
+  final Map<String, String> _fieldErrors = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _startTime = _parseTime(widget.existing?.startTime);
+    _endTime = _parseTime(widget.existing?.endTime);
+  }
 
   bool get _isEditing => widget.existing != null;
 
@@ -78,6 +96,9 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   void dispose() {
     _titleController.dispose();
     _locationController.dispose();
+    _objectivesController.dispose();
+    _equipmentController.dispose();
+    _instructionsController.dispose();
     super.dispose();
   }
 
@@ -97,6 +118,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
       setState(() {
         _date = picked;
         _formError = null;
+        _fieldErrors.remove('date');
       });
     }
   }
@@ -110,13 +132,21 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
       setState(() {
         isStart ? _startTime = picked : _endTime = picked;
         _formError = null;
+        _fieldErrors.remove(isStart ? 'start' : 'end');
       });
     }
   }
 
   void _clearFormError() {
-    if (_formError != null) setState(() => _formError = null);
+    if (_formError != null || _fieldErrors.isNotEmpty) {
+      setState(() {
+        _formError = null;
+        _fieldErrors.clear();
+      });
+    }
   }
+
+  String? _errorFor(String field) => _fieldErrors[field];
 
   int? get _durationMinutes {
     if (_startTime == null || _endTime == null) return null;
@@ -124,6 +154,9 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     final end = _endTime!.hour * 60 + _endTime!.minute;
     return end > start ? end - start : null;
   }
+
+  String get _tierKey =>
+      AgeTier.values.where(_tiers.contains).map((tier) => tier.wire).join('|');
 
   void _applyDuration(int minutes) {
     if (_startTime == null) return;
@@ -139,31 +172,47 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     final startLabel =
         _startTime?.format(context) ?? widget.existing?.startTime;
     final endLabel = _endTime?.format(context) ?? widget.existing?.endTime;
-    if (title.isEmpty ||
-        location.isEmpty ||
-        _date == null ||
-        startLabel == null ||
-        endLabel == null) {
+    final errors = <String, String>{};
+    if (title.isEmpty) errors['title'] = 'Session title is required.';
+    if (_date == null) errors['date'] = 'Date is required.';
+    if (startLabel == null || startLabel.isEmpty) {
+      errors['start'] = 'Start time is required.';
+    }
+    if (endLabel == null || endLabel.isEmpty) {
+      errors['end'] = 'End time is required.';
+    }
+    if (location.isEmpty) errors['location'] = 'Location is required.';
+    if (errors.isNotEmpty) {
       setState(() {
+        _fieldErrors
+          ..clear()
+          ..addAll(errors);
         _formError =
-            'Complete the title, date, start time, end time, and location.';
+            'Complete the required fields before reviewing this session.';
       });
       return;
     }
     if (_tiers.isEmpty) {
       setState(() {
+        _fieldErrors['tiers'] = 'Select at least one age tier.';
         _formError = 'Pick at least one age tier for this session.';
       });
       return;
     }
     if (_durationMinutes == null) {
-      setState(() => _formError = 'End time must be later than start time.');
+      setState(() {
+        _fieldErrors['end'] = 'End time must be later than start time.';
+        _formError = 'End time must be later than start time.';
+      });
       return;
     }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     if (_date!.isBefore(today) && !_isEditing) {
-      setState(() => _formError = 'The session date cannot be in the past.');
+      setState(() {
+        _fieldErrors['date'] = 'The session date cannot be in the past.';
+        _formError = 'The session date cannot be in the past.';
+      });
       return;
     }
 
@@ -172,13 +221,19 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
       title: title,
       ageTiers: Set.of(_tiers),
       date: _date!,
-      startTime: startLabel,
-      endTime: endLabel,
+      startTime: startLabel!,
+      endTime: endLabel!,
       location: location,
       focus: _focus,
       attendeeCount: widget.existing?.attendeeCount ?? 0,
       additionalFocuses: Set.of(_additionalFocuses),
+      sessionObjectives: _objectivesController.text.trim(),
+      equipmentRequirements: _equipmentController.text.trim(),
+      coachInstructions: _instructionsController.text.trim(),
     );
+
+    final confirmed = await _confirmDraft(draft);
+    if (!confirmed || !mounted) return;
 
     final controller = ref.read(scheduleSessionControllerProvider.notifier);
     final ok = _isEditing
@@ -209,6 +264,70 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
         ),
       );
     }
+  }
+
+  Future<bool> _confirmDraft(TrainingSession draft) async {
+    final eligible = ref.read(eligiblePlayerCountProvider(_tierKey)).value;
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(_isEditing ? 'Review Changes' : 'Review Session'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _ReviewLine('Session title', draft.title),
+                  _ReviewLine('Date', _formatDate(draft.date)),
+                  _ReviewLine('Time', '${draft.startTime} - ${draft.endTime}'),
+                  _ReviewLine(
+                    'Duration',
+                    _durationMinutes == null
+                        ? 'Unavailable'
+                        : _durationLabel(_durationMinutes!),
+                  ),
+                  _ReviewLine('Location', draft.location),
+                  _ReviewLine('Age Tiers', draft.tiersLabel),
+                  _ReviewLine(
+                    'Eligible players',
+                    eligible == null
+                        ? 'Will be checked by the server'
+                        : '$eligible',
+                  ),
+                  _ReviewLine('Primary focus', draft.focus.label),
+                  _ReviewLine(
+                    'Additional focuses',
+                    draft.additionalFocuses.isEmpty
+                        ? 'None'
+                        : draft.additionalFocuses
+                              .map((f) => f.label)
+                              .join(', '),
+                  ),
+                  _ReviewLine('Session objectives', draft.sessionObjectives),
+                  _ReviewLine(
+                    'Equipment requirements',
+                    draft.equipmentRequirements,
+                  ),
+                  _ReviewLine('Coach instructions', draft.coachInstructions),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Conflict check: final validation runs again during save.',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Back'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(_isEditing ? 'Confirm Changes' : 'Confirm Session'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   @override
@@ -251,7 +370,12 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                 decoration: _fieldDecoration(
                   hint: 'e.g. Tactical Workshop',
                   suffix: const Icon(Icons.edit_outlined, size: 18),
-                ),
+                ).copyWith(errorText: _errorFor('title')),
+              ),
+              _RecentSuggestions(
+                kind: 'title',
+                sessions: widget.recentSessions ?? const [],
+                onSelected: (value) => _titleController.text = value,
               ),
               const SizedBox(height: 18),
 
@@ -260,6 +384,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                 text: _date == null ? 'Select a date' : _formatDate(_date!),
                 placeholder: _date == null,
                 icon: Icons.calendar_today_outlined,
+                errorText: _errorFor('date'),
                 onTap: _pickDate,
               ),
               const SizedBox(height: 18),
@@ -273,6 +398,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                         widget.existing?.startTime ??
                         'Start',
                     placeholder: _startTime == null && widget.existing == null,
+                    errorText: _errorFor('start'),
                     onTap: () => _pickTime(isStart: true),
                   );
                   final end = _TimeField(
@@ -282,6 +408,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                         widget.existing?.endTime ??
                         'End',
                     placeholder: _endTime == null && widget.existing == null,
+                    errorText: _errorFor('end'),
                     onTap: () => _pickTime(isStart: false),
                   );
                   if (constraints.maxWidth < 520) {
@@ -303,7 +430,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
               ),
               if (_durationMinutes != null) ...[
                 const SizedBox(height: 8),
-                Text('Duration: $_durationMinutes minutes'),
+                Text('Duration: ${_durationLabel(_durationMinutes!)}'),
               ],
               const SizedBox(height: 8),
               Wrap(
@@ -331,7 +458,12 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
                 decoration: _fieldDecoration(
                   hint: 'e.g. USJ-R Basak Pitch',
                   suffix: const Icon(Icons.location_on_outlined, size: 18),
-                ),
+                ).copyWith(errorText: _errorFor('location')),
+              ),
+              _RecentSuggestions(
+                kind: 'location',
+                sessions: widget.recentSessions ?? const [],
+                onSelected: (value) => _locationController.text = value,
               ),
               const SizedBox(height: 18),
 
@@ -358,6 +490,13 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
               ),
               const SizedBox(height: 8),
               _TierSelectionHint(tiers: _tiers),
+              if (_errorFor('tiers') != null)
+                Text(
+                  _errorFor('tiers')!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              const SizedBox(height: 6),
+              _EligiblePlayerCount(tierKey: _tierKey),
               const SizedBox(height: 18),
 
               const _FieldLabel('Primary Focus *'),
@@ -393,27 +532,59 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
               ),
               const SizedBox(height: 24),
 
-              FilledButton.icon(
-                onPressed: isSaving ? null : _submit,
-                icon: isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.event_available),
-                label: Text(
-                  isSaving
-                      ? 'Saving…'
-                      : (_isEditing ? 'Save Changes' : 'Create Schedule'),
-                ),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
+              const _FieldLabel('Session Objectives'),
+              TextField(
+                controller: _objectivesController,
+                maxLength: 2000,
+                maxLines: 3,
+                decoration: _fieldDecoration(
+                  hint: 'What should players achieve?',
                 ),
               ),
+              const SizedBox(height: 12),
+              const _FieldLabel('Equipment Requirements'),
+              TextField(
+                controller: _equipmentController,
+                maxLength: 2000,
+                maxLines: 3,
+                decoration: _fieldDecoration(
+                  hint: 'Equipment needed for this session',
+                ),
+              ),
+              const SizedBox(height: 12),
+              const _FieldLabel('Coach Instructions'),
+              TextField(
+                controller: _instructionsController,
+                maxLength: 2000,
+                maxLines: 3,
+                decoration: _fieldDecoration(
+                  hint: 'Notes for the coaching team',
+                ),
+              ),
+              const SizedBox(height: 24),
+
               const SizedBox(height: 20),
             ],
           ),
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: FilledButton.icon(
+          onPressed: isSaving ? null : _submit,
+          icon: isSaving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.event_available),
+          label: Text(
+            isSaving
+                ? 'Saving…'
+                : (_isEditing ? 'Save Changes' : 'Schedule Session'),
+          ),
+          style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
         ),
       ),
     ).animateScreenEntrance();
@@ -445,6 +616,114 @@ const _months = [
 ];
 
 String _formatDate(DateTime d) => '${_months[d.month - 1]} ${d.day}, ${d.year}';
+
+TimeOfDay? _parseTime(String? value) {
+  final match = RegExp(
+    r'^(0?[1-9]|1[0-2]):([0-5][0-9])\s*(AM|PM)$',
+    caseSensitive: false,
+  ).firstMatch((value ?? '').trim());
+  if (match == null) return null;
+  final hour = int.parse(match.group(1)!);
+  final minute = int.parse(match.group(2)!);
+  final period = match.group(3)!.toUpperCase();
+  return TimeOfDay(hour: hour % 12 + (period == 'PM' ? 12 : 0), minute: minute);
+}
+
+String _durationLabel(int minutes) {
+  final hours = minutes ~/ 60;
+  final remainder = minutes % 60;
+  return [
+    if (hours > 0) '$hours hr${hours == 1 ? '' : 's'}',
+    if (remainder > 0) '$remainder min',
+  ].join(' ');
+}
+
+class _EligiblePlayerCount extends ConsumerWidget {
+  const _EligiblePlayerCount({required this.tierKey});
+  final String tierKey;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (tierKey.isEmpty) {
+      return const Text(
+        'No players are eligible until you select an age tier.',
+      );
+    }
+    return ref
+        .watch(eligiblePlayerCountProvider(tierKey))
+        .when(
+          loading: () => const Text('Checking eligible players...'),
+          error: (_, _) => const Text('Eligible-player count unavailable.'),
+          data: (count) => Text(
+            count == 0
+                ? 'No players are eligible for this session.'
+                : '$count ${count == 1 ? 'player is' : 'players are'} eligible for this session.',
+          ),
+        );
+  }
+}
+
+class _ReviewLine extends StatelessWidget {
+  const _ReviewLine(this.label, this.value);
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text('$label: ${value.isEmpty ? 'None' : value}'),
+  );
+}
+
+class _RecentSuggestions extends StatelessWidget {
+  const _RecentSuggestions({
+    required this.kind,
+    required this.sessions,
+    required this.onSelected,
+  });
+  final String kind;
+  final List<TrainingSession> sessions;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = <String>{};
+    for (final session in sessions) {
+      final value = kind == 'title' ? session.title : session.location;
+      final normalized = value.trim().toLowerCase();
+      if (normalized.isNotEmpty && !values.contains(normalized)) {
+        values.add(normalized);
+      }
+    }
+    final suggestions = sessions
+        .map((session) => kind == 'title' ? session.title : session.location)
+        .where((value) => value.trim().isNotEmpty)
+        .fold<List<String>>([], (result, value) {
+          if (!result.any(
+            (item) => item.toLowerCase() == value.toLowerCase(),
+          )) {
+            result.add(value);
+          }
+          return result;
+        })
+        .take(5)
+        .toList(growable: false);
+    if (suggestions.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        spacing: 6,
+        children: [
+          for (final suggestion in suggestions)
+            ActionChip(
+              label: Text(suggestion),
+              onPressed: () => onSelected(suggestion),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 /// Confirms in words who the session will reach, under the tier chips. The
 /// tiers gate which players can be marked present, so a wrong pick is only
@@ -523,12 +802,14 @@ class _PickerField extends StatelessWidget {
     required this.text,
     required this.placeholder,
     required this.icon,
+    this.errorText,
     required this.onTap,
   });
 
   final String text;
   final bool placeholder;
   final IconData icon;
+  final String? errorText;
   final VoidCallback onTap;
 
   @override
@@ -541,6 +822,7 @@ class _PickerField extends StatelessWidget {
         decoration: InputDecoration(
           isDense: true,
           suffixIcon: Icon(icon, size: 18),
+          errorText: errorText,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         ),
         child: Text(
@@ -559,12 +841,14 @@ class _TimeField extends StatelessWidget {
     required this.label,
     required this.text,
     required this.placeholder,
+    this.errorText,
     required this.onTap,
   });
 
   final String label;
   final String text;
   final bool placeholder;
+  final String? errorText;
   final VoidCallback onTap;
 
   @override
@@ -577,6 +861,7 @@ class _TimeField extends StatelessWidget {
           text: text,
           placeholder: placeholder,
           icon: Icons.schedule,
+          errorText: errorText,
           onTap: onTap,
         ),
       ],

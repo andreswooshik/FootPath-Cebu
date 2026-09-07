@@ -93,6 +93,10 @@ class MockTrainingRepository implements TrainingRepository {
       location: draft.location,
       focus: draft.focus,
       attendeeCount: draft.attendeeCount,
+      additionalFocuses: draft.additionalFocuses,
+      sessionObjectives: draft.sessionObjectives,
+      equipmentRequirements: draft.equipmentRequirements,
+      coachInstructions: draft.coachInstructions,
     );
     _sessions.add(saved);
     return saved;

@@ -55,11 +55,58 @@ class PlayerStatsAssessment {
           (k, v) => MapEntry(k, (v as num).toInt()),
         ),
         overall: (json['overall'] as num?)?.toInt() ?? 0,
-        reason: json['reason'] as String? ?? '',
+        reason:
+            json['reason'] as String? ??
+            json['assessmentReason'] as String? ??
+            '',
         coachNotes: json['coachNotes'] as String? ?? '',
         createdAt:
             DateTime.tryParse(json['createdAt'] as String? ?? '') ??
             DateTime.fromMillisecondsSinceEpoch(0),
+        assessedBy: json['assessedBy'] as String?,
+      );
+}
+
+class LegacyPlayerStatsAssessment {
+  const LegacyPlayerStatsAssessment({
+    required this.id,
+    required this.position,
+    required this.ratings,
+    required this.overall,
+    required this.reason,
+    required this.coachNotes,
+    required this.createdAt,
+    this.assessedByRole,
+    this.assessedBy,
+  });
+
+  final String id;
+  final String position;
+  final Map<String, int> ratings;
+  final int overall;
+  final String reason;
+  final String coachNotes;
+  final DateTime createdAt;
+  final String? assessedByRole;
+  final String? assessedBy;
+
+  factory LegacyPlayerStatsAssessment.fromJson(Map<String, dynamic> json) =>
+      LegacyPlayerStatsAssessment(
+        id: json['id'].toString(),
+        position: json['position'] as String? ?? '',
+        ratings: (json['ratings'] as Map<String, dynamic>? ?? const {}).map(
+          (key, value) => MapEntry(key, (value as num).toInt()),
+        ),
+        overall: (json['overall'] as num?)?.toInt() ?? 0,
+        reason:
+            json['reason'] as String? ??
+            json['assessmentReason'] as String? ??
+            '',
+        coachNotes: json['coachNotes'] as String? ?? '',
+        createdAt:
+            DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+        assessedByRole: json['assessedByRole'] as String?,
         assessedBy: json['assessedBy'] as String?,
       );
 }
@@ -125,7 +172,7 @@ class PlayerStats {
   final PlayerStatsAssessment? latest;
   final PlayerStatsComparison comparison;
   final List<PlayerStatsAssessment> history;
-  final List<Map<String, dynamic>> legacyHistory;
+  final List<LegacyPlayerStatsAssessment> legacyHistory;
   factory PlayerStats.fromJson(Map<String, dynamic> json) => PlayerStats(
     catalog: PlayerStatsCatalog.fromJson(
       json['catalog'] as Map<String, dynamic>,
@@ -142,7 +189,11 @@ class PlayerStats {
         .map((v) => PlayerStatsAssessment.fromJson(v as Map<String, dynamic>))
         .toList(growable: false),
     legacyHistory: (json['legacyStatsHistory'] as List? ?? const [])
-        .map((value) => Map<String, dynamic>.from(value as Map))
+        .map(
+          (value) => LegacyPlayerStatsAssessment.fromJson(
+            Map<String, dynamic>.from(value as Map),
+          ),
+        )
         .toList(growable: false),
   );
 }

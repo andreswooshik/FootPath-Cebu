@@ -39,7 +39,11 @@ class _TrainingScheduleScreenState
 
   void _openScheduleForm() {
     Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const ScheduleSessionScreen()),
+      MaterialPageRoute(
+        builder: (_) => ScheduleSessionScreen(
+          recentSessions: ref.read(trainingSessionsProvider).value,
+        ),
+      ),
     );
   }
 

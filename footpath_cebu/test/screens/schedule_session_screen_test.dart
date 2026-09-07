@@ -1,7 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:footpath_cebu/domain/entities/age_tier.dart';
+import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_session_screen.dart';
+
+TrainingSession _existingSession() => TrainingSession(
+  id: 'session-1',
+  title: 'Existing Session',
+  ageTiers: {AgeTier.development},
+  date: DateTime.now().add(const Duration(days: 2)),
+  startTime: '04:30 PM',
+  endTime: '06:00 PM',
+  location: 'Main Pitch',
+  focus: SessionFocus.technical,
+  sessionObjectives: 'Improve passing speed',
+  equipmentRequirements: 'Balls and cones',
+  coachInstructions: 'Split into two groups',
+);
 
 void main() {
   /// The form is a lazy ListView, so anything below the fold is never built
@@ -132,15 +149,141 @@ void main() {
       find.widgetWithText(TextField, 'e.g. USJ-R Basak Pitch'),
       'USJ-R Basak Pitch',
     );
-    await tester.tap(find.text('Create Schedule'));
+    await tester.tap(find.text('Schedule Session'));
     await tester.pump();
 
     expect(
-      find.text(
-        'Complete the title, date, start time, end time, and location.',
-      ),
+      find.text('Complete the required fields before reviewing this session.'),
       findsOneWidget,
     );
     expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('prefills saved details and parses existing duration', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(600, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          eligiblePlayerCountProvider(
+            'DEVELOPMENT',
+          ).overrideWith((ref) => Future.value(1)),
+        ],
+        child: MaterialApp(
+          home: ScheduleSessionScreen(existing: _existingSession()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('1 hr 30 min'), findsOneWidget);
+    expect(find.text('Save Changes'), findsOneWidget);
+    final fields = tester.widgetList<TextField>(find.byType(TextField));
+    expect(
+      fields.any((field) => field.controller?.text == 'Improve passing speed'),
+      isTrue,
+    );
+    expect(
+      fields.any((field) => field.controller?.text == 'Balls and cones'),
+      isTrue,
+    );
+    expect(
+      fields.any((field) => field.controller?.text == 'Split into two groups'),
+      isTrue,
+    );
+  });
+
+  testWidgets('shows deduplicated recent title and location suggestions', (
+    tester,
+  ) async {
+    final first = _existingSession();
+    final second = TrainingSession(
+      id: 'session-2',
+      title: 'existing session',
+      ageTiers: {AgeTier.pathway},
+      date: DateTime.now().add(const Duration(days: 3)),
+      startTime: '05:00 PM',
+      endTime: '06:00 PM',
+      location: 'Main Pitch',
+      focus: SessionFocus.physical,
+    );
+    await tester.binding.setSurfaceSize(const Size(600, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: ScheduleSessionScreen(recentSessions: [first, second]),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Existing Session'), findsOneWidget);
+    expect(find.text('Main Pitch'), findsOneWidget);
+    expect(find.text('existing session'), findsNothing);
+
+    await tester.tap(find.text('Existing Session').last);
+    await tester.pump();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller!.text,
+      'Existing Session',
+    );
+  });
+
+  testWidgets('uses a safe sticky action area on phone and tablet', (
+    tester,
+  ) async {
+    await pumpForm(tester);
+    expect(find.byType(SafeArea), findsWidgets);
+    expect(find.text('Schedule Session'), findsOneWidget);
+
+    await tester.binding.setSurfaceSize(const Size(900, 1200));
+    await tester.pump();
+    expect(find.text('Schedule Session'), findsOneWidget);
+  });
+
+  testWidgets('reviews every saved edit detail before confirmation', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(600, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          eligiblePlayerCountProvider(
+            'DEVELOPMENT',
+          ).overrideWith((ref) => Future.value(1)),
+        ],
+        child: MaterialApp(
+          home: ScheduleSessionScreen(existing: _existingSession()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save Changes'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Review Changes'), findsOneWidget);
+    expect(find.text('Session title: Existing Session'), findsOneWidget);
+    expect(find.text('Location: Main Pitch'), findsOneWidget);
+    expect(
+      find.text('Session objectives: Improve passing speed'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Equipment requirements: Balls and cones'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Coach instructions: Split into two groups'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Conflict check: final validation runs again during save.'),
+      findsOneWidget,
+    );
+    expect(find.text('Confirm Changes'), findsOneWidget);
   });
 }

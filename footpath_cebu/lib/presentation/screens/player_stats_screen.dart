@@ -208,6 +208,18 @@ class _PlayerStatsContent extends ConsumerWidget {
             )
           else
             _AttributeGrid(catalog: stats.catalog, scores: latest.scores),
+          if (stats.history.length > 1) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Overall trend',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 150,
+              child: _TrendChart(assessments: stats.history),
+            ),
+          ],
           if (latest != null && latest.coachNotes.trim().isNotEmpty) ...[
             const SizedBox(height: 16),
             Card(
@@ -228,24 +240,37 @@ class _PlayerStatsContent extends ConsumerWidget {
           if (stats.history.isEmpty)
             const Text('No compatible Player Stats history yet.')
           else
-            for (final assessment in stats.history)
-              Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: CircleAvatar(child: Text('${assessment.overall}')),
-                  title: Text(_reasonLabel(assessment.reason)),
-                  subtitle: Text(
-                    '${formatFullDate(assessment.createdAt)} · ${assessment.assessedBy ?? 'Coach'}\n${assessment.coachNotes}',
-                  ),
-                  isThreeLine: true,
-                  trailing: Text(assessment.position),
-                ),
+            for (var index = 0; index < stats.history.length; index++)
+              _HistoryCard(
+                assessment: stats.history[index],
+                previous: index + 1 < stats.history.length
+                    ? stats.history[index + 1]
+                    : null,
+                attributes: stats.catalog.attributes,
               ),
           if (stats.legacyHistory.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(
-              '${stats.legacyHistory.length} legacy rating records are kept separately.',
-              style: Theme.of(context).textTheme.bodySmall,
+            Card(
+              margin: EdgeInsets.zero,
+              child: ExpansionTile(
+                title: const Text('Legacy Stats History'),
+                subtitle: const Text('Read-only FIFA-style ratings'),
+                children: [
+                  for (final record in stats.legacyHistory)
+                    ListTile(
+                      leading: CircleAvatar(child: Text('${record.overall}')),
+                      title: Text(
+                        '${record.position} · ${_reasonLabel(record.reason)}',
+                      ),
+                      subtitle: Text(
+                        '${formatFullDate(record.createdAt)} · ${record.assessedByRole ?? 'Coach'}\n'
+                        '${record.ratings.entries.map((entry) => '${entry.key}: ${entry.value}').join(' · ')}\n'
+                        '${record.coachNotes}',
+                      ),
+                      isThreeLine: true,
+                    ),
+                ],
+              ),
             ),
           ],
         ],
@@ -278,7 +303,7 @@ class _PlayerStatsAssessmentScreenState
       _scoreKey(attribute): TextEditingController(),
   };
   final _notes = TextEditingController();
-  String _reason = 'GENERAL_REVIEW';
+  String? _reason;
   bool _saving = false;
 
   @override
@@ -356,7 +381,7 @@ class _PlayerStatsAssessmentScreenState
             PlayerStatsDraft(
               catalogVersion: widget.stats.catalog.version,
               scores: values,
-              reason: _reason,
+              reason: _reason!,
               coachNotes: _notes.text.trim(),
             ),
           );
@@ -483,7 +508,9 @@ class _PlayerStatsAssessmentScreenState
               ),
               DropdownMenuItem(value: 'OTHER', child: Text('Other')),
             ],
-            onChanged: (value) => _reason = value!,
+            onChanged: (value) => setState(() => _reason = value),
+            validator: (value) =>
+                value == null ? 'Assessment reason is required.' : null,
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -540,6 +567,152 @@ class _PreviewRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({
+    required this.assessment,
+    required this.previous,
+    required this.attributes,
+  });
+
+  final PlayerStatsAssessment assessment;
+  final PlayerStatsAssessment? previous;
+  final List<String> attributes;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final overallDelta = previous == null
+        ? null
+        : assessment.overall - previous!.overall;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(child: Text('${assessment.overall}')),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${assessment.position} · ${assessment.roleGroup}\n'
+                    '${_reasonLabel(assessment.reason)} · ${assessment.assessedBy ?? 'Coach'}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                Text(formatFullDate(assessment.createdAt)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 10,
+              runSpacing: 6,
+              children: [
+                for (final attribute in attributes)
+                  _DeltaText(
+                    label: attribute,
+                    current: assessment.scores[_scoreKey(attribute)] ?? 0,
+                    previous: previous?.scores[_scoreKey(attribute)],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              previous == null
+                  ? 'Overall ${assessment.overall} · Baseline'
+                  : 'Overall ${previous!.overall} → ${assessment.overall} · ${overallDelta == 0 ? 'No change' : '${overallDelta! > 0 ? '+' : ''}$overallDelta'}',
+              style: TextStyle(
+                color: previous == null || overallDelta == 0
+                    ? colors.onSurfaceVariant
+                    : overallDelta! > 0
+                    ? Colors.green
+                    : Colors.red,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (assessment.coachNotes.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(assessment.coachNotes),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeltaText extends StatelessWidget {
+  const _DeltaText({required this.label, required this.current, this.previous});
+  final String label;
+  final int current;
+  final int? previous;
+
+  @override
+  Widget build(BuildContext context) {
+    final delta = previous == null ? null : current - previous!;
+    final color = delta == null || delta == 0
+        ? Theme.of(context).colorScheme.onSurfaceVariant
+        : delta > 0
+        ? Colors.green
+        : Colors.red;
+    return Text(
+      '$label ${previous == null ? current : '$previous → $current'}'
+      '${delta == null
+          ? ' · Baseline'
+          : delta == 0
+          ? ' · 0'
+          : ' · ${delta > 0 ? '+' : ''}$delta'}',
+      style: TextStyle(color: color),
+    );
+  }
+}
+
+class _TrendChart extends StatelessWidget {
+  const _TrendChart({required this.assessments});
+  final List<PlayerStatsAssessment> assessments;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: CustomPaint(
+      painter: _TrendPainter(
+        assessments.map((value) => value.overall).toList(),
+      ),
+      child: const SizedBox.expand(),
+    ),
+  );
+}
+
+class _TrendPainter extends CustomPainter {
+  _TrendPainter(this.values);
+  final List<int> values;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2) return;
+    final paint = Paint()
+      ..color = Colors.green
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+    final path = Path();
+    for (var index = 0; index < values.length; index++) {
+      final x = size.width * index / (values.length - 1);
+      final y = size.height - (values[index] / 99) * size.height;
+      index == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TrendPainter oldDelegate) =>
+      oldDelegate.values != values;
 }
 
 class _StatsHeader extends StatelessWidget {

@@ -197,6 +197,30 @@ class TrainingSessionCard extends StatelessWidget {
                       label: showPlayerDetails ? 'Where' : null,
                       text: session.location,
                     ),
+                    if (session.sessionObjectives.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _DetailRow(
+                        icon: Icons.flag_outlined,
+                        label: 'Objectives',
+                        text: session.sessionObjectives,
+                      ),
+                    ],
+                    if (session.equipmentRequirements.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _DetailRow(
+                        icon: Icons.sports_soccer_outlined,
+                        label: 'Equipment',
+                        text: session.equipmentRequirements,
+                      ),
+                    ],
+                    if (session.coachInstructions.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _DetailRow(
+                        icon: Icons.notes_outlined,
+                        label: 'Coach instructions',
+                        text: session.coachInstructions,
+                      ),
+                    ],
                     if (showPlayerDetails) ...[
                       const SizedBox(height: 6),
                       _DetailRow(

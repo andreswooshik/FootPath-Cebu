@@ -14,6 +14,20 @@ final trainingSessionsProvider =
       (ref) => ref.watch(getTrainingSessionsProvider)(),
     );
 
+final eligiblePlayerCountProvider = FutureProvider.autoDispose
+    .family<int, String>((ref, tierKey) async {
+      final selected = tierKey
+          .split('|')
+          .where((value) => value.isNotEmpty)
+          .map(AgeTierInfo.fromWire)
+          .toSet();
+      if (selected.isEmpty) return 0;
+      final players = await ref.watch(getSquadProvider)();
+      return players
+          .where((player) => selected.contains(player.ageTier))
+          .length;
+    });
+
 /// One shared local instant for schedule classification. It is invalidated at
 /// the next session-end boundary so an open screen moves the card without a
 /// manual refresh. Tests override it to make boundary behavior deterministic.

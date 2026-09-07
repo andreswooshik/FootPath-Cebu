@@ -680,15 +680,20 @@ class PlayerStatsView(APIView):
 
     def _payload(self, profile):
         group, attributes = catalog_for(profile.position)
-        compatible = PlayerStatsAssessment.objects.select_related('assessed_by').filter(
+        compatible = list(PlayerStatsAssessment.objects.select_related('assessed_by').filter(
             player=profile.user, role_group=group, catalog_version=1,
+        ))
+        latest = compatible[0] if compatible else None
+        comparison = (
+            self._comparison(compatible[1], compatible[0].scores)
+            if len(compatible) >= 2
+            else self._comparison(None, None)
         )
-        latest = compatible.first()
         legacy = PlayerAssessmentSnapshot.objects.select_related('assessed_by').filter(player=profile.user)
         return {
             'catalog': {'version': 1, 'position': profile.position, 'roleGroup': group, 'attributes': attributes},
             'latestCompatibleStats': PlayerStatsAssessmentSerializer(latest).data if latest else None,
-            'comparison': self._comparison(latest, None),
+            'comparison': comparison,
             'history': PlayerStatsAssessmentSerializer(compatible, many=True).data,
             'legacyStatsHistory': PlayerAssessmentSnapshotSerializer(legacy, many=True).data,
             'isBaseline': latest is None,

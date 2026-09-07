@@ -328,6 +328,12 @@ class PlayerStatsAssessmentWriteSerializer(serializers.Serializer):
     coachNotes = serializers.CharField(min_length=1, max_length=4000)
 
     def validate(self, attrs):
+        attrs['reason'] = attrs['reason'].strip()
+        attrs['coachNotes'] = attrs['coachNotes'].strip()
+        if not attrs['reason']:
+            raise serializers.ValidationError({'reason': 'Choose an assessment reason.'})
+        if not attrs['coachNotes']:
+            raise serializers.ValidationError({'coachNotes': 'Coach notes are required.'})
         profile = self.context['profile']
         try:
             catalog_for(profile.position, attrs['catalogVersion'])
@@ -1004,9 +1010,9 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
     additionalFocuses = serializers.ListField(
         source='additional_focuses', child=serializers.CharField(), required=False,
     )
-    sessionObjectives = serializers.CharField(source='session_objectives', required=False, allow_blank=True)
-    equipmentRequirements = serializers.CharField(source='equipment_requirements', required=False, allow_blank=True)
-    coachInstructions = serializers.CharField(source='coach_instructions', required=False, allow_blank=True)
+    sessionObjectives = serializers.CharField(source='session_objectives', required=False, allow_blank=True, max_length=2000)
+    equipmentRequirements = serializers.CharField(source='equipment_requirements', required=False, allow_blank=True, max_length=2000)
+    coachInstructions = serializers.CharField(source='coach_instructions', required=False, allow_blank=True, max_length=2000)
     eligiblePlayerCount = serializers.SerializerMethodField()
 
     class Meta:
