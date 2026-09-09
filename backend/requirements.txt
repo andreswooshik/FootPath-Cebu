@@ -5,7 +5,7 @@ djangorestframework~=3.16
 firebase-admin>=7.5.0,<8
 django-cors-headers~=4.7
 # Brute-force / credential-stuffing lockout for the session logins.
-django-axes~=8.0
+django-axes~=8.3
 # Argon2id password hashing for the session-authenticated portal accounts.
 argon2-cffi~=25.1
 python-dotenv~=1.1
