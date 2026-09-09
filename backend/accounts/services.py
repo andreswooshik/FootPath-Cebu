@@ -63,6 +63,23 @@ def link_or_create_firebase_user(user, *, password=None):
     return temp_password
 
 
+def set_firebase_password(user, *, password):
+    """Set a Firebase-only user's credential from the Django admin.
+
+    App users must never acquire an independent Django password: their local
+    row is an authorization/profile record keyed by ``firebase_uid`` and the
+    Firebase credential is the only login credential.  Keeping the local
+    password unusable also removes any accidental legacy Django password.
+    """
+    if not user.firebase_uid:
+        raise ProvisioningError('This account is not linked to Firebase.')
+
+    ensure_initialized()
+    firebase_auth.update_user(user.firebase_uid, password=password)
+    user.set_unusable_password()
+    user.save(update_fields=['password'])
+
+
 def enable_coordinator_mobile_access(user, *, password):
     """Link a Coordinator to Firebase without changing their Django password.
 

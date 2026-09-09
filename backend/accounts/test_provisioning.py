@@ -28,6 +28,7 @@ from .services import (
     ProvisioningError,
     link_or_create_firebase_user,
     provision_user,
+    set_firebase_password,
 )
 
 
@@ -96,6 +97,30 @@ class LinkOrCreateFirebaseUserTests(TestCase):
         user = User(username='noemail', email='', role=Roles.PLAYER)
         with self.assertRaises(ProvisioningError):
             link_or_create_firebase_user(user)
+
+
+class FirebasePasswordResetTests(TestCase):
+    @patch('accounts.services.ensure_initialized')
+    @patch('accounts.services.firebase_auth.update_user')
+    def test_sets_firebase_password_and_keeps_local_password_unusable(
+        self, update_user, initialize,
+    ):
+        user = User.objects.create_user(
+            username='firebase@x.test',
+            email='firebase@x.test',
+            password='OldDjangoPass123!',
+            role=Roles.COACH,
+            firebase_uid='firebase-password-uid',
+        )
+
+        set_firebase_password(user, password='NewFirebasePass123!')
+
+        update_user.assert_called_once_with(
+            'firebase-password-uid', password='NewFirebasePass123!'
+        )
+        initialize.assert_called_once()
+        user.refresh_from_db()
+        self.assertFalse(user.has_usable_password())
 
 
 class ProvisionUserTests(TestCase):
@@ -276,6 +301,63 @@ class AdminAutoSyncTests(TestCase):
         obj.refresh_from_db()
         self.assertIsNone(obj.firebase_uid)
         mock_create.assert_not_called()
+
+    @patch('accounts.admin.set_firebase_password')
+    def test_admin_password_action_updates_firebase_only_user(self, reset_password):
+        admin_user = User.objects.create_superuser(
+            username='admin@x.test',
+            email='admin@x.test',
+            password='AdminPass123!',
+        )
+        app_user = User.objects.create(
+            username='coach@x.test',
+            email='coach@x.test',
+            role=Roles.COACH,
+            club=self.club,
+            firebase_uid='coach-firebase-uid',
+        )
+        app_user.set_unusable_password()
+        app_user.save(update_fields=['password'])
+        self.client.force_login(admin_user)
+
+        response = self.client.post(
+            reverse('admin:auth_user_password_change', args=(app_user.pk,)),
+            {
+                'password1': 'NewFirebasePass123!',
+                'password2': 'NewFirebasePass123!',
+            },
+        )
+
+        self.assertRedirects(
+            response, reverse('admin:accounts_user_change', args=(app_user.pk,))
+        )
+        reset_password.assert_called_once_with(
+            app_user, password='NewFirebasePass123!'
+        )
+
+    def test_admin_user_detail_labels_firebase_only_password(self):
+        admin_user = User.objects.create_superuser(
+            username='admin@x.test',
+            email='admin@x.test',
+            password='AdminPass123!',
+        )
+        app_user = User.objects.create(
+            username='guardian@x.test',
+            email='guardian@x.test',
+            role=Roles.GUARDIAN,
+            club=self.club,
+            firebase_uid='guardian-firebase-uid',
+        )
+        app_user.set_unusable_password()
+        app_user.save(update_fields=['password'])
+        self.client.force_login(admin_user)
+
+        response = self.client.get(
+            reverse('admin:accounts_user_change', args=(app_user.pk,))
+        )
+
+        self.assertContains(response, 'Password is managed by Firebase Authentication.')
+        self.assertContains(response, 'Set Firebase password')
 
 
 class ConsoleProvisioningApiTests(APITestCase):

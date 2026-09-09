@@ -2,8 +2,15 @@ import json
 
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin.options import IS_POPUP_VAR
+from django.contrib.admin.utils import unquote
 from django.contrib.auth.admin import UserAdmin
-from django.contrib.auth.forms import UserChangeForm, UserCreationForm
+from django.contrib.auth.forms import (
+    AdminPasswordChangeForm,
+    ReadOnlyPasswordHashWidget,
+    UserChangeForm,
+    UserCreationForm,
+)
 from django.contrib.auth.models import Group
 from django.contrib.auth.password_validation import (
     get_default_password_validators,
@@ -12,15 +19,17 @@ from django.contrib.auth.password_validation import (
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import Q
-from django.http import HttpResponseNotAllowed, HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponseNotAllowed, HttpResponseRedirect, JsonResponse
+from django.template.response import TemplateResponse
 from django.urls import path, reverse
-from django.utils.html import format_html
+from django.utils.html import escape, format_html
 
 from .models import Club, GuardianLink, Roles, User
 from .services import (
     link_or_create_firebase_user,
     provision_club_coordinator,
     set_coordinator_mobile_disabled,
+    set_firebase_password,
 )
 
 # This project authorizes by the custom User.role field (see accounts.permissions),
@@ -43,6 +52,15 @@ _PILL = (
     'display:inline-block;padding:2px 10px;border-radius:999px;'
     'font-size:11px;font-weight:600;letter-spacing:.02em;{extra}'
 )
+
+
+def uses_firebase_only_password(user):
+    """Whether an account's sole password credential lives in Firebase."""
+    return bool(user.firebase_uid) and (
+        not user.is_staff
+        and not user.is_superuser
+        and user.role not in (Roles.COORDINATOR, Roles.SCHOOL_STAFF)
+    )
 
 
 class BulkActionLabelMixin:
@@ -91,9 +109,41 @@ class FootPathUserCreationForm(FootPathUserValidationMixin, UserCreationForm):
         fields = ('username', 'email', 'role', 'club')
 
 
+class FirebasePasswordHashWidget(ReadOnlyPasswordHashWidget):
+    """Describe Firebase credentials accurately in the Django admin detail UI."""
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context['summary'] = [
+            {'label': 'Password is managed by Firebase Authentication.'}
+        ]
+        context['button_label'] = 'Set Firebase password'
+        return context
+
+
 class FootPathUserChangeForm(FootPathUserValidationMixin, UserChangeForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if uses_firebase_only_password(self.instance):
+            self.fields['password'].widget = FirebasePasswordHashWidget()
+
     class Meta(UserChangeForm.Meta):
         model = User
+
+
+class FirebaseAdminPasswordChangeForm(AdminPasswordChangeForm):
+    """Password form whose labels make the identity provider unambiguous."""
+
+    def __init__(self, user, *args, **kwargs):
+        super().__init__(user, *args, **kwargs)
+        # Firebase-only users must always set a Firebase password here. The
+        # Django-only "disable password authentication" switch is irrelevant
+        # and could otherwise result in an empty Firebase password update.
+        self.fields.pop('usable_password', None)
+        self.fields['password1'].required = True
+        self.fields['password2'].required = True
+        self.fields['password1'].label = 'New Firebase password'
+        self.fields['password2'].label = 'Confirm Firebase password'
 
 
 _COORDINATOR_PASSWORD_HELP = format_html(
@@ -238,6 +288,81 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
             'fields': ('username', 'email', 'password1', 'password2', 'role', 'club'),
         }),
     )
+
+    def user_change_password(self, request, id, form_url=''):
+        """Route Firebase-only admin password changes to Firebase Auth.
+
+        ``UserAdmin`` normally saves to the local ``password`` column. For
+        app accounts that would create a second, unusable login credential.
+        Keep Django's normal view for portal/admin accounts and provide an
+        equivalent, explicitly labelled view for Firebase-only accounts.
+        """
+        user = self.get_object(request, unquote(id))
+        if user is None:
+            raise Http404('User does not exist.')
+        if not uses_firebase_only_password(user):
+            return super().user_change_password(request, id, form_url)
+        if not self.has_change_permission(request, user):
+            raise PermissionDenied
+
+        if request.method == 'POST':
+            form = FirebaseAdminPasswordChangeForm(user, request.POST)
+            if form.is_valid():
+                try:
+                    set_firebase_password(
+                        user, password=form.cleaned_data['password1']
+                    )
+                except Exception:
+                    form.add_error(
+                        None,
+                        'The Firebase password could not be updated. No password was changed.',
+                    )
+                else:
+                    change_message = self.construct_change_message(
+                        request, form, None
+                    )
+                    self.log_change(request, user, change_message)
+                    self.message_user(
+                        request,
+                        'Firebase password updated successfully.',
+                        level=messages.SUCCESS,
+                    )
+                    return HttpResponseRedirect(
+                        reverse(
+                            f'{self.admin_site.name}:{user._meta.app_label}_'
+                            f'{user._meta.model_name}_change',
+                            args=(user.pk,),
+                        )
+                    )
+        else:
+            form = FirebaseAdminPasswordChangeForm(user)
+
+        fieldsets = [(None, {'fields': list(form.fields)})]
+        context = {
+            'title': f'Set Firebase password: {escape(user.get_username())}',
+            'adminForm': admin.helpers.AdminForm(form, fieldsets, {}),
+            'form_url': form_url,
+            'form': form,
+            'is_popup': IS_POPUP_VAR in request.POST or IS_POPUP_VAR in request.GET,
+            'is_popup_var': IS_POPUP_VAR,
+            'add': True,
+            'change': False,
+            'has_delete_permission': False,
+            'has_change_permission': True,
+            'has_absolute_url': False,
+            'opts': self.opts,
+            'original': user,
+            'save_as': False,
+            'show_save': True,
+            **self.admin_site.each_context(request),
+        }
+        request.current_app = self.admin_site.name
+        return TemplateResponse(
+            request,
+            self.change_user_password_template
+            or 'admin/auth/user/change_password.html',
+            context,
+        )
 
     @admin.action(description='Approve selected coordinators (activate login)')
     def approve_coordinators(self, request, queryset):

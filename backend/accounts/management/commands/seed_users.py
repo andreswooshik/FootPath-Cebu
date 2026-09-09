@@ -15,23 +15,47 @@ DEMO_CLUB_SLUG = 'footpath-cebu-demo'
 
 class Command(BaseCommand):
     help = (
-        'Create Firebase + local dev users for all five roles. Idempotent: '
-        'safe to rerun. This mirrors how Admin provisioning will work.'
+        'Create panel-demo users for all six roles. Mobile users are synced '
+        'to Firebase; web users receive Django passwords. Idempotent and safe '
+        'to rerun for the dedicated @footpathcebu.test accounts.'
     )
 
     SEEDS = [
-        ('admin@footpathcebu.test', Roles.ADMIN),
-        ('coach@footpathcebu.test', Roles.COACH),
-        ('player@footpathcebu.test', Roles.PLAYER),
-        ('staff@footpathcebu.test', Roles.SCHOOL_STAFF),
-        ('guardian@footpathcebu.test', Roles.GUARDIAN),
+        # email, role, first name, last name, Firebase login, Django login
+        ('admin@footpathcebu.test', Roles.ADMIN, 'Demo', 'Admin', False, True),
+        (
+            'coordinator@footpathcebu.test',
+            Roles.COORDINATOR,
+            'Demo',
+            'Coordinator',
+            True,
+            True,
+        ),
+        ('coach@footpathcebu.test', Roles.COACH, 'Demo', 'Coach', True, False),
+        ('player@footpathcebu.test', Roles.PLAYER, 'Demo', 'Player', True, False),
+        (
+            'staff@footpathcebu.test',
+            Roles.SCHOOL_STAFF,
+            'Demo',
+            'School Staff',
+            False,
+            True,
+        ),
+        (
+            'guardian@footpathcebu.test',
+            Roles.GUARDIAN,
+            'Demo',
+            'Guardian',
+            True,
+            False,
+        ),
     ]
 
     def add_arguments(self, parser):
         parser.add_argument(
             '--password',
             default='FootPath!2026',
-            help='Password for all seeded Firebase users (min 6 chars).',
+            help='Shared demo password for all seeded accounts.',
         )
 
     @transaction.atomic
@@ -54,31 +78,58 @@ class Command(BaseCommand):
         if club_changes:
             demo_club.save(update_fields=club_changes)
 
-        for email, role in self.SEEDS:
-            try:
-                fb_user = firebase_auth.create_user(
-                    email=email, password=options['password']
-                )
-                self.stdout.write(f'Created Firebase user {email}')
-            except firebase_auth.EmailAlreadyExistsError:
-                fb_user = firebase_auth.get_user_by_email(email)
-                self.stdout.write(f'Firebase user {email} already exists')
+        password = options['password']
+        for (
+            email,
+            role,
+            first_name,
+            last_name,
+            firebase_login,
+            django_login,
+        ) in self.SEEDS:
+            firebase_uid = None
+            if firebase_login:
+                try:
+                    fb_user = firebase_auth.create_user(
+                        email=email,
+                        password=password,
+                        disabled=False,
+                    )
+                    self.stdout.write(f'Created Firebase user {email}')
+                except firebase_auth.EmailAlreadyExistsError:
+                    fb_user = firebase_auth.get_user_by_email(email)
+                    firebase_auth.update_user(
+                        fb_user.uid,
+                        password=password,
+                        disabled=False,
+                    )
+                    self.stdout.write(f'Reset existing Firebase demo user {email}')
+                firebase_uid = fb_user.uid
 
-            user, created = User.objects.update_or_create(
-                firebase_uid=fb_user.uid,
-                defaults={
-                    'username': email,
-                    'email': email,
-                    'role': role,
-                    'club': None if role == Roles.ADMIN else demo_club,
-                },
-            )
-            if created:
-                # API users authenticate via Firebase only — no local password.
+            user = User.objects.filter(email__iexact=email).first()
+            if user is None and firebase_uid:
+                user = User.objects.filter(firebase_uid=firebase_uid).first()
+            created = user is None
+            if user is None:
+                user = User(username=email)
+
+            user.username = email
+            user.email = email
+            user.first_name = first_name
+            user.last_name = last_name
+            user.role = role
+            user.club = None if role == Roles.ADMIN else demo_club
+            user.firebase_uid = firebase_uid
+            user.is_active = True
+            user.is_staff = role == Roles.ADMIN
+            user.is_superuser = role == Roles.ADMIN
+            if django_login:
+                user.set_password(password)
+            else:
                 user.set_unusable_password()
-                user.save()
+            user.save()
             if role == Roles.PLAYER:
-                birth_date = date(date.today().year - 15, 1, 1)
+                birth_date = date(date.today().year - 14, 1, 1)
                 age, tier = AgeTierSetting.profile_defaults_for(birth_date)
                 PlayerProfile.objects.get_or_create(
                     user=user,
@@ -94,3 +145,10 @@ class Command(BaseCommand):
                     f'{email} as {role}'
                 )
             )
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                'Panel demo accounts are ready. All six use the password '
+                f'{password!r}.'
+            )
+        )

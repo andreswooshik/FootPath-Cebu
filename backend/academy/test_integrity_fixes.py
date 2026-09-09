@@ -16,10 +16,14 @@ from .models import (
     Attendance,
     AttendanceStatus,
     FootballMatch,
+    FixtureStatus,
     PlayerMatchPerformance,
     PlayerProfile,
     SessionFocus,
     TrainingSession,
+    TournamentFixture,
+    TournamentSchedule,
+    TournamentSquadStatus,
 )
 from .serializers import TrainingSessionSerializer
 from .views import _in_same_club
@@ -99,6 +103,51 @@ class SeedCommandPlayerInvariantTests(TestCase):
             PlayerMatchPerformance.objects.filter(player=login_player).count(),
             2,
         )
+
+    @patch('accounts.management.commands.seed_users.ensure_initialized')
+    @patch('accounts.management.commands.seed_users.firebase_auth.create_user')
+    def test_panel_seed_creates_six_roles_and_tournament_handoff(
+        self, create_firebase_user, _ensure_initialized,
+    ):
+        create_firebase_user.side_effect = lambda **kwargs: SimpleNamespace(
+            uid=f'uid-{kwargs["email"]}'
+        )
+        call_command('seed_users', verbosity=0)
+        call_command('seed_academy', verbosity=0)
+
+        self.assertEqual(
+            set(User.objects.filter(email__endswith='@footpathcebu.test').values_list(
+                'role', flat=True
+            )),
+            set(Roles.values),
+        )
+        for email in (
+            'admin@footpathcebu.test',
+            'coordinator@footpathcebu.test',
+            'staff@footpathcebu.test',
+        ):
+            self.assertTrue(User.objects.get(email=email).has_usable_password())
+        for email in (
+            'coach@footpathcebu.test',
+            'player@footpathcebu.test',
+            'guardian@footpathcebu.test',
+        ):
+            user = User.objects.get(email=email)
+            self.assertFalse(user.has_usable_password())
+            self.assertTrue(user.firebase_uid)
+        schedule = TournamentSchedule.objects.get(
+            title='Rising Star Cup — Boys U14'
+        )
+        self.assertTrue(schedule.is_published)
+        self.assertEqual(schedule.age_brackets.get().squad.status,
+                         TournamentSquadStatus.PUBLISHED)
+        self.assertTrue(schedule.fixtures.filter(
+            status=FixtureStatus.COMPLETED,
+            completed_match__performances__coach_rating__isnull=True,
+        ).exists())
+        self.assertTrue(schedule.fixtures.filter(
+            stage='Semifinal', opponent='TBD', status=FixtureStatus.SCHEDULED,
+        ).exists())
 
 
 class SquadProgressScopeTests(APITestCase):

@@ -163,13 +163,18 @@ class _AssessmentFace extends StatelessWidget {
           w: 380,
           h: 28,
           child: Center(
-            child: Text(
-              'ASSESSMENT DOMAINS · 1–5',
-              style: TextStyle(
-                color: PlayerCard._gold,
-                fontWeight: FontWeight.w800,
-                fontSize: 15 * scale,
-                letterSpacing: 1.2 * scale,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                'ASSESSMENT DOMAINS · 1–5',
+                maxLines: 1,
+                style: TextStyle(
+                  color: PlayerCard._gold,
+                  fontWeight: FontWeight.w800,
+                  fontSize: _cardFont(scale, 15, minimum: 11),
+                  letterSpacing: math.max(1.2 * scale, 0.6),
+                  height: 1,
+                ),
               ),
             ),
           ),
@@ -192,13 +197,20 @@ class _AssessmentFace extends StatelessWidget {
           w: 376,
           h: 30,
           child: Center(
-            child: Text(
-              assessment == null ? 'AWAITING ASSESSMENT' : '5 DOMAINS ASSESSED',
-              style: TextStyle(
-                color: Colors.white70,
-                fontWeight: FontWeight.w700,
-                fontSize: 14 * scale,
-                letterSpacing: 0.8 * scale,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                assessment == null
+                    ? 'AWAITING ASSESSMENT'
+                    : '5 DOMAINS ASSESSED',
+                maxLines: 1,
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w700,
+                  fontSize: _cardFont(scale, 14, minimum: 10),
+                  letterSpacing: math.max(0.8 * scale, 0.4),
+                  height: 1,
+                ),
               ),
             ),
           ),
@@ -250,15 +262,20 @@ class _LegacyAttributesFace extends StatelessWidget {
           w: 416,
           h: 28,
           child: Center(
-            child: Text(
-              goalkeeper
-                  ? 'GOALKEEPER ATTRIBUTES · 0–99'
-                  : 'OUTFIELD ATTRIBUTES · 0–99',
-              style: TextStyle(
-                color: PlayerCard._gold,
-                fontWeight: FontWeight.w800,
-                fontSize: 15 * scale,
-                letterSpacing: 1.1 * scale,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                goalkeeper
+                    ? 'GOALKEEPER ATTRIBUTES · 0–99'
+                    : 'OUTFIELD ATTRIBUTES · 0–99',
+                maxLines: 1,
+                style: TextStyle(
+                  color: PlayerCard._gold,
+                  fontWeight: FontWeight.w800,
+                  fontSize: _cardFont(scale, 15, minimum: 11),
+                  letterSpacing: math.max(1.1 * scale, 0.6),
+                  height: 1,
+                ),
               ),
             ),
           ),
@@ -288,8 +305,9 @@ class _LegacyAttributesFace extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.white70,
                   fontWeight: FontWeight.w700,
-                  fontSize: 14 * scale,
-                  letterSpacing: 0.8 * scale,
+                  fontSize: _cardFont(scale, 14, minimum: 10),
+                  letterSpacing: math.max(0.8 * scale, 0.4),
+                  height: 1,
                 ),
               ),
             ),
@@ -322,8 +340,9 @@ class _LegacyAttributesFace extends StatelessWidget {
                 style: TextStyle(
                   color: PlayerCard._gold,
                   fontWeight: FontWeight.w800,
-                  fontSize: 15 * scale,
-                  letterSpacing: 0.8 * scale,
+                  fontSize: _cardFont(scale, 15, minimum: 11),
+                  letterSpacing: math.max(0.8 * scale, 0.4),
+                  height: 1,
                 ),
               ),
             ),
@@ -375,7 +394,7 @@ class _CardFrame extends StatelessWidget {
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w900,
-                fontSize: 50 * scale,
+                fontSize: _cardFont(scale, 50, minimum: 24),
                 height: 1,
               ),
             ),
@@ -397,8 +416,8 @@ class _CardFrame extends StatelessWidget {
               style: TextStyle(
                 color: PlayerCard._bannerInk,
                 fontWeight: FontWeight.w900,
-                fontSize: 26 * scale,
-                letterSpacing: 1,
+                fontSize: _cardFont(scale, 26, minimum: 15),
+                letterSpacing: math.max(scale, 0.5),
               ),
             ),
           ),
@@ -423,6 +442,12 @@ Widget _place(
   height: h * scale,
   child: child,
 );
+
+/// Preserve legibility when the 600px design canvas is rendered as a
+/// 240–300px card on a phone. FittedBox still scales unusually long content
+/// down, while ordinary labels never collapse into 6–9px text.
+double _cardFont(double scale, double designSize, {required double minimum}) =>
+    math.max(designSize * scale, minimum);
 
 class _Photo extends StatelessWidget {
   const _Photo({required this.photoUrl});
@@ -526,7 +551,7 @@ class _DomainColumn extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
-                  fontSize: 28 * scale,
+                  fontSize: _cardFont(scale, 28, minimum: 15),
                 ),
               ),
               SizedBox(width: 7 * scale),
@@ -535,7 +560,7 @@ class _DomainColumn extends StatelessWidget {
                 style: TextStyle(
                   color: PlayerCard._gold,
                   fontWeight: FontWeight.w800,
-                  fontSize: 18 * scale,
+                  fontSize: _cardFont(scale, 18, minimum: 11),
                 ),
               ),
             ],
@@ -619,7 +644,7 @@ class _LegacyAttributeColumn extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w900,
-                  fontSize: 28 * scale,
+                  fontSize: _cardFont(scale, 28, minimum: 15),
                 ),
               ),
               SizedBox(width: 7 * scale),
@@ -628,7 +653,7 @@ class _LegacyAttributeColumn extends StatelessWidget {
                 style: TextStyle(
                   color: PlayerCard._gold,
                   fontWeight: FontWeight.w800,
-                  fontSize: 18 * scale,
+                  fontSize: _cardFont(scale, 18, minimum: 11),
                 ),
               ),
             ],
@@ -678,14 +703,14 @@ class _EligibilityBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16 * scale, color: color),
+          Icon(icon, size: math.max(16 * scale, 14), color: color),
           SizedBox(width: 6 * scale),
           Text(
             status.label,
             style: TextStyle(
               color: color,
               fontWeight: FontWeight.w700,
-              fontSize: 15 * scale,
+              fontSize: _cardFont(scale, 15, minimum: 11),
             ),
           ),
         ],
