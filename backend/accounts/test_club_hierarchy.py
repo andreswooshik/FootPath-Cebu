@@ -231,7 +231,7 @@ class ApprovedClubHierarchyTests(APITestCase):
         player, _ = self._profile(email='player12@footpath.test', club=self.school)
         self.client.force_login(self.school_coordinator)
         response = self.client.post(reverse('portal:guardians'), {
-            'guardian': guardian.id, 'player': player.id,
+            'guardian': guardian.id, 'players': [player.id],
         })
         self.assertEqual(response.status_code, 302)
         self.assertTrue(GuardianLink.objects.filter(
