@@ -25,6 +25,7 @@ services:
       DB_PORT: "5432"
       DB_SSLMODE: disable
       REDIS_URL: redis://redis:6379/0
+      TRUSTED_PROXY_COUNT: ${TRUSTED_PROXY_COUNT:-1}
       FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-secrets/firebase-service-account.json}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
@@ -42,7 +43,7 @@ services:
       - media_data:/app/media
 
   db:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_NAME:-footpath}
@@ -57,7 +58,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:

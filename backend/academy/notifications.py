@@ -10,6 +10,7 @@ import logging
 from firebase_admin import messaging
 
 from accounts.firebase import ensure_initialized
+from accounts.guardian_access import valid_guardian_links
 from accounts.models import GuardianLink, Roles, User
 
 from .models import DeviceToken, NotificationRecord, PlayerProfile
@@ -30,7 +31,7 @@ def _recipients_for_session(session):
         ).values_list('user_id', flat=True)
     )
     guardian_ids = set(
-        GuardianLink.objects.filter(player_id__in=player_ids)
+        valid_guardian_links().filter(player_id__in=player_ids)
         .values_list('guardian_id', flat=True)
     )
     return player_ids | guardian_ids
@@ -39,7 +40,7 @@ def _recipients_for_session(session):
 def _player_and_guardian_ids(player_id):
     """The player plus every guardian linked to them."""
     guardian_ids = set(
-        GuardianLink.objects.filter(player_id=player_id)
+        valid_guardian_links(player_id=player_id)
         .values_list('guardian_id', flat=True)
     )
     return {player_id} | guardian_ids
@@ -163,7 +164,7 @@ def notify_tournament_training_cancelled(session, fixture, user_ids=None):
 def notify_tournament_roster_published(squad):
     player_ids = set(squad.entries.values_list('player_id', flat=True))
     guardian_ids = set(
-        GuardianLink.objects.filter(player_id__in=player_ids)
+        valid_guardian_links().filter(player_id__in=player_ids)
         .values_list('guardian_id', flat=True)
     )
     return _send_to_users(

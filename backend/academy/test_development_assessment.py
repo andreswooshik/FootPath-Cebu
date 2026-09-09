@@ -241,7 +241,7 @@ class DevelopmentAssessmentApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
 
     @patch(
-        'academy.views.PlayerDevelopmentAssessment.from_profile',
+        'academy.view_players.PlayerDevelopmentAssessment.from_profile',
         side_effect=RuntimeError('development snapshot failed'),
     )
     def test_snapshot_failure_rolls_back_current_framework_state(self, _write):

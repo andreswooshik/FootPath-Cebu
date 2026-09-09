@@ -11,15 +11,33 @@ Memcached) for the counter to hold across workers. Disabled under the test
 suite via `RATELIMIT_ENABLE` so unrelated tests that post repeatedly are not
 throttled.
 """
+from ipaddress import ip_address
+
 from django.conf import settings
 from django.core.cache import cache
 
 
 def _client_ip(request):
-    # REMOTE_ADDR is the immediate peer — behind a reverse proxy that is the
-    # proxy, so terminate the proxy such that it forwards the real client IP
-    # (the same consideration axes documents via AXES_IPWARE_PROXY_COUNT).
-    return request.META.get('REMOTE_ADDR', '') or 'unknown'
+    # Trust forwarding headers only when operators declare the exact proxy
+    # depth. Otherwise a client could spoof X-Forwarded-For to evade limits.
+    remote = request.META.get('REMOTE_ADDR', '') or ''
+    try:
+        remote = str(ip_address(remote))
+    except ValueError:
+        return 'unknown'
+    trusted_count = getattr(settings, 'TRUSTED_PROXY_COUNT', 0)
+    if trusted_count <= 0:
+        return remote
+    forwarded = [part.strip() for part in request.META.get(
+        'HTTP_X_FORWARDED_FOR', ''
+    ).split(',') if part.strip()]
+    chain = forwarded + [remote]
+    if len(chain) <= trusted_count:
+        return remote
+    try:
+        return str(ip_address(chain[-(trusted_count + 1)]))
+    except ValueError:
+        return remote
 
 
 def is_rate_limited(request, *, scope, limit, window_seconds):

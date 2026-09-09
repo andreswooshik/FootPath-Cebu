@@ -9,6 +9,9 @@ django-axes~=8.0
 # Argon2id password hashing for the session-authenticated portal accounts.
 argon2-cffi~=25.1
 python-dotenv~=1.1
+# Full image/PDF decoding and safe re-encoding for untrusted uploads.
+Pillow>=12.1.1,<13
+pypdf>=6.7.1,<7
 # Supabase Storage REST calls (player photo upload + signed URLs).
 httpx~=0.28
 # Postgres driver — used when DB_* points at Supabase/Postgres.

@@ -89,6 +89,7 @@ class SupabaseCoachLicenseStorage(Storage):
         headers = _auth_headers(key)
         headers.update({
             'Content-Type': content_type,
+            'Content-Disposition': 'attachment',
             'x-upsert': 'false',
         })
         try:

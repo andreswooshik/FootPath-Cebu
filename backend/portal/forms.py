@@ -23,6 +23,7 @@ from academy.storage import validate_tournament_document
 from accounts.models import Club, Roles, User
 from accounts.validators import (
     COACH_LICENSE_MAX_BYTES,
+    sanitized_coach_license,
     validate_coach_license_upload,
 )
 
@@ -56,7 +57,7 @@ class CoordinatorSignupForm(forms.Form):
     head_coach_name = forms.CharField(max_length=150, label='Head coach name')
     coach_license = forms.FileField(
         label='Coach license',
-        help_text='JPG, PNG or PDF, max 50 MB.',
+        help_text='JPG, PNG or PDF, max 5 MB.',
         validators=[validate_coach_license_upload],
     )
     cvfa_membership = forms.CharField(
@@ -88,6 +89,9 @@ class CoordinatorSignupForm(forms.Form):
         if User.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError('This email cannot be used.')
         return email
+
+    def clean_coach_license(self):
+        return sanitized_coach_license(self.cleaned_data['coach_license'])
 
     def clean_club_name(self):
         name = self.cleaned_data['club_name'].strip()

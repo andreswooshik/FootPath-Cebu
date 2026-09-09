@@ -4,6 +4,7 @@ from django.contrib.admin.sites import site
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from test_uploads import pdf_bytes
 
 from .admin import ClubAdmin
 from .models import Club, Roles, User
@@ -45,7 +46,7 @@ class CoachLicenseAdminValidationTests(TestCase):
     def test_admin_accepts_a_real_pdf(self):
         upload = SimpleUploadedFile(
             'license.pdf',
-            b'%PDF-1.4 coach license',
+            pdf_bytes(),
             content_type='application/pdf',
         )
 

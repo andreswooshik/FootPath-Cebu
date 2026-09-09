@@ -35,6 +35,8 @@ from academy.schedule_conflicts import (
 from academy.tournament_results import complete_tournament_fixture
 from academy.storage import (
     delete_tournament_document,
+    sanitized_photo_bytes,
+    sanitized_tournament_document_bytes,
     signed_tournament_document_url,
     upload_photo,
     upload_tournament_document,
@@ -437,7 +439,7 @@ def player_photo(request, player_id):
         try:
             content_type = validate_photo_upload(upload)
             path = upload_photo(
-                player_id, upload.read(),
+                player_id, sanitized_photo_bytes(upload, content_type),
                 content_type=content_type,
             )
         except (RuntimeError, ValueError) as exc:
@@ -553,7 +555,9 @@ def tournament_schedules(request):
                     document_path = upload_tournament_document(
                         request.user.club_id,
                         schedule.id,
-                        document.read(),
+                        sanitized_tournament_document_bytes(
+                            document, content_type,
+                        ),
                         content_type,
                     )
                     schedule.document_path = document_path
@@ -690,7 +694,9 @@ def tournament_schedule_detail(request, schedule_id):
                     new_path = upload_tournament_document(
                         request.user.club_id,
                         schedule.id,
-                        document.read(),
+                        sanitized_tournament_document_bytes(
+                            document, content_type,
+                        ),
                         content_type,
                     )
                 except RuntimeError as exc:

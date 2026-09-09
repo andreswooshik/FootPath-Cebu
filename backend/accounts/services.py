@@ -31,14 +31,13 @@ def _require_active_club(club, *, role):
 def link_or_create_firebase_user(user, *, password=None):
     """Ensure `user.email` has a Firebase account and link `user.firebase_uid`.
 
-    Adopts an existing Firebase account for that email if one exists (its
-    password is left untouched); otherwise creates a new one. Also marks the
-    local password unusable, since API/app users authenticate via Firebase
-    only. The caller is responsible for saving `user`.
+    Creates a new Firebase account, or accepts the identity only when the
+    local user is already linked to the exact same UID. An unlinked Firebase
+    account with the requested email is rejected: silently adopting it would
+    let its existing owner take over the newly provisioned local role.
 
-    Returns the temporary password when a NEW Firebase account was created
-    (the given `password`, or a generated one), or None when an existing
-    account was adopted.
+    Returns the temporary password when a new Firebase account was created,
+    or None for an idempotent re-sync of an already linked local account.
     """
     if not user.email:
         raise ProvisioningError(
@@ -57,6 +56,13 @@ def link_or_create_firebase_user(user, *, password=None):
         fb_user = firebase_auth.create_user(
             email=user.email, password=temp_password
         )
+    else:
+        if not user.firebase_uid or user.firebase_uid != fb_user.uid:
+            raise ProvisioningError(
+                'A Firebase identity already exists for this email. Have the '
+                'account owner sign in or resolve the identity conflict before '
+                'assigning an application role.'
+            )
 
     user.firebase_uid = fb_user.uid
     user.set_unusable_password()
@@ -152,10 +158,8 @@ def provision_user(
     For app users (player / coach / guardian) who authenticate via Firebase.
     `club` scopes the account to a tenant (None for cross-club ADMIN accounts).
 
-    Returns (user, temporary_password_or_None, note). The temporary password
-    is only returned when a brand-new Firebase account was created; if an
-    existing, unlinked Firebase account is adopted instead, its password is
-    left untouched and `note` explains that.
+    Returns (user, temporary_password_or_None, note). Unlinked pre-existing
+    Firebase identities are rejected to prevent account pre-hijacking.
     """
     if role == Roles.PLAYER and not _allow_player:
         raise ProvisioningError(
@@ -188,7 +192,7 @@ def provision_user(
     except Exception:
         # Compensation: if we just CREATED the Firebase account, delete it so a
         # DB failure never leaves an orphaned identity (audit checklist item 5).
-        # An adopted, pre-existing account (temp_password is None) is left alone.
+        # An idempotently re-linked account (temp_password is None) is left alone.
         if temp_password is not None and user.firebase_uid:
             try:
                 firebase_auth.delete_user(user.firebase_uid)
@@ -199,7 +203,7 @@ def provision_user(
     note = (
         'New Firebase account created.'
         if temp_password
-        else 'Existing Firebase account linked; its current password was left unchanged.'
+        else 'Existing linked Firebase account verified.'
     )
     return user, temp_password, note
 
