@@ -81,16 +81,32 @@ class LinkOrCreateFirebaseUserTests(TestCase):
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_links_existing_firebase_account_without_creating(
+    def test_rejects_unlinked_existing_firebase_account(
         self, mock_get, mock_create, _init
     ):
         mock_get.return_value = Mock(uid='existing-uid')  # account already there
 
         user = User(username='a@x.test', email='a@x.test', role=Roles.PLAYER)
-        temp = link_or_create_firebase_user(user, password='ignored')
+        with self.assertRaises(ProvisioningError):
+            link_or_create_firebase_user(user, password='ignored')
+        mock_create.assert_not_called()
 
-        self.assertEqual(user.firebase_uid, 'existing-uid')
-        self.assertIsNone(temp)  # existing account -> no new password
+    @patch('accounts.services.ensure_initialized')
+    @patch('accounts.services.firebase_auth.create_user')
+    @patch('accounts.services.firebase_auth.get_user_by_email')
+    def test_accepts_idempotent_resync_of_same_uid(
+        self, mock_get, mock_create, _init
+    ):
+        mock_get.return_value = Mock(uid='existing-uid')
+        user = User(
+            username='a@x.test', email='a@x.test', role=Roles.PLAYER,
+            firebase_uid='existing-uid',
+        )
+
+        temp = link_or_create_firebase_user(user)
+
+        self.assertIsNone(temp)
+        self.assertFalse(user.has_usable_password())
         mock_create.assert_not_called()
 
     def test_requires_an_email(self):
@@ -193,21 +209,20 @@ class ProvisionUserTests(TestCase):
     @patch('accounts.services.firebase_auth.delete_user')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_does_not_delete_adopted_account_when_db_save_fails(
+    def test_rejects_existing_identity_before_database_write(
         self, mock_get, mock_create, mock_delete, _init
     ):
-        # We ADOPT an existing Firebase account; a DB failure must NOT delete it.
         mock_get.return_value = Mock(uid='existing-uid')
 
         with patch.object(User, 'save', side_effect=RuntimeError('db down')):
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(ProvisioningError):
                 provision_user(
                     email='adopt@x.test', first_name='A', last_name='D',
                     role=Roles.COACH, club=self.club,
                 )
 
         mock_create.assert_not_called()
-        mock_delete.assert_not_called()  # never delete an account we didn't make
+        mock_delete.assert_not_called()
 
 
 class AdminAutoSyncTests(TestCase):

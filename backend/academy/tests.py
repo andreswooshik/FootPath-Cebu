@@ -8,11 +8,13 @@ from datetime import date, timedelta
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import Club, GuardianLink, Roles, User
+from test_uploads import jpeg_bytes
 
 from .notifications import _recipients_for_session
 from .player_unlock import issue_player_unlock
@@ -648,7 +650,7 @@ class AuditLogTests(APITestCase):
         self.assertEqual(entry.actor, self.coach)
         self.assertEqual(entry.target, self.player.email)
 
-    @patch('academy.views.notify_session_cancelled')
+    @patch('academy.view_training.notify_session_cancelled')
     def test_session_cancellation_is_audited(self, _mock):
         session = TrainingSession.objects.create(
             title='Doomed', date=date.today(), age_tiers=['DEVELOPMENT'],
@@ -669,6 +671,26 @@ class AuditLogTests(APITestCase):
         entry = AuditLog.objects.get(action='eligibility.changed')
         self.assertEqual(entry.actor, self.coach)
         self.assertIn('ACADEMIC_WARNING', entry.detail)
+
+    def test_entries_are_hash_chained_and_tampering_is_detected(self):
+        first = AuditLog.record(self.coach, 'security.first', target='one')
+        second = AuditLog.record(self.coach, 'security.second', target='two')
+        self.assertEqual(second.previous_hash, first.entry_hash)
+        self.assertEqual(AuditLog.verify_chain(), (True, None))
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'UPDATE academy_auditlog SET detail = %s WHERE id = %s',
+                ['tampered', first.pk],
+            )
+        self.assertEqual(AuditLog.verify_chain(), (False, first.pk))
+
+    def test_normal_update_and_delete_paths_are_blocked(self):
+        entry = AuditLog.record(self.coach, 'security.immutable')
+        with self.assertRaises(TypeError):
+            AuditLog.objects.filter(pk=entry.pk).update(detail='changed')
+        with self.assertRaises(TypeError):
+            AuditLog.objects.filter(pk=entry.pk).delete()
 
 
 class PlayerPrivacyPinTests(APITestCase):
@@ -823,7 +845,7 @@ class TrainingSessionTests(APITestCase):
             'ageTiers': ['DEVELOPMENT', 'PATHWAY'],
         }
 
-    @patch('academy.views.notify_session_scheduled')
+    @patch('academy.view_training.notify_session_scheduled')
     def test_coach_creates_session(self, _mock_notify):
         self.client.force_authenticate(self.coach)
         resp = self.client.post(
@@ -840,7 +862,7 @@ class TrainingSessionTests(APITestCase):
         )
         self.assertEqual(resp.status_code, 403)
 
-    @patch('academy.views.notify_session_updated')
+    @patch('academy.view_training.notify_session_updated')
     def test_coach_edits_a_session(self, mock_notify):
         session = TrainingSession.objects.create(
             title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
@@ -861,7 +883,7 @@ class TrainingSessionTests(APITestCase):
         self.assertEqual(session.location, 'Annex Pitch')
         mock_notify.assert_called_once()
 
-    @patch('academy.views.notify_session_cancelled')
+    @patch('academy.view_training.notify_session_cancelled')
     def test_coach_cancels_a_session_and_attendance_survives(self, mock_notify):
         player = make_player('att@footpathcebu.test')
         session = TrainingSession.objects.create(
@@ -901,7 +923,7 @@ class TrainingSessionTests(APITestCase):
         )
         self.assertEqual(self.client.delete(url).status_code, 403)
 
-    @patch('academy.views.notify_session_updated')
+    @patch('academy.view_training.notify_session_updated')
     def test_coach_cannot_touch_another_clubs_session(self, _mock):
         other_club = Club.objects.create(name='Rival FC', slug='rival-fc')
         session = TrainingSession.objects.create(
@@ -1260,7 +1282,7 @@ class PhotoUploadTests(APITestCase):
     def _upload(self):
         return {
             'photo': SimpleUploadedFile(
-                'player.jpg', b'\xff\xd8\xfffakejpeg', content_type='image/jpeg'
+                'player.jpg', jpeg_bytes(), content_type='image/jpeg'
             )
         }
 
@@ -1270,7 +1292,7 @@ class PhotoUploadTests(APITestCase):
         resp = self.client.post(url, self._upload(), format='multipart')
         self.assertEqual(resp.status_code, 403)
 
-    @patch('academy.views.upload_photo')
+    @patch('academy.view_administration.upload_photo')
     def test_admin_upload_stores_path(self, mock_upload):
         mock_upload.return_value = f'player-photos/{self.player.id}.jpg'
         self.client.force_authenticate(self.admin)
@@ -1597,7 +1619,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         payload.update(overrides)
         return payload
 
-    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
+    @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
     def test_admin_creates_player_with_profile_and_guardian(self, _mock):
         self.client.force_authenticate(self.admin)
         response = self.client.post(
@@ -1619,7 +1641,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         )
         self.assertEqual(response.data['temporary_password'], 'TempPass123')
 
-    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
+    @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
     def test_age_and_tier_derived_from_dob(self, _mock):
         """New players are placed by the configured bands — not left on the
         model defaults (age 0 / DEVELOPMENT) as they were before audit F5.
@@ -1652,7 +1674,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         self.assertEqual(profile.age, 11)
         self.assertEqual(profile.age_tier, AgeTier.PATHWAY)
 
-    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
+    @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
     def test_guardian_is_required(self, _mock):
         self.client.force_authenticate(self.admin)
         response = self.client.post(
@@ -1679,7 +1701,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         )
         self.assertIsNone(response.data['temporary_password'])
 
-    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
+    @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
     def test_missing_required_field_creates_nothing(self, _mock):
         self.client.force_authenticate(self.admin)
         payload = self._payload()
@@ -1692,7 +1714,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         )
         self.assertFalse(PlayerProfile.objects.exists())
 
-    @patch('academy.views.provision_player', side_effect=_fake_provision_player)
+    @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
     def test_blank_name_is_rejected(self, _mock):
         self.client.force_authenticate(self.admin)
         response = self.client.post(
@@ -1899,7 +1921,7 @@ class SessionTenancyTests(APITestCase):
         data = self.client.get(reverse('training-sessions')).data
         self.assertEqual(len(data), 2)
 
-    @patch('academy.views.notify_session_scheduled')
+    @patch('academy.view_training.notify_session_scheduled')
     def test_created_session_is_stamped_with_coach_club(self, _mock_notify):
         self.client.force_authenticate(self.coach_a)
         resp = self.client.post(reverse('training-sessions'), {

@@ -23,6 +23,7 @@ from academy.models import (
 from accounts.admin import ClubAdmin, CustomUserAdmin
 from accounts.models import Club, GuardianLink, Roles, User
 from accounts.services import provision_club_coordinator, provision_web_user
+from test_uploads import jpeg_bytes, pdf_bytes
 
 _PASSWORD = 'Str0ng!passphrase9'
 
@@ -40,7 +41,7 @@ _MEDIA_ROOT = tempfile.mkdtemp()
 def _license_file():
     """A fresh in-memory PDF upload (SimpleUploadedFile is single-read)."""
     return SimpleUploadedFile(
-        'license.pdf', b'%PDF-1.4 test license', content_type='application/pdf'
+        'license.pdf', pdf_bytes(), content_type='application/pdf'
     )
 
 
@@ -137,7 +138,7 @@ class CoordinatorSignupTests(TestCase):
 
     def test_license_rejects_oversize(self):
         # Validate at the form level so the size cap is asserted without
-        # allocating a 50 MB payload — a POST round-trip would recompute size
+        # allocating a 5 MB payload — a POST round-trip would recompute size
         # from the real bytes and ignore an overridden .size.
         from .forms import COACH_LICENSE_MAX_BYTES, CoordinatorSignupForm
         big = SimpleUploadedFile('big.pdf', b'%PDF-1.4', content_type='application/pdf')
@@ -219,6 +220,24 @@ class SignupHardeningTests(TestCase):
         self.assertEqual(
             self.client.post(reverse('portal:signup'), {}).status_code, 429
         )
+
+    @override_settings(TRUSTED_PROXY_COUNT=0)
+    def test_forwarded_for_is_ignored_without_a_trusted_proxy(self):
+        from .ratelimit import _client_ip
+
+        request = self.client.request().wsgi_request
+        request.META['REMOTE_ADDR'] = '192.0.2.10'
+        request.META['HTTP_X_FORWARDED_FOR'] = '198.51.100.9'
+        self.assertEqual(_client_ip(request), '192.0.2.10')
+
+    @override_settings(TRUSTED_PROXY_COUNT=1)
+    def test_configured_proxy_uses_the_rightmost_untrusted_address(self):
+        from .ratelimit import _client_ip
+
+        request = self.client.request().wsgi_request
+        request.META['REMOTE_ADDR'] = '192.0.2.10'
+        request.META['HTTP_X_FORWARDED_FOR'] = '203.0.113.8, 198.51.100.9'
+        self.assertEqual(_client_ip(request), '198.51.100.9')
 
 
 class SchoolStaffGatingTests(TestCase):
@@ -921,7 +940,7 @@ class PlayerPhotoUploadTests(TestCase):
         self.client.force_login(self.coord)
 
     def _photo(self, name='p.jpg', content_type='image/jpeg', size=100):
-        content = b'\xff\xd8\xff' + b'x' * max(0, size - 3)
+        content = jpeg_bytes()
         return SimpleUploadedFile(name, content, content_type=content_type)
 
     @patch('portal.views.upload_photo', return_value='player-photos/1.jpg')

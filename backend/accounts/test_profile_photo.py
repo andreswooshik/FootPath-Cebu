@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from test_uploads import jpeg_bytes
 
 from .admin import ClubAdmin, CustomUserAdmin
 from .models import Club, Roles, User
@@ -45,7 +46,7 @@ class CoachProfilePhotoTests(APITestCase):
     def _photo():
         return SimpleUploadedFile(
             'coach.jpg',
-            b'\xff\xd8\xffcoach-photo',
+            jpeg_bytes(),
             content_type='image/jpeg',
         )
 

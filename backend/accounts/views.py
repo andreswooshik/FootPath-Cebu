@@ -12,6 +12,7 @@ from academy.models import AuditLog
 from academy.storage import (
     delete_photo,
     invalidate_signed_photo_url,
+    sanitized_photo_bytes,
     upload_photo,
     validate_photo_upload,
 )
@@ -51,6 +52,7 @@ class MyProfilePhotoUploadView(APIView):
     """Upload the signed-in Coach's profile photo to private Supabase Storage."""
 
     permission_classes = [IsAuthenticated]
+    throttle_scope = 'uploads'
 
     def post(self, request):
         if request.user.role != Roles.COACH:
@@ -62,7 +64,7 @@ class MyProfilePhotoUploadView(APIView):
             content_type = validate_photo_upload(upload)
             path = upload_photo(
                 request.user.pk,
-                upload.read(),
+                sanitized_photo_bytes(upload, content_type),
                 content_type=content_type,
             )
         except (RuntimeError, ValueError) as exc:
@@ -126,6 +128,7 @@ class AdminUserListCreateView(generics.ListCreateAPIView):
     """
 
     permission_classes = [IsAdmin]
+    throttle_scope = 'account_admin'
     queryset = User.objects.exclude(role=Roles.ADMIN).order_by('email')
 
     def get_serializer_class(self):
@@ -162,6 +165,7 @@ class AdminClubListCreateView(generics.ListCreateAPIView):
     """Super Admin creates and lists the platform's tenant clubs."""
 
     permission_classes = [IsAdmin]
+    throttle_scope = 'account_admin'
     queryset = Club.objects.order_by('name')
     serializer_class = AdminClubSerializer
 
@@ -179,6 +183,7 @@ class AdminClubDetailView(generics.RetrieveUpdateAPIView):
     """Super Admin edits club details/type and its active state."""
 
     permission_classes = [IsAdmin]
+    throttle_scope = 'account_admin'
     queryset = Club.objects.all()
     serializer_class = AdminClubSerializer
 
@@ -210,6 +215,7 @@ class AdminCoordinatorCreateView(APIView):
     """Super Admin assigns the single coordinator for a selected club."""
 
     permission_classes = [IsAdmin]
+    throttle_scope = 'account_admin'
 
     def post(self, request):
         serializer = AdminCoordinatorCreateSerializer(data=request.data)
@@ -244,6 +250,7 @@ class AdminUserDetailView(APIView):
     """
 
     permission_classes = [IsAdmin]
+    throttle_scope = 'account_admin'
 
     def patch(self, request, pk):
         user = get_object_or_404(
@@ -291,6 +298,7 @@ class AdminUserDetailView(APIView):
 
 class AdminGuardianLinkListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
+    throttle_scope = 'account_admin'
     queryset = GuardianLink.objects.select_related('guardian', 'player').order_by(
         '-created_at'
     )
@@ -306,6 +314,7 @@ class AdminGuardianLinkListCreateView(generics.ListCreateAPIView):
 
 class AdminGuardianLinkDestroyView(generics.DestroyAPIView):
     permission_classes = [IsAdmin]
+    throttle_scope = 'account_admin'
     queryset = GuardianLink.objects.all()
 
     def perform_destroy(self, instance):

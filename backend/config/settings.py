@@ -282,6 +282,16 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'accounts.throttling.AuthenticatedUserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'user': os.environ.get('API_USER_RATE', '1200/hour'),
+        'pin': os.environ.get('API_PIN_RATE', '30/hour'),
+        'uploads': os.environ.get('API_UPLOAD_RATE', '20/hour'),
+        'account_admin': os.environ.get('API_ACCOUNT_ADMIN_RATE', '120/hour'),
+    },
 }
 
 # Structured-enough console logs for container aggregation. Request bodies,
@@ -307,6 +317,11 @@ LOGGING = {
         'django.security': {
             'handlers': ['console'],
             'level': 'WARNING',
+            'propagate': False,
+        },
+        'footpath.audit': {
+            'handlers': ['console'],
+            'level': 'INFO',
             'propagate': False,
         },
     },
@@ -352,7 +367,10 @@ AXES_RESET_ON_SUCCESS = True
 # Behind a TLS-terminating proxy in production, tell axes how many proxies sit
 # in front so it reads the real client IP from X-Forwarded-For rather than the
 # proxy's. Left at 0 for local development (no proxy).
-AXES_IPWARE_PROXY_COUNT = int(os.environ.get('AXES_PROXY_COUNT', '0'))
+TRUSTED_PROXY_COUNT = int(os.environ.get('TRUSTED_PROXY_COUNT', '0'))
+if TRUSTED_PROXY_COUNT < 0:
+    raise ImproperlyConfigured('TRUSTED_PROXY_COUNT cannot be negative.')
+AXES_IPWARE_PROXY_COUNT = TRUSTED_PROXY_COUNT
 
 # Cache-backed rate limiting for the public, unauthenticated portal endpoints
 # (portal.ratelimit — audit finding S3). Off during tests so unrelated suites

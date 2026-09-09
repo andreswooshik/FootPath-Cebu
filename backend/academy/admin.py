@@ -26,10 +26,16 @@ class AuditLogAdmin(admin.ModelAdmin):
     add/change/delete from the admin either (same stance as
     EligibilityHistoryAdmin)."""
 
-    list_display = ('created_at', 'action', 'actor', 'target', 'detail')
+    list_display = (
+        'created_at', 'action', 'actor', 'target', 'entry_hash',
+    )
     list_filter = ('action',)
     search_fields = ('target', 'detail', 'actor__email')
     date_hierarchy = 'created_at'
+    readonly_fields = (
+        'actor', 'action', 'target', 'detail', 'created_at',
+        'previous_hash', 'entry_hash',
+    )
 
     def has_add_permission(self, request):
         return False

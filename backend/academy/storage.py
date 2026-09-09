@@ -17,10 +17,17 @@ from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 import httpx
 
+from config.upload_security import (
+    MAX_UPLOAD_BYTES,
+    read_limited_upload,
+    sanitize_document,
+    sanitize_image,
+)
+
 _TIMEOUT = 10.0
-MAX_PHOTO_BYTES = 25 * 1024 * 1024
+MAX_PHOTO_BYTES = MAX_UPLOAD_BYTES
 ALLOWED_PHOTO_TYPES = frozenset({'image/jpeg', 'image/png', 'image/webp'})
-MAX_TOURNAMENT_DOCUMENT_BYTES = 5 * 1024 * 1024
+MAX_TOURNAMENT_DOCUMENT_BYTES = MAX_UPLOAD_BYTES
 ALLOWED_TOURNAMENT_DOCUMENT_TYPES = frozenset({
     'application/pdf', 'image/jpeg', 'image/png',
 })
@@ -58,23 +65,17 @@ def _auth_headers(key):
 
 
 def validate_photo_upload(upload):
-    """Validate size, declared type, and file signature before storage upload."""
+    """Fully decode a photo and reject malformed or disguised content."""
     content_type = (getattr(upload, 'content_type', '') or '').lower()
     if content_type not in ALLOWED_PHOTO_TYPES:
         raise ValueError('Only JPEG, PNG, and WebP photos are allowed.')
-    size = getattr(upload, 'size', None)
-    if size is not None and size > MAX_PHOTO_BYTES:
-        raise ValueError('Photo must be 25 MB or smaller.')
-    header = upload.read(16)
-    upload.seek(0)
-    signatures = {
-        'image/jpeg': header.startswith(b'\xff\xd8\xff'),
-        'image/png': header.startswith(b'\x89PNG\r\n\x1a\n'),
-        'image/webp': header.startswith(b'RIFF') and header[8:12] == b'WEBP',
-    }
-    if not signatures[content_type]:
-        raise ValueError('The uploaded file does not match its image type.')
+    content = read_limited_upload(upload)
+    sanitize_image(content, content_type)
     return content_type
+
+
+def sanitized_photo_bytes(upload, content_type):
+    return sanitize_image(read_limited_upload(upload), content_type)
 
 
 def upload_photo(user_id, content, content_type='image/jpeg'):
@@ -183,23 +184,16 @@ def _tournament_config():
 
 
 def validate_tournament_document(upload):
-    """Validate a tournament PDF/image using both MIME type and signature."""
+    """Fully parse a tournament PDF/image and reject active content."""
     content_type = (getattr(upload, 'content_type', '') or '').lower()
     if content_type not in ALLOWED_TOURNAMENT_DOCUMENT_TYPES:
         raise ValueError('Only PDF, JPEG, and PNG schedules are allowed.')
-    size = getattr(upload, 'size', None)
-    if size is not None and size > MAX_TOURNAMENT_DOCUMENT_BYTES:
-        raise ValueError('Tournament schedule must be 5 MB or smaller.')
-    header = upload.read(16)
-    upload.seek(0)
-    signatures = {
-        'application/pdf': header.startswith(b'%PDF-'),
-        'image/jpeg': header.startswith(b'\xff\xd8\xff'),
-        'image/png': header.startswith(b'\x89PNG\r\n\x1a\n'),
-    }
-    if not signatures[content_type]:
-        raise ValueError('The uploaded schedule does not match its file type.')
+    sanitize_document(read_limited_upload(upload), content_type)
     return content_type
+
+
+def sanitized_tournament_document_bytes(upload, content_type):
+    return sanitize_document(read_limited_upload(upload), content_type)
 
 
 def upload_tournament_document(club_id, schedule_id, content, content_type):
@@ -227,6 +221,7 @@ def upload_tournament_document(club_id, schedule_id, content, content_type):
         headers = _auth_headers(key)
         headers.update({
             'Content-Type': content_type,
+            'Content-Disposition': 'attachment',
             'x-upsert': 'true',
         })
         response = httpx.post(

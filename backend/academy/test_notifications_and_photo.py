@@ -9,12 +9,14 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import Club, Roles, User
+from test_uploads import jpeg_bytes
 
 from .models import DeviceToken, NotificationRecord, PlayerProfile
 from .notifications import _send_to_users
 from .storage import (
     MAX_PHOTO_BYTES,
     signed_photo_url,
+    sanitized_photo_bytes,
     upload_photo,
     validate_photo_upload,
 )
@@ -23,19 +25,28 @@ from .storage import (
 class StoragePhotoValidationTests(TestCase):
     def _photo(self, size):
         upload = SimpleUploadedFile(
-            'player.jpg', b'\xff\xd8\xffphoto', content_type='image/jpeg',
+            'player.jpg', jpeg_bytes(), content_type='image/jpeg',
         )
         upload.size = size
         return upload
 
-    def test_photo_size_limit_is_25_mb(self):
-        self.assertEqual(MAX_PHOTO_BYTES, 25 * 1024 * 1024)
+    def test_photo_size_limit_is_5_mb(self):
+        self.assertEqual(MAX_PHOTO_BYTES, 5 * 1024 * 1024)
         self.assertEqual(
             validate_photo_upload(self._photo(MAX_PHOTO_BYTES)),
             'image/jpeg',
         )
-        with self.assertRaisesMessage(ValueError, '25 MB or smaller'):
+        with self.assertRaisesMessage(ValueError, '5 MB or smaller'):
             validate_photo_upload(self._photo(MAX_PHOTO_BYTES + 1))
+
+    def test_sanitization_strips_trailing_polyglot_bytes(self):
+        payload = jpeg_bytes() + b'<script>unsafe trailing payload</script>'
+        upload = SimpleUploadedFile(
+            'player.jpg', payload, content_type='image/jpeg',
+        )
+        content_type = validate_photo_upload(upload)
+        sanitized = sanitized_photo_bytes(upload, content_type)
+        self.assertNotIn(b'<script>', sanitized)
 
 
 class StorageAuthenticationHeaderTests(TestCase):
@@ -248,10 +259,10 @@ class MobilePlayerPhotoTests(APITestCase):
 
     def _photo(self):
         return SimpleUploadedFile(
-            'player.jpg', b'\xff\xd8\xff' + b'photo', content_type='image/jpeg',
+            'player.jpg', jpeg_bytes(), content_type='image/jpeg',
         )
 
-    @patch('academy.views.upload_photo', return_value='player-photos/player.jpg')
+    @patch('academy.view_administration.upload_photo', return_value='player-photos/player.jpg')
     def test_same_club_coach_uploads_from_mobile_endpoint(self, upload):
         response = self.client.post(
             reverse('player-photo-upload-mobile', args=[self.player.pk]),
@@ -263,7 +274,7 @@ class MobilePlayerPhotoTests(APITestCase):
         self.assertEqual(self.profile.photo_path, 'player-photos/player.jpg')
         upload.assert_called_once()
 
-    @patch('academy.views.upload_photo')
+    @patch('academy.view_administration.upload_photo')
     def test_cross_club_coach_is_rejected_before_storage(self, upload):
         response = self.client.post(
             reverse('player-photo-upload-mobile', args=[self.outsider.pk]),
@@ -274,7 +285,7 @@ class MobilePlayerPhotoTests(APITestCase):
         upload.assert_not_called()
 
     @patch(
-        'academy.views.upload_photo',
+        'academy.view_administration.upload_photo',
         return_value='player-photos/player.jpg',
     )
     def test_player_can_replace_their_own_roster_photo(self, upload):
@@ -289,7 +300,7 @@ class MobilePlayerPhotoTests(APITestCase):
         self.assertEqual(self.profile.photo_path, 'player-photos/player.jpg')
         upload.assert_called_once()
 
-    @patch('academy.views.upload_photo')
+    @patch('academy.view_administration.upload_photo')
     def test_player_cannot_replace_another_players_photo(self, upload):
         self.client.force_authenticate(self.outsider)
         response = self.client.post(

@@ -117,7 +117,7 @@ class AssessmentGrowthTests(APITestCase):
         )
 
     @patch(
-        'academy.views.PlayerAssessmentSnapshot.from_profile',
+        'academy.view_players.PlayerAssessmentSnapshot.from_profile',
         side_effect=RuntimeError('snapshot write failed'),
     )
     def test_snapshot_failure_rolls_back_current_profile(self, _snapshot):

@@ -148,6 +148,15 @@ class User(AbstractUser):
         return f'{self.username} ({self.get_role_display()})'
 
 
+class GuardianLinkManager(models.Manager):
+    """Keep role/tenant invariants intact even for bulk service operations."""
+
+    def bulk_create(self, objs, *args, **kwargs):
+        for link in objs:
+            link.full_clean()
+        return super().bulk_create(objs, *args, **kwargs)
+
+
 class GuardianLink(models.Model):
     guardian = models.ForeignKey(
         User,
@@ -163,6 +172,8 @@ class GuardianLink(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects = GuardianLinkManager()
+
     class Meta:
         unique_together = ('guardian', 'player')
 
@@ -171,13 +182,21 @@ class GuardianLink(models.Model):
         if self.guardian_id:
             if self.guardian.role != Roles.GUARDIAN:
                 errors['guardian'] = 'The guardian account must have the Guardian role.'
+            elif not self.guardian.is_active:
+                errors['guardian'] = 'The guardian account must be active.'
             if self.guardian.club_id is None:
                 errors['guardian'] = 'The guardian must belong to a club.'
+            elif not self.guardian.club.is_active:
+                errors['guardian'] = 'The guardian club must be active.'
         if self.player_id:
             if self.player.role != Roles.PLAYER:
                 errors['player'] = 'The player account must have the Player role.'
+            elif not self.player.is_active:
+                errors['player'] = 'The player account must be active.'
             if self.player.club_id is None:
                 errors['player'] = 'The player must belong to a club.'
+            elif not self.player.club.is_active:
+                errors['player'] = 'The player club must be active.'
         if (
             self.guardian_id
             and self.player_id
@@ -186,6 +205,10 @@ class GuardianLink(models.Model):
             errors['player'] = 'Guardian and player must belong to the same club.'
         if errors:
             raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f'{self.guardian.email} -> {self.player.email}'

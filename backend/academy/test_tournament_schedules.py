@@ -6,6 +6,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
+from test_uploads import pdf_bytes
 
 from accounts.models import Club, Roles, User
 
@@ -50,7 +51,7 @@ def _user(email, role, club):
 def _pdf(name='schedule.pdf'):
     return SimpleUploadedFile(
         name,
-        b'%PDF-1.7\nfixture data',
+        pdf_bytes(),
         content_type='application/pdf',
     )
 
@@ -61,6 +62,14 @@ class TournamentStorageTests(TestCase):
             'fake.pdf', b'not a pdf', content_type='application/pdf'
         )
         with self.assertRaisesMessage(ValueError, 'does not match'):
+            validate_tournament_document(upload)
+
+    def test_rejects_pdf_active_content(self):
+        upload = SimpleUploadedFile(
+            'active.pdf', pdf_bytes() + b'/JavaScript',
+            content_type='application/pdf',
+        )
+        with self.assertRaisesMessage(ValueError, 'Active or embedded'):
             validate_tournament_document(upload)
 
     @patch.dict('os.environ', {
@@ -385,7 +394,7 @@ class TournamentScheduleApiTests(APITestCase):
         )
 
     @patch(
-        'academy.serializers.signed_tournament_document_url',
+        'academy.serializer_tournaments.signed_tournament_document_url',
         return_value='https://signed.example/schedule',
     )
     def test_club_member_reads_only_own_published_schedule(self, signed):
@@ -618,11 +627,11 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
 
     @patch(
-        'academy.views.upload_tournament_document',
+        'academy.view_tournaments.upload_tournament_document',
         return_value='tournament-schedules/1/8.pdf',
     )
     @patch(
-        'academy.serializers.signed_tournament_document_url',
+        'academy.serializer_tournaments.signed_tournament_document_url',
         return_value='https://example.test/schedule.pdf',
     )
     def test_mobile_creation_with_valid_optional_document(self, _signed, upload):
