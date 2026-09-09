@@ -106,14 +106,15 @@ Future<void> _pump(
   WidgetTester tester,
   Player player, {
   VoidCallback? onTap,
+  double width = 300,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
         body: Center(
           child: SizedBox(
-            width: 300,
-            height: 425,
+            width: width,
+            height: width * 850 / 600,
             child: PlayerCard(player: player, onTap: onTap),
           ),
         ),
@@ -248,6 +249,23 @@ void main() {
         expect(find.text(value), findsOneWidget);
       }
       expect(find.textContaining('overall'), findsNothing);
+    });
+
+    testWidgets('keeps card labels readable at narrow mobile widths', (
+      tester,
+    ) async {
+      await _pump(tester, _assessedPlayer(), width: 240);
+
+      final heading = tester.widget<Text>(
+        find.text('ASSESSMENT DOMAINS · 1–5'),
+      );
+      final domainLabel = tester.widget<Text>(find.text('TEC'));
+      final playerName = tester.widget<Text>(find.text('Assessed Player'));
+
+      expect(heading.style?.fontSize, greaterThanOrEqualTo(11));
+      expect(domainLabel.style?.fontSize, greaterThanOrEqualTo(11));
+      expect(playerName.style?.fontSize, greaterThanOrEqualTo(15));
+      expect(tester.takeException(), isNull);
     });
   });
 }
