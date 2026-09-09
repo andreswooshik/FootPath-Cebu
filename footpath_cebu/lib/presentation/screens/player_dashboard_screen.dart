@@ -14,12 +14,14 @@ import 'package:footpath_cebu/presentation/screens/attendance_history_screen.dar
 import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
+import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
 import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
+import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 import 'package:footpath_cebu/presentation/widgets/sign_out_confirmation.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
@@ -58,57 +60,61 @@ class PlayerDashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ref
-          .watch(myProfileProvider)
-          .when(
-            loading: () => const DashboardLoadingState(),
-            error: (e, _) => DashboardErrorState(
-              message: friendlyErrorMessage(
-                e,
-                'Something went wrong loading your profile.',
+      body: ResponsiveContent(
+        child: ref
+            .watch(myProfileProvider)
+            .when(
+              loading: () => const DashboardLoadingState(),
+              error: (e, _) => DashboardErrorState(
+                message: friendlyErrorMessage(
+                  e,
+                  'Something went wrong loading your profile.',
+                ),
+                onRetry: () => ref.invalidate(myProfileProvider),
               ),
-              onRetry: () => ref.invalidate(myProfileProvider),
-            ),
-            data: (player) => PlayerPrivacyGate(
-              player: player,
-              requirePinSetup: true,
-              child: RefreshIndicator(
-                onRefresh: () => ref.refresh(myProfileProvider.future),
-                child: ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    Text(
-                      player.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    Text(
-                      '${player.ageTier.label} · ${player.classYear}',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey.shade600,
+              data: (player) => PlayerPrivacyGate(
+                player: player,
+                requirePinSetup: true,
+                child: RefreshIndicator(
+                  onRefresh: () => ref.refresh(myProfileProvider.future),
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      Text(
+                        player.name,
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 300),
-                        child: PlayerCard(player: player),
+                      Text(
+                        '${player.ageTier.label} · ${player.classYear}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.tealDark,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Center(child: TierBadge(tier: CardTier.forPlayer(player))),
-                    const SizedBox(height: 16),
-                    _StreakSection(player: player),
-                    const SizedBox(height: 12),
-                    _EligibilityTile(player: player),
-                    const SizedBox(height: 16),
-                    _RecentAttendanceCard(player: player),
-                    const SizedBox(height: 16),
-                    _InjuryHistoryCard(player: player),
-                  ],
+                      const SizedBox(height: 16),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 300),
+                          child: PlayerCard(player: player),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: TierBadge(tier: CardTier.forPlayer(player)),
+                      ),
+                      const SizedBox(height: 16),
+                      _StreakSection(player: player),
+                      const SizedBox(height: 12),
+                      _EligibilityTile(player: player),
+                      const SizedBox(height: 16),
+                      _RecentAttendanceCard(player: player),
+                      const SizedBox(height: 16),
+                      _InjuryHistoryCard(player: player),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
+      ),
     ).animateScreenEntrance();
   }
 }

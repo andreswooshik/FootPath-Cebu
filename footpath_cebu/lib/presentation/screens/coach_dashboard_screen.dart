@@ -18,6 +18,7 @@ import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
 import 'package:footpath_cebu/presentation/widgets/mini_player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
+import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 import 'package:footpath_cebu/presentation/widgets/team_overview_card.dart';
 
 /// Coach Portal — the Coach Dashboard: a Team Overview summary above the Active
@@ -89,46 +90,51 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
           const NotificationBell(),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.refresh(squadProvider.future),
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _TeamOverviewSection(),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Active Squad Roster',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$registeredCount '
-                      '${registeredCount == 1 ? 'player' : 'players'} registered',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 12),
-                    _SearchBar(
-                      onChanged: ref.read(rosterFilterProvider.notifier).search,
-                    ),
-                    const SizedBox(height: 8),
-                    const _TierFilterBar(),
-                    const SizedBox(height: 4),
-                  ],
+      body: ResponsiveContent(
+        maxWidth: 1100,
+        child: RefreshIndicator(
+          onRefresh: () => ref.refresh(squadProvider.future),
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _TeamOverviewSection(),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Active Squad Roster',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$registeredCount '
+                        '${registeredCount == 1 ? 'player' : 'players'} registered',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 12),
+                      _SearchBar(
+                        onChanged: ref
+                            .read(rosterFilterProvider.notifier)
+                            .search,
+                      ),
+                      const SizedBox(height: 8),
+                      const _TierFilterBar(),
+                      const SizedBox(height: 4),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _RosterSliver(
-              compact: _compact,
-              onOpenProfile: _openProfile,
-              onMarkAttendance: _markAttendance,
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          ],
+              _RosterSliver(
+                compact: _compact,
+                onOpenProfile: _openProfile,
+                onMarkAttendance: _markAttendance,
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            ],
+          ),
         ),
       ),
     ).animateScreenEntrance();
@@ -274,8 +280,11 @@ class _TierFilterBar extends ConsumerWidget {
     final notifier = ref.read(rosterFilterProvider.notifier);
     int countFor(AgeTier tier) => squad.where((p) => p.ageTier == tier).length;
 
+    final filterHeight = MediaQuery.textScalerOf(
+      context,
+    ).scale(40).clamp(40.0, 72.0);
     return SizedBox(
-      height: 40,
+      height: filterHeight,
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: [

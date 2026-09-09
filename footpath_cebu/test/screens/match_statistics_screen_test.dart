@@ -30,9 +30,15 @@ const _linkedPlayer = Player(
   eligibility: EligibilityStatus.eligible,
 );
 
-Widget _app(String playerId) => ProviderScope(
+Widget _app(String playerId, {TextScaler? textScaler}) => ProviderScope(
   overrides: [matchRepositoryProvider.overrideWithValue(MockMatchRepository())],
   child: MaterialApp(
+    builder: textScaler == null
+        ? null
+        : (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+            child: child!,
+          ),
     home: Scaffold(body: PlayerMatchStatisticsView(playerId: playerId)),
   ),
 );
@@ -78,6 +84,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No match statistics recorded yet.'), findsOneWidget);
+  });
+
+  testWidgets('match history remains readable on a compact phone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(_app('p1', textScaler: const TextScaler.linear(2)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Match History'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.scrollUntilVisible(
+      find.textContaining('Cebu United'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.textContaining('Cebu United'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('guardian progress includes the linked player match tab', (

@@ -11,6 +11,7 @@ import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
 import 'package:footpath_cebu/domain/repositories/tournament_schedule_repository.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/tournament_schedule_providers.dart';
+import 'package:footpath_cebu/presentation/widgets/adaptive_inline_layout.dart';
 import 'package:footpath_cebu/presentation/widgets/adaptive_form_modal.dart';
 import 'package:footpath_cebu/presentation/widgets/app_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
@@ -622,20 +623,18 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
   Widget _brackets(bool isSaving, TournamentSchedule tournament) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Age Brackets',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ),
-          OutlinedButton.icon(
-            onPressed: isSaving ? null : () => _editBracket(),
-            icon: const Icon(Icons.add),
-            label: const Text('Add bracket'),
-          ),
-        ],
+      AdaptiveInlineLayout(
+        spacing: 8,
+        inlineTrailingWidth: 140,
+        leading: Text(
+          'Age Brackets',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        trailing: OutlinedButton.icon(
+          onPressed: isSaving ? null : () => _editBracket(),
+          icon: const Icon(Icons.add),
+          label: const Text('Add bracket'),
+        ),
       ),
       const SizedBox(height: 12),
       if (tournament.ageBrackets.isEmpty)

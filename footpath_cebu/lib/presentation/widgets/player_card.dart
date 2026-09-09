@@ -313,7 +313,7 @@ class _LegacyAttributesFace extends StatelessWidget {
             ),
           ),
         if (onViewProfile != null)
-          _place(
+          _placeInteractive(
             scale,
             x: 160,
             y: 696,
@@ -323,8 +323,8 @@ class _LegacyAttributesFace extends StatelessWidget {
               key: ValueKey('view-profile-${player.id}'),
               onPressed: onViewProfile,
               style: TextButton.styleFrom(
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: const Size(48, 48),
+                tapTargetSize: MaterialTapTargetSize.padded,
                 padding: EdgeInsets.symmetric(horizontal: 12 * scale),
                 backgroundColor: PlayerCard._gold.withValues(alpha: 0.16),
                 side: BorderSide(
@@ -443,6 +443,23 @@ Widget _place(
   child: child,
 );
 
+/// Keeps interactive controls usable when the fixed card artwork is scaled
+/// down for a narrow phone.
+Widget _placeInteractive(
+  double scale, {
+  required double x,
+  required double y,
+  required double w,
+  required double h,
+  required Widget child,
+}) => Positioned(
+  left: x * scale,
+  top: y * scale,
+  width: math.max(w * scale, 48),
+  height: math.max(h * scale, 48),
+  child: child,
+);
+
 /// Preserve legibility when the 600px design canvas is rendered as a
 /// 240–300px card on a phone. FittedBox still scales unusually long content
 /// down, while ordinary labels never collapse into 6–9px text.
@@ -541,31 +558,33 @@ class _DomainColumn extends StatelessWidget {
     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
     children: [
       for (final (label, key) in domains)
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                scores?[key]?.toStringAsFixed(1) ?? '—',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: _cardFont(scale, 28, minimum: 15),
-                  height: 1,
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  scores?[key]?.toStringAsFixed(1) ?? '—',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: _cardFont(scale, 28, minimum: 15),
+                    height: 1,
+                  ),
                 ),
-              ),
-              SizedBox(width: 7 * scale),
-              Text(
-                label,
-                style: TextStyle(
-                  color: PlayerCard._gold,
-                  fontWeight: FontWeight.w800,
-                  fontSize: _cardFont(scale, 18, minimum: 11),
-                  height: 1,
+                SizedBox(width: 7 * scale),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: PlayerCard._gold,
+                    fontWeight: FontWeight.w800,
+                    fontSize: _cardFont(scale, 18, minimum: 11),
+                    height: 1,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
     ],
@@ -636,29 +655,31 @@ class _LegacyAttributeColumn extends StatelessWidget {
     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
     children: [
       for (final (label, value) in values)
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$value',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: _cardFont(scale, 28, minimum: 15),
+        Expanded(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$value',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: _cardFont(scale, 28, minimum: 15),
+                  ),
                 ),
-              ),
-              SizedBox(width: 7 * scale),
-              Text(
-                label,
-                style: TextStyle(
-                  color: PlayerCard._gold,
-                  fontWeight: FontWeight.w800,
-                  fontSize: _cardFont(scale, 18, minimum: 11),
+                SizedBox(width: 7 * scale),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: PlayerCard._gold,
+                    fontWeight: FontWeight.w800,
+                    fontSize: _cardFont(scale, 18, minimum: 11),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
     ],

@@ -14,6 +14,7 @@ import 'package:footpath_cebu/presentation/screens/dispute_list_screen.dart';
 import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
+import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 import 'package:footpath_cebu/presentation/widgets/sign_out_confirmation.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 
@@ -132,62 +133,67 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
         automaticallyImplyLeading: false,
         title: const Text('Profile'),
       ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.refresh(squadProvider.future),
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _IdentityHeader(
-              profile: _profile,
-              uploading: ref.watch(profilePhotoControllerProvider).isLoading,
-              onUpload: _pickAndUploadPhoto,
-            ),
-            const SizedBox(height: 24),
-            _SectionTitle(title: 'Squad Snapshot'),
-            const SizedBox(height: 8),
-            _squadSnapshot(),
-            const SizedBox(height: 24),
-            _SectionTitle(title: 'Disputes'),
-            const SizedBox(height: 8),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.flag_outlined),
-                title: const Text('Disputes'),
-                subtitle: const Text('Flagged issues and their threads'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const DisputeListScreen()),
-                ),
+      body: ResponsiveContent(
+        child: RefreshIndicator(
+          onRefresh: () => ref.refresh(squadProvider.future),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _IdentityHeader(
+                profile: _profile,
+                uploading: ref.watch(profilePhotoControllerProvider).isLoading,
+                onUpload: _pickAndUploadPhoto,
               ),
-            ),
-            const SizedBox(height: 24),
-            _SectionTitle(title: 'Account'),
-            const SizedBox(height: 8),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.lock_reset_outlined),
-                title: const Text('Change password'),
-                subtitle: const Text('Requires your current password'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ChangePasswordScreen(email: _profile.email),
+              const SizedBox(height: 24),
+              _SectionTitle(title: 'Squad Snapshot'),
+              const SizedBox(height: 8),
+              _squadSnapshot(),
+              const SizedBox(height: 24),
+              _SectionTitle(title: 'Disputes'),
+              const SizedBox(height: 8),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.flag_outlined),
+                  title: const Text('Disputes'),
+                  subtitle: const Text('Flagged issues and their threads'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const DisputeListScreen(),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: _signOut,
-              icon: const Icon(Icons.logout),
-              label: const Text('Log out'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                foregroundColor: Theme.of(context).colorScheme.error,
-                side: BorderSide(color: Theme.of(context).colorScheme.error),
+              const SizedBox(height: 24),
+              _SectionTitle(title: 'Account'),
+              const SizedBox(height: 8),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.lock_reset_outlined),
+                  title: const Text('Change password'),
+                  subtitle: const Text('Requires your current password'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ChangePasswordScreen(email: _profile.email),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: _signOut,
+                icon: const Icon(Icons.logout),
+                label: const Text('Log out'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                  side: BorderSide(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     ).animateScreenEntrance();
@@ -304,7 +310,7 @@ class _IdentityHeader extends StatelessWidget {
           profile.email,
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: Colors.grey.shade600,
+            color: AppColors.tealDark,
           ),
         ),
         const SizedBox(height: 10),

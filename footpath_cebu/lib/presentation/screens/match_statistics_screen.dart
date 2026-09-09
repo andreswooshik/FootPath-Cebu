@@ -7,10 +7,12 @@ import 'package:footpath_cebu/domain/entities/match_performance.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/match_providers.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
+import 'package:footpath_cebu/presentation/widgets/adaptive_inline_layout.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/match_trend_metric.dart';
 import 'package:footpath_cebu/presentation/widgets/match_type_filter.dart';
 import 'package:footpath_cebu/presentation/widgets/performance_trend_chart.dart';
+import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 
 enum MatchHistoryRange { lastFive, lastTen, all }
 
@@ -68,17 +70,19 @@ class _PlayerMatchStatisticsViewState
     final statistics = ref.watch(
       playerMatchStatisticsProvider(widget.playerId),
     );
-    return statistics.when(
-      loading: () => const DashboardLoadingState(),
-      error: (error, _) => DashboardErrorState(
-        message: friendlyErrorMessage(
-          error,
-          'Could not load match statistics.',
+    return ResponsiveContent(
+      child: statistics.when(
+        loading: () => const DashboardLoadingState(),
+        error: (error, _) => DashboardErrorState(
+          message: friendlyErrorMessage(
+            error,
+            'Could not load match statistics.',
+          ),
+          onRetry: () =>
+              ref.invalidate(playerMatchStatisticsProvider(widget.playerId)),
         ),
-        onRetry: () =>
-            ref.invalidate(playerMatchStatisticsProvider(widget.playerId)),
+        data: _buildStatistics,
       ),
-      data: _buildStatistics,
     );
   }
 
@@ -200,29 +204,32 @@ class _SummaryHeader extends StatelessWidget {
   final MatchHistoryRange range;
   final ValueChanged<MatchHistoryRange> onRangeChanged;
 
-  @override
-  Widget build(BuildContext context) => Wrap(
-    alignment: WrapAlignment.spaceBetween,
-    crossAxisAlignment: WrapCrossAlignment.center,
-    spacing: 16,
-    runSpacing: 8,
-    children: [
-      Text(
-        '${matchType.label} Summary',
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
+  Widget _dropdown({required bool expanded}) =>
       DropdownButton<MatchHistoryRange>(
         value: range,
+        isExpanded: expanded,
         borderRadius: BorderRadius.circular(14),
         onChanged: (value) {
           if (value != null) onRangeChanged(value);
         },
         items: [
           for (final option in MatchHistoryRange.values)
-            DropdownMenuItem(value: option, child: Text(option.label)),
+            DropdownMenuItem(
+              value: option,
+              child: Text(option.label, overflow: TextOverflow.ellipsis),
+            ),
         ],
-      ),
-    ],
+      );
+
+  @override
+  Widget build(BuildContext context) => AdaptiveInlineLayout(
+    spacing: 16,
+    inlineTrailingWidth: 140,
+    leading: Text(
+      '${matchType.label} Summary',
+      style: Theme.of(context).textTheme.titleLarge,
+    ),
+    trailing: _dropdown(expanded: true),
   );
 }
 
@@ -233,33 +240,37 @@ class _SummaryGrid extends StatelessWidget {
   final bool hasGoalkeeperRow;
 
   @override
-  Widget build(BuildContext context) => GridView.extent(
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    maxCrossAxisExtent: 180,
-    mainAxisSpacing: 8,
-    crossAxisSpacing: 8,
-    childAspectRatio: 1.2,
-    children: [
-      _SummaryTile(label: 'MATCHES', value: '${summary.matchesPlayed}'),
-      _SummaryTile(label: 'GOALS', value: '${summary.goals}'),
-      _SummaryTile(label: 'ASSISTS', value: '${summary.assists}'),
-      _SummaryTile(
-        label: 'RATING',
-        value: summary.averageRating?.toStringAsFixed(1) ?? '—',
-      ),
-      _SummaryTile(
-        label: 'PASS %',
-        value: summary.passCompletionRate == null
-            ? '—'
-            : '${summary.passCompletionRate!.round()}%',
-      ),
-      _SummaryTile(
-        label: hasGoalkeeperRow ? 'SAVES' : 'TACKLES',
-        value: '${hasGoalkeeperRow ? summary.saves : summary.tackles}',
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final scaledExtent = 80 * textScale;
+    return GridView.extent(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      maxCrossAxisExtent: 180,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      mainAxisExtent: scaledExtent < 96 ? 96 : scaledExtent,
+      children: [
+        _SummaryTile(label: 'MATCHES', value: '${summary.matchesPlayed}'),
+        _SummaryTile(label: 'GOALS', value: '${summary.goals}'),
+        _SummaryTile(label: 'ASSISTS', value: '${summary.assists}'),
+        _SummaryTile(
+          label: 'RATING',
+          value: summary.averageRating?.toStringAsFixed(1) ?? '—',
+        ),
+        _SummaryTile(
+          label: 'PASS %',
+          value: summary.passCompletionRate == null
+              ? '—'
+              : '${summary.passCompletionRate!.round()}%',
+        ),
+        _SummaryTile(
+          label: hasGoalkeeperRow ? 'SAVES' : 'TACKLES',
+          value: '${hasGoalkeeperRow ? summary.saves : summary.tackles}',
+        ),
+      ],
+    );
+  }
 }
 
 class _MetricSelector extends StatelessWidget {
@@ -268,29 +279,34 @@ class _MetricSelector extends StatelessWidget {
   final MatchTrendMetric value;
   final ValueChanged<MatchTrendMetric> onChanged;
 
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      const Text('Metric:', style: TextStyle(fontWeight: FontWeight.w700)),
-      const SizedBox(width: 12),
-      Expanded(
-        child: DropdownButtonFormField<MatchTrendMetric>(
-          key: const Key('matchesMetricSelector'),
-          initialValue: value,
-          decoration: const InputDecoration(
-            isDense: true,
-            border: OutlineInputBorder(),
-          ),
-          items: [
-            for (final metric in MatchTrendMetric.values)
-              DropdownMenuItem(value: metric, child: Text(metric.label)),
-          ],
-          onChanged: (metric) {
-            if (metric != null) onChanged(metric);
-          },
+  Widget _dropdown() => DropdownButtonFormField<MatchTrendMetric>(
+    key: const Key('matchesMetricSelector'),
+    initialValue: value,
+    isExpanded: true,
+    decoration: const InputDecoration(
+      isDense: true,
+      border: OutlineInputBorder(),
+    ),
+    items: [
+      for (final metric in MatchTrendMetric.values)
+        DropdownMenuItem(
+          value: metric,
+          child: Text(metric.label, overflow: TextOverflow.ellipsis),
         ),
-      ),
     ],
+    onChanged: (metric) {
+      if (metric != null) onChanged(metric);
+    },
+  );
+
+  @override
+  Widget build(BuildContext context) => AdaptiveInlineLayout(
+    spacing: 12,
+    leading: const Text(
+      'Metric:',
+      style: TextStyle(fontWeight: FontWeight.w700),
+    ),
+    trailing: _dropdown(),
   );
 }
 
@@ -372,9 +388,7 @@ class _MatchPerformanceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final match = performance.match;
     final passRate = performance.passCompletionRate;
-    final isTournament = match.category == MatchCategory.tournament;
     final feedback = performance.notes.trim();
     return Card(
       child: Padding(
@@ -382,51 +396,7 @@ class _MatchPerformanceCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  backgroundColor: AppColors.tealLight,
-                  child: Text(
-                    performance.coachRating?.toStringAsFixed(1) ?? '—',
-                    style: const TextStyle(
-                      color: AppColors.tealDark,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'vs ${match.opponent}',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      Text(
-                        '${formatFullDate(match.playedOn)} · ${match.outcome} ${match.scoreLabel}',
-                      ),
-                      if (match.competition.trim().isNotEmpty)
-                        Text(
-                          match.competition,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                    ],
-                  ),
-                ),
-                Chip(
-                  avatar: Icon(
-                    isTournament
-                        ? Icons.emoji_events_outlined
-                        : Icons.sports_soccer_outlined,
-                    size: 16,
-                  ),
-                  label: Text(isTournament ? 'Tournament' : 'Regular'),
-                  visualDensity: VisualDensity.compact,
-                ),
-              ],
-            ),
+            _MatchPerformanceHeader(performance: performance),
             const Divider(height: 24),
             Wrap(
               spacing: 20,
@@ -475,6 +445,97 @@ class _MatchPerformanceCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _MatchPerformanceHeader extends StatelessWidget {
+  const _MatchPerformanceHeader({required this.performance});
+
+  final MatchPerformance performance;
+
+  @override
+  Widget build(BuildContext context) {
+    final match = performance.match;
+    final isTournament = match.category == MatchCategory.tournament;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rating = CircleAvatar(
+          backgroundColor: AppColors.tealLight,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              performance.coachRating?.toStringAsFixed(1) ?? '—',
+              style: const TextStyle(
+                color: AppColors.tealDark,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        );
+        final details = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'vs ${match.opponent}',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            Text(
+              '${formatFullDate(match.playedOn)} · ${match.outcome} ${match.scoreLabel}',
+            ),
+            if (match.competition.trim().isNotEmpty)
+              Text(
+                match.competition,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+          ],
+        );
+        final category = Chip(
+          avatar: Icon(
+            isTournament
+                ? Icons.emoji_events_outlined
+                : Icons.sports_soccer_outlined,
+            size: 16,
+          ),
+          label: Text(
+            isTournament ? 'Tournament' : 'Regular',
+            overflow: TextOverflow.ellipsis,
+          ),
+          visualDensity: VisualDensity.compact,
+        );
+        final stacked =
+            constraints.maxWidth < 340 ||
+            MediaQuery.textScalerOf(context).scale(1) > 1.3;
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  rating,
+                  const SizedBox(width: 12),
+                  Expanded(child: details),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                child: category,
+              ),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            rating,
+            const SizedBox(width: 12),
+            Expanded(child: details),
+            category,
+          ],
+        );
+      },
     );
   }
 }

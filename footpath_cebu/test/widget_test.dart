@@ -34,4 +34,31 @@ void main() {
     expect(fields.last.autofillHints, contains(AutofillHints.password));
     expect(find.byTooltip('Show password'), findsOneWidget);
   });
+
+  testWidgets('Login screen supports a compact phone at enlarged text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: const LoginScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('FootPath Cebu'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Sign In'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

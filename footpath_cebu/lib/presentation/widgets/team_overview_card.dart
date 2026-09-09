@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/presentation/providers/coach_overview_providers.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
+import 'package:footpath_cebu/presentation/widgets/adaptive_inline_layout.dart';
 
 /// The Coach Dashboard's "Team Overview" combines the next session with the
 /// alerts needing attention. School clubs also receive academic clearance;
@@ -24,22 +25,26 @@ class TeamOverviewCard extends StatelessWidget {
               children: [
                 Icon(Icons.groups, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  'Team Overview',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+                Expanded(
+                  child: Text(
+                    'Team Overview',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 16),
             if (overview.academicEligibilityApplicable)
-              Row(
-                children: [
-                  _ReadyGauge(percent: overview.readyPercent),
-                  const SizedBox(width: 18),
-                  Expanded(child: _NextSession(overview: overview)),
-                ],
+              AdaptiveInlineLayout(
+                spacing: 18,
+                widthBreakpoint: 400,
+                leading: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _ReadyGauge(percent: overview.readyPercent),
+                ),
+                trailing: _NextSession(overview: overview),
               )
             else
               _NextSession(overview: overview),
@@ -96,23 +101,29 @@ class _ReadyGauge extends StatelessWidget {
               ),
             ),
           ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$percent%',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  height: 1,
-                ),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$percent%',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                  Text(
+                    'ready',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                'ready',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),

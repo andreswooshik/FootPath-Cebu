@@ -203,6 +203,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('age brackets adapt to a small phone with enlarged text', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: EditTournamentScreen(existing: _draft()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Age Brackets').first);
+    await tester.tap(find.text('Age Brackets').first);
+    await tester.pumpAndSettle();
+
+    expect(find.text('U8 division'), findsOneWidget);
+    expect(find.text('Add bracket'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('fixture management is touch friendly at SM-X200 dimensions', (
     tester,
   ) async {

@@ -8,6 +8,59 @@ import 'package:footpath_cebu/presentation/screens/portal_shell_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 
 void main() {
+  testWidgets('Player privacy gate fits a compact enlarged-text phone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: const PlayerPortalScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create your privacy PIN'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Guardian selection fits a compact enlarged-text phone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: const GuardianDashboardScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('My Players'), findsOneWidget);
+    expect(find.byType(DropdownButton<String>), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Player must create a privacy PIN before seeing the dashboard', (
     tester,
   ) async {

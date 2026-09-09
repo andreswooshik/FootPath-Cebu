@@ -154,6 +154,43 @@ void main() {
       semantics.dispose();
     });
 
+    testWidgets('keeps the profile action usable on a compact phone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 240,
+                height: 340,
+                child: PlayerCard(player: _outfield(), onTap: () {}),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(PlayerCard));
+      await tester.pumpAndSettle();
+
+      final action = find.byKey(const ValueKey('view-profile-p1'));
+      expect(action, findsOneWidget);
+      expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
+      expect(tester.getSize(action).width, greaterThanOrEqualTo(48));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('omits eligibility for an independent-club player', (
       tester,
     ) async {

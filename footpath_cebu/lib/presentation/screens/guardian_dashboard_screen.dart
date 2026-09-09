@@ -21,6 +21,7 @@ import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
 import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 import 'package:footpath_cebu/presentation/widgets/player_privacy_gate.dart';
+import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 import 'package:footpath_cebu/presentation/widgets/sign_out_confirmation.dart';
 import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 
@@ -53,66 +54,70 @@ class GuardianDashboardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ref
-          .watch(linkedPlayersProvider)
-          .when(
-            loading: () => const DashboardLoadingState(),
-            error: (error, _) => DashboardErrorState(
-              message: friendlyErrorMessage(
-                error,
-                'Something went wrong loading your children.',
+      body: ResponsiveContent(
+        child: ref
+            .watch(linkedPlayersProvider)
+            .when(
+              loading: () => const DashboardLoadingState(),
+              error: (error, _) => DashboardErrorState(
+                message: friendlyErrorMessage(
+                  error,
+                  'Something went wrong loading your children.',
+                ),
+                onRetry: () => ref.invalidate(linkedPlayersProvider),
               ),
-              onRetry: () => ref.invalidate(linkedPlayersProvider),
-            ),
-            data: (children) {
-              if (children.isEmpty) {
-                return const Center(child: Text('No linked players yet.'));
-              }
-              if (selected == null) {
-                return ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    _PlayerSelector(
-                      children: children,
-                      selectedId: null,
-                      onChanged: (id) =>
-                          ref.read(selectedChildIdProvider.notifier).select(id),
-                    ),
-                    const SizedBox(height: 24),
-                    const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text(
-                          'Choose a player to continue',
-                          textAlign: TextAlign.center,
+              data: (children) {
+                if (children.isEmpty) {
+                  return const Center(child: Text('No linked players yet.'));
+                }
+                if (selected == null) {
+                  return ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      _PlayerSelector(
+                        children: children,
+                        selectedId: null,
+                        onChanged: (id) => ref
+                            .read(selectedChildIdProvider.notifier)
+                            .select(id),
+                      ),
+                      const SizedBox(height: 24),
+                      const Card(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text(
+                            'Choose a player to continue',
+                            textAlign: TextAlign.center,
+                          ),
                         ),
+                      ),
+                    ],
+                  );
+                }
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: _PlayerSelector(
+                        children: children,
+                        selectedId: selected.id,
+                        onChanged: (id) => ref
+                            .read(selectedChildIdProvider.notifier)
+                            .select(id),
+                      ),
+                    ),
+                    Expanded(
+                      child: PlayerPrivacyGate(
+                        player: selected,
+                        isGuardian: true,
+                        child: _GuardianUnlockedContent(selector: selected),
                       ),
                     ),
                   ],
                 );
-              }
-              return Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    child: _PlayerSelector(
-                      children: children,
-                      selectedId: selected.id,
-                      onChanged: (id) =>
-                          ref.read(selectedChildIdProvider.notifier).select(id),
-                    ),
-                  ),
-                  Expanded(
-                    child: PlayerPrivacyGate(
-                      player: selected,
-                      isGuardian: true,
-                      child: _GuardianUnlockedContent(selector: selected),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
+              },
+            ),
+      ),
     ).animateScreenEntrance();
   }
 }
@@ -146,7 +151,7 @@ class _GuardianUnlockedContent extends ConsumerWidget {
               '${player.ageTier.label} · ${player.position?.code ?? 'No position'}',
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.tealDark),
             ),
             const SizedBox(height: 16),
             Center(
