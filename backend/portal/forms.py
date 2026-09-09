@@ -221,23 +221,30 @@ class DisputeResponseForm(forms.Form):
 
 
 class GuardianLinkForm(forms.Form):
-    """Link an existing guardian to an existing player, both pickers scoped
-    to the coordinator's club."""
+    """Link one guardian to unlinked players in the coordinator's club."""
 
     guardian = forms.ModelChoiceField(queryset=User.objects.none())
-    player = forms.ModelChoiceField(queryset=User.objects.none())
+    players = forms.ModelMultipleChoiceField(
+        queryset=User.objects.none(),
+        label='Players',
+        help_text='Select one or more players. Already linked players are hidden.',
+        widget=forms.SelectMultiple(attrs={'size': 6}),
+    )
 
     def __init__(self, *args, club=None, **kwargs):
         super().__init__(*args, **kwargs)
         if club is not None:
             self.fields['guardian'].queryset = User.objects.filter(
-                role=Roles.GUARDIAN, club=club
+                role=Roles.GUARDIAN, club=club, is_active=True
             ).order_by('last_name', 'first_name')
-            self.fields['player'].queryset = User.objects.filter(
-                role=Roles.PLAYER, club=club
+            self.fields['players'].queryset = User.objects.filter(
+                role=Roles.PLAYER,
+                club=club,
+                is_active=True,
+                player_links__isnull=True,
             ).order_by('last_name', 'first_name')
         self.fields['guardian'].label_from_instance = _user_label
-        self.fields['player'].label_from_instance = _user_label
+        self.fields['players'].label_from_instance = _user_label
 
 
 class TournamentScheduleForm(forms.Form):

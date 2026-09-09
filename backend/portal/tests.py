@@ -834,7 +834,7 @@ class GuardianLinkManagementTests(TestCase):
 
     def test_coordinator_links_and_unlinks(self):
         resp = self.client.post(reverse('portal:guardians'), {
-            'guardian': self.guardian.pk, 'player': self.player.pk,
+            'guardian': self.guardian.pk, 'players': [self.player.pk],
         })
         self.assertRedirects(resp, reverse('portal:guardians'))
         link = GuardianLink.objects.get(
@@ -851,11 +851,51 @@ class GuardianLinkManagementTests(TestCase):
         other_club = Club.objects.create(name='X FC', slug='x-fc')
         outsider, _ = make_player(other_club, 'outsider@club.test')
         resp = self.client.post(reverse('portal:guardians'), {
-            'guardian': self.guardian.pk, 'player': outsider.pk,
+            'guardian': self.guardian.pk, 'players': [outsider.pk],
         })
         # Not in the club-scoped choices -> form error, no link.
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(GuardianLink.objects.count(), 0)
+
+    def test_coordinator_links_multiple_players_at_once(self):
+        second_player, _ = make_player(self.club, 'second@club.test')
+
+        resp = self.client.post(reverse('portal:guardians'), {
+            'guardian': self.guardian.pk,
+            'players': [self.player.pk, second_player.pk],
+        })
+
+        self.assertRedirects(resp, reverse('portal:guardians'))
+        self.assertEqual(
+            set(GuardianLink.objects.filter(
+                guardian=self.guardian,
+            ).values_list('player_id', flat=True)),
+            {self.player.pk, second_player.pk},
+        )
+
+    def test_already_linked_players_are_hidden_from_picker(self):
+        other_guardian = User.objects.create(
+            username='other-g@club.test', email='other-g@club.test',
+            role=Roles.GUARDIAN, club=self.club, firebase_uid='uid-other-g',
+        )
+        GuardianLink.objects.create(
+            guardian=other_guardian,
+            player=self.player,
+        )
+        unlinked_player, _ = make_player(self.club, 'available@club.test')
+
+        resp = self.client.get(reverse('portal:guardians'))
+
+        choices = resp.context['link_form'].fields['players'].queryset
+        self.assertNotIn(self.player, choices)
+        self.assertIn(unlinked_player, choices)
+
+        resp = self.client.post(reverse('portal:guardians'), {
+            'guardian': self.guardian.pk,
+            'players': [self.player.pk],
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(GuardianLink.objects.count(), 1)
 
     def test_cannot_unlink_another_clubs_link(self):
         other_club = Club.objects.create(name='Y FC', slug='y-fc')

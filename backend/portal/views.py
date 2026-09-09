@@ -372,22 +372,24 @@ def guardians(request):
     club = request.user.club
     link_form = GuardianLinkForm(request.POST or None, club=club)
     if request.method == 'POST' and link_form.is_valid():
-        link, created = link_guardian(
-            coordinator=request.user,
-            guardian=link_form.cleaned_data['guardian'],
-            player=link_form.cleaned_data['player'],
+        guardian = link_form.cleaned_data['guardian']
+        players = list(link_form.cleaned_data['players'])
+        with transaction.atomic():
+            for player in players:
+                link, _created = link_guardian(
+                    coordinator=request.user,
+                    guardian=guardian,
+                    player=player,
+                )
+                AuditLog.record(
+                    request.user, 'guardian_link.created',
+                    target=f'{link.guardian.email} → {link.player.email}',
+                )
+        messages.success(
+            request,
+            f'{guardian.email} linked to {len(players)} '
+            f'player{"s" if len(players) != 1 else ""}.',
         )
-        if created:
-            AuditLog.record(
-                request.user, 'guardian_link.created',
-                target=f'{link.guardian.email} → {link.player.email}',
-            )
-            messages.success(
-                request,
-                f'{link.guardian.email} linked to {link.player.email}.',
-            )
-        else:
-            messages.info(request, 'That link already exists.')
         return redirect('portal:guardians')
 
     guardian_list = (
