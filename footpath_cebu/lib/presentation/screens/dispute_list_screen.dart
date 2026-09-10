@@ -27,19 +27,23 @@ class DisputeListScreen extends ConsumerWidget {
           ),
           onRetry: () => ref.invalidate(disputesProvider),
         ),
-        data: (disputes) {
+        data: (listState) {
+          final disputes = listState.items;
           if (disputes.isEmpty) {
             return const Center(
               child: Text('No disputes. Flag one from a player profile.'),
             );
           }
           return RefreshIndicator(
-            onRefresh: () => ref.refresh(disputesProvider.future),
+            onRefresh: () => ref.read(disputesProvider.notifier).refresh(),
             child: ListView.separated(
               padding: const EdgeInsets.all(16),
-              itemCount: disputes.length,
+              itemCount: disputes.length + (listState.hasMore ? 1 : 0),
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
+                if (index == disputes.length) {
+                  return _LoadMoreDisputes(listState: listState);
+                }
                 final dispute = disputes[index];
                 return Card(
                   child: ListTile(
@@ -76,6 +80,43 @@ class DisputeListScreen extends ConsumerWidget {
         ),
         child: _DisputeThreadSheet(dispute: dispute),
       ),
+    );
+  }
+}
+
+class _LoadMoreDisputes extends ConsumerWidget {
+  const _LoadMoreDisputes({required this.listState});
+
+  final DisputeListState listState;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (listState.isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return Column(
+      children: [
+        if (listState.loadMoreError != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              friendlyErrorMessage(
+                listState.loadMoreError,
+                'Could not load more disputes.',
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        OutlinedButton(
+          onPressed: () => ref.read(disputesProvider.notifier).loadMore(),
+          child: Text(
+            listState.loadMoreError == null ? 'Load more' : 'Try again',
+          ),
+        ),
+      ],
     );
   }
 }

@@ -4,10 +4,87 @@ import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/dispute.dart';
 
-/// Every dispute, newest first (the backend scopes access by role).
-final disputesProvider = FutureProvider.autoDispose<List<Dispute>>(
-  (ref) => ref.watch(getDisputesProvider)(),
-);
+class DisputeListState {
+  const DisputeListState({
+    required this.items,
+    required this.nextOffset,
+    this.isLoadingMore = false,
+    this.loadMoreError,
+  });
+
+  final List<Dispute> items;
+  final int? nextOffset;
+  final bool isLoadingMore;
+  final Object? loadMoreError;
+
+  bool get hasMore => nextOffset != null;
+
+  DisputeListState copyWith({
+    List<Dispute>? items,
+    int? nextOffset,
+    bool clearNextOffset = false,
+    bool? isLoadingMore,
+    Object? loadMoreError,
+    bool clearLoadMoreError = false,
+  }) => DisputeListState(
+    items: items ?? this.items,
+    nextOffset: clearNextOffset ? null : nextOffset ?? this.nextOffset,
+    isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    loadMoreError: clearLoadMoreError
+        ? null
+        : loadMoreError ?? this.loadMoreError,
+  );
+}
+
+class DisputeListController extends AsyncNotifier<DisputeListState> {
+  static const pageSize = 50;
+
+  @override
+  Future<DisputeListState> build() => _firstPage();
+
+  Future<DisputeListState> _firstPage() async {
+    final page = await ref
+        .read(getDisputesProvider)
+        .page(offset: 0, limit: pageSize);
+    return DisputeListState(items: page.items, nextOffset: page.nextOffset);
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(_firstPage);
+    if (ref.mounted) state = result;
+  }
+
+  Future<void> loadMore() async {
+    final current = state.value;
+    if (current == null || current.isLoadingMore || !current.hasMore) return;
+    state = AsyncData(
+      current.copyWith(isLoadingMore: true, clearLoadMoreError: true),
+    );
+    try {
+      final page = await ref
+          .read(getDisputesProvider)
+          .page(offset: current.nextOffset!, limit: pageSize);
+      if (!ref.mounted) return;
+      state = AsyncData(
+        DisputeListState(
+          items: List.unmodifiable([...current.items, ...page.items]),
+          nextOffset: page.nextOffset,
+        ),
+      );
+    } catch (error) {
+      if (!ref.mounted) return;
+      state = AsyncData(
+        current.copyWith(isLoadingMore: false, loadMoreError: error),
+      );
+    }
+  }
+}
+
+final disputesProvider =
+    AsyncNotifierProvider.autoDispose<DisputeListController, DisputeListState>(
+      DisputeListController.new,
+    );
 
 final disputeDetailProvider = FutureProvider.autoDispose
     .family<Dispute, String>((ref, id) => ref.watch(getDisputeProvider)(id));

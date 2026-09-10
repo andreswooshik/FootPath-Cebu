@@ -85,6 +85,60 @@ void main() {
     ]);
   });
 
+  test('reads one bounded page without aggregating later pages', () async {
+    var calls = 0;
+    final api = client((request) async {
+      calls++;
+      expect(request.url.queryParameters, containsPair('offset', '50'));
+      expect(request.url.queryParameters, containsPair('limit', '25'));
+      return http.Response(
+        '[{"id":51}]',
+        200,
+        headers: {'x-next-offset': '75'},
+      );
+    });
+
+    final page = await api.getListPage(
+      '/api/disputes/?status=OPEN',
+      offset: 50,
+      limit: 25,
+    );
+
+    expect(page.records, [
+      {'id': 51},
+    ]);
+    expect(page.nextOffset, 75);
+    expect(calls, 1);
+  });
+
+  test('dispute repository maps a bounded page and its continuation', () async {
+    final api = client((request) async {
+      expect(request.url.queryParameters['offset'], '0');
+      expect(request.url.queryParameters['limit'], '50');
+      return http.Response(
+        jsonEncode([
+          {
+            'id': 'd1',
+            'category': 'ATTENDANCE',
+            'status': 'OPEN',
+            'summary': 'Review',
+            'createdAt': '2026-09-10T05:00:00Z',
+            'updatedAt': '2026-09-10T05:00:00Z',
+          },
+        ]),
+        200,
+        headers: {'x-next-offset': '50'},
+      );
+    });
+
+    final page = await ApiDisputeRepository(
+      api: api,
+    ).fetchDisputePage(offset: 0, limit: 50);
+
+    expect(page.items.single.id, 'd1');
+    expect(page.nextOffset, 50);
+  });
+
   for (final reader in collectionReaders.entries) {
     test('${reader.key} repository returns all pages', () async {
       var calls = 0;

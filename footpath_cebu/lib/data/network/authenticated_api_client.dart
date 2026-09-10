@@ -18,6 +18,13 @@ class ApiIdentity {
 
 typedef ApiIdentityProvider = ApiIdentity? Function();
 
+class ApiListPage {
+  const ApiListPage({required this.records, this.nextOffset});
+
+  final List<Map<String, dynamic>> records;
+  final int? nextOffset;
+}
+
 class ApiException implements Exception {
   const ApiException(this.message);
 
@@ -93,6 +100,39 @@ class AuthenticatedApiClient {
   final ApiIdentityProvider _identityProvider;
   final Duration timeout;
 
+  /// Reads one bounded collection page. The offset is transport metadata and
+  /// stays in the data layer; repositories map this result to domain values.
+  Future<ApiListPage> getListPage(
+    String path, {
+    required int offset,
+    required int limit,
+    Map<String, String> headers = const {},
+  }) async {
+    if (offset < 0 || offset > 100000 || limit < 1 || limit > 500) {
+      throw const ApiRequestConfigurationException(
+        'Invalid collection page request.',
+      );
+    }
+    final uri = _resolveApiUri(path).replace(
+      queryParameters: {
+        ..._resolveApiUri(path).queryParameters,
+        'offset': '$offset',
+        'limit': '$limit',
+      },
+    );
+    final response = await get(uri.toString(), headers: headers);
+    final records = _decodeCollection(response.body);
+    final rawNextOffset = response.headers['x-next-offset'];
+    if (rawNextOffset == null) {
+      return ApiListPage(records: records);
+    }
+    final nextOffset = int.tryParse(rawNextOffset);
+    if (nextOffset == null || nextOffset <= offset || nextOffset > 100000) {
+      throw const ApiDecodeException('Invalid collection pagination.');
+    }
+    return ApiListPage(records: records, nextOffset: nextOffset);
+  }
+
   /// Reads a complete collection, preserving filters and authorization on every
   /// page. Incomplete or malformed collections must never appear as empty data.
   Future<List<Map<String, dynamic>>> getList(
@@ -151,6 +191,24 @@ class AuthenticatedApiClient {
       }
       uri = _resolveApiUri(uri.resolve(next).toString());
     }
+  }
+
+  List<Map<String, dynamic>> _decodeCollection(String body) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(body);
+    } on FormatException {
+      throw const ApiDecodeException('The server returned invalid JSON.');
+    }
+    final items = decoded is Map<String, dynamic>
+        ? decoded['results']
+        : decoded;
+    if (items is! List || items.any((item) => item is! Map<String, dynamic>)) {
+      throw const ApiDecodeException(
+        'The server returned an invalid collection.',
+      );
+    }
+    return items.cast<Map<String, dynamic>>();
   }
 
   void _ensureIdentity(String ownerUid) {

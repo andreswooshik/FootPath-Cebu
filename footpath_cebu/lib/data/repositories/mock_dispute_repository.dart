@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/dispute.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 
 /// In-memory disputes for UI development without a backend. Instance state so
@@ -47,6 +48,24 @@ class MockDisputeRepository implements DisputeRepository {
     final disputes = [..._disputes]
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return List.unmodifiable(disputes);
+  }
+
+  @override
+  Future<PageSlice<Dispute>> fetchDisputePage({
+    required int offset,
+    required int limit,
+  }) async {
+    final disputes = await fetchDisputes();
+    final end = offset + limit < disputes.length
+        ? offset + limit
+        : disputes.length;
+    final items = offset >= disputes.length
+        ? const <Dispute>[]
+        : disputes.sublist(offset, end);
+    return PageSlice(
+      items: List.unmodifiable(items),
+      nextOffset: end < disputes.length ? end : null,
+    );
   }
 
   @override

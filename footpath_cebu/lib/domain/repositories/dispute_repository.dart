@@ -1,10 +1,17 @@
 import 'package:footpath_cebu/domain/entities/dispute.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 
 /// Reads the dispute list (every dispute — the backend scopes access to the
 /// coach/staff/admin roles).
 abstract class DisputeReader {
   /// Returns all disputes, newest first, with a recent response preview.
   Future<List<Dispute>> fetchDisputes();
+
+  /// Returns one bounded window for incrementally rendered list screens.
+  Future<PageSlice<Dispute>> fetchDisputePage({
+    required int offset,
+    required int limit,
+  });
 }
 
 abstract class DisputeDetailReader {

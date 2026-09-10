@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/dispute.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 
 /// Use case: load every dispute, newest first (server scopes by role).
@@ -8,4 +9,7 @@ class GetDisputes {
   final DisputeReader _repository;
 
   Future<List<Dispute>> call() => _repository.fetchDisputes();
+
+  Future<PageSlice<Dispute>> page({required int offset, required int limit}) =>
+      _repository.fetchDisputePage(offset: offset, limit: limit);
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/data/dto/dispute_dto.dart';
 import 'package:footpath_cebu/domain/entities/dispute.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 
 /// Live dispute data backed by the authenticated Django REST API.
@@ -35,6 +36,22 @@ class ApiDisputeRepository implements DisputeRepository {
     try {
       final list = await _api.getList(_path);
       return list.map(DisputeDto.fromJson).toList(growable: false);
+    } on ApiException catch (error) {
+      throw DisputeRepositoryException(error.message);
+    }
+  }
+
+  @override
+  Future<PageSlice<Dispute>> fetchDisputePage({
+    required int offset,
+    required int limit,
+  }) async {
+    try {
+      final page = await _api.getListPage(_path, offset: offset, limit: limit);
+      return PageSlice(
+        items: page.records.map(DisputeDto.fromJson).toList(growable: false),
+        nextOffset: page.nextOffset,
+      );
     } on ApiException catch (error) {
       throw DisputeRepositoryException(error.message);
     }
