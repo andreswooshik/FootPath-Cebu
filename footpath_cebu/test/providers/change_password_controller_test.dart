@@ -177,7 +177,7 @@ void main() {
     expect(ok, isFalse);
     expect(
       container.read(changePasswordControllerProvider).error,
-      'Could not change password. Is the server running?',
+      'Could not change password. Please try again.',
     );
   });
 }

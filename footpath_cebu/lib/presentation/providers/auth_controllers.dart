@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
+import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 
 /// What the login form is doing right now. Immutable; every transition
 /// replaces the whole state (and clears the error unless one is set).
@@ -33,23 +34,28 @@ class LoginController extends Notifier<LoginState> {
     required String email,
     required String password,
   }) async {
+    if (!ref.mounted || state.isLoading || state.isSendingReset) return null;
     state = _next(isLoading: true);
     try {
       final profile = await ref.read(signInProvider)(
         email: email,
         password: password,
       );
+      if (!ref.mounted) return null;
       state = _next();
       return profile;
     } on AuthException catch (e) {
-      state = _next(error: e.message);
+      if (ref.mounted) state = _next(error: e.message);
     } catch (_) {
-      state = _next(error: 'Could not sign in. Is the server running?');
+      if (ref.mounted) {
+        state = _next(error: 'Could not sign in. Please try again.');
+      }
     }
     return null;
   }
 
   Future<bool> sendResetEmail(String email) async {
+    if (!ref.mounted || state.isLoading || state.isSendingReset) return false;
     if (email.isEmpty) {
       state = _next(
         error: 'Enter your email above first, then tap "Forgot password?".',
@@ -59,14 +65,15 @@ class LoginController extends Notifier<LoginState> {
     state = _next(isSendingReset: true);
     try {
       await ref.read(sendPasswordResetProvider)(email: email);
+      if (!ref.mounted) return false;
       state = _next();
       return true;
     } on AuthException catch (e) {
-      state = _next(error: e.message);
+      if (ref.mounted) state = _next(error: e.message);
     } catch (_) {
-      state = _next(
-        error: 'Could not send reset email. Is the server running?',
-      );
+      if (ref.mounted) {
+        state = _next(error: 'Could not send reset email. Please try again.');
+      }
     }
     return false;
   }
@@ -93,22 +100,15 @@ final loginControllerProvider =
 
 /// Drives the Coach profile's "Change password" action: sends a reset link
 /// and exposes the in-flight/error state as an [AsyncValue].
-class PasswordResetController extends AsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
-
+class PasswordResetController extends MutationController {
   /// Emails a password-reset link. Returns true on success so the View can
   /// confirm.
   Future<bool> send(String email) async {
-    state = const AsyncLoading();
-    try {
-      await ref.read(sendPasswordResetProvider)(email: email);
-      state = const AsyncData(null);
-      return true;
-    } catch (e, st) {
-      state = AsyncError(e, st);
-      return false;
-    }
+    return await runMutation(() async {
+          await ref.read(sendPasswordResetProvider)(email: email);
+          return true;
+        }) ??
+        false;
   }
 }
 
@@ -151,6 +151,7 @@ class ChangePasswordController extends Notifier<ChangePasswordState> {
     required String newPassword,
     required String confirmPassword,
   }) async {
+    if (!ref.mounted || state.isSaving) return false;
     final validationError = _validate(
       currentPassword,
       newPassword,
@@ -167,12 +168,15 @@ class ChangePasswordController extends Notifier<ChangePasswordState> {
         currentPassword: currentPassword,
         newPassword: newPassword,
       );
+      if (!ref.mounted) return false;
       state = _next();
       return true;
     } on AuthException catch (e) {
-      state = _next(error: e.message);
+      if (ref.mounted) state = _next(error: e.message);
     } catch (_) {
-      state = _next(error: 'Could not change password. Is the server running?');
+      if (ref.mounted) {
+        state = _next(error: 'Could not change password. Please try again.');
+      }
     }
     return false;
   }

@@ -14,13 +14,25 @@ class ApiDisputeRepository implements DisputeRepository {
   final AuthenticatedApiClient _api;
 
   @override
+  Future<Dispute> fetchDispute(String disputeId) async {
+    try {
+      final response = await _api.get('$_path$disputeId/');
+      return Dispute.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    } on ApiException catch (error) {
+      throw DisputeRepositoryException(error.message);
+    } on FormatException {
+      throw DisputeRepositoryException(
+        'The server returned an invalid dispute.',
+      );
+    }
+  }
+
+  @override
   Future<List<Dispute>> fetchDisputes() async {
     try {
-      final response = await _api.get(_path);
-      final decoded = jsonDecode(response.body);
-      final list = decoded is Map<String, dynamic>
-          ? (decoded['results'] as List? ?? const [])
-          : (decoded as List? ?? const []);
+      final list = await _api.getList(_path);
       return list.cast<Map<String, dynamic>>().map(Dispute.fromJson).toList();
     } on ApiException catch (error) {
       throw DisputeRepositoryException(error.message);

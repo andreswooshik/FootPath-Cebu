@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/injury_record.dart';
@@ -24,43 +25,39 @@ final injuryReportablePlayersProvider =
 /// Owns only the submit state ([AsyncValue] loading/error); the field values
 /// live in the form and are handed over as an [InjuryRecord] draft — same
 /// shape as [EditPerformanceController].
-class InjuryFormController extends AsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
-
+class InjuryFormController extends MutationController {
   /// Creates or updates [record]. Returns the saved record on success, or
   /// null on failure (with the error in [state] for the View to show). On
   /// success the player's injury list is invalidated so every open view
   /// refreshes.
   Future<InjuryRecord?> submit(InjuryRecord record) async {
-    state = const AsyncLoading();
-    try {
-      final saved = await ref.read(saveInjuryProvider)(record);
-      state = const AsyncData(null);
-      ref.invalidate(injuriesProvider(record.playerId));
-      ref.invalidate(clubInjuriesProvider);
-      return saved;
-    } catch (e, st) {
-      state = AsyncError(e, st);
-      return null;
-    }
+    return runMutation(
+      () async {
+        final saved = await ref.read(saveInjuryProvider)(record);
+        return saved;
+      },
+      onSuccess: (result) {
+        ref.invalidate(injuriesProvider(record.playerId));
+        ref.invalidate(clubInjuriesProvider);
+      },
+    );
   }
 
   /// Deletes [record]. Returns true on success.
   Future<bool> remove(InjuryRecord record) async {
     final id = record.id;
     if (id == null) return false; // never saved — nothing to delete
-    state = const AsyncLoading();
-    try {
-      await ref.read(deleteInjuryProvider)(record);
-      state = const AsyncData(null);
-      ref.invalidate(injuriesProvider(record.playerId));
-      ref.invalidate(clubInjuriesProvider);
-      return true;
-    } catch (e, st) {
-      state = AsyncError(e, st);
-      return false;
-    }
+    return await runMutation(
+          () async {
+            await ref.read(deleteInjuryProvider)(record);
+            return true;
+          },
+          onSuccess: (result) {
+            ref.invalidate(injuriesProvider(record.playerId));
+            ref.invalidate(clubInjuriesProvider);
+          },
+        ) ??
+        false;
   }
 
   Future<bool> reviewReport(
@@ -122,17 +119,17 @@ class InjuryFormController extends AsyncNotifier<void> {
     Future<Object?> Function() action, {
     required String playerId,
   }) async {
-    state = const AsyncLoading();
-    try {
-      await action();
-      state = const AsyncData(null);
-      ref.invalidate(injuriesProvider(playerId));
-      ref.invalidate(clubInjuriesProvider);
-      return true;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return false;
-    }
+    return await runMutation(
+          () async {
+            await action();
+            return true;
+          },
+          onSuccess: (result) {
+            ref.invalidate(injuriesProvider(playerId));
+            ref.invalidate(clubInjuriesProvider);
+          },
+        ) ??
+        false;
   }
 }
 

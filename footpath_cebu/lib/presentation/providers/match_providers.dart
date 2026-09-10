@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/football_match.dart';
@@ -40,10 +41,7 @@ final playerMatchStatisticsProvider = FutureProvider.autoDispose
     );
 
 /// Coordinates role-owned writes and refreshes every affected read model.
-class MatchManagementController extends AsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
-
+class MatchManagementController extends MutationController {
   Future<FootballMatch?> create(FootballMatchDraft draft) async {
     return _run(
       () => ref.read(createFootballMatchProvider)(draft),
@@ -81,19 +79,19 @@ class MatchManagementController extends AsyncNotifier<void> {
   }
 
   Future<bool> deletePerformance(String matchId, String playerId) async {
-    state = const AsyncLoading();
-    try {
-      await ref.read(deleteMatchPerformanceProvider)(matchId, playerId);
-      state = const AsyncData(null);
-      ref.invalidate(matchPerformancesProvider(matchId));
-      ref.invalidate(matchRosterProvider(matchId));
-      ref.invalidate(outOfSquadMatchCandidatesProvider(matchId));
-      ref.invalidate(playerMatchStatisticsProvider(playerId));
-      return true;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return false;
-    }
+    return await runMutation(
+          () async {
+            await ref.read(deleteMatchPerformanceProvider)(matchId, playerId);
+            return true;
+          },
+          onSuccess: (result) {
+            ref.invalidate(matchPerformancesProvider(matchId));
+            ref.invalidate(matchRosterProvider(matchId));
+            ref.invalidate(outOfSquadMatchCandidatesProvider(matchId));
+            ref.invalidate(playerMatchStatisticsProvider(playerId));
+          },
+        ) ??
+        false;
   }
 
   Future<MatchPerformance?> saveRating(
@@ -113,35 +111,34 @@ class MatchManagementController extends AsyncNotifier<void> {
   }
 
   Future<bool> deleteRating(String matchId, String playerId) async {
-    state = const AsyncLoading();
-    try {
-      await ref.read(deleteMatchRatingProvider)(matchId, playerId);
-      state = const AsyncData(null);
-      ref.invalidate(matchPerformancesProvider(matchId));
-      ref.invalidate(matchRosterProvider(matchId));
-      ref.invalidate(outOfSquadMatchCandidatesProvider(matchId));
-      ref.invalidate(playerMatchStatisticsProvider(playerId));
-      return true;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return false;
-    }
+    return await runMutation(
+          () async {
+            await ref.read(deleteMatchRatingProvider)(matchId, playerId);
+            return true;
+          },
+          onSuccess: (result) {
+            ref.invalidate(matchPerformancesProvider(matchId));
+            ref.invalidate(matchRosterProvider(matchId));
+            ref.invalidate(outOfSquadMatchCandidatesProvider(matchId));
+            ref.invalidate(playerMatchStatisticsProvider(playerId));
+          },
+        ) ??
+        false;
   }
 
   Future<T?> _run<T>(
     Future<T> Function() action, {
     required void Function(T value) onSuccess,
   }) async {
-    state = const AsyncLoading();
-    try {
-      final value = await action();
-      state = const AsyncData(null);
-      onSuccess(value);
-      return value;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return null;
-    }
+    return runMutation(
+      () async {
+        final value = await action();
+        return value;
+      },
+      onSuccess: (result) {
+        onSuccess(result);
+      },
+    );
   }
 }
 

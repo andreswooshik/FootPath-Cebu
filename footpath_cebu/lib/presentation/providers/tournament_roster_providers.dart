@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/tournament_roster.dart';
@@ -11,10 +12,7 @@ final tournamentRosterCandidatesProvider = FutureProvider.autoDispose
           .fetchCandidates(bracketId),
     );
 
-class TournamentRosterManagementController extends AsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
-
+class TournamentRosterManagementController extends MutationController {
   Future<TournamentSquad?> save(
     String bracketId,
     List<TournamentRosterSelection> entries,
@@ -39,17 +37,16 @@ class TournamentRosterManagementController extends AsyncNotifier<void> {
     String bracketId,
     Future<TournamentSquad> Function() action,
   ) async {
-    state = const AsyncLoading();
-    try {
-      final result = await action();
-      state = const AsyncData(null);
-      ref.invalidate(tournamentSchedulesProvider);
-      ref.invalidate(tournamentRosterCandidatesProvider(bracketId));
-      return result;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return null;
-    }
+    return runMutation(
+      () async {
+        final result = await action();
+        return result;
+      },
+      onSuccess: (result) {
+        ref.invalidate(tournamentSchedulesProvider);
+        ref.invalidate(tournamentRosterCandidatesProvider(bracketId));
+      },
+    );
   }
 }
 

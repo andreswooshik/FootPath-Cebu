@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:footpath_cebu/presentation/widgets/attendance_sync_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
@@ -65,6 +66,7 @@ class _TrainingScheduleScreenState
           'and guardians will be notified. Recorded attendance is kept.',
         ),
         actions: [
+          const AttendanceSyncButton(),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Keep session'),

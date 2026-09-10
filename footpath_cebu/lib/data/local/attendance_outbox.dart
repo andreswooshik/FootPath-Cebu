@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:sqflite/sqflite.dart';
@@ -14,6 +15,7 @@ class OutboxBatch {
     required this.records,
     required this.retryCount,
     this.lastError,
+    this.isRejected = false,
   });
 
   final int id;
@@ -22,6 +24,7 @@ class OutboxBatch {
   final List<Attendance> records;
   final int retryCount;
   final String? lastError;
+  final bool isRejected;
 }
 
 /// Durable queue of attendance saves that failed because the device was
@@ -39,6 +42,7 @@ class AttendanceOutbox {
   final String? _dbPath;
 
   Database? _db;
+  final _changes = StreamController<void>.broadcast();
 
   Future<Database> _database() async {
     final existing = _db;
@@ -50,7 +54,7 @@ class AttendanceOutbox {
     final db = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 2,
+        version: 3,
         onCreate: (db, version) => db.execute('''
           CREATE TABLE $_table (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +63,8 @@ class AttendanceOutbox {
             records_json TEXT NOT NULL,
             created_at TEXT NOT NULL,
             retry_count INTEGER NOT NULL DEFAULT 0,
-            last_error TEXT
+            last_error TEXT,
+            is_rejected INTEGER NOT NULL DEFAULT 0
           )
         '''),
         onUpgrade: (db, oldVersion, newVersion) async {
@@ -68,6 +73,11 @@ class AttendanceOutbox {
               "ALTER TABLE $_table ADD COLUMN owner_uid TEXT NOT NULL DEFAULT ''",
             );
             await db.delete(_table);
+          }
+          if (oldVersion < 3) {
+            await db.execute(
+              'ALTER TABLE $_table ADD COLUMN is_rejected INTEGER NOT NULL DEFAULT 0',
+            );
           }
         },
       ),
@@ -83,13 +93,15 @@ class AttendanceOutbox {
     List<Attendance> records,
   ) async {
     final db = await _database();
-    return db.insert(_table, {
+    final id = await db.insert(_table, {
       'owner_uid': ownerUid,
       'session_id': sessionId,
       'records_json': jsonEncode(records.map((r) => r.toJson()).toList()),
       'created_at': DateTime.now().toIso8601String(),
       'retry_count': 0,
     });
+    _notify();
+    return id;
   }
 
   /// All queued batches, oldest first — the drain order. Sequential
@@ -99,7 +111,7 @@ class AttendanceOutbox {
     final db = await _database();
     final rows = await db.query(
       _table,
-      where: 'owner_uid = ?',
+      where: 'owner_uid = ? AND is_rejected = 0',
       whereArgs: [ownerUid],
       orderBy: 'id ASC',
     );
@@ -126,7 +138,19 @@ class AttendanceOutbox {
   /// The batch reached the server — drop it.
   Future<void> markSynced(int id) async {
     final db = await _database();
-    await db.delete(_table, where: 'id = ?', whereArgs: [id]);
+    await db.transaction((txn) async {
+      final rows = await txn.query(_table, where: 'id = ?', whereArgs: [id]);
+      if (rows.isEmpty) return;
+      final row = rows.single;
+      // A successful newer full replacement resolves older rejected versions.
+      await txn.delete(
+        _table,
+        where:
+            'owner_uid = ? AND session_id = ? AND (id = ? OR (id < ? AND is_rejected = 1))',
+        whereArgs: [row['owner_uid'], row['session_id'], id, id],
+      );
+    });
+    _notify();
   }
 
   /// A sync attempt failed; keep the batch and record why.
@@ -137,9 +161,87 @@ class AttendanceOutbox {
       'WHERE id = ?',
       [error, id],
     );
+    _notify();
+  }
+
+  Future<void> markRejected(int id, String error) async {
+    final db = await _database();
+    await db.rawUpdate(
+      'UPDATE $_table SET is_rejected = 1, retry_count = retry_count + 1, last_error = ? WHERE id = ?',
+      [error, id],
+    );
+    _notify();
+  }
+
+  /// The user explicitly saved a corrected complete snapshot. Replace all old
+  /// versions atomically so a crash leaves either the old draft or the new one.
+  Future<void> replaceSession(
+    String ownerUid,
+    String sessionId,
+    List<Attendance> records,
+  ) async {
+    final db = await _database();
+    await db.transaction((txn) async {
+      await txn.delete(
+        _table,
+        where: 'owner_uid = ? AND session_id = ?',
+        whereArgs: [ownerUid, sessionId],
+      );
+      await txn.insert(_table, {
+        'owner_uid': ownerUid,
+        'session_id': sessionId,
+        'records_json': jsonEncode(records.map((r) => r.toJson()).toList()),
+        'created_at': DateTime.now().toIso8601String(),
+        'retry_count': 0,
+      });
+    });
+    _notify();
+  }
+
+  Future<List<OutboxBatch>> allBatches(String ownerUid) async {
+    final db = await _database();
+    final rows = await db.query(
+      _table,
+      where: 'owner_uid = ?',
+      whereArgs: [ownerUid],
+      orderBy: 'id ASC',
+    );
+    return rows.map(_toBatch).toList();
+  }
+
+  Stream<List<OutboxBatch>> watchBatches(String ownerUid) =>
+      Stream.multi((controller) {
+        var cancelled = false;
+        Future<void> tail = Future.value();
+        void refresh() {
+          tail = tail.then((_) async {
+            if (cancelled) return;
+            try {
+              final rows = await allBatches(ownerUid);
+              if (!cancelled) controller.add(rows);
+            } catch (error, stack) {
+              if (!cancelled) controller.addError(error, stack);
+            }
+          });
+        }
+
+        final subscription = _changes.stream.listen(
+          (_) => refresh(),
+          onDone: controller.close,
+        );
+        controller.onCancel = () {
+          cancelled = true;
+          return subscription.cancel();
+        };
+        refresh();
+      });
+
+  void _notify() {
+    if (!_changes.isClosed) _changes.add(null);
   }
 
   Future<void> close() async {
+    await _changes.close();
     await _db?.close();
     _db = null;
   }
@@ -156,6 +258,7 @@ class AttendanceOutbox {
           .toList(),
       retryCount: row['retry_count'] as int,
       lastError: row['last_error'] as String?,
+      isRejected: row['is_rejected'] == 1,
     );
   }
 }

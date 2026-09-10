@@ -1,9 +1,14 @@
+import 'dart:async';
+import 'package:footpath_cebu/data/repositories/local_attendance_sync_repository.dart';
+import 'package:footpath_cebu/domain/repositories/attendance_sync_repository.dart';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kReleaseMode;
+import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/data/local/attendance_outbox.dart';
+import 'package:footpath_cebu/data/local/attendance_write_queue.dart';
 import 'package:footpath_cebu/data/local/attendance_sync_service.dart';
 import 'package:footpath_cebu/data/repositories/api_age_tier_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
@@ -72,6 +77,7 @@ import 'package:footpath_cebu/domain/usecases/development_assessment.dart';
 import 'package:footpath_cebu/domain/usecases/get_age_tier_bands.dart';
 import 'package:footpath_cebu/domain/usecases/delete_injury.dart';
 import 'package:footpath_cebu/domain/usecases/get_disputes.dart';
+import 'package:footpath_cebu/domain/usecases/get_dispute.dart';
 import 'package:footpath_cebu/domain/usecases/get_eligibility_history.dart';
 import 'package:footpath_cebu/domain/usecases/get_injuries.dart';
 import 'package:footpath_cebu/domain/usecases/get_linked_players.dart';
@@ -207,9 +213,31 @@ final attendanceOutboxProvider = Provider<AttendanceOutbox>((ref) {
   return outbox;
 });
 
+final attendanceWriteQueueProvider = Provider<AttendanceWriteQueue>(
+  (ref) => AttendanceWriteQueue(),
+);
+
+final attendanceSyncRepositoryProvider = Provider<AttendanceSyncRepository>((
+  ref,
+) {
+  if (useMockData || kIsWeb) return OnlineAttendanceSyncRepository();
+  return LocalAttendanceSyncRepository(
+    outbox: ref.watch(attendanceOutboxProvider),
+    writeQueue: ref.watch(attendanceWriteQueueProvider),
+    ownerUid: () => FirebaseAuth.instance.currentUser?.uid,
+    requestSync: () async {
+      await ref.read(attendanceSyncServiceProvider)?.drain();
+    },
+  );
+});
+
 final attendanceRepositoryProvider = Provider<AttendanceRepository>(
   (ref) => useMockData
       ? MockAttendanceRepository()
+      : kIsWeb
+      ? ApiAttendanceRepository(
+          unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
+        )
       // Live attendance is offline-first: writes that fail at the network
       // level are queued in the outbox and replayed by the sync service.
       : OfflineFirstAttendanceRepository(
@@ -217,6 +245,12 @@ final attendanceRepositoryProvider = Provider<AttendanceRepository>(
             unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
           ),
           outbox: ref.watch(attendanceOutboxProvider),
+          writeQueue: ref.watch(attendanceWriteQueueProvider),
+          requestSync: () {
+            if (ref.mounted) {
+              unawaited(ref.read(attendanceSyncServiceProvider)?.drain());
+            }
+          },
           ownerUid: () => FirebaseAuth.instance.currentUser?.uid,
         ),
 );
@@ -225,9 +259,10 @@ final attendanceRepositoryProvider = Provider<AttendanceRepository>(
 /// (nothing real to sync). Started once post-login, alongside
 /// [registerDeviceProvider].
 final attendanceSyncServiceProvider = Provider<AttendanceSyncService?>((ref) {
-  if (useMockData) return null;
+  if (useMockData || kIsWeb) return null;
   final service = AttendanceSyncService(
     outbox: ref.watch(attendanceOutboxProvider),
+    writeQueue: ref.watch(attendanceWriteQueueProvider),
     inner: ApiAttendanceRepository(
       unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
     ),
@@ -431,6 +466,10 @@ final deleteInjuryProvider = Provider<DeleteInjury>(
 
 final getDisputesProvider = Provider<GetDisputes>(
   (ref) => GetDisputes(ref.watch(disputeRepositoryProvider)),
+);
+
+final getDisputeProvider = Provider<GetDispute>(
+  (ref) => GetDispute(ref.watch(disputeRepositoryProvider)),
 );
 
 final getEligibilityHistoryProvider = Provider<GetEligibilityHistory>(

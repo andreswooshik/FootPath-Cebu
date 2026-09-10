@@ -46,6 +46,30 @@ const _schoolStaff = UserProfile(
 );
 
 void main() {
+  test(
+    'outbox retries share an event key even with different FCM message IDs',
+    () {
+      final first = NotificationOpenRequest.fromData({
+        'type': 'session_updated',
+        'eventId': 'event-1',
+      }, sourceMessageId: 'fcm-1');
+      final retry = NotificationOpenRequest.fromData({
+        'type': 'session_updated',
+        'eventId': 'event-1',
+      }, sourceMessageId: 'fcm-2');
+      expect(first.deduplicationKey, retry.deduplicationKey);
+      final unrelated = AppNotification(
+        id: '1',
+        type: 'session_updated',
+        title: '',
+        body: '',
+        data: {'eventId': 'event-2'},
+        isRead: false,
+        createdAt: DateTime(2026),
+      );
+      expect(first.matches(unrelated), isFalse);
+    },
+  );
   group('notification destination policy', () {
     test('session events enter the schedule for each mobile portal role', () {
       for (final profile in [_coach, _player, _guardian]) {

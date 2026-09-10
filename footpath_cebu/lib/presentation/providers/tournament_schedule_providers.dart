@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/tournament_schedule.dart';
@@ -9,10 +10,7 @@ final tournamentSchedulesProvider =
       return ref.watch(tournamentScheduleRepositoryProvider).fetchSchedules();
     });
 
-class TournamentManagementController extends AsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
-
+class TournamentManagementController extends MutationController {
   Future<TournamentSchedule?> create({
     required String title,
     required String venue,
@@ -73,18 +71,18 @@ class TournamentManagementController extends AsyncNotifier<void> {
   );
 
   Future<bool> deleteBracket(String bracketId) async {
-    state = const AsyncLoading();
-    try {
-      await ref
-          .read(tournamentScheduleRepositoryProvider)
-          .deleteAgeBracket(bracketId);
-      state = const AsyncData(null);
-      ref.invalidate(tournamentSchedulesProvider);
-      return true;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return false;
-    }
+    return await runMutation(
+          () async {
+            await ref
+                .read(tournamentScheduleRepositoryProvider)
+                .deleteAgeBracket(bracketId);
+            return true;
+          },
+          onSuccess: (result) {
+            ref.invalidate(tournamentSchedulesProvider);
+          },
+        ) ??
+        false;
   }
 
   Future<TournamentSchedule?> addFixture(
@@ -163,31 +161,30 @@ class TournamentManagementController extends AsyncNotifier<void> {
   );
 
   Future<bool> _runVoid(Future<void> Function() action) async {
-    state = const AsyncLoading();
-    try {
-      await action();
-      state = const AsyncData(null);
-      ref.invalidate(tournamentSchedulesProvider);
-      return true;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return false;
-    }
+    return await runMutation(
+          () async {
+            await action();
+            return true;
+          },
+          onSuccess: (result) {
+            ref.invalidate(tournamentSchedulesProvider);
+          },
+        ) ??
+        false;
   }
 
   Future<TournamentSchedule?> _run(
     Future<TournamentSchedule> Function() action,
   ) async {
-    state = const AsyncLoading();
-    try {
-      final result = await action();
-      state = const AsyncData(null);
-      ref.invalidate(tournamentSchedulesProvider);
-      return result;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-      return null;
-    }
+    return runMutation(
+      () async {
+        final result = await action();
+        return result;
+      },
+      onSuccess: (result) {
+        ref.invalidate(tournamentSchedulesProvider);
+      },
+    );
   }
 }
 

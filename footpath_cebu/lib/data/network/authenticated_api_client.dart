@@ -32,6 +32,11 @@ class ApiAuthenticationException extends ApiException {
   const ApiAuthenticationException(super.message);
 }
 
+/// The original request is obsolete; this must not sign out the new account.
+class ApiSessionChangedException extends ApiException {
+  const ApiSessionChangedException(super.message);
+}
+
 /// The request did not receive an HTTP response (socket/client/timeout only).
 class ApiNetworkException extends ApiException {
   const ApiNetworkException(super.message);
@@ -87,6 +92,74 @@ class AuthenticatedApiClient {
   final ApiGetCache _cache;
   final ApiIdentityProvider _identityProvider;
   final Duration timeout;
+
+  /// Reads a complete collection, preserving filters and authorization on every
+  /// page. Incomplete or malformed collections must never appear as empty data.
+  Future<List<Map<String, dynamic>>> getList(
+    String path, {
+    Map<String, String> headers = const {},
+  }) async {
+    final ownerUid = _identityProvider()?.uid;
+    if (ownerUid == null || ownerUid.isEmpty) {
+      throw const ApiAuthenticationException('Not signed in.');
+    }
+    var uri = _resolveApiUri(path);
+    final visited = <String>{};
+    final records = <Map<String, dynamic>>[];
+    while (true) {
+      _ensureIdentity(ownerUid);
+      if (!visited.add(uri.toString()) || visited.length > 1000) {
+        throw const ApiDecodeException('Invalid collection pagination.');
+      }
+      final response = await get(uri.toString(), headers: headers);
+      _ensureIdentity(ownerUid);
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(response.body);
+      } on FormatException {
+        throw const ApiDecodeException('The server returned invalid JSON.');
+      }
+      final items = decoded is Map<String, dynamic>
+          ? decoded['results']
+          : decoded;
+      if (items is! List ||
+          items.any((item) => item is! Map<String, dynamic>)) {
+        throw const ApiDecodeException(
+          'The server returned an invalid collection.',
+        );
+      }
+      records.addAll(items.cast<Map<String, dynamic>>());
+      final nextOffset = response.headers['x-next-offset'];
+      if (nextOffset != null) {
+        final offset = int.tryParse(nextOffset);
+        final current = int.tryParse(uri.queryParameters['offset'] ?? '0');
+        if (offset == null ||
+            current == null ||
+            offset <= current ||
+            offset > 100000) {
+          throw const ApiDecodeException('Invalid collection pagination.');
+        }
+        uri = uri.replace(
+          queryParameters: {...uri.queryParameters, 'offset': '$offset'},
+        );
+        continue;
+      }
+      final next = decoded is Map<String, dynamic> ? decoded['next'] : null;
+      if (next == null) return records;
+      if (next is! String || next.isEmpty) {
+        throw const ApiDecodeException('Invalid collection pagination.');
+      }
+      uri = _resolveApiUri(uri.resolve(next).toString());
+    }
+  }
+
+  void _ensureIdentity(String ownerUid) {
+    if (_identityProvider()?.uid != ownerUid) {
+      throw const ApiSessionChangedException(
+        'The signed-in account changed. Please try again.',
+      );
+    }
+  }
 
   Future<http.Response> get(
     String path, {
@@ -202,6 +275,7 @@ class AuthenticatedApiClient {
       );
     }
 
+    _ensureIdentity(identity.uid);
     final request = http.MultipartRequest('POST', uri)
       ..followRedirects = false
       ..headers['Authorization'] = 'Bearer $token'
@@ -237,6 +311,7 @@ class AuthenticatedApiClient {
       );
     }
 
+    _ensureIdentity(identity.uid);
     if (!expectedStatuses.contains(response.statusCode)) {
       throw ApiHttpException(
         statusCode: response.statusCode,
@@ -272,6 +347,7 @@ class AuthenticatedApiClient {
 
     if (mayCache && cacheFirst) {
       final cached = await _readBestEffort(identity.uid, cacheKey);
+      _ensureIdentity(identity.uid);
       if (cached != null) {
         return http.Response(
           cached.body,
@@ -304,6 +380,7 @@ class AuthenticatedApiClient {
       );
     }
 
+    _ensureIdentity(identity.uid);
     final request = http.Request(method, uri)
       ..followRedirects = false
       ..headers.addAll({'Authorization': 'Bearer $token', ...headers});
@@ -353,6 +430,7 @@ class AuthenticatedApiClient {
       );
     }
 
+    _ensureIdentity(identity.uid);
     if (!expectedStatuses.contains(response.statusCode)) {
       throw ApiHttpException(
         statusCode: response.statusCode,
@@ -372,6 +450,7 @@ class AuthenticatedApiClient {
       }
       await _storeBestEffort(identity.uid, cacheKey, response);
     }
+    _ensureIdentity(identity.uid);
     return response;
   }
 
@@ -381,8 +460,10 @@ class AuthenticatedApiClient {
     bool enabled,
     ApiNetworkException error,
   ) async {
+    _ensureIdentity(ownerUid);
     if (enabled) {
       final cached = await _readBestEffort(ownerUid, cacheKey);
+      _ensureIdentity(ownerUid);
       if (cached != null) {
         return http.Response(
           cached.body,
@@ -489,9 +570,8 @@ class AuthenticatedApiClient {
   String? _serverCode(http.Response response) {
     try {
       final decoded = jsonDecode(response.body);
-      return decoded is Map<String, dynamic>
-          ? decoded['code'] as String?
-          : null;
+      final code = decoded is Map<String, dynamic> ? decoded['code'] : null;
+      return code is String ? code : null;
     } on FormatException {
       return null;
     }

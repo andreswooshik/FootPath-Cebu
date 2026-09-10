@@ -16,11 +16,7 @@ class ApiTrainingRepository implements TrainingRepository {
   @override
   Future<List<TrainingSession>> fetchSessions() async {
     try {
-      final response = await _api.get(_path);
-      final decoded = jsonDecode(response.body);
-      final list = decoded is Map<String, dynamic>
-          ? (decoded['results'] as List? ?? const [])
-          : (decoded as List? ?? const []);
+      final list = await _api.getList(_path);
       return list
           .cast<Map<String, dynamic>>()
           .map(TrainingSession.fromJson)

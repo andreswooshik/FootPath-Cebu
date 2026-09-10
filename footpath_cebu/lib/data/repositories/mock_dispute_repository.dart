@@ -33,6 +33,14 @@ class MockDisputeRepository implements DisputeRepository {
   int _nextResponse = 2;
 
   @override
+  Future<Dispute> fetchDispute(String disputeId) async {
+    return _disputes.firstWhere(
+      (dispute) => dispute.id == disputeId,
+      orElse: () => throw DisputeRepositoryException('Dispute not found.'),
+    );
+  }
+
+  @override
   Future<List<Dispute>> fetchDisputes() async {
     // Simulate network latency so loading states are exercised in the UI.
     await Future.delayed(const Duration(milliseconds: 300));

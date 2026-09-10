@@ -15,6 +15,7 @@ class NotificationOpenRequest {
     this.sessionId,
     this.playerId,
     this.sourceMessageId,
+    this.eventId,
   });
 
   final String type;
@@ -25,6 +26,7 @@ class NotificationOpenRequest {
   /// FCM message ID, when available, gives duplicate delivery callbacks one
   /// stable key without being used for any domain lookup.
   final String? sourceMessageId;
+  final String? eventId;
 
   factory NotificationOpenRequest.fromData(
     Map<String, dynamic> data, {
@@ -36,6 +38,7 @@ class NotificationOpenRequest {
       sessionId: _text(data['sessionId']),
       playerId: _text(data['playerId']),
       sourceMessageId: _text(sourceMessageId),
+      eventId: _text(data['eventId']),
     );
   }
 
@@ -47,18 +50,21 @@ class NotificationOpenRequest {
       notificationId: notification.id,
       sessionId: _text(notification.data['sessionId']),
       playerId: _text(notification.data['playerId']),
+      eventId: _text(notification.data['eventId']),
     );
   }
 
   String get deduplicationKey {
-    return sourceMessageId ??
+    return eventId ??
         notificationId ??
+        sourceMessageId ??
         '$type|${sessionId ?? ''}|${playerId ?? ''}';
   }
 
   /// Matches the persisted inbox row represented by an opened FCM message.
   bool matches(AppNotification notification) {
     if (notificationId != null) return notification.id == notificationId;
+    if (eventId != null) return _text(notification.data['eventId']) == eventId;
     if (type.isEmpty || notification.type != type) return false;
     if (sessionId != null) {
       return _text(notification.data['sessionId']) == sessionId;

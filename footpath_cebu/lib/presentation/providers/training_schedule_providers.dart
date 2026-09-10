@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
@@ -110,10 +111,7 @@ void _refreshAtNextSessionEnd(
 ///
 /// Owns only the submit state ([AsyncValue] loading/error); the form field
 /// values live in the screen and are handed over as a draft [TrainingSession].
-class ScheduleSessionController extends AsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
-
+class ScheduleSessionController extends MutationController {
   /// Persists [draft]. Returns true on success so the screen can pop back to
   /// the schedule — which refreshes by itself, because this invalidates
   /// [trainingSessionsProvider].
@@ -130,16 +128,16 @@ class ScheduleSessionController extends AsyncNotifier<void> {
       _run(() => ref.read(cancelTrainingSessionProvider)(sessionId));
 
   Future<bool> _run(Future<Object?> Function() action) async {
-    state = const AsyncLoading();
-    try {
-      await action();
-      state = const AsyncData(null);
-      ref.invalidate(trainingSessionsProvider);
-      return true;
-    } catch (e, st) {
-      state = AsyncError(e, st);
-      return false;
-    }
+    return await runMutation(
+          () async {
+            await action();
+            return true;
+          },
+          onSuccess: (result) {
+            ref.invalidate(trainingSessionsProvider);
+          },
+        ) ??
+        false;
   }
 }
 

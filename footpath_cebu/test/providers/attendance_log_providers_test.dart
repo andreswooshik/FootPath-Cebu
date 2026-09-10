@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/domain/entities/attendance_sync_entry.dart';
+import 'package:footpath_cebu/domain/repositories/attendance_sync_repository.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/presentation/providers/attendance_log_providers.dart';
 
@@ -44,7 +46,61 @@ Attendance _present(String playerId) => Attendance(
   sessionId: 't1',
 );
 
+class _SyncStatusRepository implements AttendanceSyncRepository {
+  _SyncStatusRepository(this.status);
+  final AttendanceDeliveryStatus status;
+  @override
+  Future<List<AttendanceSyncEntry>> fetchEntries() async {
+    if (status == AttendanceDeliveryStatus.unknown) {
+      throw Exception('storage unavailable');
+    }
+    if (status == AttendanceDeliveryStatus.savedOnServer) return [];
+    return [
+      AttendanceSyncEntry(
+        sessionId: 't1',
+        records: [_present('p1')],
+        status: status,
+        recoveryKey: 'coach:1',
+      ),
+    ];
+  }
+
+  @override
+  Stream<List<AttendanceSyncEntry>> watchEntries() =>
+      Stream.fromFuture(fetchEntries());
+  @override
+  Future<void> syncNow() async {}
+  @override
+  Future<void> saveCorrection(
+    AttendanceSyncEntry entry,
+    List<Attendance> records,
+  ) async {}
+}
+
 void main() {
+  for (final status in AttendanceDeliveryStatus.values) {
+    test(
+      'successful local save reports $status without claiming the wrong delivery state',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            attendanceRepositoryProvider.overrideWithValue(
+              _FakeAttendanceRepo(),
+            ),
+            attendanceSyncRepositoryProvider.overrideWithValue(
+              _SyncStatusRepository(status),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final controller = container.read(
+          attendanceLogControllerProvider.notifier,
+        );
+        expect(await controller.save('t1', [_present('p1')]), isTrue);
+        expect(controller.lastDeliveryStatus, status);
+      },
+    );
+  }
   ProviderContainer containerWith(_FakeAttendanceRepo repo) {
     final container = ProviderContainer(
       overrides: [attendanceRepositoryProvider.overrideWithValue(repo)],

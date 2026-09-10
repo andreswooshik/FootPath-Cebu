@@ -105,9 +105,7 @@ class DisputeStatusChip extends StatelessWidget {
   }
 }
 
-/// The thread + respond form for one dispute. The dispute shown is the
-/// snapshot handed in; a posted response pops the sheet and the invalidated
-/// list refetches, so stale threads never linger.
+/// Fetches the complete thread when opened; list rows contain only a preview.
 class _DisputeThreadSheet extends ConsumerStatefulWidget {
   const _DisputeThreadSheet({required this.dispute});
 
@@ -159,8 +157,24 @@ class _DisputeThreadSheetState extends ConsumerState<_DisputeThreadSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final detail = ref.watch(disputeDetailProvider(widget.dispute.id));
+    return detail.when(
+      loading: () =>
+          const SizedBox(height: 240, child: DashboardLoadingState()),
+      error: (error, _) => SizedBox(
+        height: 240,
+        child: DashboardErrorState(
+          message: friendlyErrorMessage(error, 'Could not load the dispute.'),
+          onRetry: () =>
+              ref.invalidate(disputeDetailProvider(widget.dispute.id)),
+        ),
+      ),
+      data: (dispute) => _buildThread(context, dispute),
+    );
+  }
+
+  Widget _buildThread(BuildContext context, Dispute dispute) {
     final theme = Theme.of(context);
-    final dispute = widget.dispute;
     final isSaving = ref.watch(disputeFormControllerProvider).isLoading;
     return SafeArea(
       child: SingleChildScrollView(

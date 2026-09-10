@@ -23,8 +23,8 @@ class ApiSessionConfirmationRepository
     String playerId,
   ) async {
     try {
-      final response = await _api.get('$_path?player=$playerId');
-      return _decode(response.body)
+      final records = await _api.getList('$_path?player=$playerId');
+      return records.map(SessionConfirmation.fromJson).toList()
         ..sort((a, b) => b.respondedAt.compareTo(a.respondedAt));
     } on ApiException catch (error) {
       throw SessionConfirmationRepositoryException(error.message);
@@ -52,16 +52,5 @@ class ApiSessionConfirmationRepository
     } on ApiException catch (error) {
       throw SessionConfirmationRepositoryException(error.message);
     }
-  }
-
-  List<SessionConfirmation> _decode(String body) {
-    final decoded = jsonDecode(body);
-    final list = decoded is Map<String, dynamic>
-        ? (decoded['results'] as List? ?? const [])
-        : (decoded as List? ?? const []);
-    return list
-        .cast<Map<String, dynamic>>()
-        .map(SessionConfirmation.fromJson)
-        .toList();
   }
 }

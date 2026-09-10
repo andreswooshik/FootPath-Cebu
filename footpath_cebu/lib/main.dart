@@ -89,6 +89,7 @@ class _FootPathAppState extends ConsumerState<FootPathApp> {
   }
 
   void _handleForegroundMessage(RemoteMessage message) {
+    if (!mounted || FirebaseAuth.instance.currentUser == null) return;
     _refreshInbox();
     final title =
         message.notification?.title ??
@@ -109,13 +110,19 @@ class _FootPathAppState extends ConsumerState<FootPathApp> {
   }
 
   Future<void> _openInitialMessage() async {
-    final message = await FirebaseMessaging.instance.getInitialMessage();
-    if (message != null) await _openMessage(message);
+    try {
+      final message = await FirebaseMessaging.instance.getInitialMessage();
+      if (mounted && message != null) await _openMessage(message);
+    } catch (_) {
+      // Notification startup is optional; the persisted inbox remains usable.
+    }
   }
 
   Future<void> _openMessage(RemoteMessage message) async {
+    if (!mounted) return;
+    final ownerUid = FirebaseAuth.instance.currentUser?.uid;
+    if (ownerUid == null) return;
     _refreshInbox();
-    if (FirebaseAuth.instance.currentUser == null) return;
     final request = NotificationOpenRequest.fromData(
       message.data,
       sourceMessageId: message.messageId,
@@ -123,9 +130,15 @@ class _FootPathAppState extends ConsumerState<FootPathApp> {
     await ref.read(notificationNavigationControllerProvider).open(request, (
       resolved,
     ) async {
+      if (!mounted || FirebaseAuth.instance.currentUser?.uid != ownerUid) {
+        return;
+      }
       var navigator = appNavigatorKey.currentState;
       if (navigator == null) {
         await WidgetsBinding.instance.endOfFrame;
+        if (!mounted || FirebaseAuth.instance.currentUser?.uid != ownerUid) {
+          return;
+        }
         navigator = appNavigatorKey.currentState;
       }
       if (navigator == null || !navigator.mounted) return;

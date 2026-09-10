@@ -149,11 +149,7 @@ class ApiPlayerRepository
 
   Future<List<Player>> _getList(String path) async {
     try {
-      final response = await _api.get(path);
-      final decoded = jsonDecode(response.body);
-      final list = decoded is Map<String, dynamic>
-          ? (decoded['results'] as List? ?? const [])
-          : (decoded as List? ?? const []);
+      final list = await _api.getList(path);
       return list
           .cast<Map<String, dynamic>>()
           .map(Player.fromJson)

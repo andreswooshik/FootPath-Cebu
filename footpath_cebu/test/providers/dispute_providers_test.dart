@@ -8,6 +8,9 @@ import 'package:footpath_cebu/presentation/providers/dispute_providers.dart';
 
 class _FailingDisputeRepo implements DisputeRepository {
   @override
+  Future<Dispute> fetchDispute(String disputeId) async =>
+      throw DisputeRepositoryException('Could not load dispute.');
+  @override
   Future<List<Dispute>> fetchDisputes() async =>
       throw DisputeRepositoryException('boom');
 
@@ -17,16 +20,14 @@ class _FailingDisputeRepo implements DisputeRepository {
     required String summary,
     String? detail,
     String? subjectPlayerId,
-  }) async =>
-      throw DisputeRepositoryException('boom');
+  }) async => throw DisputeRepositoryException('boom');
 
   @override
   Future<Dispute> respondToDispute(
     String disputeId,
     String body, {
     DisputeStatus? statusChangeTo,
-  }) async =>
-      throw DisputeRepositoryException('boom');
+  }) async => throw DisputeRepositoryException('boom');
 }
 
 void main() {
@@ -38,8 +39,7 @@ void main() {
     return container;
   }
 
-  test('disputesProvider returns the seeded dispute with its thread',
-      () async {
+  test('disputesProvider returns the seeded dispute with its thread', () async {
     final container = containerWith(MockDisputeRepository());
 
     final disputes = await container.read(disputesProvider.future);
@@ -52,12 +52,13 @@ void main() {
     final container = containerWith(MockDisputeRepository());
     container.listen(disputeFormControllerProvider, (_, _) {});
 
-    final dispute =
-        await container.read(disputeFormControllerProvider.notifier).raise(
-              category: DisputeCategory.assessment,
-              summary: 'Rating query',
-              subjectPlayerId: 'p2',
-            );
+    final dispute = await container
+        .read(disputeFormControllerProvider.notifier)
+        .raise(
+          category: DisputeCategory.assessment,
+          summary: 'Rating query',
+          subjectPlayerId: 'p2',
+        );
 
     expect(dispute, isNotNull);
     expect(dispute!.status, DisputeStatus.open);
@@ -72,8 +73,11 @@ void main() {
 
     final updated = await container
         .read(disputeFormControllerProvider.notifier)
-        .respond('d1', 'Sign-in sheet confirms it. Correcting the record.',
-            statusChangeTo: DisputeStatus.resolved);
+        .respond(
+          'd1',
+          'Sign-in sheet confirms it. Correcting the record.',
+          statusChangeTo: DisputeStatus.resolved,
+        );
 
     expect(updated, isNotNull);
     expect(updated!.status, DisputeStatus.resolved);
@@ -84,14 +88,10 @@ void main() {
   test('failures surface as error state, not throws', () async {
     final container = containerWith(_FailingDisputeRepo());
     final sub = container.listen(disputeFormControllerProvider, (_, _) {});
-    final controller =
-        container.read(disputeFormControllerProvider.notifier);
+    final controller = container.read(disputeFormControllerProvider.notifier);
 
     expect(
-      await controller.raise(
-        category: DisputeCategory.other,
-        summary: 'x',
-      ),
+      await controller.raise(category: DisputeCategory.other, summary: 'x'),
       isNull,
     );
     expect(sub.read().hasError, isTrue);

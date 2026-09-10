@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:footpath_cebu/presentation/widgets/attendance_sync_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/domain/entities/attendance_sync_entry.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
@@ -241,9 +243,22 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     if (!mounted) return;
     if (ok) {
       _dirtySince = false;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Attendance saved — $presentCount present.')),
-      );
+      final delivery = ref
+          .read(attendanceLogControllerProvider.notifier)
+          .lastDeliveryStatus;
+      final message = switch (delivery) {
+        AttendanceDeliveryStatus.savedOnServer =>
+          'Saved on server — $presentCount present.',
+        AttendanceDeliveryStatus.waitingToSync =>
+          'Saved on this device — waiting to sync. View Attendance sync for progress.',
+        AttendanceDeliveryStatus.needsCorrection =>
+          'Saved on this device — needs correction. Open Attendance sync to review.',
+        AttendanceDeliveryStatus.unknown =>
+          'Attendance saved. Sync status is unavailable; check Attendance sync.',
+      };
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
       Navigator.of(context).pop(true);
     } else {
       final error = ref.read(attendanceLogControllerProvider).error;
@@ -299,7 +314,10 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
         if (!didPop) _confirmDiscard();
       },
       child: Scaffold(
-        appBar: AppBar(title: const Text('Attendance')),
+        appBar: AppBar(
+          title: const Text('Attendance'),
+          actions: const [AttendanceSyncButton()],
+        ),
         body: rosterAsync.when(
           loading: () => const DashboardLoadingState(),
           error: (e, _) => DashboardErrorState(
@@ -373,6 +391,7 @@ class _Body extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        AttendanceSyncStatus(sessionId: session.id),
         _SessionHeader(
           session: session,
           totalPlayers: roster.length,

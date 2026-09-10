@@ -3,8 +3,12 @@ import 'package:footpath_cebu/domain/entities/dispute.dart';
 /// Reads the dispute list (every dispute — the backend scopes access to the
 /// coach/staff/admin roles).
 abstract class DisputeReader {
-  /// Returns all disputes, newest first, each with its full thread.
+  /// Returns all disputes, newest first, with a recent response preview.
   Future<List<Dispute>> fetchDisputes();
+}
+
+abstract class DisputeDetailReader {
+  Future<Dispute> fetchDispute(String disputeId);
 }
 
 /// Writes: flag a new dispute, or append to a thread. Split from the reader —
@@ -28,7 +32,8 @@ abstract class DisputeWriter {
 }
 
 /// Aggregate the concrete data sources implement.
-abstract class DisputeRepository implements DisputeReader, DisputeWriter {}
+abstract class DisputeRepository
+    implements DisputeReader, DisputeDetailReader, DisputeWriter {}
 
 /// Thrown when a dispute read or write cannot be completed.
 class DisputeRepositoryException implements Exception {

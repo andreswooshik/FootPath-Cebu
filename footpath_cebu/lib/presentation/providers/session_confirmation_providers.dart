@@ -29,16 +29,17 @@ class SessionConfirmationController extends Notifier<Set<String>> {
     String playerId,
     ConfirmationStatus status,
   ) async {
-    if (state.contains(sessionId)) return false; // already submitting
+    if (!ref.mounted || state.contains(sessionId)) return false;
     state = {...state, sessionId};
     try {
       await ref.read(confirmSessionProvider)(sessionId, playerId, status);
+      if (!ref.mounted) return false;
       ref.invalidate(sessionConfirmationsProvider(playerId));
       return true;
     } catch (_) {
       return false;
     } finally {
-      state = state.where((id) => id != sessionId).toSet();
+      if (ref.mounted) state = state.where((id) => id != sessionId).toSet();
     }
   }
 }

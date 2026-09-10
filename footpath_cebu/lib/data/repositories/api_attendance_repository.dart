@@ -22,14 +22,14 @@ class ApiAttendanceRepository implements AttendanceRepository {
   }) async {
     final playerUnlock = unlockToken ?? unlockTokenFor?.call(playerId);
     try {
-      final response = await _api.get(
+      final records = await _api.getList(
         '$_path?player=$playerId',
         headers: {
           if (playerUnlock != null && playerUnlock.isNotEmpty)
             'X-Player-Unlock': playerUnlock,
         },
       );
-      return _decodeRecords(response.body)
+      return records.map(Attendance.fromJson).toList()
         ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     } on ApiNetworkException catch (error) {
       throw AttendanceNetworkException(error.message);
@@ -46,8 +46,8 @@ class ApiAttendanceRepository implements AttendanceRepository {
   @override
   Future<List<Attendance>> fetchAttendanceForSession(String sessionId) async {
     try {
-      final response = await _api.get('${_path}session/$sessionId/');
-      return _decodeRecords(response.body);
+      final records = await _api.getList('${_path}session/$sessionId/');
+      return records.map(Attendance.fromJson).toList();
     } on ApiNetworkException catch (error) {
       throw AttendanceNetworkException(error.message);
     } on ApiHttpException catch (error) {
@@ -67,7 +67,7 @@ class ApiAttendanceRepository implements AttendanceRepository {
   ) async {
     try {
       final response = await _api.post(
-        '${_path}session/$sessionId/',
+        '${_path}session/$sessionId/?limit=500',
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'records': records.map((r) => r.toJson()).toList()}),
       );

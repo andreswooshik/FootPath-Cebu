@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
@@ -9,28 +10,24 @@ import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 ///
 /// Owns only the submit state ([AsyncValue] loading/error), mirroring
 /// [EditPerformanceController]; the chosen position comes from the picker.
-class PlayerPositionController extends AsyncNotifier<void> {
-  @override
-  Future<void> build() async {}
-
+class PlayerPositionController extends MutationController {
   /// Assigns [position] to [playerId]. Returns the updated player on success,
   /// or null on failure (with the error in [state] for the View to show).
   /// On success the squad roster is invalidated so the position refreshes
   /// wherever it is shown.
   Future<Player?> submit(String playerId, PlayerPosition position) async {
-    state = const AsyncLoading();
-    try {
-      final updated = await ref.read(savePlayerPositionProvider)(
-        playerId,
-        position,
-      );
-      state = const AsyncData(null);
-      ref.invalidate(squadProvider);
-      return updated;
-    } catch (e, st) {
-      state = AsyncError(e, st);
-      return null;
-    }
+    return runMutation(
+      () async {
+        final updated = await ref.read(savePlayerPositionProvider)(
+          playerId,
+          position,
+        );
+        return updated;
+      },
+      onSuccess: (result) {
+        ref.invalidate(squadProvider);
+      },
+    );
   }
 }
 
