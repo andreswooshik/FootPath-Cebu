@@ -78,6 +78,10 @@ final getPlayerAttendanceProvider = Provider<GetPlayerAttendance>(
   (ref) => GetPlayerAttendance(ref.watch(attendanceRepositoryProvider)),
 );
 
+final getPlayerAttendancePageProvider = Provider<GetPlayerAttendancePage>(
+  (ref) => GetPlayerAttendancePage(ref.watch(attendanceRepositoryProvider)),
+);
+
 final getSessionAttendanceProvider = Provider<GetSessionAttendance>(
   (ref) => GetSessionAttendance(ref.watch(attendanceRepositoryProvider)),
 );

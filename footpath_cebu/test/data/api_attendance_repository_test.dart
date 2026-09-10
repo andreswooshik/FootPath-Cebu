@@ -30,6 +30,38 @@ void main() {
     expect(records.single.note, isNull);
   });
 
+  test('reads one bounded player-history page', () async {
+    final api = AuthenticatedApiClient(
+      identityProvider: () =>
+          ApiIdentity(uid: 'player-12', getIdToken: (_) async => 'id-token'),
+      httpClient: MockClient((request) async {
+        expect(request.url.path, '/api/attendance/');
+        expect(request.url.queryParameters, {
+          'player': '12',
+          'offset': '50',
+          'limit': '25',
+        });
+        expect(request.headers['X-Player-Unlock'], 'unlock');
+        return http.Response(
+          '''[{"playerId":"12","sessionId":"51","status":"PRESENT","updatedAt":"2026-08-30T05:45:28Z"}]''',
+          200,
+          headers: {'x-next-offset': '75'},
+        );
+      }),
+    );
+
+    final page = await ApiAttendanceRepository(api: api)
+        .fetchAttendancePageForPlayer(
+          '12',
+          offset: 50,
+          limit: 25,
+          unlockToken: 'unlock',
+        );
+
+    expect(page.items.single.sessionId, '51');
+    expect(page.nextOffset, 75);
+  });
+
   test(
     'sends the revision and stable request id on attendance writes',
     () async {

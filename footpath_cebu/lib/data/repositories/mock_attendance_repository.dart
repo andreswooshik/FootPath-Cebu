@@ -1,11 +1,13 @@
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 
 /// In-memory attendance history for UI development without a backend. Seeded
 /// for the signed-in player (p1, [MockPlayerRepository.fetchMyProfile]) and
 /// the two players a guardian is linked to (p2, p3 in
 /// [MockPlayerRepository.fetchLinkedPlayers]).
-class MockAttendanceRepository implements AttendanceRepository {
+class MockAttendanceRepository
+    implements AttendanceRepository, PlayerAttendancePageReader {
   static final List<Attendance> _records = [
     // p1 — Rhobert Ronaldo (MockPlayerRepository.fetchMyProfile's stand-in
     // for "the signed-in player")
@@ -114,5 +116,25 @@ class MockAttendanceRepository implements AttendanceRepository {
     final records = _records.where((a) => a.playerId == playerId).toList()
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return List.unmodifiable(records);
+  }
+
+  @override
+  Future<PageSlice<Attendance>> fetchAttendancePageForPlayer(
+    String playerId, {
+    required int offset,
+    required int limit,
+    String? unlockToken,
+  }) async {
+    final records = await fetchAttendanceForPlayer(
+      playerId,
+      unlockToken: unlockToken,
+    );
+    final end = (offset + limit).clamp(0, records.length);
+    return PageSlice(
+      items: offset >= records.length
+          ? const <Attendance>[]
+          : records.sublist(offset, end),
+      nextOffset: end < records.length ? end : null,
+    );
   }
 }

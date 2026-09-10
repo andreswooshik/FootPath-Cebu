@@ -3,12 +3,16 @@ import 'dart:convert';
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/data/local/attendance_request_id.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 
 /// Live implementation backed by the Django REST API, authenticated with the
 /// signed-in user's Firebase ID token (same pattern as [ApiTrainingRepository]).
 class ApiAttendanceRepository
-    implements AttendanceRepository, VersionedSessionAttendanceWriter {
+    implements
+        AttendanceRepository,
+        PlayerAttendancePageReader,
+        VersionedSessionAttendanceWriter {
   ApiAttendanceRepository({this.unlockTokenFor, AuthenticatedApiClient? api})
     : _api = api ?? AuthenticatedApiClient.shared;
 
@@ -34,6 +38,42 @@ class ApiAttendanceRepository
       );
       return records.map(Attendance.fromJson).toList()
         ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    } on ApiNetworkException catch (error) {
+      throw AttendanceNetworkException(error.message);
+    } on ApiHttpException catch (error) {
+      throw AttendanceRepositoryException(
+        error.message,
+        statusCode: error.statusCode,
+        code: error.code,
+        details: error.details,
+      );
+    } on ApiException catch (error) {
+      throw AttendanceRepositoryException(error.message);
+    }
+  }
+
+  @override
+  Future<PageSlice<Attendance>> fetchAttendancePageForPlayer(
+    String playerId, {
+    required int offset,
+    required int limit,
+    String? unlockToken,
+  }) async {
+    final playerUnlock = unlockToken ?? unlockTokenFor?.call(playerId);
+    try {
+      final page = await _api.getListPage(
+        '$_path?player=$playerId',
+        offset: offset,
+        limit: limit,
+        headers: {
+          if (playerUnlock != null && playerUnlock.isNotEmpty)
+            'X-Player-Unlock': playerUnlock,
+        },
+      );
+      return PageSlice(
+        items: page.records.map(Attendance.fromJson).toList(growable: false),
+        nextOffset: page.nextOffset,
+      );
     } on ApiNetworkException catch (error) {
       throw AttendanceNetworkException(error.message);
     } on ApiHttpException catch (error) {

@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/core/utils/date_format.dart';
+import 'package:footpath_cebu/presentation/providers/attendance_history_providers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
-import 'package:footpath_cebu/presentation/providers/guardian_dashboard_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_status_chip.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 
@@ -23,7 +23,7 @@ class AttendanceHistoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final attendanceAsync = ref.watch(childAttendanceProvider(playerId));
+    final attendanceAsync = ref.watch(attendanceHistoryProvider(playerId));
     return Scaffold(
       appBar: AppBar(title: Text('Attendance · $playerName')),
       body: attendanceAsync.when(
@@ -33,20 +33,29 @@ class AttendanceHistoryScreen extends ConsumerWidget {
             e,
             'Something went wrong loading attendance.',
           ),
-          onRetry: () => ref.invalidate(childAttendanceProvider(playerId)),
+          onRetry: () =>
+              ref.read(attendanceHistoryProvider(playerId).notifier).refresh(),
         ),
-        data: (records) {
+        data: (history) {
+          final records = history.records;
           if (records.isEmpty) {
             return const Center(child: Text('No attendance records yet.'));
           }
           return RefreshIndicator(
-            onRefresh: () =>
-                ref.refresh(childAttendanceProvider(playerId).future),
+            onRefresh: () => ref
+                .read(attendanceHistoryProvider(playerId).notifier)
+                .refresh(),
             child: ListView.separated(
               padding: const EdgeInsets.all(16),
-              itemCount: records.length,
+              itemCount: records.length + 1,
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
+                if (index == records.length) {
+                  return _LoadMoreAttendance(
+                    playerId: playerId,
+                    history: history,
+                  );
+                }
                 final record = records[index];
                 return Card(
                   child: ListTile(
@@ -55,7 +64,7 @@ class AttendanceHistoryScreen extends ConsumerWidget {
                     trailing: AttendanceStatusChip(status: record.status),
                   ),
                 ).animateListItem(
-                  key: ValueKey(record.updatedAt),
+                  key: ValueKey('${record.sessionId}-${record.updatedAt}'),
                   index: index,
                 );
               },
@@ -64,5 +73,43 @@ class AttendanceHistoryScreen extends ConsumerWidget {
         },
       ),
     ).animateScreenEntrance();
+  }
+}
+
+class _LoadMoreAttendance extends ConsumerWidget {
+  const _LoadMoreAttendance({required this.playerId, required this.history});
+
+  final String playerId;
+  final AttendanceHistoryState history;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (history.isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (history.loadMoreError != null) {
+      return Column(
+        children: [
+          const Text('Could not load more attendance records.'),
+          TextButton(
+            onPressed: () => ref
+                .read(attendanceHistoryProvider(playerId).notifier)
+                .loadMore(),
+            child: const Text('Try again'),
+          ),
+        ],
+      );
+    }
+    if (!history.hasMore) return const SizedBox.shrink();
+    return Center(
+      child: OutlinedButton(
+        onPressed: () =>
+            ref.read(attendanceHistoryProvider(playerId).notifier).loadMore(),
+        child: const Text('Load more'),
+      ),
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 
 /// Reads a single player's attendance history — used by the Guardian dashboard
 /// (a guardian views, but never edits, a child's attendance).
@@ -6,6 +7,16 @@ abstract class PlayerAttendanceReader {
   /// Returns the player's attendance records, most recent first.
   Future<List<Attendance>> fetchAttendanceForPlayer(
     String playerId, {
+    String? unlockToken,
+  });
+}
+
+/// Optional bounded read capability for screens that render long histories.
+abstract class PlayerAttendancePageReader {
+  Future<PageSlice<Attendance>> fetchAttendancePageForPlayer(
+    String playerId, {
+    required int offset,
+    required int limit,
     String? unlockToken,
   });
 }
