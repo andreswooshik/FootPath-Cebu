@@ -124,3 +124,16 @@ jobs:
         run: flutter analyze
       - name: Test
         run: flutter test
+      - name: Test browser persistence
+        run: flutter test --platform chrome test/data/web_attendance_outbox_browser_test.dart
+      - name: Create ephemeral Android signing key
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/ci-release.jks" -storepass ci-build-password -keypass ci-build-password -alias ci-build -keyalg RSA -keysize 2048 -validity 1 -dname "CN=CI build"
+          echo "ANDROID_RELEASE_STORE_FILE=$RUNNER_TEMP/ci-release.jks" >> "$GITHUB_ENV"
+          echo "ANDROID_RELEASE_STORE_PASSWORD=ci-build-password" >> "$GITHUB_ENV"
+          echo "ANDROID_RELEASE_KEY_ALIAS=ci-build" >> "$GITHUB_ENV"
+          echo "ANDROID_RELEASE_KEY_PASSWORD=ci-build-password" >> "$GITHUB_ENV"
+      - name: Build release targets
+        run: |
+          flutter build web --release --no-pub
+          flutter build apk --release --no-pub
