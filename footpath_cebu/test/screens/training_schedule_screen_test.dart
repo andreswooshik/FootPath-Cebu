@@ -6,10 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
-import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
+import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/presentation/screens/training_schedule_screen.dart';
 
 const _coach = UserProfile(
@@ -52,6 +53,35 @@ class _DelayedAttendanceRepository implements AttendanceRepository {
   ) async => records;
 }
 
+class _PagedTrainingRepository implements TrainingRepository {
+  _PagedTrainingRepository({required this.upcoming, required this.past});
+
+  final List<TrainingSession> upcoming;
+  final List<TrainingSession> past;
+
+  @override
+  Future<PageSlice<TrainingSession>> fetchSessionPage({
+    required TrainingSessionPeriod period,
+    required int offset,
+    required int limit,
+  }) async => PageSlice(
+    items: period == TrainingSessionPeriod.upcoming ? upcoming : past,
+  );
+
+  @override
+  Future<List<TrainingSession>> fetchSessions() async => [...upcoming, ...past];
+
+  @override
+  Future<TrainingSession> createSession(TrainingSession draft) async => draft;
+
+  @override
+  Future<void> deleteSession(String id) async {}
+
+  @override
+  Future<TrainingSession> updateSession(TrainingSession session) async =>
+      session;
+}
+
 void main() {
   testWidgets('management actions appear only for upcoming sessions', (
     tester,
@@ -68,8 +98,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          upcomingSessionsProvider.overrideWith((ref) => AsyncData([upcoming])),
-          pastSessionsProvider.overrideWith((ref) => AsyncData([past])),
+          trainingRepositoryProvider.overrideWithValue(
+            _PagedTrainingRepository(upcoming: [upcoming], past: [past]),
+          ),
         ],
         child: const MaterialApp(home: TrainingScheduleScreen(profile: _coach)),
       ),
@@ -101,8 +132,9 @@ void main() {
       ProviderScope(
         overrides: [
           attendanceRepositoryProvider.overrideWithValue(attendanceRepository),
-          upcomingSessionsProvider.overrideWith((ref) => AsyncData([upcoming])),
-          pastSessionsProvider.overrideWith((ref) => const AsyncData([])),
+          trainingRepositoryProvider.overrideWithValue(
+            _PagedTrainingRepository(upcoming: [upcoming], past: const []),
+          ),
         ],
         child: const MaterialApp(home: TrainingScheduleScreen(profile: _coach)),
       ),

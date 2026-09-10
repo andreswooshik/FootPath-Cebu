@@ -6,6 +6,7 @@ import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 
 /// The full training schedule. Refresh with
 /// `ref.refresh(trainingSessionsProvider.future)`; scheduling a new session
@@ -36,28 +37,132 @@ final scheduleNowProvider = Provider.autoDispose<DateTime>(
   (ref) => DateTime.now(),
 );
 
+class TrainingSessionPageState {
+  const TrainingSessionPageState({
+    required this.items,
+    required this.nextOffset,
+    this.isLoadingMore = false,
+    this.loadMoreError,
+  });
+
+  final List<TrainingSession> items;
+  final int? nextOffset;
+  final bool isLoadingMore;
+  final Object? loadMoreError;
+
+  bool get hasMore => nextOffset != null;
+
+  TrainingSessionPageState copyWith({
+    bool? isLoadingMore,
+    Object? loadMoreError,
+    bool clearLoadMoreError = false,
+  }) => TrainingSessionPageState(
+    items: items,
+    nextOffset: nextOffset,
+    isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    loadMoreError: clearLoadMoreError
+        ? null
+        : loadMoreError ?? this.loadMoreError,
+  );
+}
+
+class TrainingSessionPageController
+    extends AsyncNotifier<TrainingSessionPageState> {
+  TrainingSessionPageController(this.period);
+
+  static const pageSize = 50;
+
+  final TrainingSessionPeriod period;
+
+  @override
+  Future<TrainingSessionPageState> build() => _firstPage();
+
+  Future<TrainingSessionPageState> _firstPage() async {
+    final now = ref.watch(scheduleNowProvider);
+    final page = await ref.watch(getTrainingSessionPageProvider)(
+      period: period,
+      offset: 0,
+      limit: pageSize,
+    );
+    final items = _classify(page.items, now);
+    _refreshAtNextSessionEnd(ref, items, now);
+    return TrainingSessionPageState(items: items, nextOffset: page.nextOffset);
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    final result = await AsyncValue.guard(_firstPage);
+    if (ref.mounted) state = result;
+  }
+
+  Future<void> loadMore() async {
+    final current = state.value;
+    if (current == null || current.isLoadingMore || !current.hasMore) return;
+    state = AsyncData(
+      current.copyWith(isLoadingMore: true, clearLoadMoreError: true),
+    );
+    try {
+      final page = await ref.read(getTrainingSessionPageProvider)(
+        period: period,
+        offset: current.nextOffset!,
+        limit: pageSize,
+      );
+      if (!ref.mounted) return;
+      state = AsyncData(
+        TrainingSessionPageState(
+          items: List.unmodifiable([
+            ...current.items,
+            ..._classify(page.items, ref.read(scheduleNowProvider)),
+          ]),
+          nextOffset: page.nextOffset,
+        ),
+      );
+    } catch (error) {
+      if (!ref.mounted) return;
+      state = AsyncData(
+        current.copyWith(isLoadingMore: false, loadMoreError: error),
+      );
+    }
+  }
+
+  List<TrainingSession> _classify(
+    List<TrainingSession> sessions,
+    DateTime now,
+  ) {
+    final items =
+        sessions.where((session) {
+          final ended = session.hasEndedAt(now);
+          return period == TrainingSessionPeriod.past ? ended : !ended;
+        }).toList()..sort(
+          (a, b) => period == TrainingSessionPeriod.past
+              ? b.date.compareTo(a.date)
+              : a.date.compareTo(b.date),
+        );
+    return List.unmodifiable(items);
+  }
+}
+
+final trainingSessionPageProvider = AsyncNotifierProvider.autoDispose
+    .family<
+      TrainingSessionPageController,
+      TrainingSessionPageState,
+      TrainingSessionPeriod
+    >(TrainingSessionPageController.new);
+
 /// Sessions that have not ended yet, soonest first.
 final upcomingSessionsProvider =
     Provider.autoDispose<AsyncValue<List<TrainingSession>>>((ref) {
-      final now = ref.watch(scheduleNowProvider);
-      return ref.watch(trainingSessionsProvider).whenData((sessions) {
-        _refreshAtNextSessionEnd(ref, sessions, now);
-        final list = sessions.where((s) => !s.hasEndedAt(now)).toList()
-          ..sort((a, b) => a.date.compareTo(b.date));
-        return List.unmodifiable(list);
-      });
+      return ref
+          .watch(trainingSessionPageProvider(TrainingSessionPeriod.upcoming))
+          .whenData((page) => page.items);
     });
 
 /// Sessions whose end time has passed, most recent first.
 final pastSessionsProvider =
     Provider.autoDispose<AsyncValue<List<TrainingSession>>>((ref) {
-      final now = ref.watch(scheduleNowProvider);
-      return ref.watch(trainingSessionsProvider).whenData((sessions) {
-        _refreshAtNextSessionEnd(ref, sessions, now);
-        final list = sessions.where((s) => s.hasEndedAt(now)).toList()
-          ..sort((a, b) => b.date.compareTo(a.date));
-        return List.unmodifiable(list);
-      });
+      return ref
+          .watch(trainingSessionPageProvider(TrainingSessionPeriod.past))
+          .whenData((page) => page.items);
     });
 
 /// Upcoming sessions that actually target the signed-in/selected player's
@@ -135,6 +240,12 @@ class ScheduleSessionController extends MutationController {
           },
           onSuccess: (result) {
             ref.invalidate(trainingSessionsProvider);
+            ref.invalidate(
+              trainingSessionPageProvider(TrainingSessionPeriod.upcoming),
+            );
+            ref.invalidate(
+              trainingSessionPageProvider(TrainingSessionPeriod.past),
+            );
           },
         ) ??
         false;

@@ -7,6 +7,7 @@ import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/domain/repositories/age_tier_repository.dart';
+import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/presentation/providers/age_tier_providers.dart';
 import 'package:footpath_cebu/presentation/providers/coach_overview_providers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
@@ -55,8 +56,15 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
   /// roll-call is still open — the session day through two days after. When
   /// several are open, the most recent one is picked.
   void _markAttendance(Player player) {
-    final all =
-        ref.read(trainingSessionsProvider).value ?? const <TrainingSession>[];
+    final upcoming = ref
+        .read(trainingSessionPageProvider(TrainingSessionPeriod.upcoming))
+        .value
+        ?.items;
+    final past = ref
+        .read(trainingSessionPageProvider(TrainingSessionPeriod.past))
+        .value
+        ?.items;
+    final all = <TrainingSession>[...?upcoming, ...?past];
     final open = all.where((s) => s.isAttendanceOpen).toList()
       ..sort((a, b) => b.date.compareTo(a.date));
     if (open.isEmpty) {

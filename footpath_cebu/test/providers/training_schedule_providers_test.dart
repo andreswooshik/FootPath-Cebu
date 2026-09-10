@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 
 TrainingSession _session(
@@ -21,6 +24,36 @@ TrainingSession _session(
   focus: SessionFocus.technical,
   status: status,
 );
+
+class _PageTrainingRepository implements TrainingRepository {
+  _PageTrainingRepository(this.sessions);
+
+  final List<TrainingSession> sessions;
+  final requestedOffsets = <int>[];
+
+  @override
+  Future<PageSlice<TrainingSession>> fetchSessionPage({
+    required TrainingSessionPeriod period,
+    required int offset,
+    required int limit,
+  }) async {
+    requestedOffsets.add(offset);
+    return PageSlice(items: sessions, nextOffset: offset == 0 ? limit : null);
+  }
+
+  @override
+  Future<List<TrainingSession>> fetchSessions() async => sessions;
+
+  @override
+  Future<TrainingSession> createSession(TrainingSession draft) async => draft;
+
+  @override
+  Future<void> deleteSession(String id) async {}
+
+  @override
+  Future<TrainingSession> updateSession(TrainingSession session) async =>
+      session;
+}
 
 void main() {
   test('player schedules contain only sessions for the player age tier', () {
@@ -85,22 +118,28 @@ void main() {
         date: DateTime(2026, 9, 2),
         status: TrainingSessionStatus.completed,
       );
+      final repository = _PageTrainingRepository([
+        endedToday,
+        stillRunning,
+        tomorrow,
+        completedTomorrow,
+      ]);
 
       final container = ProviderContainer(
         overrides: [
           scheduleNowProvider.overrideWithValue(now),
-          trainingSessionsProvider.overrideWith(
-            (ref) async => [
-              endedToday,
-              stillRunning,
-              tomorrow,
-              completedTomorrow,
-            ],
-          ),
+          trainingRepositoryProvider.overrideWithValue(repository),
         ],
       );
       addTearDown(container.dispose);
-      await container.read(trainingSessionsProvider.future);
+      await Future.wait([
+        container.read(
+          trainingSessionPageProvider(TrainingSessionPeriod.upcoming).future,
+        ),
+        container.read(
+          trainingSessionPageProvider(TrainingSessionPeriod.past).future,
+        ),
+      ]);
 
       expect(
         container
@@ -118,4 +157,31 @@ void main() {
       );
     },
   );
+
+  test('loads later training-session pages only when requested', () async {
+    final now = DateTime(2026, 9, 1, 12);
+    final repository = _PageTrainingRepository([
+      _session('page', {AgeTier.development}, date: DateTime(2026, 9, 2)),
+    ]);
+    final container = ProviderContainer(
+      overrides: [
+        scheduleNowProvider.overrideWithValue(now),
+        trainingRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    final provider = trainingSessionPageProvider(
+      TrainingSessionPeriod.upcoming,
+    );
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+
+    final first = await container.read(provider.future);
+    expect(first.items.single.id, 'page');
+    expect(repository.requestedOffsets, [0]);
+
+    await container.read(provider.notifier).loadMore();
+    expect(repository.requestedOffsets, [0, 50]);
+    expect(container.read(provider).requireValue.hasMore, isFalse);
+  });
 }

@@ -19,7 +19,7 @@ class TrainingSession(models.Model):
     the client entity, which never parses them as clock times."""
 
     title = models.CharField(max_length=120)
-    date = models.DateField()
+    date = models.DateField(db_index=True)
     start_time = models.CharField(max_length=20, blank=True)
     end_time = models.CharField(max_length=20, blank=True)
     location = models.CharField(max_length=120, blank=True)

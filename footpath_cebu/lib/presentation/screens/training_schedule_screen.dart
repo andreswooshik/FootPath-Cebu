@@ -6,6 +6,7 @@ import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
+import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/presentation/providers/attendance_log_providers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
@@ -39,11 +40,18 @@ class _TrainingScheduleScreenState
   final Set<String> _openingSessionIds = {};
 
   void _openScheduleForm() {
+    final upcoming = ref
+        .read(trainingSessionPageProvider(TrainingSessionPeriod.upcoming))
+        .value
+        ?.items;
+    final past = ref
+        .read(trainingSessionPageProvider(TrainingSessionPeriod.past))
+        .value
+        ?.items;
     Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => ScheduleSessionScreen(
-          recentSessions: ref.read(trainingSessionsProvider).value,
-        ),
+        builder: (_) =>
+            ScheduleSessionScreen(recentSessions: [...?upcoming, ...?past]),
       ),
     );
   }
@@ -194,9 +202,10 @@ class _TrainingScheduleScreenState
   }
 
   Widget _buildBody() {
-    final sessions = ref.watch(
-      _showPast ? pastSessionsProvider : upcomingSessionsProvider,
-    );
+    final period = _showPast
+        ? TrainingSessionPeriod.past
+        : TrainingSessionPeriod.upcoming;
+    final sessions = ref.watch(trainingSessionPageProvider(period));
     return sessions.when(
       loading: () => const DashboardLoadingState(),
       error: (e, _) => DashboardErrorState(
@@ -204,25 +213,33 @@ class _TrainingScheduleScreenState
           e,
           'Something went wrong loading the schedule.',
         ),
-        onRetry: () => ref.invalidate(trainingSessionsProvider),
+        onRetry: () =>
+            ref.read(trainingSessionPageProvider(period).notifier).refresh(),
       ),
-      data: (list) {
-        if (list.isEmpty) {
-          return Center(
-            child: Text(
-              _showPast
-                  ? 'No past sessions yet.'
-                  : 'No upcoming sessions. Schedule one to get started.',
-              textAlign: TextAlign.center,
-            ),
-          );
-        }
+      data: (page) {
+        final list = page.items;
         return RefreshIndicator(
-          onRefresh: () => ref.refresh(trainingSessionsProvider.future),
+          onRefresh: () =>
+              ref.read(trainingSessionPageProvider(period).notifier).refresh(),
           child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            itemCount: list.length,
+            itemCount: list.length + 1,
             itemBuilder: (context, i) {
+              if (i == list.length) {
+                if (list.isEmpty && !page.hasMore) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 120),
+                    child: Text(
+                      _showPast
+                          ? 'No past sessions yet.'
+                          : 'No upcoming sessions. Schedule one to get started.',
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+                return _LoadMoreSessions(period: period, page: page);
+              }
               final session = list[i];
               // A visible card warms its saved-attendance request before the
               // coach taps it. The route still awaits and passes the snapshot,
@@ -251,6 +268,44 @@ class _TrainingScheduleScreenState
           ),
         );
       },
+    );
+  }
+}
+
+class _LoadMoreSessions extends ConsumerWidget {
+  const _LoadMoreSessions({required this.period, required this.page});
+
+  final TrainingSessionPeriod period;
+  final TrainingSessionPageState page;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (page.isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (page.loadMoreError != null) {
+      return Column(
+        children: [
+          const Text('Could not load more sessions.'),
+          TextButton(
+            onPressed: () => ref
+                .read(trainingSessionPageProvider(period).notifier)
+                .loadMore(),
+            child: const Text('Try again'),
+          ),
+        ],
+      );
+    }
+    if (!page.hasMore) return const SizedBox.shrink();
+    return Center(
+      child: OutlinedButton(
+        onPressed: () =>
+            ref.read(trainingSessionPageProvider(period).notifier).loadMore(),
+        child: const Text('Load more'),
+      ),
     );
   }
 }

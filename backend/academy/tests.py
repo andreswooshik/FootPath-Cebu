@@ -1201,6 +1201,51 @@ class TrainingSessionTests(APITestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
 
+    def test_list_filters_and_pages_upcoming_sessions(self):
+        earlier = TrainingSession.objects.create(
+            title='Earlier',
+            date=date.today() + timedelta(days=1),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
+        )
+        later = TrainingSession.objects.create(
+            title='Later',
+            date=date.today() + timedelta(days=2),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
+        )
+        TrainingSession.objects.create(
+            title='Past',
+            date=date.today() - timedelta(days=1),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
+        )
+        self.client.force_authenticate(self.coach)
+
+        first = self.client.get(
+            reverse('training-sessions'),
+            {'period': 'UPCOMING', 'limit': 1},
+        )
+        self.assertEqual([row['id'] for row in first.data], [str(earlier.id)])
+        self.assertEqual(first.headers['X-Next-Offset'], '1')
+        second = self.client.get(
+            reverse('training-sessions'),
+            {'period': 'UPCOMING', 'limit': 1, 'offset': 1},
+        )
+        self.assertEqual([row['id'] for row in second.data], [str(later.id)])
+        self.assertNotIn('X-Next-Offset', second.headers)
+
+    def test_list_rejects_an_unknown_period(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.get(
+            reverse('training-sessions'),
+            {'period': 'ARCHIVED'},
+        )
+        self.assertEqual(response.status_code, 400)
+
 
 class DisputeTests(APITestCase):
     """The dispute foundation — coach flags, School Staff/Admin participate,

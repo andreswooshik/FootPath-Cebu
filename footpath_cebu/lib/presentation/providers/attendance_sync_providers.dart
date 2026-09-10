@@ -5,6 +5,7 @@ import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
 import 'package:footpath_cebu/presentation/providers/attendance_log_providers.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
+import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 
 final attendanceSyncEntriesProvider =
     StreamProvider.autoDispose<List<AttendanceSyncEntry>>(
@@ -26,6 +27,12 @@ class AttendanceSyncController extends MutationController {
         onSuccess: (_) {
           ref.invalidate(sessionAttendanceProvider(entry.sessionId));
           ref.invalidate(trainingSessionsProvider);
+          ref.invalidate(
+            trainingSessionPageProvider(TrainingSessionPeriod.upcoming),
+          );
+          ref.invalidate(
+            trainingSessionPageProvider(TrainingSessionPeriod.past),
+          );
         },
       ) ??
       false;

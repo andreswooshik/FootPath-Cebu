@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 
 /// Use case: load the coach's training schedule.
@@ -11,4 +12,20 @@ class GetTrainingSessions {
   final TrainingScheduleReader _repository;
 
   Future<List<TrainingSession>> call() => _repository.fetchSessions();
+}
+
+class GetTrainingSessionPage {
+  const GetTrainingSessionPage(this._repository);
+
+  final TrainingScheduleReader _repository;
+
+  Future<PageSlice<TrainingSession>> call({
+    required TrainingSessionPeriod period,
+    required int offset,
+    required int limit,
+  }) => _repository.fetchSessionPage(
+    period: period,
+    offset: offset,
+    limit: limit,
+  );
 }

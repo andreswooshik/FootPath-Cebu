@@ -163,6 +163,20 @@ class TrainingSessionListCreateView(APIView):
 
     def get(self, request):
         sessions = _sessions_for(request.user)
+        period = request.query_params.get('period')
+        today = timezone.localdate()
+        if period == 'UPCOMING':
+            sessions = sessions.filter(date__gte=today).order_by(
+                'date', 'start_time'
+            )
+        elif period == 'PAST':
+            sessions = sessions.filter(date__lte=today).order_by(
+                '-date', '-start_time'
+            )
+        elif period is not None:
+            raise ValidationError(
+                {'period': 'Use UPCOMING or PAST.'}
+            )
         return list_response(request, sessions, TrainingSessionSerializer)
 
     @club_write_transaction

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
@@ -34,11 +35,10 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final sessionsAsync = ref.watch(
-      _showPast
-          ? playerPastSessionsProvider(widget.player.ageTier)
-          : playerUpcomingSessionsProvider(widget.player.ageTier),
-    );
+    final period = _showPast
+        ? TrainingSessionPeriod.past
+        : TrainingSessionPeriod.upcoming;
+    final sessionsAsync = ref.watch(trainingSessionPageProvider(period));
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -76,36 +76,54 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
                     e,
                     'Something went wrong loading the schedule.',
                   ),
-                  onRetry: () => ref.invalidate(trainingSessionsProvider),
+                  onRetry: () => ref
+                      .read(trainingSessionPageProvider(period).notifier)
+                      .refresh(),
                 ),
-                data: (sessions) {
-                  if (sessions.isEmpty) {
-                    return Center(
-                      child: Text(
-                        _showPast
-                            ? 'No past sessions for ${widget.player.ageTier.label}.'
-                            : 'No upcoming sessions for ${widget.player.ageTier.label}.',
-                        textAlign: TextAlign.center,
-                      ),
-                    );
-                  }
+                data: (page) {
+                  final sessions = page.items
+                      .where(
+                        (session) =>
+                            session.includesTier(widget.player.ageTier),
+                      )
+                      .toList(growable: false);
                   return RefreshIndicator(
-                    onRefresh: () =>
-                        ref.refresh(trainingSessionsProvider.future),
+                    onRefresh: () => ref
+                        .read(trainingSessionPageProvider(period).notifier)
+                        .refresh(),
                     child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 8,
                       ),
-                      itemCount: sessions.length,
-                      itemBuilder: (context, i) =>
-                          TrainingSessionCard(
-                            session: sessions[i],
-                            showPlayerDetails: true,
-                          ).animateListItem(
-                            key: ValueKey(sessions[i].id),
-                            index: i,
-                          ),
+                      itemCount: sessions.length + 1,
+                      itemBuilder: (context, i) {
+                        if (i == sessions.length) {
+                          if (sessions.isEmpty && !page.hasMore) {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 120),
+                              child: Text(
+                                _showPast
+                                    ? 'No past sessions for ${widget.player.ageTier.label}.'
+                                    : 'No upcoming sessions for ${widget.player.ageTier.label}.',
+                                textAlign: TextAlign.center,
+                              ),
+                            );
+                          }
+                          return _LoadMorePlayerSessions(
+                            period: period,
+                            page: page,
+                          );
+                        }
+                        return TrainingSessionCard(
+                          session: sessions[i],
+                          showPlayerDetails: true,
+                        ).animateListItem(
+                          key: ValueKey(sessions[i].id),
+                          index: i,
+                        );
+                      },
                     ),
                   );
                 },
@@ -115,6 +133,44 @@ class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
         ),
       ),
     ).animateScreenEntrance();
+  }
+}
+
+class _LoadMorePlayerSessions extends ConsumerWidget {
+  const _LoadMorePlayerSessions({required this.period, required this.page});
+
+  final TrainingSessionPeriod period;
+  final TrainingSessionPageState page;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (page.isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (page.loadMoreError != null) {
+      return Column(
+        children: [
+          const Text('Could not load more sessions.'),
+          TextButton(
+            onPressed: () => ref
+                .read(trainingSessionPageProvider(period).notifier)
+                .loadMore(),
+            child: const Text('Try again'),
+          ),
+        ],
+      );
+    }
+    if (!page.hasMore) return const SizedBox.shrink();
+    return Center(
+      child: OutlinedButton(
+        onPressed: () =>
+            ref.read(trainingSessionPageProvider(period).notifier).loadMore(),
+        child: const Text('Load more'),
+      ),
+    );
   }
 }
 

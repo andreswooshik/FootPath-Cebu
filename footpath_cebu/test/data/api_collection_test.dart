@@ -7,6 +7,7 @@ import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_player_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_training_repository.dart';
+import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_session_confirmation_repository.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -107,6 +108,41 @@ void main() {
     ]);
     expect(page.nextOffset, 75);
     expect(calls, 1);
+  });
+
+  test('training pages preserve the period filter', () async {
+    final api = client((request) async {
+      expect(request.url.queryParameters, {
+        'period': 'PAST',
+        'offset': '50',
+        'limit': '25',
+      });
+      return http.Response(
+        jsonEncode([
+          {
+            'id': '51',
+            'title': 'Past training',
+            'ageTiers': ['DEVELOPMENT'],
+            'date': '2026-08-01',
+            'startTime': '02:30 PM',
+            'endTime': '03:45 PM',
+            'location': 'Pitch',
+            'focus': 'TECHNICAL',
+          },
+        ]),
+        200,
+        headers: {'x-next-offset': '75'},
+      );
+    });
+
+    final page = await ApiTrainingRepository(api: api).fetchSessionPage(
+      period: TrainingSessionPeriod.past,
+      offset: 50,
+      limit: 25,
+    );
+
+    expect(page.items.single.id, '51');
+    expect(page.nextOffset, 75);
   });
 
   test('dispute repository maps a bounded page and its continuation', () async {

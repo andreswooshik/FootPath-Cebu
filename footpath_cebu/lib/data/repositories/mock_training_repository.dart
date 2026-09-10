@@ -1,5 +1,6 @@
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 
 /// In-memory training schedule for UI development without a backend.
@@ -78,6 +79,31 @@ class MockTrainingRepository implements TrainingRepository {
     // Simulate network latency so loading states are exercised in the UI.
     await Future.delayed(const Duration(milliseconds: 500));
     return List.unmodifiable(_sessions);
+  }
+
+  @override
+  Future<PageSlice<TrainingSession>> fetchSessionPage({
+    required TrainingSessionPeriod period,
+    required int offset,
+    required int limit,
+  }) async {
+    final now = DateTime.now();
+    final sessions =
+        _sessions.where((session) {
+          final ended = session.hasEndedAt(now);
+          return period == TrainingSessionPeriod.past ? ended : !ended;
+        }).toList()..sort(
+          (a, b) => period == TrainingSessionPeriod.past
+              ? b.date.compareTo(a.date)
+              : a.date.compareTo(b.date),
+        );
+    final end = (offset + limit).clamp(0, sessions.length);
+    return PageSlice(
+      items: offset >= sessions.length
+          ? const <TrainingSession>[]
+          : sessions.sublist(offset, end),
+      nextOffset: end < sessions.length ? end : null,
+    );
   }
 
   @override

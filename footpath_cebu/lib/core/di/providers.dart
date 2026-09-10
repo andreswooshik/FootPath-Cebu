@@ -388,6 +388,10 @@ final getTrainingSessionsProvider = Provider<GetTrainingSessions>(
   (ref) => GetTrainingSessions(ref.watch(trainingRepositoryProvider)),
 );
 
+final getTrainingSessionPageProvider = Provider<GetTrainingSessionPage>(
+  (ref) => GetTrainingSessionPage(ref.watch(trainingRepositoryProvider)),
+);
+
 final scheduleTrainingSessionProvider = Provider<ScheduleTrainingSession>(
   (ref) => ScheduleTrainingSession(ref.watch(trainingRepositoryProvider)),
 );

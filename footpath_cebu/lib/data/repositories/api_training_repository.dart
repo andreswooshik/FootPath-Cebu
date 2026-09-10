@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 
 /// Live implementation backed by the authenticated Django REST API.
@@ -21,6 +22,33 @@ class ApiTrainingRepository implements TrainingRepository {
           .cast<Map<String, dynamic>>()
           .map(TrainingSession.fromJson)
           .toList(growable: false);
+    } on ApiException catch (error) {
+      throw TrainingRepositoryException(error.message);
+    }
+  }
+
+  @override
+  Future<PageSlice<TrainingSession>> fetchSessionPage({
+    required TrainingSessionPeriod period,
+    required int offset,
+    required int limit,
+  }) async {
+    try {
+      final wirePeriod = switch (period) {
+        TrainingSessionPeriod.upcoming => 'UPCOMING',
+        TrainingSessionPeriod.past => 'PAST',
+      };
+      final page = await _api.getListPage(
+        '$_path?period=$wirePeriod',
+        offset: offset,
+        limit: limit,
+      );
+      return PageSlice(
+        items: page.records
+            .map(TrainingSession.fromJson)
+            .toList(growable: false),
+        nextOffset: page.nextOffset,
+      );
     } on ApiException catch (error) {
       throw TrainingRepositoryException(error.message);
     }

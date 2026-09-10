@@ -1,9 +1,18 @@
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
+
+enum TrainingSessionPeriod { upcoming, past }
 
 /// Reads the coach's training schedule.
 abstract class TrainingScheduleReader {
   /// Returns every session on the coach's calendar (past and upcoming).
   Future<List<TrainingSession>> fetchSessions();
+
+  Future<PageSlice<TrainingSession>> fetchSessionPage({
+    required TrainingSessionPeriod period,
+    required int offset,
+    required int limit,
+  });
 }
 
 /// Mutates the coach's calendar — create, edit, cancel.

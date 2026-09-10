@@ -5,6 +5,7 @@ import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/training_session.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/training_repository.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/schedule_tab_screen.dart';
@@ -42,6 +43,21 @@ class _TodayTrainingRepository implements TrainingRepository {
         focus: SessionFocus.technical,
       ),
     ];
+  }
+
+  @override
+  Future<PageSlice<TrainingSession>> fetchSessionPage({
+    required TrainingSessionPeriod period,
+    required int offset,
+    required int limit,
+  }) async {
+    final sessions = await fetchSessions();
+    final now = DateTime(2026, 9, 1, 22, 56);
+    final filtered = sessions.where((session) {
+      final ended = session.hasEndedAt(now);
+      return period == TrainingSessionPeriod.past ? ended : !ended;
+    }).toList();
+    return PageSlice(items: filtered);
   }
 
   @override
