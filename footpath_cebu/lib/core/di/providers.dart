@@ -1,17 +1,13 @@
-import 'dart:async';
-import 'package:footpath_cebu/data/repositories/local_attendance_sync_repository.dart';
-import 'package:footpath_cebu/domain/repositories/attendance_sync_repository.dart';
-
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kReleaseMode, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:footpath_cebu/data/local/attendance_outbox.dart';
-import 'package:footpath_cebu/data/local/attendance_write_queue.dart';
-import 'package:footpath_cebu/data/local/attendance_sync_service.dart';
+export 'attendance_providers.dart';
+export 'player_security_providers.dart';
+export 'runtime_config.dart';
+
+import 'package:footpath_cebu/core/di/player_security_providers.dart';
+import 'package:footpath_cebu/core/di/runtime_config.dart';
 import 'package:footpath_cebu/data/repositories/api_age_tier_repository.dart';
-import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_dispute_repository.dart';
 import 'package:footpath_cebu/data/repositories/api_eligibility_history_repository.dart';
@@ -30,7 +26,6 @@ import 'package:footpath_cebu/data/repositories/api_tournament_schedule_reposito
 import 'package:footpath_cebu/data/repositories/api_tournament_roster_repository.dart';
 import 'package:footpath_cebu/data/repositories/firebase_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_age_tier_repository.dart';
-import 'package:footpath_cebu/data/repositories/mock_attendance_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_auth_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_device_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_dispute_repository.dart';
@@ -47,10 +42,7 @@ import 'package:footpath_cebu/data/repositories/mock_session_confirmation_reposi
 import 'package:footpath_cebu/data/repositories/mock_training_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_tournament_schedule_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_tournament_roster_repository.dart';
-import 'package:footpath_cebu/data/repositories/offline_first_attendance_repository.dart';
-import 'package:footpath_cebu/core/security/player_unlock_token_store.dart';
 import 'package:footpath_cebu/domain/repositories/age_tier_repository.dart';
-import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:footpath_cebu/domain/repositories/auth_repository.dart';
 import 'package:footpath_cebu/domain/repositories/device_repository.dart';
 import 'package:footpath_cebu/domain/repositories/development_assessment_repository.dart';
@@ -86,15 +78,12 @@ import 'package:footpath_cebu/domain/usecases/get_match_performances.dart';
 import 'package:footpath_cebu/domain/usecases/get_match_roster.dart';
 import 'package:footpath_cebu/domain/usecases/get_my_profile.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_details.dart';
-import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_privacy_pin_status.dart';
 import 'package:footpath_cebu/domain/usecases/get_player_match_statistics.dart';
-import 'package:footpath_cebu/domain/usecases/get_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_session_confirmations.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad.dart';
 import 'package:footpath_cebu/domain/usecases/get_squad_progress.dart';
 import 'package:footpath_cebu/domain/usecases/get_training_sessions.dart';
-import 'package:footpath_cebu/domain/usecases/log_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/raise_dispute.dart';
 import 'package:footpath_cebu/domain/usecases/register_device.dart';
 import 'package:footpath_cebu/domain/usecases/restore_session.dart';
@@ -120,8 +109,6 @@ import 'package:footpath_cebu/domain/usecases/send_password_reset.dart';
 import 'package:footpath_cebu/domain/usecases/sign_in.dart';
 import 'package:footpath_cebu/domain/usecases/sign_out.dart';
 
-import 'test_runtime_stub.dart' if (dart.library.io) 'test_runtime_io.dart';
-
 /// Composition root (the outermost layer), expressed as Riverpod providers.
 ///
 /// The repository providers pick the concrete data-layer implementation
@@ -138,19 +125,6 @@ import 'test_runtime_stub.dart' if (dart.library.io) 'test_runtime_io.dart';
 /// production. Mocks are available only when explicitly requested for
 /// isolated UI work with `--dart-define=USE_MOCK=true`. Release builds ignore
 /// that flag and always stay live.
-const bool mockDataRequestedByBuild = bool.fromEnvironment(
-  'USE_MOCK',
-  defaultValue: false,
-);
-
-bool get useMockData {
-  if (kReleaseMode) return false;
-  // Flutter's test runner marks its process with FLUTTER_TEST. This keeps
-  // existing widget tests deterministic without making ordinary debug runs
-  // silently use device-only data.
-  if (isFlutterTestRuntime) return true;
-  return mockDataRequestedByBuild;
-}
 
 // ---------------------------------------------------------------------------
 // Data layer — one provider per repository interface.
@@ -194,83 +168,11 @@ final profilePhotoRepositoryProvider = Provider<ProfilePhotoRepository>(
       useMockData ? MockProfilePhotoRepository() : ApiProfilePhotoRepository(),
 );
 
-final playerUnlockTokenStoreProvider = Provider<PlayerUnlockTokenStore>(
-  (ref) => PlayerUnlockTokenStore(),
-);
-
 final playerPrivacyPinRepositoryProvider = Provider<PlayerPrivacyPinRepository>(
   (ref) => useMockData
       ? MockPlayerPrivacyPinRepository()
       : ApiPlayerPrivacyPinRepository(),
 );
-
-/// Durable outbox for attendance saves made while offline. One app-wide
-/// instance so the repository decorator and the sync service drain the same
-/// queue.
-final attendanceOutboxProvider = Provider<AttendanceOutbox>((ref) {
-  final outbox = AttendanceOutbox();
-  ref.onDispose(outbox.close);
-  return outbox;
-});
-
-final attendanceWriteQueueProvider = Provider<AttendanceWriteQueue>(
-  (ref) => AttendanceWriteQueue(),
-);
-
-final attendanceSyncRepositoryProvider = Provider<AttendanceSyncRepository>((
-  ref,
-) {
-  if (useMockData || kIsWeb) return OnlineAttendanceSyncRepository();
-  return LocalAttendanceSyncRepository(
-    outbox: ref.watch(attendanceOutboxProvider),
-    writeQueue: ref.watch(attendanceWriteQueueProvider),
-    ownerUid: () => FirebaseAuth.instance.currentUser?.uid,
-    requestSync: () async {
-      await ref.read(attendanceSyncServiceProvider)?.drain();
-    },
-  );
-});
-
-final attendanceRepositoryProvider = Provider<AttendanceRepository>(
-  (ref) => useMockData
-      ? MockAttendanceRepository()
-      : kIsWeb
-      ? ApiAttendanceRepository(
-          unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
-        )
-      // Live attendance is offline-first: writes that fail at the network
-      // level are queued in the outbox and replayed by the sync service.
-      : OfflineFirstAttendanceRepository(
-          inner: ApiAttendanceRepository(
-            unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
-          ),
-          outbox: ref.watch(attendanceOutboxProvider),
-          writeQueue: ref.watch(attendanceWriteQueueProvider),
-          requestSync: () {
-            if (ref.mounted) {
-              unawaited(ref.read(attendanceSyncServiceProvider)?.drain());
-            }
-          },
-          ownerUid: () => FirebaseAuth.instance.currentUser?.uid,
-        ),
-);
-
-/// Drains the offline outbox when connectivity returns. Null in mock mode
-/// (nothing real to sync). Started once post-login, alongside
-/// [registerDeviceProvider].
-final attendanceSyncServiceProvider = Provider<AttendanceSyncService?>((ref) {
-  if (useMockData || kIsWeb) return null;
-  final service = AttendanceSyncService(
-    outbox: ref.watch(attendanceOutboxProvider),
-    writeQueue: ref.watch(attendanceWriteQueueProvider),
-    inner: ApiAttendanceRepository(
-      unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
-    ),
-    ownerUid: () => FirebaseAuth.instance.currentUser?.uid,
-  );
-  ref.onDispose(service.dispose);
-  return service;
-});
 
 final trainingRepositoryProvider = Provider<TrainingRepository>(
   (ref) => useMockData ? MockTrainingRepository() : ApiTrainingRepository(),
@@ -438,18 +340,6 @@ final uploadPlayerPhotoProvider = Provider<UploadPlayerPhoto>(
 
 final uploadProfilePhotoProvider = Provider<UploadProfilePhoto>(
   (ref) => UploadProfilePhoto(ref.watch(profilePhotoRepositoryProvider)),
-);
-
-final getPlayerAttendanceProvider = Provider<GetPlayerAttendance>(
-  (ref) => GetPlayerAttendance(ref.watch(attendanceRepositoryProvider)),
-);
-
-final getSessionAttendanceProvider = Provider<GetSessionAttendance>(
-  (ref) => GetSessionAttendance(ref.watch(attendanceRepositoryProvider)),
-);
-
-final logSessionAttendanceProvider = Provider<LogSessionAttendance>(
-  (ref) => LogSessionAttendance(ref.watch(attendanceRepositoryProvider)),
 );
 
 final getInjuriesProvider = Provider<GetInjuries>(
