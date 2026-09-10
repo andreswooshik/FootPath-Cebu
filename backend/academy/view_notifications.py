@@ -13,6 +13,7 @@ from academy.model_notifications import (
 )
 from academy.serializer_workflows import NotificationRecordSerializer
 
+from .pagination import list_response
 from .serializer_notifications import DeviceTokenRequestSerializer
 
 
@@ -48,8 +49,8 @@ class NotificationListView(APIView):
     """GET the authenticated user's newest persistent inbox entries."""
 
     def get(self, request):
-        records = NotificationRecord.objects.filter(user=request.user)[:100]
-        return Response(NotificationRecordSerializer(records, many=True).data)
+        records = NotificationRecord.objects.filter(user=request.user)
+        return list_response(request, records, NotificationRecordSerializer)
 
 
 class NotificationUnreadCountView(APIView):

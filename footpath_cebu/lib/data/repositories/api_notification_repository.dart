@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/data/dto/app_notification_dto.dart';
 import 'package:footpath_cebu/domain/entities/app_notification.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/notification_repository.dart';
 
 class ApiNotificationRepository implements NotificationRepository {
@@ -16,19 +17,26 @@ class ApiNotificationRepository implements NotificationRepository {
   @override
   Future<List<AppNotification>> fetchNotifications() async {
     try {
-      final response = await _api.get(_path);
-      final decoded = jsonDecode(response.body);
-      final rows = decoded is Map<String, dynamic>
-          ? (decoded['results'] as List? ?? const [])
-          : (decoded as List? ?? const []);
-      return rows
-          .whereType<Map>()
-          .map(
-            (row) =>
-                AppNotificationDto.fromJson(Map<String, dynamic>.from(row)),
-          )
-          .toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final rows = await _api.getList(_path);
+      return rows.map(AppNotificationDto.fromJson).toList(growable: false);
+    } on ApiException catch (error) {
+      throw NotificationRepositoryException(error.message);
+    }
+  }
+
+  @override
+  Future<PageSlice<AppNotification>> fetchNotificationPage({
+    required int offset,
+    required int limit,
+  }) async {
+    try {
+      final page = await _api.getListPage(_path, offset: offset, limit: limit);
+      return PageSlice(
+        items: page.records
+            .map(AppNotificationDto.fromJson)
+            .toList(growable: false),
+        nextOffset: page.nextOffset,
+      );
     } on ApiException catch (error) {
       throw NotificationRepositoryException(error.message);
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/domain/entities/app_notification.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/domain/repositories/notification_repository.dart';
 import 'package:footpath_cebu/presentation/navigation/notification_navigation_controller.dart';
@@ -27,6 +28,20 @@ class _FakeNotificationRepository implements NotificationRepository {
 
   @override
   Future<List<AppNotification>> fetchNotifications() async => notifications;
+
+  @override
+  Future<PageSlice<AppNotification>> fetchNotificationPage({
+    required int offset,
+    required int limit,
+  }) async {
+    final end = (offset + limit).clamp(0, notifications.length);
+    return PageSlice(
+      items: offset >= notifications.length
+          ? const []
+          : notifications.sublist(offset, end),
+      nextOffset: end < notifications.length ? end : null,
+    );
+  }
 
   @override
   Future<int> fetchUnreadCount() async =>

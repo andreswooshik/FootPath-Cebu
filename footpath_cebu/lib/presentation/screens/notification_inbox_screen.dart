@@ -148,11 +148,13 @@ class _NotificationInboxScreenState
               : 'Could not load notifications.',
           onRetry: () => refreshNotificationState(ref),
         ),
-        data: (items) {
+        data: (notificationState) {
+          final items = notificationState.items;
           _readFocusedNotification(items);
           if (items.isEmpty) {
             return RefreshIndicator(
-              onRefresh: () => ref.refresh(notificationsProvider.future),
+              onRefresh: () =>
+                  ref.read(notificationsProvider.notifier).refresh(),
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 children: const [
@@ -166,15 +168,18 @@ class _NotificationInboxScreenState
           }
           return RefreshIndicator(
             onRefresh: () async {
-              refreshNotificationState(ref);
-              await ref.read(notificationsProvider.future);
+              await ref.read(notificationsProvider.notifier).refresh();
+              ref.invalidate(notificationUnreadCountProvider);
             },
             child: ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: items.length,
+              itemCount: items.length + 1,
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
+                if (index == items.length) {
+                  return _LoadMoreNotifications(state: notificationState);
+                }
                 final item = items[index];
                 final focused = _isFocused(item);
                 return Material(
@@ -214,6 +219,48 @@ class _NotificationInboxScreenState
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _LoadMoreNotifications extends ConsumerWidget {
+  const _LoadMoreNotifications({required this.state});
+
+  final NotificationListState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (state.isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final error = state.loadMoreError;
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Text('Could not load more notifications.'),
+            TextButton(
+              onPressed: () =>
+                  ref.read(notificationsProvider.notifier).loadMore(),
+              child: const Text('Try again'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (!state.hasMore) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: OutlinedButton(
+          onPressed: () => ref.read(notificationsProvider.notifier).loadMore(),
+          child: const Text('Load more'),
+        ),
       ),
     );
   }

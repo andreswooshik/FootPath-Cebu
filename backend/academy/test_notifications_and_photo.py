@@ -176,6 +176,25 @@ class NotificationInboxTests(APITestCase):
         count = self.client.get(reverse('notification-unread-count'))
         self.assertEqual(count.data, {'count': 1})
 
+    def test_list_supports_stable_incremental_pages(self):
+        newer = NotificationRecord.objects.create(
+            user=self.user,
+            event_type='session_scheduled',
+            title='New session',
+            body='A session was scheduled.',
+        )
+        first = self.client.get(reverse('notifications'), {'limit': 1})
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual([row['id'] for row in first.data], [newer.id])
+        self.assertEqual(first.headers['X-Next-Offset'], '1')
+
+        second = self.client.get(
+            reverse('notifications'),
+            {'limit': 1, 'offset': first.headers['X-Next-Offset']},
+        )
+        self.assertEqual([row['id'] for row in second.data], [self.own.id])
+        self.assertNotIn('X-Next-Offset', second.headers)
+
     def test_mark_read_cannot_touch_another_users_record(self):
         denied = self.client.patch(
             reverse('notification-read', args=[self.other_record.pk]),

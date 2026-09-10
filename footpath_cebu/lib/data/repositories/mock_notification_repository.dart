@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/domain/entities/app_notification.dart';
+import 'package:footpath_cebu/domain/entities/page_slice.dart';
 import 'package:footpath_cebu/domain/repositories/notification_repository.dart';
 
 class MockNotificationRepository implements NotificationRepository {
@@ -7,6 +8,21 @@ class MockNotificationRepository implements NotificationRepository {
   @override
   Future<List<AppNotification>> fetchNotifications() async =>
       List.unmodifiable(_notifications);
+
+  @override
+  Future<PageSlice<AppNotification>> fetchNotificationPage({
+    required int offset,
+    required int limit,
+  }) async {
+    final end = (offset + limit).clamp(0, _notifications.length);
+    final items = offset >= _notifications.length
+        ? const <AppNotification>[]
+        : _notifications.sublist(offset, end);
+    return PageSlice(
+      items: List.unmodifiable(items),
+      nextOffset: end < _notifications.length ? end : null,
+    );
+  }
 
   @override
   Future<int> fetchUnreadCount() async =>

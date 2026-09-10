@@ -67,4 +67,36 @@ void main() {
     expect(requests[1].method, 'POST');
     expect(requests[1].url.path, '/api/notifications/read-all/');
   });
+
+  test('maps one notification page and its continuation offset', () async {
+    final api = AuthenticatedApiClient(
+      identityProvider: () =>
+          ApiIdentity(uid: 'user-1', getIdToken: (_) async => 'id-token'),
+      httpClient: MockClient((request) async {
+        expect(request.url.queryParameters, {'offset': '50', 'limit': '25'});
+        return http.Response(
+          jsonEncode([
+            {
+              'id': 'n51',
+              'type': 'session_updated',
+              'title': 'Schedule updated',
+              'body': '',
+              'data': <String, dynamic>{},
+              'isRead': true,
+              'createdAt': '2026-08-18T08:30:00Z',
+            },
+          ]),
+          200,
+          headers: {'x-next-offset': '75'},
+        );
+      }),
+    );
+
+    final page = await ApiNotificationRepository(
+      api: api,
+    ).fetchNotificationPage(offset: 50, limit: 25);
+
+    expect(page.items.single.id, 'n51');
+    expect(page.nextOffset, 75);
+  });
 }
