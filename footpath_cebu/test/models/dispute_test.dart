@@ -1,26 +1,36 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/domain/entities/dispute.dart';
+import 'package:footpath_cebu/data/dto/dispute_dto.dart';
 
 void main() {
   group('wire formats', () {
     test('categories round-trip', () {
       for (final category in DisputeCategory.values) {
-        expect(DisputeCategoryWire.fromWire(category.wire), category);
+        expect(
+          DisputeDto.categoryFromWire(DisputeDto.categoryToWire(category)),
+          category,
+        );
       }
-      expect(DisputeCategoryWire.fromWire('VIBES'), DisputeCategory.other);
+      expect(DisputeDto.categoryFromWire('VIBES'), DisputeCategory.other);
     });
 
     test('statuses round-trip, including the snake-case UNDER_REVIEW', () {
       for (final status in DisputeStatus.values) {
-        expect(DisputeStatusWire.fromWire(status.wire), status);
+        expect(
+          DisputeDto.statusFromWire(DisputeDto.statusToWire(status)),
+          status,
+        );
       }
-      expect(DisputeStatus.underReview.wire, 'UNDER_REVIEW');
-      expect(DisputeStatusWire.fromWire('nonsense'), DisputeStatus.open);
+      expect(
+        DisputeDto.statusToWire(DisputeStatus.underReview),
+        'UNDER_REVIEW',
+      );
+      expect(DisputeDto.statusFromWire('nonsense'), DisputeStatus.open);
     });
   });
 
   test('Dispute.fromJson reads the full wire shape with its thread', () {
-    final dispute = Dispute.fromJson(const {
+    final dispute = DisputeDto.fromJson(const {
       'id': '3',
       'raisedByName': 'Coach Cruz',
       'subjectPlayerId': '12',
@@ -55,7 +65,7 @@ void main() {
   });
 
   test('blank detail and missing thread parse as null/empty', () {
-    final dispute = Dispute.fromJson(const {
+    final dispute = DisputeDto.fromJson(const {
       'id': '4',
       'raisedByName': null,
       'subjectPlayerId': null,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
+import 'package:footpath_cebu/data/dto/app_notification_dto.dart';
 import 'package:footpath_cebu/domain/entities/app_notification.dart';
 import 'package:footpath_cebu/domain/repositories/notification_repository.dart';
 
@@ -23,7 +24,8 @@ class ApiNotificationRepository implements NotificationRepository {
       return rows
           .whereType<Map>()
           .map(
-            (row) => AppNotification.fromJson(Map<String, dynamic>.from(row)),
+            (row) =>
+                AppNotificationDto.fromJson(Map<String, dynamic>.from(row)),
           )
           .toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));

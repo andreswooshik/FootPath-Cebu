@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
+import 'package:footpath_cebu/data/dto/dispute_dto.dart';
 import 'package:footpath_cebu/domain/entities/dispute.dart';
 import 'package:footpath_cebu/domain/repositories/dispute_repository.dart';
 
@@ -17,7 +18,7 @@ class ApiDisputeRepository implements DisputeRepository {
   Future<Dispute> fetchDispute(String disputeId) async {
     try {
       final response = await _api.get('$_path$disputeId/');
-      return Dispute.fromJson(
+      return DisputeDto.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
     } on ApiException catch (error) {
@@ -33,7 +34,7 @@ class ApiDisputeRepository implements DisputeRepository {
   Future<List<Dispute>> fetchDisputes() async {
     try {
       final list = await _api.getList(_path);
-      return list.cast<Map<String, dynamic>>().map(Dispute.fromJson).toList();
+      return list.map(DisputeDto.fromJson).toList(growable: false);
     } on ApiException catch (error) {
       throw DisputeRepositoryException(error.message);
     }
@@ -51,14 +52,14 @@ class ApiDisputeRepository implements DisputeRepository {
         _path,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'category': category.wire,
+          'category': DisputeDto.categoryToWire(category),
           'summary': summary,
           'detail': ?detail,
           'subjectPlayerId': ?subjectPlayerId,
         }),
         expectedStatuses: const {201},
       );
-      return Dispute.fromJson(
+      return DisputeDto.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
     } on ApiException catch (error) {
@@ -78,11 +79,12 @@ class ApiDisputeRepository implements DisputeRepository {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'body': body,
-          if (statusChangeTo != null) 'statusChangeTo': statusChangeTo.wire,
+          if (statusChangeTo != null)
+            'statusChangeTo': DisputeDto.statusToWire(statusChangeTo),
         }),
         expectedStatuses: const {201},
       );
-      return Dispute.fromJson(
+      return DisputeDto.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
     } on ApiException catch (error) {

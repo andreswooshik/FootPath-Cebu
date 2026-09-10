@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:footpath_cebu/domain/entities/app_notification.dart';
+import 'package:footpath_cebu/data/dto/app_notification_dto.dart';
 
 void main() {
   test('parses the backend notification contract', () {
-    final notification = AppNotification.fromJson({
+    final notification = AppNotificationDto.fromJson({
       'id': 42,
       'type': 'session_scheduled',
       'title': 'New training session',
@@ -21,7 +21,7 @@ void main() {
   });
 
   test('uses safe defaults for optional malformed fields', () {
-    final notification = AppNotification.fromJson({
+    final notification = AppNotificationDto.fromJson({
       'id': 'n1',
       'data': 'not-a-map',
     });

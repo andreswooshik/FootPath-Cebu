@@ -32,6 +32,18 @@ void main() {
     );
   });
 
+  test('migrated domain entities do not own wire serialization', () {
+    for (final path in [
+      'lib/domain/entities/app_notification.dart',
+      'lib/domain/entities/dispute.dart',
+    ]) {
+      final source = File(path).readAsStringSync();
+      expect(source, isNot(contains('fromJson')), reason: path);
+      expect(source, isNot(contains('toJson')), reason: path);
+      expect(source, isNot(contains("['")), reason: path);
+    }
+  });
+
   test(
     'presentation does not import concrete data adapters or platform services',
     () {
