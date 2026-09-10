@@ -77,10 +77,23 @@ class AttendanceSyncService {
     final ownerUid = _ownerUid();
     if (ownerUid == null || ownerUid.isEmpty) return;
     final batches = await _outbox.pendingBatches(ownerUid);
+    final blockedBatchIds = <int>{};
     for (final batch in batches) {
+      if (blockedBatchIds.contains(batch.id)) continue;
       if (_disposed || _ownerUid() != ownerUid) return;
       try {
-        await _inner.saveSessionAttendance(batch.sessionId, batch.records);
+        final writer = _inner;
+        if (writer is VersionedSessionAttendanceWriter) {
+          await (writer as VersionedSessionAttendanceWriter)
+              .saveVersionedSessionAttendance(
+                batch.sessionId,
+                batch.records,
+                requestId: batch.requestId,
+                expectedRevision: batch.expectedRevision,
+              );
+        } else {
+          await writer.saveSessionAttendance(batch.sessionId, batch.records);
+        }
         await _outbox.markSynced(batch.id);
       } on AttendanceNetworkException catch (e) {
         // Still offline — keep the batch, stop, and retry later.
@@ -91,7 +104,27 @@ class AttendanceSyncService {
         if (e.isNonRetryableClientError) {
           // The server understood and permanently rejected this payload
           // (for example 400/404/422). Replaying it unchanged cannot work.
-          await _outbox.markRejected(batch.id, e.message);
+          if (e.code == 'ATTENDANCE_REVISION_CONFLICT') {
+            final sameSession = batches.where(
+              (candidate) =>
+                  candidate.sessionId == batch.sessionId &&
+                  candidate.id >= batch.id,
+            );
+            for (final candidate in sameSession) {
+              blockedBatchIds.add(candidate.id);
+              await _outbox.markRejected(
+                candidate.id,
+                e.message,
+                currentRevision: e.currentRevision,
+              );
+            }
+          } else {
+            await _outbox.markRejected(
+              batch.id,
+              e.message,
+              currentRevision: e.currentRevision,
+            );
+          }
           continue;
         }
         await _outbox.markFailed(batch.id, e.message);

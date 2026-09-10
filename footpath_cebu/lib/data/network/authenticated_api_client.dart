@@ -657,8 +657,16 @@ class AuthenticatedApiClient {
         final message = _safeMessage(detail);
         if (message != null) return message;
       }
+      if (value['message'] case final String message) {
+        final safe = _safeMessage(message);
+        if (safe != null) return safe;
+      }
       for (final entry in value.entries) {
-        if (entry.key == 'detail') continue;
+        if (entry.key == 'detail' ||
+            entry.key == 'message' ||
+            entry.key == 'code') {
+          continue;
+        }
         final message = _firstMessage(entry.value);
         if (message != null) return message;
       }

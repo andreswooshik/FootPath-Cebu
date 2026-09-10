@@ -113,6 +113,40 @@ class Attendance(models.Model):
         return f'{self.player.email} · {self.status} · {self.updated_at:%Y-%m-%d}'
 
 
+class AttendanceSubmission(models.Model):
+    """A committed attendance command used to make retries idempotent."""
+
+    coach = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='attendance_submissions',
+    )
+    session = models.ForeignKey(
+        TrainingSession,
+        on_delete=models.CASCADE,
+        related_name='attendance_submissions',
+    )
+    request_key = models.CharField(max_length=128)
+    payload_hash = models.CharField(max_length=64)
+    committed_revision = models.PositiveBigIntegerField()
+    response_body = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['coach', 'request_key'],
+                name='academy_unique_attendance_request',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['session', '-created_at'],
+                name='academy_att_submit_session_idx',
+            ),
+        ]
+
+
 class SessionConfirmation(models.Model):
     """A player's RSVP for a session — set by the player on the session day.
     Distinct from [Attendance], which the coach records

@@ -1,5 +1,7 @@
 """Domain-focused API views extracted from the legacy view module."""
 
+import re
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -95,7 +97,9 @@ class SessionAttendanceView(APIView):
         records = Attendance.objects.select_related('session', 'recorded_by').filter(
             session_id=session_id
         )
-        return list_response(request, records, AttendanceSerializer)
+        response = list_response(request, records, AttendanceSerializer)
+        self._set_revision_headers(response, session.attendance_revision)
+        return response
 
     @club_write_transaction
     def post(self, request, session_id):
@@ -104,15 +108,53 @@ class SessionAttendanceView(APIView):
 
         serializer = AttendanceBatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        session = replace_attendance(
+        request_key = request.headers.get('Idempotency-Key')
+        if request_key is not None and not re.fullmatch(
+            r'[A-Za-z0-9._:-]{16,128}', request_key
+        ):
+            raise ValidationError({'Idempotency-Key': 'Use 16 to 128 safe characters.'})
+        expected_revision = self._expected_revision(request.headers.get('If-Match'))
+        replacement = replace_attendance(
             coach=request.user,
             session_id=session_id,
             records=serializer.validated_data['records'],
+            request_key=request_key,
+            expected_revision=expected_revision,
         )
+        if replacement.duplicate and replacement.submission.response_body is not None:
+            response = Response(replacement.submission.response_body)
+            self._set_revision_headers(response, replacement.submission.committed_revision)
+            return response
         records = Attendance.objects.select_related('session', 'recorded_by').filter(
-            session=session
+            session=replacement.session
         )
-        return list_response(request, records, AttendanceSerializer)
+        response = list_response(request, records, AttendanceSerializer)
+        revision = (
+            replacement.submission.committed_revision
+            if replacement.submission
+            else replacement.session.attendance_revision
+        )
+        self._set_revision_headers(response, revision)
+        if replacement.submission is not None:
+            replacement.submission.response_body = response.data
+            replacement.submission.save(update_fields=['response_body'])
+        return response
+
+    @staticmethod
+    def _expected_revision(value):
+        if value is None:
+            return None
+        match = re.fullmatch(r'(?:W/)?"?(\d+)"?', value.strip())
+        if match is None:
+            raise ValidationError(
+                {'If-Match': 'Use the attendance revision returned by GET.'}
+            )
+        return int(match.group(1))
+
+    @staticmethod
+    def _set_revision_headers(response, revision):
+        response['ETag'] = f'"{revision}"'
+        response['X-Attendance-Revision'] = str(revision)
 
 
 class TrainingSessionListCreateView(APIView):

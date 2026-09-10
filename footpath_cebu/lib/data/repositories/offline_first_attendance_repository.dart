@@ -1,4 +1,5 @@
 import 'package:footpath_cebu/data/local/attendance_outbox.dart';
+import 'package:footpath_cebu/data/local/attendance_request_id.dart';
 import 'package:footpath_cebu/data/local/attendance_write_queue.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
@@ -52,22 +53,52 @@ class OfflineFirstAttendanceRepository implements AttendanceRepository {
     _ensureOwner(ownerUid);
     if (pending != null) {
       if (pending.isRejected) {
-        await _outbox.replaceSession(ownerUid, sessionId, records);
+        await _outbox.replaceSession(
+          ownerUid,
+          sessionId,
+          records,
+          expectedRevision: pending.expectedRevision,
+        );
       } else {
-        await _outbox.enqueue(ownerUid, sessionId, records);
+        await _outbox.enqueue(
+          ownerUid,
+          sessionId,
+          records,
+          expectedRevision: pending.expectedRevision == null
+              ? null
+              : pending.expectedRevision! + 1,
+        );
       }
       _ensureOwner(ownerUid);
       return records;
     }
+    final requestId = AttendanceRequestId.create();
+    final versioned = _inner is VersionedSessionAttendanceWriter
+        ? _inner as VersionedSessionAttendanceWriter
+        : null;
+    final expectedRevision = versioned?.revisionForSession(sessionId);
     try {
-      final saved = await _inner.saveSessionAttendance(sessionId, records);
+      final saved = versioned == null
+          ? await _inner.saveSessionAttendance(sessionId, records)
+          : await versioned.saveVersionedSessionAttendance(
+              sessionId,
+              records,
+              requestId: requestId,
+              expectedRevision: expectedRevision,
+            );
       _ensureOwner(ownerUid);
       return saved;
     } on AttendanceNetworkException {
       // Offline: queue the whole batch and report the coach's marks back as
       // saved — the sync service replays them when the connection returns.
       _ensureOwner(ownerUid);
-      await _outbox.enqueue(ownerUid, sessionId, records);
+      await _outbox.enqueue(
+        ownerUid,
+        sessionId,
+        records,
+        requestId: requestId,
+        expectedRevision: expectedRevision,
+      );
       _ensureOwner(ownerUid);
       return records;
     }

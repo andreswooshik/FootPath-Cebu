@@ -21,6 +21,7 @@ from .models import (
     AgeTier,
     AgeTierSetting,
     Attendance,
+    AttendanceSubmission,
     AttendanceStatus,
     AuditLog,
     ConfirmationStatus,
@@ -340,6 +341,73 @@ class SessionAttendanceTests(APITestCase):
         self.assertEqual(records.count(), 1)
         self.assertEqual(records.get().player_id, self.p1.id)
         self.assertEqual(records.get().status, AttendanceStatus.EXCUSED)
+
+    def test_idempotency_key_replays_the_committed_response_once(self):
+        self.client.force_authenticate(self.coach)
+        headers = {
+            'HTTP_IDEMPOTENCY_KEY': 'attendance-request-0001',
+            'HTTP_IF_MATCH': '"0"',
+        }
+        first = self.client.post(self._url(), self._payload(), format='json', **headers)
+        second = self.client.post(self._url(), self._payload(), format='json', **headers)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.data, second.data)
+        self.assertEqual(first['X-Attendance-Revision'], '1')
+        self.assertEqual(second['X-Attendance-Revision'], '1')
+        self.assertEqual(AttendanceSubmission.objects.count(), 1)
+        self.assertEqual(
+            AuditLog.objects.filter(action='attendance.replaced').count(),
+            1,
+        )
+
+    def test_stale_revision_is_rejected_without_changing_attendance(self):
+        self.client.force_authenticate(self.coach)
+        first = self.client.post(
+            self._url(),
+            self._payload(),
+            format='json',
+            HTTP_IDEMPOTENCY_KEY='attendance-request-0002',
+            HTTP_IF_MATCH='0',
+        )
+        stale = self.client.post(
+            self._url(),
+            {'records': [{'playerId': str(self.p1.id), 'status': 'EXCUSED'}]},
+            format='json',
+            HTTP_IDEMPOTENCY_KEY='attendance-request-0003',
+            HTTP_IF_MATCH='0',
+        )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(stale.data['code'], 'ATTENDANCE_REVISION_CONFLICT')
+        self.assertEqual(str(stale.data['currentRevision']), '1')
+        self.assertEqual(Attendance.objects.get(player=self.p1).status, 'PRESENT')
+        self.assertEqual(AttendanceSubmission.objects.count(), 1)
+
+    def test_idempotency_key_cannot_be_reused_for_different_marks(self):
+        self.client.force_authenticate(self.coach)
+        headers = {
+            'HTTP_IDEMPOTENCY_KEY': 'attendance-request-0004',
+            'HTTP_IF_MATCH': '0',
+        }
+        self.client.post(self._url(), self._payload(), format='json', **headers)
+        reused = self.client.post(
+            self._url(),
+            {'records': [{'playerId': str(self.p1.id), 'status': 'EXCUSED'}]},
+            format='json',
+            **headers,
+        )
+
+        self.assertEqual(reused.status_code, 409)
+        self.assertEqual(reused.data['code'], 'ATTENDANCE_REQUEST_KEY_REUSED')
+
+    def test_get_exposes_the_current_attendance_revision(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.get(self._url())
+        self.assertEqual(response['ETag'], '"0"')
+        self.assertEqual(response['X-Attendance-Revision'], '0')
 
     def test_non_coach_post_denied(self):
         for role in (Roles.PLAYER, Roles.GUARDIAN, Roles.SCHOOL_STAFF, Roles.ADMIN):

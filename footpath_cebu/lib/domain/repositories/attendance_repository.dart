@@ -27,6 +27,20 @@ abstract class SessionAttendanceWriter {
   );
 }
 
+/// Optional capability for writers backed by a revisioned, idempotent API.
+/// Offline delivery depends on this narrow contract to replay the same logical
+/// command without coupling the domain to HTTP headers.
+abstract class VersionedSessionAttendanceWriter {
+  int? revisionForSession(String sessionId);
+
+  Future<List<Attendance>> saveVersionedSessionAttendance(
+    String sessionId,
+    List<Attendance> records, {
+    required String requestId,
+    int? expectedRevision,
+  });
+}
+
 /// Aggregate of the attendance reads and writes. Concrete data sources
 /// implement this one interface, while each consumer depends only on the
 /// narrow interface it actually uses (Interface Segregation).
@@ -38,10 +52,22 @@ abstract class AttendanceRepository
 
 /// Thrown when an attendance read or write cannot be completed.
 class AttendanceRepositoryException implements Exception {
-  AttendanceRepositoryException(this.message, {this.statusCode});
+  AttendanceRepositoryException(
+    this.message, {
+    this.statusCode,
+    this.code,
+    this.details,
+  });
 
   final String message;
   final int? statusCode;
+  final String? code;
+  final Map<String, dynamic>? details;
+
+  int? get currentRevision {
+    final value = details?['currentRevision'];
+    return value is int ? value : int.tryParse(value?.toString() ?? '');
+  }
 
   /// Whether replaying the same request later may succeed without changing
   /// its payload. Unknown failures are retained rather than risking data loss.

@@ -15,6 +15,7 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
@@ -453,5 +454,14 @@ JAZZMIN_UI_TWEAKS = {
     'sidebar_nav_flat_style': True,
 }
 
-# Pagination metadata is readable by browser API consumers.
-CORS_EXPOSE_HEADERS = ['Link', 'X-Next-Offset', 'X-Page-Limit', 'X-Page-Offset']
+# Pagination and optimistic-concurrency metadata is readable by browser API
+# consumers. The write headers are listed explicitly for CORS preflight.
+CORS_ALLOW_HEADERS = (*default_headers, 'idempotency-key', 'if-match')
+CORS_EXPOSE_HEADERS = [
+    'ETag',
+    'Link',
+    'X-Attendance-Revision',
+    'X-Next-Offset',
+    'X-Page-Limit',
+    'X-Page-Offset',
+]

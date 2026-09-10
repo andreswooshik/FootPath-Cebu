@@ -8,6 +8,7 @@ from academy.model_notifications import (
 )
 from academy.model_operations import (
     Attendance,
+    AttendanceSubmission,
     AuditLog,
     AuditLogQuerySet,
     Dispute,
@@ -59,6 +60,7 @@ __all__ = [
     'AgeTierSetting',
     'AssessmentReason',
     'Attendance',
+    'AttendanceSubmission',
     'AttendanceStatus',
     'AuditLog',
     'AuditLogQuerySet',

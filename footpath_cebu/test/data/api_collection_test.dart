@@ -22,8 +22,6 @@ void main() {
         'confirmations': (api) => ApiSessionConfirmationRepository(
           api: api,
         ).fetchConfirmationsForPlayer('12'),
-        'session attendance': (api) =>
-            ApiAttendanceRepository(api: api).fetchAttendanceForSession('1'),
       };
   late String uid;
   setUp(() => uid = 'coach-a');

@@ -40,6 +40,33 @@ class _Writer implements SessionAttendanceWriter {
   }
 }
 
+class _VersionedWriter
+    implements SessionAttendanceWriter, VersionedSessionAttendanceWriter {
+  final calls = <({String requestId, int? expectedRevision})>[];
+  AttendanceRepositoryException? error;
+
+  @override
+  int? revisionForSession(String sessionId) => 0;
+
+  @override
+  Future<List<Attendance>> saveSessionAttendance(
+    String sessionId,
+    List<Attendance> records,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<List<Attendance>> saveVersionedSessionAttendance(
+    String sessionId,
+    List<Attendance> records, {
+    required String requestId,
+    int? expectedRevision,
+  }) async {
+    calls.add((requestId: requestId, expectedRevision: expectedRevision));
+    if (error case final failure?) throw failure;
+    return records;
+  }
+}
+
 void main() {
   setUpAll(sqfliteFfiInit);
   late AttendanceOutbox outbox;
@@ -85,6 +112,61 @@ void main() {
       expect(entry.error, 'Correct the player selection.');
       expect(entry.records.single.note, 'Original note');
       expect(entry.records.single.performanceScore, 8);
+    },
+  );
+
+  test(
+    'replay preserves the queued request id and expected revision',
+    () async {
+      final versioned = _VersionedWriter();
+      final versionedService = AttendanceSyncService(
+        outbox: outbox,
+        inner: versioned,
+        ownerUid: () => owner,
+      );
+      addTearDown(versionedService.dispose);
+      await outbox.enqueue(
+        owner,
+        's1',
+        [record('p1')],
+        requestId: 'request-1234567890',
+        expectedRevision: 7,
+      );
+
+      await versionedService.drain();
+
+      expect(versioned.calls.single.requestId, 'request-1234567890');
+      expect(versioned.calls.single.expectedRevision, 7);
+      expect(await outbox.pendingBatches(owner), isEmpty);
+    },
+  );
+
+  test(
+    'revision conflict retains every later draft for manual recovery',
+    () async {
+      final versioned = _VersionedWriter()
+        ..error = AttendanceRepositoryException(
+          'Reload attendance.',
+          statusCode: 409,
+          code: 'ATTENDANCE_REVISION_CONFLICT',
+          details: {'currentRevision': 9},
+        );
+      final versionedService = AttendanceSyncService(
+        outbox: outbox,
+        inner: versioned,
+        ownerUid: () => owner,
+      );
+      addTearDown(versionedService.dispose);
+      await outbox.enqueue(owner, 's1', [record('p1')], expectedRevision: 7);
+      await outbox.enqueue(owner, 's1', [record('p2')], expectedRevision: 8);
+
+      await versionedService.drain();
+
+      expect(versioned.calls, hasLength(1));
+      final retained = await outbox.allBatches(owner);
+      expect(retained, hasLength(2));
+      expect(retained.every((batch) => batch.isRejected), isTrue);
+      expect(retained.every((batch) => batch.expectedRevision == 9), isTrue);
     },
   );
 

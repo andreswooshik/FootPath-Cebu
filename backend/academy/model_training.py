@@ -69,6 +69,9 @@ class TrainingSession(models.Model):
         related_name='training_sessions',
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    # Monotonic version of the complete roll call. Clients use it for
+    # optimistic concurrency when replacing attendance from multiple devices.
+    attendance_revision = models.PositiveBigIntegerField(default=0)
 
     _TIME_PATTERN = re.compile(
         r'^(?P<hour>0?[1-9]|1[0-2]):(?P<minute>[0-5][0-9])\s*'

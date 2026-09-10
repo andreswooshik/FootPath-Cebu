@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'package:footpath_cebu/domain/entities/attendance.dart';
+import 'package:footpath_cebu/data/local/attendance_request_id.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// One queued "save this session's attendance" request. The whole batch is the
@@ -14,6 +15,8 @@ class OutboxBatch {
     required this.sessionId,
     required this.records,
     required this.retryCount,
+    required this.requestId,
+    this.expectedRevision,
     this.lastError,
     this.isRejected = false,
   });
@@ -23,6 +26,8 @@ class OutboxBatch {
   final String sessionId;
   final List<Attendance> records;
   final int retryCount;
+  final String requestId;
+  final int? expectedRevision;
   final String? lastError;
   final bool isRejected;
 }
@@ -54,7 +59,7 @@ class AttendanceOutbox {
     final db = await factory.openDatabase(
       path,
       options: OpenDatabaseOptions(
-        version: 3,
+        version: 4,
         onCreate: (db, version) => db.execute('''
           CREATE TABLE $_table (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,7 +69,9 @@ class AttendanceOutbox {
             created_at TEXT NOT NULL,
             retry_count INTEGER NOT NULL DEFAULT 0,
             last_error TEXT,
-            is_rejected INTEGER NOT NULL DEFAULT 0
+            is_rejected INTEGER NOT NULL DEFAULT 0,
+            request_id TEXT NOT NULL,
+            expected_revision INTEGER
           )
         '''),
         onUpgrade: (db, oldVersion, newVersion) async {
@@ -79,6 +86,14 @@ class AttendanceOutbox {
               'ALTER TABLE $_table ADD COLUMN is_rejected INTEGER NOT NULL DEFAULT 0',
             );
           }
+          if (oldVersion < 4) {
+            await db.execute(
+              "ALTER TABLE $_table ADD COLUMN request_id TEXT NOT NULL DEFAULT ''",
+            );
+            await db.execute(
+              'ALTER TABLE $_table ADD COLUMN expected_revision INTEGER',
+            );
+          }
         },
       ),
     );
@@ -90,8 +105,10 @@ class AttendanceOutbox {
   Future<int> enqueue(
     String ownerUid,
     String sessionId,
-    List<Attendance> records,
-  ) async {
+    List<Attendance> records, {
+    String? requestId,
+    int? expectedRevision,
+  }) async {
     final db = await _database();
     final id = await db.insert(_table, {
       'owner_uid': ownerUid,
@@ -99,6 +116,8 @@ class AttendanceOutbox {
       'records_json': jsonEncode(records.map((r) => r.toJson()).toList()),
       'created_at': DateTime.now().toIso8601String(),
       'retry_count': 0,
+      'request_id': requestId ?? AttendanceRequestId.create(),
+      'expected_revision': expectedRevision,
     });
     _notify();
     return id;
@@ -164,11 +183,16 @@ class AttendanceOutbox {
     _notify();
   }
 
-  Future<void> markRejected(int id, String error) async {
+  Future<void> markRejected(
+    int id,
+    String error, {
+    int? currentRevision,
+  }) async {
     final db = await _database();
     await db.rawUpdate(
-      'UPDATE $_table SET is_rejected = 1, retry_count = retry_count + 1, last_error = ? WHERE id = ?',
-      [error, id],
+      'UPDATE $_table SET is_rejected = 1, retry_count = retry_count + 1, '
+      'last_error = ?, expected_revision = COALESCE(?, expected_revision) WHERE id = ?',
+      [error, currentRevision, id],
     );
     _notify();
   }
@@ -178,8 +202,9 @@ class AttendanceOutbox {
   Future<void> replaceSession(
     String ownerUid,
     String sessionId,
-    List<Attendance> records,
-  ) async {
+    List<Attendance> records, {
+    int? expectedRevision,
+  }) async {
     final db = await _database();
     await db.transaction((txn) async {
       await txn.delete(
@@ -193,6 +218,8 @@ class AttendanceOutbox {
         'records_json': jsonEncode(records.map((r) => r.toJson()).toList()),
         'created_at': DateTime.now().toIso8601String(),
         'retry_count': 0,
+        'request_id': AttendanceRequestId.create(),
+        'expected_revision': expectedRevision,
       });
     });
     _notify();
@@ -257,6 +284,10 @@ class AttendanceOutbox {
           .map(Attendance.fromJson)
           .toList(),
       retryCount: row['retry_count'] as int,
+      requestId: (row['request_id'] as String).isEmpty
+          ? 'legacy-${(row['id'] as int).toString().padLeft(10, '0')}'
+          : row['request_id'] as String,
+      expectedRevision: row['expected_revision'] as int?,
       lastError: row['last_error'] as String?,
       isRejected: row['is_rejected'] == 1,
     );

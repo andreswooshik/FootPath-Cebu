@@ -25,13 +25,21 @@ void main() {
     final outbox = newOutbox();
     addTearDown(outbox.close);
 
-    await outbox.enqueue('guardian-a', 's1', [_record('p1'), _record('p2')]);
+    await outbox.enqueue(
+      'guardian-a',
+      's1',
+      [_record('p1'), _record('p2')],
+      requestId: 'request-1234567890',
+      expectedRevision: 6,
+    );
 
     final pending = await outbox.pendingBatches('guardian-a');
     expect(pending, hasLength(1));
     final batch = pending.single;
     expect(batch.sessionId, 's1');
     expect(batch.retryCount, 0);
+    expect(batch.requestId, 'request-1234567890');
+    expect(batch.expectedRevision, 6);
     expect(batch.lastError, isNull);
     expect(batch.records.map((r) => r.playerId), ['p1', 'p2']);
     expect(batch.records.first.status, AttendanceStatus.present);

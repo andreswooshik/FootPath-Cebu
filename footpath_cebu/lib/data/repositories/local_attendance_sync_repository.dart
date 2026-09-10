@@ -84,7 +84,12 @@ class LocalAttendanceSyncRepository implements AttendanceSyncRepository {
           'This saved draft has changed. Reopen Attendance sync before editing.',
         );
       }
-      await outbox.replaceSession(owner, entry.sessionId, records);
+      await outbox.replaceSession(
+        owner,
+        entry.sessionId,
+        records,
+        expectedRevision: latest.expectedRevision,
+      );
     });
     if (ownerUid() != owner) {
       throw AttendanceRepositoryException('The signed-in account changed.');

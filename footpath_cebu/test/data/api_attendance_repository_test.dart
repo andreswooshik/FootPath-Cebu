@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
+import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -27,6 +28,79 @@ void main() {
     expect(records.single.sessionName, 'Passing');
     expect(records.single.effort, 75);
     expect(records.single.note, isNull);
+  });
+
+  test(
+    'sends the revision and stable request id on attendance writes',
+    () async {
+      var calls = 0;
+      final api = AuthenticatedApiClient(
+        identityProvider: () =>
+            ApiIdentity(uid: 'coach-1', getIdToken: (_) async => 'id-token'),
+        httpClient: MockClient((request) async {
+          calls++;
+          if (request.method == 'GET') {
+            return http.Response(
+              '[]',
+              200,
+              headers: {'x-attendance-revision': '7'},
+            );
+          }
+          expect(request.headers['Idempotency-Key'], 'request-1234567890');
+          expect(request.headers['If-Match'], '"7"');
+          return http.Response(
+            '[]',
+            200,
+            headers: {'x-attendance-revision': '8'},
+          );
+        }),
+      );
+      final repository = ApiAttendanceRepository(api: api);
+      await repository.fetchAttendanceForSession('session-1');
+
+      await repository.saveVersionedSessionAttendance(
+        'session-1',
+        const <Attendance>[],
+        requestId: 'request-1234567890',
+        expectedRevision: repository.revisionForSession('session-1'),
+      );
+
+      expect(repository.revisionForSession('session-1'), 8);
+      expect(calls, 2);
+    },
+  );
+
+  test('retains revision-conflict details for offline recovery', () async {
+    final api = AuthenticatedApiClient(
+      identityProvider: () =>
+          ApiIdentity(uid: 'coach-1', getIdToken: (_) async => 'id-token'),
+      httpClient: MockClient(
+        (_) async => http.Response(
+          '{"code":"ATTENDANCE_REVISION_CONFLICT","message":"Reload.","currentRevision":4}',
+          409,
+        ),
+      ),
+    );
+    final repository = ApiAttendanceRepository(api: api);
+
+    await expectLater(
+      repository.saveVersionedSessionAttendance(
+        'session-1',
+        const <Attendance>[],
+        requestId: 'request-1234567890',
+        expectedRevision: 3,
+      ),
+      throwsA(
+        isA<AttendanceRepositoryException>()
+            .having(
+              (error) => error.code,
+              'code',
+              'ATTENDANCE_REVISION_CONFLICT',
+            )
+            .having((error) => error.message, 'message', 'Reload.')
+            .having((error) => error.currentRevision, 'currentRevision', 4),
+      ),
+    );
   });
 
   for (final status in [401, 403, 408, 422, 429, 500]) {
