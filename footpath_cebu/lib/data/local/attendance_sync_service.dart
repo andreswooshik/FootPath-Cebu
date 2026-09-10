@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:footpath_cebu/data/local/attendance_outbox.dart';
+import 'package:footpath_cebu/data/local/attendance_outbox_store.dart';
 import 'package:footpath_cebu/data/local/attendance_write_queue.dart';
 import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 
-/// Drains the [AttendanceOutbox] through the live repository whenever
+/// Drains the [AttendanceOutboxStore] through the live repository whenever
 /// connectivity returns.
 ///
 /// Batches are replayed sequentially, oldest first, so the newest save for a
@@ -29,7 +29,7 @@ class AttendanceSyncService {
   static const _initialBackoff = Duration(seconds: 5);
   static const _maxBackoff = Duration(minutes: 5);
 
-  final AttendanceOutbox _outbox;
+  final AttendanceOutboxStore _outbox;
   final SessionAttendanceWriter _inner;
   final String? Function() _ownerUid;
   final AttendanceWriteQueue _writeQueue;

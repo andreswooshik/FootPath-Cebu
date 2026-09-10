@@ -3,40 +3,19 @@ import 'dart:async';
 
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/data/local/attendance_request_id.dart';
+import 'package:footpath_cebu/data/local/attendance_outbox_store.dart';
 import 'package:sqflite/sqflite.dart';
 
 /// One queued "save this session's attendance" request. The whole batch is the
 /// retry unit — attendance saves are wholesale-replace per session, so
 /// re-sending the full batch is always safe.
-class OutboxBatch {
-  const OutboxBatch({
-    required this.id,
-    required this.ownerUid,
-    required this.sessionId,
-    required this.records,
-    required this.retryCount,
-    required this.requestId,
-    this.expectedRevision,
-    this.lastError,
-    this.isRejected = false,
-  });
-
-  final int id;
-  final String ownerUid;
-  final String sessionId;
-  final List<Attendance> records;
-  final int retryCount;
-  final String requestId;
-  final int? expectedRevision;
-  final String? lastError;
-  final bool isRejected;
-}
+export 'attendance_outbox_store.dart';
 
 /// Durable queue of attendance saves that failed because the device was
 /// offline. Backed by a single sqflite table so a queued roll call survives an
 /// app restart. Pure persistence — retry timing and connectivity live in
 /// [AttendanceSyncService].
-class AttendanceOutbox {
+class AttendanceOutbox implements AttendanceOutboxStore {
   AttendanceOutbox({this._factory, this._dbPath});
 
   static const _table = 'outbox_attendance';
@@ -102,6 +81,7 @@ class AttendanceOutbox {
   }
 
   /// Queues a batch for later sync. Returns the new row id.
+  @override
   Future<int> enqueue(
     String ownerUid,
     String sessionId,
@@ -126,6 +106,7 @@ class AttendanceOutbox {
   /// All queued batches, oldest first — the drain order. Sequential
   /// oldest-first drain means the newest save for a session wins on the
   /// server (last write wins, matching the endpoint's replace semantics).
+  @override
   Future<List<OutboxBatch>> pendingBatches(String ownerUid) async {
     final db = await _database();
     final rows = await db.query(
@@ -139,6 +120,7 @@ class AttendanceOutbox {
 
   /// The most recently queued batch for one session, or null — the offline
   /// read fallback for the roll-call screen.
+  @override
   Future<OutboxBatch?> latestBatchForSession(
     String ownerUid,
     String sessionId,
@@ -155,6 +137,7 @@ class AttendanceOutbox {
   }
 
   /// The batch reached the server — drop it.
+  @override
   Future<void> markSynced(int id) async {
     final db = await _database();
     await db.transaction((txn) async {
@@ -173,6 +156,7 @@ class AttendanceOutbox {
   }
 
   /// A sync attempt failed; keep the batch and record why.
+  @override
   Future<void> markFailed(int id, String error) async {
     final db = await _database();
     await db.rawUpdate(
@@ -183,6 +167,7 @@ class AttendanceOutbox {
     _notify();
   }
 
+  @override
   Future<void> markRejected(
     int id,
     String error, {
@@ -199,6 +184,7 @@ class AttendanceOutbox {
 
   /// The user explicitly saved a corrected complete snapshot. Replace all old
   /// versions atomically so a crash leaves either the old draft or the new one.
+  @override
   Future<void> replaceSession(
     String ownerUid,
     String sessionId,
@@ -225,6 +211,7 @@ class AttendanceOutbox {
     _notify();
   }
 
+  @override
   Future<List<OutboxBatch>> allBatches(String ownerUid) async {
     final db = await _database();
     final rows = await db.query(
@@ -236,6 +223,7 @@ class AttendanceOutbox {
     return rows.map(_toBatch).toList();
   }
 
+  @override
   Stream<List<OutboxBatch>> watchBatches(String ownerUid) =>
       Stream.multi((controller) {
         var cancelled = false;
@@ -267,6 +255,7 @@ class AttendanceOutbox {
     if (!_changes.isClosed) _changes.add(null);
   }
 
+  @override
   Future<void> close() async {
     await _changes.close();
     await _db?.close();

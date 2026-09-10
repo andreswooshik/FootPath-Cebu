@@ -50,6 +50,7 @@ dependencies:
   image_picker: ^1.2.3
   file_picker: ^12.1.2
   url_launcher: ^6.3.2
+  idb_shim: 2.9.8
 
 dev_dependencies:
   flutter_test:

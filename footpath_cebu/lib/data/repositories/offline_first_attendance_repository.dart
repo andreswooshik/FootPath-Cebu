@@ -1,4 +1,4 @@
-import 'package:footpath_cebu/data/local/attendance_outbox.dart';
+import 'package:footpath_cebu/data/local/attendance_outbox_store.dart';
 import 'package:footpath_cebu/data/local/attendance_request_id.dart';
 import 'package:footpath_cebu/data/local/attendance_write_queue.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
@@ -7,7 +7,7 @@ import 'package:footpath_cebu/domain/repositories/attendance_repository.dart';
 /// Decorator that makes attendance capture survive being offline.
 ///
 /// Wraps the live [AttendanceRepository] (normally [ApiAttendanceRepository])
-/// and a durable [AttendanceOutbox]. Connection failures start a queue; later
+/// and a durable [AttendanceOutboxStore]. Connection failures start a queue; later
 /// edits to that session join it to preserve write order. Direct HTTP failures
 /// propagate rather than being treated as offline success.
 /// [AttendanceSyncService] drains the queue when connectivity returns.
@@ -21,7 +21,7 @@ class OfflineFirstAttendanceRepository implements AttendanceRepository {
   }) : _writeQueue = writeQueue ?? AttendanceWriteQueue();
 
   final AttendanceRepository _inner;
-  final AttendanceOutbox _outbox;
+  final AttendanceOutboxStore _outbox;
   final String? Function() _ownerUid;
   final AttendanceWriteQueue _writeQueue;
   final void Function()? requestSync;

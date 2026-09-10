@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/player_security_providers.dart';
 import 'package:footpath_cebu/core/di/runtime_config.dart';
-import 'package:footpath_cebu/data/local/attendance_outbox.dart';
+import 'package:footpath_cebu/data/local/attendance_outbox_factory.dart';
+import 'package:footpath_cebu/data/local/attendance_outbox_store.dart';
 import 'package:footpath_cebu/data/local/attendance_sync_service.dart';
 import 'package:footpath_cebu/data/local/attendance_write_queue.dart';
 import 'package:footpath_cebu/data/repositories/api_attendance_repository.dart';
@@ -18,8 +18,8 @@ import 'package:footpath_cebu/domain/usecases/get_player_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/get_session_attendance.dart';
 import 'package:footpath_cebu/domain/usecases/log_session_attendance.dart';
 
-final attendanceOutboxProvider = Provider<AttendanceOutbox>((ref) {
-  final outbox = AttendanceOutbox();
+final attendanceOutboxProvider = Provider<AttendanceOutboxStore>((ref) {
+  final outbox = createAttendanceOutbox();
   ref.onDispose(outbox.close);
   return outbox;
 });
@@ -31,7 +31,7 @@ final attendanceWriteQueueProvider = Provider<AttendanceWriteQueue>(
 final attendanceSyncRepositoryProvider = Provider<AttendanceSyncRepository>((
   ref,
 ) {
-  if (useMockData || kIsWeb) return OnlineAttendanceSyncRepository();
+  if (useMockData) return OnlineAttendanceSyncRepository();
   return LocalAttendanceSyncRepository(
     outbox: ref.watch(attendanceOutboxProvider),
     writeQueue: ref.watch(attendanceWriteQueueProvider),
@@ -45,10 +45,6 @@ final attendanceSyncRepositoryProvider = Provider<AttendanceSyncRepository>((
 final attendanceRepositoryProvider = Provider<AttendanceRepository>(
   (ref) => useMockData
       ? MockAttendanceRepository()
-      : kIsWeb
-      ? ApiAttendanceRepository(
-          unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
-        )
       : OfflineFirstAttendanceRepository(
           inner: ApiAttendanceRepository(
             unlockTokenFor: ref.watch(playerUnlockTokenStoreProvider).tokenFor,
@@ -65,7 +61,7 @@ final attendanceRepositoryProvider = Provider<AttendanceRepository>(
 );
 
 final attendanceSyncServiceProvider = Provider<AttendanceSyncService?>((ref) {
-  if (useMockData || kIsWeb) return null;
+  if (useMockData) return null;
   final service = AttendanceSyncService(
     outbox: ref.watch(attendanceOutboxProvider),
     writeQueue: ref.watch(attendanceWriteQueueProvider),

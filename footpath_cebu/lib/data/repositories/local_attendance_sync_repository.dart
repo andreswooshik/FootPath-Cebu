@@ -1,4 +1,4 @@
-import 'package:footpath_cebu/data/local/attendance_outbox.dart';
+import 'package:footpath_cebu/data/local/attendance_outbox_store.dart';
 import 'package:footpath_cebu/data/local/attendance_write_queue.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/attendance_sync_entry.dart';
@@ -13,7 +13,7 @@ class LocalAttendanceSyncRepository implements AttendanceSyncRepository {
     required this.writeQueue,
   });
 
-  final AttendanceOutbox outbox;
+  final AttendanceOutboxStore outbox;
   final String? Function() ownerUid;
   final Future<void> Function() requestSync;
   final AttendanceWriteQueue writeQueue;
