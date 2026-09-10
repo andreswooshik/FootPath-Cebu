@@ -6,7 +6,7 @@ change detection lives on the model's save cycle instead: pre_save stashes the
 stored value, post_save compares, then records an append-only history row and
 fires the push.
 """
-from django.db import transaction
+
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
@@ -18,9 +18,7 @@ from .notifications import notify_eligibility_changed
 def stash_previous_eligibility(sender, instance, **kwargs):
     if instance.pk:
         instance._previous_eligibility = (
-            sender.objects.filter(pk=instance.pk)
-            .values_list('eligibility', flat=True)
-            .first()
+            sender.objects.filter(pk=instance.pk).values_list('eligibility', flat=True).first()
         )
     else:
         instance._previous_eligibility = None
@@ -28,15 +26,15 @@ def stash_previous_eligibility(sender, instance, **kwargs):
 
 @receiver(post_save, sender=PlayerProfile)
 def fire_eligibility_changed(sender, instance, created, **kwargs):
+    update_fields = kwargs.get('update_fields')
+    if update_fields is not None and 'eligibility' not in update_fields:
+        return
     previous = getattr(instance, '_previous_eligibility', None)
     # A new profile or an unchanged value is not a transition — nothing to
     # record or announce.
     if created or previous is None or previous == instance.eligibility:
         return
-    if (
-        instance.user.club_id is not None
-        and not instance.user.club.allows_academic_eligibility
-    ):
+    if instance.user.club_id is not None and not instance.user.club.allows_academic_eligibility:
         # The stored default is kept for schema compatibility, but Independent
         # clubs have no academic feature, history, or notifications.
         return
@@ -57,8 +55,5 @@ def fire_eligibility_changed(sender, instance, created, **kwargs):
         target=instance.user.email,
         detail=f'{previous} → {instance.eligibility}',
     )
-    # Push only after the row is durably committed; a rolled-back change must
-    # not notify anyone.
-    transaction.on_commit(
-        lambda: notify_eligibility_changed(instance, previous)
-    )
+    # Persist inbox and delivery intent in the same transaction as the change.
+    notify_eligibility_changed(instance, previous)

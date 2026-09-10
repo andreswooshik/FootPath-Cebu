@@ -1,6 +1,7 @@
+from uuid import uuid4
+
 from django.db import transaction
 from django.utils.crypto import get_random_string
-from uuid import uuid4
 from firebase_admin import auth as firebase_auth
 
 from .firebase import ensure_initialized
@@ -22,9 +23,7 @@ def _require_active_club(club, *, role):
     if not club.is_active:
         raise ProvisioningError('Accounts cannot be created for an inactive club.')
     if role == Roles.SCHOOL_STAFF and not club.allows_school_staff:
-        raise ProvisioningError(
-            'School Staff accounts are available only to School clubs.'
-        )
+        raise ProvisioningError('School Staff accounts are available only to School clubs.')
     return club
 
 
@@ -40,9 +39,7 @@ def link_or_create_firebase_user(user, *, password=None):
     or None for an idempotent re-sync of an already linked local account.
     """
     if not user.email:
-        raise ProvisioningError(
-            'A user needs an email before it can be synced to Firebase.'
-        )
+        raise ProvisioningError('A user needs an email before it can be synced to Firebase.')
 
     ensure_initialized()
 
@@ -50,12 +47,8 @@ def link_or_create_firebase_user(user, *, password=None):
     try:
         fb_user = firebase_auth.get_user_by_email(user.email)
     except firebase_auth.UserNotFoundError:
-        temp_password = password or get_random_string(
-            12, allowed_chars=_PASSWORD_CHARS
-        )
-        fb_user = firebase_auth.create_user(
-            email=user.email, password=temp_password
-        )
+        temp_password = password or get_random_string(12, allowed_chars=_PASSWORD_CHARS)
+        fb_user = firebase_auth.create_user(email=user.email, password=temp_password)
     else:
         if not user.firebase_uid or user.firebase_uid != fb_user.uid:
             raise ProvisioningError(
@@ -113,12 +106,8 @@ def enable_coordinator_mobile_access(user, *, password):
         )
         created = True
     else:
-        if User.objects.exclude(pk=user.pk).filter(
-            firebase_uid=firebase_user.uid
-        ).exists():
-            raise ProvisioningError(
-                'That mobile identity is already linked to another account.'
-            )
+        if User.objects.exclude(pk=user.pk).filter(firebase_uid=firebase_user.uid).exists():
+            raise ProvisioningError('That mobile identity is already linked to another account.')
         firebase_user = firebase_auth.update_user(
             firebase_user.uid,
             password=password,
@@ -150,9 +139,7 @@ def set_coordinator_mobile_disabled(user, *, disabled):
     return True
 
 
-def provision_user(
-    *, email, first_name, last_name, role, club=None, _allow_player=False
-):
+def provision_user(*, email, first_name, last_name, role, club=None, _allow_player=False):
     """Create a Firebase account (if needed) and a linked local User.
 
     For app users (player / coach / guardian) who authenticate via Firebase.
@@ -162,9 +149,7 @@ def provision_user(
     Firebase identities are rejected to prevent account pre-hijacking.
     """
     if role == Roles.PLAYER and not _allow_player:
-        raise ProvisioningError(
-            'Players must be created through the player provisioning service.'
-        )
+        raise ProvisioningError('Players must be created through the player provisioning service.')
     if role not in (Roles.COACH, Roles.GUARDIAN, Roles.PLAYER):
         raise ProvisioningError(
             'This provisioning path supports Coach, Guardian, and Player app accounts only.'
@@ -226,7 +211,13 @@ def provision_managed_player(*, first_name, last_name, club):
 
 
 def provision_player(
-    *, email, first_name, last_name, middle_initial, date_of_birth, club,
+    *,
+    email,
+    first_name,
+    last_name,
+    middle_initial,
+    date_of_birth,
+    club,
     guardian=None,
 ):
     """Create one valid PLAYER aggregate in a single transaction.
@@ -245,9 +236,7 @@ def provision_player(
                 'The selected guardian must be active and have the Guardian role.'
             )
         if guardian.club_id != club.id:
-            raise ProvisioningError(
-                'Guardian and player must belong to the same club.'
-            )
+            raise ProvisioningError('Guardian and player must belong to the same club.')
 
     user = None
     temp_password = None
@@ -314,20 +303,12 @@ def change_role(user, new_role):
             'Player accounts keep the PLAYER role — their profile depends on it.'
         )
     if user.role == Roles.COORDINATOR:
-        raise ProvisioningError(
-            'A coordinator owns their club and cannot change role.'
-        )
+        raise ProvisioningError('A coordinator owns their club and cannot change role.')
     if new_role not in SWITCHABLE_ROLES:
         raise ProvisioningError(f'Accounts cannot be switched to {new_role}.')
     _require_active_club(user.club, role=new_role)
-    if (
-        user.role == Roles.GUARDIAN
-        and new_role != Roles.GUARDIAN
-        and user.guardian_links.exists()
-    ):
-        raise ProvisioningError(
-            "Remove this guardian's player links before changing their role."
-        )
+    if user.role == Roles.GUARDIAN and new_role != Roles.GUARDIAN and user.guardian_links.exists():
+        raise ProvisioningError("Remove this guardian's player links before changing their role.")
 
     temp_password = None
     note = ''
@@ -351,9 +332,7 @@ def change_role(user, new_role):
     return temp_password, note
 
 
-def provision_web_user(
-    *, email, first_name, last_name, role, club, password=None, is_active=True
-):
+def provision_web_user(*, email, first_name, last_name, role, club, password=None, is_active=True):
     """Create a web-portal user (Coordinator / School Staff) with a usable
     Django session password and NO Firebase identity.
 

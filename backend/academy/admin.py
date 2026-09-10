@@ -10,8 +10,8 @@ from .models import (
     InjuryRecord,
     InjuryStatusUpdateRequest,
     NotificationRecord,
-    PlayerMatchPerformance,
     PlayerEligibility,
+    PlayerMatchPerformance,
     TournamentAgeBracket,
     TournamentFixture,
     TournamentSchedule,
@@ -27,14 +27,23 @@ class AuditLogAdmin(admin.ModelAdmin):
     EligibilityHistoryAdmin)."""
 
     list_display = (
-        'created_at', 'action', 'actor', 'target', 'entry_hash',
+        'created_at',
+        'action',
+        'actor',
+        'target',
+        'entry_hash',
     )
     list_filter = ('action',)
     search_fields = ('target', 'detail', 'actor__email')
     date_hierarchy = 'created_at'
     readonly_fields = (
-        'actor', 'action', 'target', 'detail', 'created_at',
-        'previous_hash', 'entry_hash',
+        'actor',
+        'action',
+        'target',
+        'detail',
+        'created_at',
+        'previous_hash',
+        'entry_hash',
     )
 
     def has_add_permission(self, request):
@@ -55,7 +64,13 @@ class NotificationRecordAdmin(admin.ModelAdmin):
     list_filter = ('event_type', 'read_at')
     search_fields = ('user__email', 'title', 'body')
     readonly_fields = (
-        'user', 'event_type', 'title', 'body', 'data', 'read_at', 'created_at',
+        'user',
+        'event_type',
+        'title',
+        'body',
+        'data',
+        'read_at',
+        'created_at',
     )
 
     def has_add_permission(self, request):
@@ -100,19 +115,16 @@ class PlayerEligibilityAdmin(admin.ModelAdmin):
         return False
 
     def get_queryset(self, request):
-        return super().get_queryset(request).filter(
-            user__club__is_school_affiliated=True
-        )
+        return super().get_queryset(request).filter(user__club__is_school_affiliated=True)
 
     def save_model(self, request, obj, form, change):
-        # Hand the acting admin to the eligibility signal so the history row it
-        # writes is attributed. Model signals have no request context otherwise.
-        if not obj.user.club.allows_academic_eligibility:
-            raise ValueError(
-                'Academic eligibility is not applicable to an Independent club.'
-            )
-        obj._changed_by = request.user
-        super().save_model(request, obj, form, change)
+        from .eligibility_service import change_eligibility
+
+        change_eligibility(
+            actor=request.user,
+            player_id=obj.user_id,
+            new_status=obj.eligibility,
+        )
 
 
 @admin.register(EligibilityHistory)
@@ -121,7 +133,11 @@ class EligibilityHistoryAdmin(admin.ModelAdmin):
     no add/change/delete from the admin either."""
 
     list_display = (
-        'player', 'old_status', 'new_status', 'changed_by', 'changed_at',
+        'player',
+        'old_status',
+        'new_status',
+        'changed_by',
+        'changed_at',
     )
     list_filter = ('new_status',)
     search_fields = ('player__email', 'player__first_name', 'player__last_name')
@@ -149,7 +165,11 @@ class DisputeResponseInline(admin.TabularInline):
 @admin.register(Dispute)
 class DisputeAdmin(admin.ModelAdmin):
     list_display = (
-        'summary', 'category', 'status', 'raised_by', 'subject_player',
+        'summary',
+        'category',
+        'status',
+        'raised_by',
+        'subject_player',
         'created_at',
     )
     list_filter = ('status', 'category')
@@ -161,15 +181,30 @@ class DisputeAdmin(admin.ModelAdmin):
 @admin.register(InjuryRecord)
 class InjuryRecordAdmin(admin.ModelAdmin):
     list_display = (
-        'player', 'description', 'review_status', 'status',
-        'occurred_on', 'resolved_on',
+        'player',
+        'description',
+        'review_status',
+        'status',
+        'occurred_on',
+        'resolved_on',
     )
     list_filter = ('review_status', 'status')
     search_fields = ('player__email', 'description', 'body_part')
     readonly_fields = (
-        'player', 'description', 'body_part', 'status', 'occurred_on',
-        'resolved_on', 'notes', 'reported_by', 'review_status', 'reviewed_by',
-        'reviewed_at', 'rejection_reason', 'archived_at', 'created_at',
+        'player',
+        'description',
+        'body_part',
+        'status',
+        'occurred_on',
+        'resolved_on',
+        'notes',
+        'reported_by',
+        'review_status',
+        'reviewed_by',
+        'reviewed_at',
+        'rejection_reason',
+        'archived_at',
+        'created_at',
         'updated_at',
     )
 
@@ -183,14 +218,25 @@ class InjuryRecordAdmin(admin.ModelAdmin):
 @admin.register(InjuryStatusUpdateRequest)
 class InjuryStatusUpdateRequestAdmin(admin.ModelAdmin):
     list_display = (
-        'injury', 'proposed_status', 'review_status', 'submitted_by',
+        'injury',
+        'proposed_status',
+        'review_status',
+        'submitted_by',
         'created_at',
     )
     list_filter = ('review_status', 'proposed_status')
     readonly_fields = (
-        'injury', 'proposed_status', 'proposed_resolved_on', 'notes',
-        'submitted_by', 'review_status', 'reviewed_by', 'reviewed_at',
-        'rejection_reason', 'created_at', 'updated_at',
+        'injury',
+        'proposed_status',
+        'proposed_resolved_on',
+        'notes',
+        'submitted_by',
+        'review_status',
+        'reviewed_by',
+        'reviewed_at',
+        'rejection_reason',
+        'created_at',
+        'updated_at',
     )
 
     def has_add_permission(self, request):
@@ -205,8 +251,13 @@ class FootballMatchAdmin(admin.ModelAdmin):
     """Correction-only match surface; coaches create records in the app."""
 
     list_display = (
-        'played_on', 'club', 'opponent', 'competition',
-        'our_score', 'opponent_score', 'created_by',
+        'played_on',
+        'club',
+        'opponent',
+        'competition',
+        'our_score',
+        'opponent_score',
+        'created_by',
     )
     list_filter = ('club', 'venue', 'competition')
     search_fields = ('opponent', 'competition', 'club__name')
@@ -233,8 +284,16 @@ class TournamentFixtureInline(admin.TabularInline):
     model = TournamentFixture
     extra = 0
     readonly_fields = (
-        'age_bracket', 'stage', 'opponent', 'kickoff_at', 'venue', 'location', 'status',
-        'completed_match', 'created_at', 'updated_at',
+        'age_bracket',
+        'stage',
+        'opponent',
+        'kickoff_at',
+        'venue',
+        'location',
+        'status',
+        'completed_match',
+        'created_at',
+        'updated_at',
     )
     can_delete = False
 
@@ -256,7 +315,11 @@ class TournamentSquadEntryInline(admin.TabularInline):
     model = TournamentSquadEntry
     extra = 0
     readonly_fields = (
-        'player', 'position', 'added_by', 'created_at', 'updated_at',
+        'player',
+        'position',
+        'added_by',
+        'created_at',
+        'updated_at',
     )
     can_delete = False
 
@@ -270,7 +333,12 @@ class TournamentSquadAdmin(admin.ModelAdmin):
     list_filter = ('status', 'bracket__schedule__club')
     search_fields = ('bracket__schedule__title',)
     readonly_fields = (
-        'bracket', 'status', 'published_at', 'updated_by', 'created_at', 'updated_at',
+        'bracket',
+        'status',
+        'published_at',
+        'updated_by',
+        'created_at',
+        'updated_at',
     )
     inlines = [TournamentSquadEntryInline]
 
@@ -287,15 +355,27 @@ class TournamentSquadAdmin(admin.ModelAdmin):
 @admin.register(TournamentSchedule)
 class TournamentScheduleAdmin(admin.ModelAdmin):
     list_display = (
-        'title', 'club', 'venue', 'starts_on', 'is_published', 'published_at',
+        'title',
+        'club',
+        'venue',
+        'starts_on',
+        'is_published',
+        'published_at',
         'uploaded_by',
     )
     list_filter = ('is_published', 'club')
     search_fields = ('title', 'club__name')
     readonly_fields = (
-        'club', 'title', 'venue', 'starts_on', 'document_path', 'uploaded_by',
+        'club',
+        'title',
+        'venue',
+        'starts_on',
+        'document_path',
+        'uploaded_by',
         'is_published',
-        'published_at', 'created_at', 'updated_at',
+        'published_at',
+        'created_at',
+        'updated_at',
     )
     inlines = [TournamentAgeBracketInline, TournamentFixtureInline]
 
@@ -314,18 +394,33 @@ class PlayerMatchPerformanceAdmin(admin.ModelAdmin):
     """Correction-only player statistics with immutable ownership fields."""
 
     list_display = (
-        'match', 'player', 'position', 'minutes_played',
-        'goals', 'assists', 'coach_rating', 'updated_at',
+        'match',
+        'player',
+        'position',
+        'minutes_played',
+        'goals',
+        'assists',
+        'coach_rating',
+        'updated_at',
     )
     list_filter = ('match__club', 'position', 'starter', 'clean_sheet')
     search_fields = (
-        'player__email', 'player__first_name', 'player__last_name',
+        'player__email',
+        'player__first_name',
+        'player__last_name',
         'match__opponent',
     )
     readonly_fields = (
-        'match', 'player', 'recorded_by', 'rated_by', 'rated_at',
-        'squad_override_reason', 'squad_override_by', 'squad_override_at',
-        'created_at', 'updated_at',
+        'match',
+        'player',
+        'recorded_by',
+        'rated_by',
+        'rated_at',
+        'squad_override_reason',
+        'squad_override_by',
+        'squad_override_at',
+        'created_at',
+        'updated_at',
     )
 
     def has_add_permission(self, request):

@@ -1,6 +1,6 @@
-from django.shortcuts import get_object_or_404
 from django.core.cache import cache
 from django.db import connection
+from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -149,7 +149,10 @@ class AdminUserListCreateView(generics.ListCreateAPIView):
         except ProvisioningError as exc:
             raise ValidationError(str(exc))
         AuditLog.record(
-            request.user, 'account.created', target=user.email, detail=user.role,
+            request.user,
+            'account.created',
+            target=user.email,
+            detail=user.role,
         )
         return Response(
             {
@@ -194,9 +197,7 @@ class AdminClubDetailView(generics.RetrieveUpdateAPIView):
                 coordinator.is_active = False
                 coordinator.save(update_fields=['is_active'])
                 try:
-                    set_coordinator_mobile_disabled(
-                        coordinator, disabled=True
-                    )
+                    set_coordinator_mobile_disabled(coordinator, disabled=True)
                 except Exception:
                     # Local is_active is the API enforcement boundary; remote
                     # revocation is defense in depth and may be retried later.
@@ -221,9 +222,7 @@ class AdminCoordinatorCreateView(APIView):
         serializer = AdminCoordinatorCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            coordinator, password = provision_club_coordinator(
-                **serializer.validated_data
-            )
+            coordinator, password = provision_club_coordinator(**serializer.validated_data)
         except ProvisioningError as exc:
             raise ValidationError(str(exc))
         AuditLog.record(
@@ -232,11 +231,14 @@ class AdminCoordinatorCreateView(APIView):
             target=coordinator.email,
             detail=coordinator.club.name,
         )
-        return Response({
-            'user': UserSerializer(coordinator).data,
-            'temporary_password': password,
-            'note': 'Club Coordinator portal account created.',
-        }, status=201)
+        return Response(
+            {
+                'user': UserSerializer(coordinator).data,
+                'temporary_password': password,
+                'note': 'Club Coordinator portal account created.',
+            },
+            status=201,
+        )
 
 
 class AdminUserDetailView(APIView):
@@ -270,20 +272,19 @@ class AdminUserDetailView(APIView):
             except ProvisioningError as exc:
                 raise ValidationError(str(exc))
             AuditLog.record(
-                request.user, 'account.role_changed', target=user.email,
+                request.user,
+                'account.role_changed',
+                target=user.email,
                 detail=f'{previous_role} → {user.role}',
             )
         if 'is_active' in data and data['is_active'] != user.is_active:
             if data['is_active'] and user.club_id and not user.club.is_active:
-                raise ValidationError(
-                    'A member cannot be activated while their club is inactive.'
-                )
+                raise ValidationError('A member cannot be activated while their club is inactive.')
             user.is_active = data['is_active']
             user.save(update_fields=['is_active'])
             AuditLog.record(
                 request.user,
-                'account.reactivated' if user.is_active
-                else 'account.deactivated',
+                'account.reactivated' if user.is_active else 'account.deactivated',
                 target=user.email,
             )
 
@@ -299,15 +300,14 @@ class AdminUserDetailView(APIView):
 class AdminGuardianLinkListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     throttle_scope = 'account_admin'
-    queryset = GuardianLink.objects.select_related('guardian', 'player').order_by(
-        '-created_at'
-    )
+    queryset = GuardianLink.objects.select_related('guardian', 'player').order_by('-created_at')
     serializer_class = GuardianLinkSerializer
 
     def perform_create(self, serializer):
         link = serializer.save()
         AuditLog.record(
-            self.request.user, 'guardian_link.created',
+            self.request.user,
+            'guardian_link.created',
             target=f'{link.guardian.email} → {link.player.email}',
         )
 
@@ -319,7 +319,8 @@ class AdminGuardianLinkDestroyView(generics.DestroyAPIView):
 
     def perform_destroy(self, instance):
         AuditLog.record(
-            self.request.user, 'guardian_link.removed',
+            self.request.user,
+            'guardian_link.removed',
             target=f'{instance.guardian.email} → {instance.player.email}',
         )
         instance.delete()

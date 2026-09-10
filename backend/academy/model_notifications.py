@@ -1,6 +1,9 @@
 """Notification delivery and inbox models."""
 
-from .model_players import *  # noqa: F401,F403
+from django.conf import settings
+from django.db import models
+from django.utils import timezone
+
 
 class DeviceToken(models.Model):
     """An FCM registration token for a user's device. Used to fan out push
@@ -50,3 +53,26 @@ class NotificationRecord(models.Model):
 
     def __str__(self):
         return f'{self.user.email} · {self.event_type} · {self.created_at:%Y-%m-%d}'
+
+
+class PushOutbox(models.Model):
+    """Durable delivery intent; inbox records are created in the same transaction."""
+
+    event_id = models.UUIDField(unique=True)
+    user_ids = models.JSONField(default=list)
+    title = models.CharField(max_length=120)
+    body = models.CharField(max_length=300)
+    data = models.JSONField(default=dict)
+    pending_tokens = models.JSONField(null=True)
+    attempts = models.PositiveIntegerField(default=0)
+    available_at = models.DateTimeField(default=timezone.now)
+    lease_until = models.DateTimeField(null=True)
+    lease_id = models.UUIDField(null=True)
+    completed_at = models.DateTimeField(null=True)
+    last_error = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['completed_at', 'available_at'], name='push_outbox_due_idx')
+        ]

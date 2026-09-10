@@ -1,7 +1,8 @@
 """Transparent, independently testable Player Growth calculations."""
+
 from collections import defaultdict
 from datetime import timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -9,7 +10,6 @@ from rest_framework.exceptions import ValidationError
 
 from .assessment_framework import DOMAIN_META, rounded_mean
 from .match_statistics import build_performance_summary
-
 
 IMPROVING = 'IMPROVING'
 STABLE = 'STABLE'
@@ -49,15 +49,11 @@ def resolve_growth_filter(params, *, today=None):
 
     row_limit = {'last5': 5, 'last10': 10}.get(range_name)
     category = str(params.get('category', 'all')).lower().replace('-', '_')
-    allowed_categories = {
-        'all', 'assessment', 'training', 'regular_match', 'tournament'
-    }
+    allowed_categories = {'all', 'assessment', 'training', 'regular_match', 'tournament'}
     if category not in allowed_categories:
-        raise ValidationError({
-            'category': (
-                'Use assessment, training, regular_match, tournament, or all.'
-            )
-        })
+        raise ValidationError(
+            {'category': ('Use assessment, training, regular_match, tournament, or all.')}
+        )
     return {
         'range': range_name,
         'from': from_date,
@@ -77,11 +73,7 @@ def rounded_average(values, digits=1):
     if not clean:
         return None
     quantum = Decimal('1').scaleb(-digits)
-    return float(
-        (sum(clean, Decimal('0')) / len(clean)).quantize(
-            quantum, rounding=ROUND_HALF_UP
-        )
-    )
+    return float((sum(clean, Decimal('0')) / len(clean)).quantize(quantum, rounding=ROUND_HALF_UP))
 
 
 def classify_delta(
@@ -93,11 +85,7 @@ def classify_delta(
     lower_is_better=False,
     minimum_per_window=2,
 ):
-    if (
-        delta is None
-        or recent_count < minimum_per_window
-        or previous_count < minimum_per_window
-    ):
+    if delta is None or recent_count < minimum_per_window or previous_count < minimum_per_window:
         return INSUFFICIENT_DATA
     directed = -delta if lower_is_better else delta
     if directed >= threshold:
@@ -113,7 +101,7 @@ def equal_windows(rows, value_getter):
     if size == 0:
         return [], []
     recent = [value_getter(row) for row in rows[:size]]
-    previous = [value_getter(row) for row in rows[size:size * 2]]
+    previous = [value_getter(row) for row in rows[size : size * 2]]
     return recent, previous
 
 
@@ -122,13 +110,24 @@ def build_assessment_growth(snapshots):
     latest = rows[0] if rows else None
     previous = rows[1] if len(rows) > 1 else None
     attribute_names = (
-        'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical',
-        'diving', 'handling', 'kicking', 'reflexes', 'speed', 'positioning',
+        'pace',
+        'shooting',
+        'passing',
+        'dribbling',
+        'defending',
+        'physical',
+        'diving',
+        'handling',
+        'kicking',
+        'reflexes',
+        'speed',
+        'positioning',
     )
-    deltas = {
-        name: getattr(latest, name) - getattr(previous, name)
-        for name in attribute_names
-    } if previous else {}
+    deltas = (
+        {name: getattr(latest, name) - getattr(previous, name) for name in attribute_names}
+        if previous
+        else {}
+    )
 
     def overall(row):
         if row is None:
@@ -172,9 +171,7 @@ def build_development_assessment_growth(assessments):
     summaries = []
     for domain_key, meta in DOMAIN_META.items():
         latest_values = (
-            latest.scores.get(domain_key, {})
-            if latest and isinstance(latest.scores, dict)
-            else {}
+            latest.scores.get(domain_key, {}) if latest and isinstance(latest.scores, dict) else {}
         )
         previous_values = (
             previous.scores.get(domain_key, {})
@@ -182,15 +179,13 @@ def build_development_assessment_growth(assessments):
             else {}
         )
         latest_values = latest_values if isinstance(latest_values, dict) else {}
-        previous_values = (
-            previous_values if isinstance(previous_values, dict) else {}
-        )
+        previous_values = previous_values if isinstance(previous_values, dict) else {}
         latest_score = rounded_mean(latest_values.values())
         previous_score = rounded_mean(previous_values.values())
         comparable_keys = [
-            key for key in latest_values.keys() & previous_values.keys()
-            if latest_values[key] is not None
-            and previous_values[key] is not None
+            key
+            for key in latest_values.keys() & previous_values.keys()
+            if latest_values[key] is not None and previous_values[key] is not None
         ]
         comparable_latest = rounded_mean(
             [latest_values[key] for key in comparable_keys],
@@ -202,31 +197,31 @@ def build_development_assessment_growth(assessments):
         )
         delta = (
             round(comparable_latest - comparable_previous, 2)
-            if comparable_latest is not None
-            and comparable_previous is not None
+            if comparable_latest is not None and comparable_previous is not None
             else None
         )
-        summaries.append({
-            'key': domain_key,
-            'label': meta['label'],
-            'latestScore': latest_score,
-            'previousScore': previous_score,
-            'comparableLatestScore': comparable_latest,
-            'comparablePreviousScore': comparable_previous,
-            'delta': delta,
-            'comparableIndicatorCount': len(comparable_keys),
-            'indicatorDeltas': {
-                key: latest_values[key] - previous_values[key]
-                for key in comparable_keys
-            },
-            'classification': classify_delta(
-                delta,
-                recent_count=len(comparable_keys),
-                previous_count=len(comparable_keys),
-                threshold=0.25,
-                minimum_per_window=2,
-            ),
-        })
+        summaries.append(
+            {
+                'key': domain_key,
+                'label': meta['label'],
+                'latestScore': latest_score,
+                'previousScore': previous_score,
+                'comparableLatestScore': comparable_latest,
+                'comparablePreviousScore': comparable_previous,
+                'delta': delta,
+                'comparableIndicatorCount': len(comparable_keys),
+                'indicatorDeltas': {
+                    key: latest_values[key] - previous_values[key] for key in comparable_keys
+                },
+                'classification': classify_delta(
+                    delta,
+                    recent_count=len(comparable_keys),
+                    previous_count=len(comparable_keys),
+                    threshold=0.25,
+                    minimum_per_window=2,
+                ),
+            }
+        )
     return {
         'sampleSize': len(rows),
         'latestAssessmentId': str(latest.id) if latest else None,
@@ -270,14 +265,10 @@ def build_training_groups(attendance_rows):
         # Legacy histories often have only effort, so fall back to that
         # independent scale instead of discarding an otherwise valid trend.
         performance_ready = (
-            perf_delta is not None
-            and len(recent_perf) >= 2
-            and len(previous_perf) >= 2
+            perf_delta is not None and len(recent_perf) >= 2 and len(previous_perf) >= 2
         )
         effort_ready = (
-            effort_delta is not None
-            and len(recent_effort) >= 2
-            and len(previous_effort) >= 2
+            effort_delta is not None and len(recent_effort) >= 2 and len(previous_effort) >= 2
         )
         if performance_ready or not effort_ready:
             comparison_metric = 'PERFORMANCE_SCORE'
@@ -291,29 +282,31 @@ def build_training_groups(attendance_rows):
             recent_count = len(recent_effort)
             previous_count = len(previous_effort)
             threshold = 3.0
-        groups.append({
-            'focus': focus,
-            'sampleSize': len(rows),
-            'presentCount': len(present),
-            'attendanceRate': round(len(present) * 100 / len(rows), 1) if rows else None,
-            'averageEffort': rounded_average([row.effort for row in present]),
-            'averagePerformanceScore': rounded_average([
-                row.performance_score for row in present
-            ]),
-            'comparison': {
-                'metric': comparison_metric,
-                'recentSampleSize': recent_count,
-                'previousSampleSize': previous_count,
-                'performanceDelta': perf_delta,
-                'effortDelta': effort_delta,
-                'classification': classify_delta(
-                    comparison_delta,
-                    recent_count=recent_count,
-                    previous_count=previous_count,
-                    threshold=threshold,
+        groups.append(
+            {
+                'focus': focus,
+                'sampleSize': len(rows),
+                'presentCount': len(present),
+                'attendanceRate': round(len(present) * 100 / len(rows), 1) if rows else None,
+                'averageEffort': rounded_average([row.effort for row in present]),
+                'averagePerformanceScore': rounded_average(
+                    [row.performance_score for row in present]
                 ),
-            },
-        })
+                'comparison': {
+                    'metric': comparison_metric,
+                    'recentSampleSize': recent_count,
+                    'previousSampleSize': previous_count,
+                    'performanceDelta': perf_delta,
+                    'effortDelta': effort_delta,
+                    'classification': classify_delta(
+                        comparison_delta,
+                        recent_count=recent_count,
+                        previous_count=previous_count,
+                        threshold=threshold,
+                    ),
+                },
+            }
+        )
     return groups
 
 
@@ -333,17 +326,11 @@ def match_metrics(rows):
         **summary,
         'goalsPer90': per_90(summary['goals'], minutes),
         'assistsPer90': per_90(summary['assists'], minutes),
-        'tacklesInterceptionsPer90': per_90(
-            summary['tackles'] + summary['interceptions'], minutes
-        ),
+        'tacklesInterceptionsPer90': per_90(summary['tackles'] + summary['interceptions'], minutes),
         'savesPer90': per_90(summary['saves'], minutes),
         'goalsConcededPer90': per_90(summary['goalsConceded'], minutes),
-        'cardsPer90': per_90(
-            summary['yellowCards'] + summary['redCards'], minutes
-        ),
-        'shotsOnTargetRate': percentage(
-            summary['shotsOnTarget'], summary['shots']
-        ),
+        'cardsPer90': per_90(summary['yellowCards'] + summary['redCards'], minutes),
+        'shotsOnTargetRate': percentage(summary['shotsOnTarget'], summary['shots']),
     }
 
 
@@ -351,7 +338,7 @@ def build_match_growth(rows):
     rows = list(rows)
     size = len(rows) // 2
     recent = rows[:size]
-    previous = rows[size:size * 2]
+    previous = rows[size : size * 2]
     recent_metrics = match_metrics(recent)
     previous_metrics = match_metrics(previous)
     rules = {
@@ -401,7 +388,6 @@ def build_tournament_groups(rows):
     grouped = defaultdict(list)
     for row in rows:
         fixture = row.match.source_fixture
-        bracket = fixture.age_bracket
         key = (fixture.schedule_id, fixture.age_bracket_id)
         grouped[key].append(row)
 
@@ -412,22 +398,20 @@ def build_tournament_groups(rows):
         wins = sum(row.match.our_score > row.match.opponent_score for row in rows)
         draws = sum(row.match.our_score == row.match.opponent_score for row in rows)
         losses = len(rows) - wins - draws
-        result.append({
-            'tournamentId': str(fixture.schedule_id),
-            'tournament': fixture.schedule.title,
-            'ageBracketId': (
-                str(fixture.age_bracket_id) if fixture.age_bracket_id else None
-            ),
-            'ageBracketLabel': (
-                fixture.age_bracket.label if fixture.age_bracket_id else None
-            ),
-            'sampleSize': len(rows),
-            'summary': match_metrics(rows),
-            'teamRecord': {
-                'wins': wins,
-                'draws': draws,
-                'losses': losses,
-                'scope': 'PLAYER_FIXTURES',
-            },
-        })
+        result.append(
+            {
+                'tournamentId': str(fixture.schedule_id),
+                'tournament': fixture.schedule.title,
+                'ageBracketId': (str(fixture.age_bracket_id) if fixture.age_bracket_id else None),
+                'ageBracketLabel': (fixture.age_bracket.label if fixture.age_bracket_id else None),
+                'sampleSize': len(rows),
+                'summary': match_metrics(rows),
+                'teamRecord': {
+                    'wins': wins,
+                    'draws': draws,
+                    'losses': losses,
+                    'scope': 'PLAYER_FIXTURES',
+                },
+            }
+        )
     return sorted(result, key=lambda row: row['tournament'], reverse=True)

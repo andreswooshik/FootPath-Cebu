@@ -1,10 +1,9 @@
 from unittest.mock import patch
 
-from django.urls import reverse
 from django.test import TestCase
+from django.urls import reverse
 from rest_framework.test import APITestCase
 
-from accounts.models import Club, Roles, User
 from academy.assessment_framework import framework_for
 from academy.models import (
     AssessmentReason,
@@ -13,6 +12,7 @@ from academy.models import (
     PlayerDevelopmentAssessment,
     PlayerProfile,
 )
+from accounts.models import Club, Roles, User
 
 
 def _club(name):
@@ -35,10 +35,7 @@ def _user(email, role, club):
 
 def _ratings(framework, value=3):
     return {
-        domain['key']: {
-            indicator['key']: value
-            for indicator in domain['indicators']
-        }
+        domain['key']: {indicator['key']: value for indicator in domain['indicators']}
         for domain in framework['domains']
     }
 
@@ -109,9 +106,7 @@ class DevelopmentAssessmentApiTests(APITestCase):
         self.club = _club('Development API Club')
         self.other_club = _club('Other Development API Club')
         self.coach = _user('coach@development.test', Roles.COACH, self.club)
-        self.other_coach = _user(
-            'other@development.test', Roles.COACH, self.other_club
-        )
+        self.other_coach = _user('other@development.test', Roles.COACH, self.other_club)
         self.player = _user('player@development.test', Roles.PLAYER, self.club)
         self.profile = PlayerProfile.objects.create(
             user=self.player,
@@ -195,18 +190,14 @@ class DevelopmentAssessmentApiTests(APITestCase):
 
         self.assertEqual(PlayerDevelopmentAssessment.objects.count(), 1)
         self.assertEqual(
-            AuditLog.objects.filter(
-                action='development_assessment.saved'
-            ).count(),
+            AuditLog.objects.filter(action='development_assessment.saved').count(),
             1,
         )
 
     def test_rejects_invalid_score_shape_and_incomplete_domains(self):
         self.client.force_authenticate(self.coach)
         payload = self._payload()
-        payload['developmentRatings']['technical'][
-            'firstTouchBallControl'
-        ] = True
+        payload['developmentRatings']['technical']['firstTouchBallControl'] = True
         response = self.client.put(self.url, payload, format='json')
         self.assertEqual(response.status_code, 400)
         self.assertIn('developmentRatings', response.data)
@@ -257,18 +248,14 @@ class DevelopmentAssessmentGrowthTests(APITestCase):
     def setUp(self):
         self.club = _club('Development Growth Club')
         self.coach = _user('coach@development-growth.test', Roles.COACH, self.club)
-        self.player = _user(
-            'player@development-growth.test', Roles.PLAYER, self.club
-        )
+        self.player = _user('player@development-growth.test', Roles.PLAYER, self.club)
         self.profile = PlayerProfile.objects.create(
             user=self.player,
             age=15,
             age_tier='DEVELOPMENT',
             position='ST',
         )
-        self.assessment_url = reverse(
-            'player-assessment', args=[self.player.id]
-        )
+        self.assessment_url = reverse('player-assessment', args=[self.player.id])
         self.growth_url = reverse('player-growth', args=[self.player.id])
         self.framework = framework_for('DEVELOPMENT', 'ST')
         self.client.force_authenticate(self.coach)
@@ -339,8 +326,6 @@ class DevelopmentAssessmentGrowthTests(APITestCase):
             self.growth_url,
             {'range': 'all', 'category': 'assessment'},
         )
-        technical = response.data['assessments'][
-            'developmentSummary'
-        ]['domains'][0]
+        technical = response.data['assessments']['developmentSummary']['domains'][0]
         self.assertEqual(technical['comparableIndicatorCount'], 1)
         self.assertEqual(technical['classification'], 'INSUFFICIENT_DATA')

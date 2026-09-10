@@ -15,11 +15,7 @@ def valid_guardian_links(*, guardian=None, player_id=None):
         player__club__is_active=True,
     ).filter(guardian__club_id=models.F('player__club_id'))
     if guardian is not None:
-        if (
-            guardian.role != Roles.GUARDIAN
-            or not guardian.is_active
-            or guardian.club_id is None
-        ):
+        if guardian.role != Roles.GUARDIAN or not guardian.is_active or guardian.club_id is None:
             return queryset.none()
         queryset = queryset.filter(guardian=guardian)
     if player_id is not None:

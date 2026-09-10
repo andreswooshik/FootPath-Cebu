@@ -1,13 +1,175 @@
-"""Compatibility facade for domain-focused academy API views."""
+"""Explicit compatibility exports for feature modules."""
 
-from ._view_support import *  # noqa: F401,F403
-from .view_administration import *  # noqa: F401,F403
-from .view_disputes import *  # noqa: F401,F403
-from .view_injuries import *  # noqa: F401,F403
-from .view_matches import *  # noqa: F401,F403
-from .view_match_analysis import *  # noqa: F401,F403
-from .view_notifications import *  # noqa: F401,F403
-from .view_players import *  # noqa: F401,F403
-from .view_tournaments import *  # noqa: F401,F403
-from .view_tournament_brackets import *  # noqa: F401,F403
-from .view_training import *  # noqa: F401,F403
+from academy._view_support import _in_same_club
+from academy.errors import WorkflowConflict
+from academy.view_administration import (
+    AdminCreatePlayerView,
+    AgeTierSettingsView,
+    PlayerPhotoUploadView,
+)
+from academy.view_disputes import (
+    DisputeDetailView,
+    DisputeListCreateView,
+    DisputeResponseCreateView,
+    EligibilityHistoryView,
+    _dispute_in_user_scope,
+)
+from academy.view_injuries import (
+    InjuryArchiveView,
+    InjuryReportablePlayersView,
+    InjuryReviewView,
+    InjuryStatusUpdateListCreateView,
+    InjuryStatusUpdateReviewView,
+    InjuryWorkflowDetailView,
+    InjuryWorkflowListCreateView,
+    _care_team_may_view,
+    _injury_player_for_report,
+    _injury_records,
+    _same_club_injury_coordinator,
+    _scoped_injury_records,
+    _workflow_injury,
+)
+from academy.view_match_analysis import (
+    PlayerGrowthView,
+    PlayerMatchStatisticsView,
+    SquadProgressView,
+)
+from academy.view_matches import (
+    FootballMatchDetailView,
+    FootballMatchListCreateView,
+    MatchPerformanceDetailView,
+    MatchPerformanceListView,
+    MatchPerformanceRatingView,
+    MatchRosterView,
+)
+from academy.view_notifications import (
+    DeviceRegisterView,
+    NotificationListView,
+    NotificationReadAllView,
+    NotificationReadView,
+    NotificationUnreadCountView,
+)
+from academy.view_players import (
+    LinkedPlayersView,
+    MyProfileView,
+    PlayerAssessmentHistoryView,
+    PlayerAssessmentView,
+    PlayerDetailView,
+    PlayerPositionView,
+    PlayerPrivacyPinResetView,
+    PlayerPrivacyPinVerifyView,
+    PlayerPrivacyPinView,
+    PlayerStatsView,
+    SquadListView,
+    _has_recent_firebase_reauthentication,
+    _may_manage_pin,
+    _pin_profile,
+    _require_unlock_when_pin_exists,
+)
+from academy.view_tournament_brackets import (
+    TournamentAgeBracketCreateView,
+    TournamentAgeBracketDetailView,
+    TournamentSquadCandidatesView,
+    TournamentSquadDetailView,
+    TournamentSquadPublishView,
+    _coordinator_mobile_bracket,
+    _mobile_tournament_bracket,
+    _squad_data,
+)
+from academy.view_tournaments import (
+    TournamentFixtureCreateView,
+    TournamentFixtureDetailView,
+    TournamentFixtureResultView,
+    TournamentScheduleDetailView,
+    TournamentScheduleDocumentView,
+    TournamentScheduleListView,
+    TournamentSchedulePublishView,
+    _coordinator_mobile_fixture,
+    _coordinator_mobile_schedule,
+    _tournament_schedule_data,
+)
+from academy.view_training import (
+    AttendanceListView,
+    SessionAttendanceView,
+    SessionConfirmationView,
+    TrainingSessionDetailView,
+    TrainingSessionListCreateView,
+)
+
+__all__ = [
+    'AdminCreatePlayerView',
+    'AgeTierSettingsView',
+    'AttendanceListView',
+    'DeviceRegisterView',
+    'DisputeDetailView',
+    'DisputeListCreateView',
+    'DisputeResponseCreateView',
+    'EligibilityHistoryView',
+    'FootballMatchDetailView',
+    'FootballMatchListCreateView',
+    'InjuryArchiveView',
+    'InjuryReportablePlayersView',
+    'InjuryReviewView',
+    'InjuryStatusUpdateListCreateView',
+    'InjuryStatusUpdateReviewView',
+    'InjuryWorkflowDetailView',
+    'InjuryWorkflowListCreateView',
+    'LinkedPlayersView',
+    'MatchPerformanceDetailView',
+    'MatchPerformanceListView',
+    'MatchPerformanceRatingView',
+    'MatchRosterView',
+    'MyProfileView',
+    'NotificationListView',
+    'NotificationReadAllView',
+    'NotificationReadView',
+    'NotificationUnreadCountView',
+    'PlayerAssessmentHistoryView',
+    'PlayerAssessmentView',
+    'PlayerDetailView',
+    'PlayerGrowthView',
+    'PlayerMatchStatisticsView',
+    'PlayerPhotoUploadView',
+    'PlayerPositionView',
+    'PlayerPrivacyPinResetView',
+    'PlayerPrivacyPinVerifyView',
+    'PlayerPrivacyPinView',
+    'PlayerStatsView',
+    'SessionAttendanceView',
+    'SessionConfirmationView',
+    'SquadListView',
+    'SquadProgressView',
+    'TournamentAgeBracketCreateView',
+    'TournamentAgeBracketDetailView',
+    'TournamentFixtureCreateView',
+    'TournamentFixtureDetailView',
+    'TournamentFixtureResultView',
+    'TournamentScheduleDetailView',
+    'TournamentScheduleDocumentView',
+    'TournamentScheduleListView',
+    'TournamentSchedulePublishView',
+    'TournamentSquadCandidatesView',
+    'TournamentSquadDetailView',
+    'TournamentSquadPublishView',
+    'TrainingSessionDetailView',
+    'TrainingSessionListCreateView',
+    'WorkflowConflict',
+    '_care_team_may_view',
+    '_coordinator_mobile_bracket',
+    '_coordinator_mobile_fixture',
+    '_coordinator_mobile_schedule',
+    '_dispute_in_user_scope',
+    '_has_recent_firebase_reauthentication',
+    '_in_same_club',
+    '_injury_player_for_report',
+    '_injury_records',
+    '_may_manage_pin',
+    '_mobile_tournament_bracket',
+    '_pin_profile',
+    '_require_unlock_when_pin_exists',
+    '_same_club_injury_coordinator',
+    '_scoped_injury_records',
+    '_squad_data',
+    '_tournament_schedule_data',
+    '_workflow_injury',
+]

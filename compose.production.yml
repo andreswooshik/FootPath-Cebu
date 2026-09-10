@@ -13,7 +13,7 @@ services:
       # address only when the surrounding platform supplies equivalent network
       # isolation and TLS termination.
       - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8000}:8000"
-    environment:
+    environment: &backend_environment
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY}
       DJANGO_DEBUG: "0"
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
@@ -38,9 +38,22 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    volumes:
+    volumes: &backend_volumes
       - ./backend/secrets:/app/secrets:ro
       - media_data:/app/media
+
+  notifications:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command: python manage.py deliver_notifications --watch
+    environment: *backend_environment
+    volumes: *backend_volumes
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      disable: true
 
   db:
     image: postgres:17-alpine@sha256:18cfe3ef5e6815560c98237d6216d1e5119702fb0f3894c8785dd58b8bbe5d73

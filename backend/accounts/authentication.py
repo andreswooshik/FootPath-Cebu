@@ -55,9 +55,7 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
             raise exceptions.AuthenticationFailed('Invalid Firebase ID token.')
 
         try:
-            user = User.objects.get(
-                firebase_uid=decoded['uid'], is_active=True
-            )
+            user = User.objects.get(firebase_uid=decoded['uid'], is_active=True)
         except User.DoesNotExist:
             raise exceptions.AuthenticationFailed(
                 'No account for this login. Contact an administrator.'
@@ -70,10 +68,7 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
             raise exceptions.AuthenticationFailed(
                 'This club is inactive. Contact the platform administrator.'
             )
-        if (
-            user.role == Roles.SCHOOL_STAFF
-            and not user.club.allows_school_staff
-        ):
+        if user.role == Roles.SCHOOL_STAFF and not user.club.allows_school_staff:
             raise exceptions.AuthenticationFailed(
                 'School Staff access is unavailable for an Independent club.'
             )

@@ -39,9 +39,7 @@ class ClubApplicationReviewAdminTests(TestCase):
         self.assertContains(response, 'name="_approve_application"', html=False)
         self.assertContains(response, 'name="_not_approve_application"', html=False)
         self.assertNotContains(response, 'name="name"', html=False)
-        self.assertNotContains(
-            response, 'name="is_school_affiliated"', html=False
-        )
+        self.assertNotContains(response, 'name="is_school_affiliated"', html=False)
         self.assertContains(response, 'Submitted School FC')
         self.assertContains(response, 'Submitted National School')
 

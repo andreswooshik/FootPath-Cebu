@@ -11,6 +11,7 @@ class InjuryConfirmationMigrationTests(TransactionTestCase):
 
     def setUp(self):
         super().setUp()
+        self.addCleanup(self.restore_schema)
         executor = MigrationExecutor(connection)
         executor.migrate([self.migrate_from])
         old_apps = executor.loader.project_state([self.migrate_from]).apps
@@ -34,6 +35,10 @@ class InjuryConfirmationMigrationTests(TransactionTestCase):
         executor = MigrationExecutor(connection)
         executor.migrate([self.migrate_to])
         self.apps = executor.loader.project_state([self.migrate_to]).apps
+
+    def restore_schema(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
 
     def test_existing_injury_history_is_preserved_as_confirmed(self):
         InjuryRecord = self.apps.get_model('academy', 'InjuryRecord')

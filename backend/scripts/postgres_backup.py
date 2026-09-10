@@ -4,14 +4,15 @@ Credentials come from the same DB_* environment variables as Django. The
 password is passed only through the child process environment and is never
 printed or placed on the command line.
 """
+
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import os
-from pathlib import Path
 import shutil
 import subprocess
+from datetime import datetime, timezone
+from pathlib import Path
 
 
 def required(name: str) -> str:
@@ -40,17 +41,24 @@ def main() -> None:
     env['PGPASSWORD'] = required('DB_PASSWORD')
     env['PGSSLMODE'] = os.environ.get('DB_SSLMODE', 'require')
     command = [
-        'pg_dump', '--format=custom', '--no-owner', '--no-acl',
-        '--host', required('DB_HOST'),
-        '--port', os.environ.get('DB_PORT', '5432'),
-        '--username', required('DB_USER'),
-        '--file', str(destination),
+        'pg_dump',
+        '--format=custom',
+        '--no-owner',
+        '--no-acl',
+        '--host',
+        required('DB_HOST'),
+        '--port',
+        os.environ.get('DB_PORT', '5432'),
+        '--username',
+        required('DB_USER'),
+        '--file',
+        str(destination),
         database,
     ]
     subprocess.run(command, env=env, check=True)
 
     backups = sorted(output_dir.glob(f'{database}-*.dump'), reverse=True)
-    for stale in backups[args.retain:]:
+    for stale in backups[args.retain :]:
         stale.unlink()
     print(destination)
 

@@ -6,163 +6,25 @@ Authorization is enforced two ways, both server-side (never trust the client):
   - object-level scoping in each queryset/handler (a guardian only ever reaches
     a player they are linked to — audit finding F3).
 """
-from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
-from django.db.models import Avg, Count, Prefetch, Q, Sum
+
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
-from django.utils.dateparse import parse_date
-from rest_framework import status
-from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.views import APIView
+from rest_framework.exceptions import PermissionDenied
 
-from accounts.models import GuardianLink, Roles, User
-from accounts.guardian_access import guardian_can_access_player, valid_guardian_links
-from accounts.permissions import IsAdmin
-from accounts.serializers import UserSerializer
-from accounts.services import (
-    ProvisioningError,
-    provision_player,
-)
+from accounts.guardian_access import guardian_can_access_player
+from accounts.models import Roles, User
 
-from .assessment_framework import framework_for
 from .models import (
-    AgeTierSetting,
-    AssessmentReason,
-    Attendance,
     AttendanceStatus,
-    AuditLog,
-    ConfirmationStatus,
-    DeviceToken,
-    Dispute,
-    DisputeResponse,
-    EligibilityHistory,
-    FixtureStatus,
     FootballMatch,
-    MatchCategory,
-    InjuryRecord,
-    InjuryReportStatus,
-    InjuryStatus,
-    InjuryStatusUpdateRequest,
-    InjuryUpdateReviewStatus,
-    NotificationRecord,
-    PlayerMatchPerformance,
-    PlayerAssessmentSnapshot,
-    PlayerDevelopmentAssessment,
-    PlayerStatsAssessment,
-    PlayerProfile,
-    PlayerPrivacyPin,
-    SessionConfirmation,
-    TrainingSession,
-    TrainingSessionStatus,
-    TournamentAgeBracket,
     TournamentFixture,
-    TournamentSchedule,
-    TournamentSquad,
-    TournamentSquadEntry,
-    TournamentSquadStatus,
+    TrainingSession,
 )
-from .notifications import (
-    _recipients_for_session,
-    notify_assessment_saved,
-    notify_session_cancelled,
-    notify_session_scheduled,
-    notify_session_updated,
-    notify_tournament_roster_published,
-)
-from .pin_service import (
-    InvalidCurrentPin,
-    InvalidPin,
-    PinLocked,
-    PinNotSet,
-    reset_pin,
-    set_pin,
-    verify_pin,
-    pin_status,
-    has_pin,
-)
-from .serializers import (
-    AdminCreatePlayerSerializer,
-    AgeTierSettingSerializer,
-    AssessmentSerializer,
-    DevelopmentAssessmentWriteSerializer,
-    AttendanceSerializer,
-    DisputeCreateSerializer,
-    DisputeResponseCreateSerializer,
-    DisputeSerializer,
-    EligibilityHistorySerializer,
-    CoachMatchRatingSerializer,
-    FootballMatchSerializer,
-    InjuryRecordSerializer,
-    InjuryStatusUpdateRequestSerializer,
-    NotificationRecordSerializer,
-    PlayerMatchPerformanceSerializer,
-    PlayerAssessmentSnapshotSerializer,
-    PlayerDevelopmentAssessmentSerializer,
-    PlayerStatsAssessmentSerializer,
-    PlayerStatsAssessmentWriteSerializer,
-    PlayerMatchStatisticsWriteSerializer,
-    PlayerPositionSerializer,
-    PlayerSerializer,
-    PlayerSelectorSerializer,
-    SessionAttendanceRecordSerializer,
-    SessionConfirmationSerializer,
-    TrainingSessionSerializer,
-    TournamentAgeBracketWriteSerializer,
-    TournamentFixtureResultWriteSerializer,
-    TournamentFixtureWriteSerializer,
-    TournamentScheduleSerializer,
-    TournamentScheduleWriteSerializer,
-    TournamentSquadSerializer,
-    TournamentSquadWriteSerializer,
-)
-from .match_statistics import build_performance_summary
-from .growth import (
-    build_assessment_growth,
-    build_development_assessment_growth,
-    build_match_growth,
-    build_tournament_groups,
-    build_training_groups,
-    limited,
-    resolve_growth_filter,
-)
-from .player_unlock import issue_player_unlock, require_player_unlock
-from .storage import (
-    delete_photo,
-    delete_tournament_document,
-    invalidate_signed_photo_url,
-    invalidate_signed_tournament_document_url,
-    sanitized_photo_bytes,
-    sanitized_tournament_document_bytes,
-    upload_photo,
-    upload_tournament_document,
-    validate_photo_upload,
-    validate_tournament_document,
-)
-from .tournament_results import complete_tournament_fixture
-from .tournament_rosters import invalid_squad_entries, roster_eligibility
-from .schedule_conflicts import (
-    cancel_conflicting_training,
-    conflicting_fixture_for_training,
-    conflicting_training_for_fixtures,
-    fixture_conflict_payload,
-    training_conflicts_for_training,
-)
-from .player_stats import catalog_for, overall, role_group_for
+from .schedule_conflicts import fixture_conflict_payload
 
 # Roles that participate in the dispute process: the coach flags, School
 # Staff and Admin review/respond. Players and guardians have no access.
 DISPUTE_ROLES = (Roles.COACH, Roles.SCHOOL_STAFF, Roles.ADMIN)
-
-
-class WorkflowConflict(APIException):
-    status_code = status.HTTP_409_CONFLICT
-    default_code = 'conflict'
-
-    def __init__(self, code, message, **details):
-        super().__init__({'code': code, 'message': message, **details})
 
 
 def _confirmed(request, field='confirmTrainingCancellations'):
@@ -273,7 +135,9 @@ def _session_in_user_scope(user, session):
 def _matches_for(user):
     """Club-scoped match queryset; Admin can inspect every club."""
     qs = FootballMatch.objects.select_related(
-        'club', 'created_by', 'source_fixture__age_bracket',
+        'club',
+        'created_by',
+        'source_fixture__age_bracket',
     )
     if user.role == Roles.ADMIN:
         return qs
@@ -290,7 +154,8 @@ def _role_match(request, match_id, role):
         raise PermissionDenied('Your account must belong to a club.')
     return get_object_or_404(
         FootballMatch.objects.select_related(
-            'club', 'source_fixture__age_bracket__schedule',
+            'club',
+            'source_fixture__age_bracket__schedule',
         ),
         pk=match_id,
         club_id=request.user.club_id,
@@ -303,7 +168,3 @@ def _match_age_bracket(match):
         return match.source_fixture.age_bracket
     except TournamentFixture.DoesNotExist:
         return None
-
-
-
-__all__ = [name for name in globals() if not name.startswith('__')]

@@ -11,6 +11,7 @@ Memcached) for the counter to hold across workers. Disabled under the test
 suite via `RATELIMIT_ENABLE` so unrelated tests that post repeatedly are not
 throttled.
 """
+
 from ipaddress import ip_address
 
 from django.conf import settings
@@ -28,9 +29,11 @@ def _client_ip(request):
     trusted_count = getattr(settings, 'TRUSTED_PROXY_COUNT', 0)
     if trusted_count <= 0:
         return remote
-    forwarded = [part.strip() for part in request.META.get(
-        'HTTP_X_FORWARDED_FOR', ''
-    ).split(',') if part.strip()]
+    forwarded = [
+        part.strip()
+        for part in request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')
+        if part.strip()
+    ]
     chain = forwarded + [remote]
     if len(chain) <= trusted_count:
         return remote

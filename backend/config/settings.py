@@ -15,8 +15,8 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
-from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -61,13 +61,9 @@ if DEBUG:
     # uses the explicit host allow-list below.
     ALLOWED_HOSTS = ['*']
 if not DEBUG and not _extra_hosts:
-    raise ImproperlyConfigured(
-        'DJANGO_ALLOWED_HOSTS must be set when DJANGO_DEBUG=0.'
-    )
+    raise ImproperlyConfigured('DJANGO_ALLOWED_HOSTS must be set when DJANGO_DEBUG=0.')
 if not DEBUG and (len(SECRET_KEY) < 50 or len(set(SECRET_KEY)) < 10):
-    raise ImproperlyConfigured(
-        'DJANGO_SECRET_KEY must be a long, high-entropy production secret.'
-    )
+    raise ImproperlyConfigured('DJANGO_SECRET_KEY must be a long, high-entropy production secret.')
 
 
 # Application definition
@@ -148,8 +144,24 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # setup. Set the DB_* env vars (see .env.example) to point at a shared Postgres
 # such as Supabase. Supabase IS Postgres, so nothing but this connection block
 # changes — Django stays the source of truth; we do NOT use Supabase Auth/RLS.
-# The test suite always uses SQLite (see TESTING above), never the shared DB.
-if os.environ.get('DB_HOST') and not TESTING:
+# Tests use SQLite by default, or explicitly isolated TEST_POSTGRES_* settings.
+# Normal DB_* credentials are never used by the test runner.
+if TESTING and os.environ.get('TEST_POSTGRES_HOST'):
+    test_database_name = os.environ.get('TEST_POSTGRES_NAME', 'test_footpath')
+    if not test_database_name.startswith('test_'):
+        raise ImproperlyConfigured('TEST_POSTGRES_NAME must start with test_.')
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'postgres',
+            'HOST': os.environ['TEST_POSTGRES_HOST'],
+            'PORT': os.environ.get('TEST_POSTGRES_PORT', '5432'),
+            'USER': os.environ.get('TEST_POSTGRES_USER', 'postgres'),
+            'PASSWORD': os.environ.get('TEST_POSTGRES_PASSWORD', ''),
+            'TEST': {'NAME': test_database_name},
+        },
+    }
+elif os.environ.get('DB_HOST') and not TESTING:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -440,3 +452,6 @@ JAZZMIN_UI_TWEAKS = {
     'sidebar_fixed': True,
     'sidebar_nav_flat_style': True,
 }
+
+# Pagination metadata is readable by browser API consumers.
+CORS_EXPOSE_HEADERS = ['Link', 'X-Next-Offset', 'X-Page-Limit', 'X-Page-Offset']

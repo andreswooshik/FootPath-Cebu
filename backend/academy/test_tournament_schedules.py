@@ -6,16 +6,16 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
-from test_uploads import pdf_bytes
 
 from accounts.models import Club, Roles, User
+from test_uploads import pdf_bytes
 
 from .models import (
-    AuditLog,
     AgeTier,
+    AuditLog,
     Eligibility,
-    FootballMatch,
     FixtureStatus,
+    FootballMatch,
     MatchVenue,
     PlayerMatchPerformance,
     PlayerProfile,
@@ -58,25 +58,28 @@ def _pdf(name='schedule.pdf'):
 
 class TournamentStorageTests(TestCase):
     def test_rejects_mime_signature_mismatch(self):
-        upload = SimpleUploadedFile(
-            'fake.pdf', b'not a pdf', content_type='application/pdf'
-        )
+        upload = SimpleUploadedFile('fake.pdf', b'not a pdf', content_type='application/pdf')
         with self.assertRaisesMessage(ValueError, 'does not match'):
             validate_tournament_document(upload)
 
     def test_rejects_pdf_active_content(self):
         upload = SimpleUploadedFile(
-            'active.pdf', pdf_bytes() + b'/JavaScript',
+            'active.pdf',
+            pdf_bytes() + b'/JavaScript',
             content_type='application/pdf',
         )
         with self.assertRaisesMessage(ValueError, 'Active or embedded'):
             validate_tournament_document(upload)
 
-    @patch.dict('os.environ', {
-        'SUPABASE_URL': 'https://project.supabase.co',
-        'SUPABASE_SERVICE_KEY': 'sb_secret_test',
-        'SUPABASE_SCHEDULE_BUCKET': 'private-schedules',
-    }, clear=False)
+    @patch.dict(
+        'os.environ',
+        {
+            'SUPABASE_URL': 'https://project.supabase.co',
+            'SUPABASE_SERVICE_KEY': 'sb_secret_test',
+            'SUPABASE_SCHEDULE_BUCKET': 'private-schedules',
+        },
+        clear=False,
+    )
     @patch('academy.storage.httpx.post')
     def test_supabase_upload_uses_private_schedule_bucket(self, post):
         post.return_value.raise_for_status.return_value = None
@@ -84,15 +87,18 @@ class TournamentStorageTests(TestCase):
         self.assertEqual(path, 'private-schedules/7/11.pdf')
         self.assertEqual(
             post.call_args.args[0],
-            'https://project.supabase.co/storage/v1/object/'
-            'private-schedules/7/11.pdf',
+            'https://project.supabase.co/storage/v1/object/private-schedules/7/11.pdf',
         )
         self.assertEqual(post.call_args.kwargs['headers']['apikey'], 'sb_secret_test')
 
-    @patch.dict('os.environ', {
-        'SUPABASE_URL': '',
-        'SUPABASE_SERVICE_KEY': '',
-    }, clear=False)
+    @patch.dict(
+        'os.environ',
+        {
+            'SUPABASE_URL': '',
+            'SUPABASE_SERVICE_KEY': '',
+        },
+        clear=False,
+    )
     @patch('academy.storage.default_storage')
     def test_local_storage_fallback(self, storage):
         storage.exists.return_value = False
@@ -101,30 +107,32 @@ class TournamentStorageTests(TestCase):
         self.assertEqual(path, 'local/tournament-schedules/2/3.png')
 
     @override_settings(TESTING=False, DEBUG=False)
-    @patch.dict('os.environ', {
-        'SUPABASE_URL': '',
-        'SUPABASE_SERVICE_KEY': '',
-    }, clear=False)
+    @patch.dict(
+        'os.environ',
+        {
+            'SUPABASE_URL': '',
+            'SUPABASE_SERVICE_KEY': '',
+        },
+        clear=False,
+    )
     def test_production_never_falls_back_to_local_storage(self):
         with self.assertRaisesMessage(RuntimeError, 'is not configured'):
             upload_tournament_document(2, 3, b'png', 'image/png')
-        self.assertIsNone(
-            signed_tournament_document_url(
-                'local/tournament-schedules/2/3.png'
-            )
-        )
+        self.assertIsNone(signed_tournament_document_url('local/tournament-schedules/2/3.png'))
 
-    @patch.dict('os.environ', {
-        'SUPABASE_URL': 'https://project.supabase.co',
-        'SUPABASE_SERVICE_KEY': 'sb_secret_test',
-    }, clear=False)
+    @patch.dict(
+        'os.environ',
+        {
+            'SUPABASE_URL': 'https://project.supabase.co',
+            'SUPABASE_SERVICE_KEY': 'sb_secret_test',
+        },
+        clear=False,
+    )
     @patch('academy.storage.httpx.post')
     def test_signed_url_is_short_lived(self, post):
         post.return_value.raise_for_status.return_value = None
         post.return_value.json.return_value = {'signedURL': '/object/sign/token'}
-        result = signed_tournament_document_url(
-            'tournament-schedules/2/3.pdf', expires=900
-        )
+        result = signed_tournament_document_url('tournament-schedules/2/3.pdf', expires=900)
         self.assertEqual(
             result,
             'https://project.supabase.co/storage/v1/object/sign/token',
@@ -135,27 +143,28 @@ class TournamentStorageTests(TestCase):
 class TournamentPortalTests(TestCase):
     def setUp(self):
         self.club = _club('Portal FC')
-        self.coordinator = _user(
-            'coordinator@portal.test', Roles.COORDINATOR, self.club
-        )
+        self.coordinator = _user('coordinator@portal.test', Roles.COORDINATOR, self.club)
         self.coach = _user('coach@portal.test', Roles.COACH, self.club)
         self.client.force_login(self.coordinator)
 
     @patch(
-        'portal.views.upload_tournament_document',
+        'portal.view_tournaments.upload_tournament_document',
         return_value='tournament-schedules/1/1.pdf',
     )
     @patch(
-        'portal.views.signed_tournament_document_url',
+        'portal.view_tournaments.signed_tournament_document_url',
         return_value='https://signed.example/schedule',
     )
     def test_coordinator_creates_schedule_draft(self, signed, upload):
-        response = self.client.post(reverse('portal:tournaments'), {
-            'title': 'Cebu Youth Cup',
-            'starts_on': '2026-09-15',
-            'venue': 'Cebu City Sports Center',
-            'document': _pdf(),
-        })
+        response = self.client.post(
+            reverse('portal:tournaments'),
+            {
+                'title': 'Cebu Youth Cup',
+                'starts_on': '2026-09-15',
+                'venue': 'Cebu City Sports Center',
+                'document': _pdf(),
+            },
+        )
         schedule = TournamentSchedule.objects.get()
         self.assertRedirects(
             response,
@@ -165,9 +174,7 @@ class TournamentPortalTests(TestCase):
         self.assertEqual(schedule.uploaded_by, self.coordinator)
         self.assertEqual(schedule.venue, 'Cebu City Sports Center')
         self.assertFalse(schedule.is_published)
-        self.assertTrue(
-            AuditLog.objects.filter(action='tournament.draft_created').exists()
-        )
+        self.assertTrue(AuditLog.objects.filter(action='tournament.draft_created').exists())
         upload.assert_called_once()
 
     def test_coordinator_adds_structured_fixture(self):
@@ -190,9 +197,7 @@ class TournamentPortalTests(TestCase):
                 'fixture-stage': 'Quarter-final',
                 'fixture-opponent': 'TBD',
                 'fixture-kickoff_at': kickoff.strftime('%Y-%m-%dT%H:%M'),
-                'fixture-ends_at': (
-                    kickoff + timedelta(hours=2)
-                ).strftime('%Y-%m-%dT%H:%M'),
+                'fixture-ends_at': (kickoff + timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M'),
                 'fixture-venue': MatchVenue.NEUTRAL,
                 'fixture-location': 'Cebu City Sports Center',
                 'fixture-status': FixtureStatus.SCHEDULED,
@@ -220,9 +225,7 @@ class TournamentPortalTests(TestCase):
             {'stage': 'Semi-final'},
             format='json',
         )
-        web = self.client.get(
-            reverse('portal:tournament-detail', args=[schedule.id])
-        )
+        web = self.client.get(reverse('portal:tournament-detail', args=[schedule.id]))
         self.assertContains(web, 'Semi-final')
 
     def test_fixture_form_rejects_a_bracket_from_another_tournament(self):
@@ -258,11 +261,14 @@ class TournamentPortalTests(TestCase):
         self.assertFalse(schedule.fixtures.exists())
 
     def test_coordinator_can_publish_without_document(self):
-        response = self.client.post(reverse('portal:tournaments'), {
-            'title': 'Fixture Later Cup',
-            'starts_on': '2026-10-02',
-            'venue': 'Abellana Field',
-        })
+        response = self.client.post(
+            reverse('portal:tournaments'),
+            {
+                'title': 'Fixture Later Cup',
+                'starts_on': '2026-10-02',
+                'venue': 'Abellana Field',
+            },
+        )
         schedule = TournamentSchedule.objects.get(title='Fixture Later Cup')
         self.assertRedirects(
             response,
@@ -281,9 +287,7 @@ class TournamentPortalTests(TestCase):
         schedule = TournamentSchedule.objects.create(
             club=other, title='Private Cup', document_path='private/path.pdf'
         )
-        response = self.client.get(
-            reverse('portal:tournament-detail', args=[schedule.id])
-        )
+        response = self.client.get(reverse('portal:tournament-detail', args=[schedule.id]))
         self.assertEqual(response.status_code, 404)
 
     def test_web_records_atomic_result_visible_to_mobile(self):
@@ -330,22 +334,23 @@ class TournamentPortalTests(TestCase):
             added_by=self.coach,
         )
 
-        result_url = reverse(
-            'portal:tournament-fixture-result', args=[fixture.id]
-        )
+        result_url = reverse('portal:tournament-fixture-result', args=[fixture.id])
         page = self.client.get(result_url)
         self.assertContains(page, 'Record tournament result')
         self.assertContains(page, player.email)
-        response = self.client.post(result_url, {
-            'our_score': 1,
-            'opponent_score': 0,
-            f'participant_{player.id}': 'on',
-            f'position_{player.id}': 'CM',
-            f'minutesPlayed_{player.id}': 80,
-            f'goals_{player.id}': 1,
-            f'shots_{player.id}': 2,
-            f'shotsOnTarget_{player.id}': 1,
-        })
+        response = self.client.post(
+            result_url,
+            {
+                'our_score': 1,
+                'opponent_score': 0,
+                f'participant_{player.id}': 'on',
+                f'position_{player.id}': 'CM',
+                f'minutesPlayed_{player.id}': 80,
+                f'goals_{player.id}': 1,
+                f'shots_{player.id}': 2,
+                f'shotsOnTarget_{player.id}': 1,
+            },
+        )
         self.assertRedirects(
             response,
             reverse('portal:tournament-detail', args=[schedule.id]),
@@ -353,11 +358,13 @@ class TournamentPortalTests(TestCase):
         fixture.refresh_from_db()
         self.assertEqual(fixture.status, FixtureStatus.COMPLETED)
         self.assertEqual(fixture.completed_match.our_score, 1)
-        self.assertTrue(PlayerMatchPerformance.objects.filter(
-            match=fixture.completed_match,
-            player=player,
-            goals=1,
-        ).exists())
+        self.assertTrue(
+            PlayerMatchPerformance.objects.filter(
+                match=fixture.completed_match,
+                player=player,
+                goals=1,
+            ).exists()
+        )
 
         api = APIClient()
         api.force_authenticate(self.coordinator)
@@ -403,9 +410,7 @@ class TournamentScheduleApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['title'], 'Mobile Tournament')
-        self.assertEqual(
-            response.data[0]['venue'], 'Dynamic Herb Sports Stadium'
-        )
+        self.assertEqual(response.data[0]['venue'], 'Dynamic Herb Sports Stadium')
         self.assertEqual(
             response.data[0]['documentUrl'],
             'https://signed.example/schedule',
@@ -423,13 +428,9 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
     def setUp(self):
         self.club = _club('Coordinator Mobile FC')
         self.other_club = _club('Other Coordinator FC')
-        self.coordinator = _user(
-            'coordinator@mobile-management.test', Roles.COORDINATOR, self.club
-        )
+        self.coordinator = _user('coordinator@mobile-management.test', Roles.COORDINATOR, self.club)
         self.coach = _user('coach@mobile-management.test', Roles.COACH, self.club)
-        self.player = _user(
-            'player@mobile-management.test', Roles.PLAYER, self.club
-        )
+        self.player = _user('player@mobile-management.test', Roles.PLAYER, self.club)
         self.other_schedule = TournamentSchedule.objects.create(
             club=self.other_club,
             title='Other Club Draft',
@@ -440,11 +441,14 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
 
     def _create_draft(self):
         self.client.force_authenticate(self.coordinator)
-        response = self.client.post(reverse('tournament-schedules'), {
-            'title': 'Sinulog Cup',
-            'venue': 'Cebu City Sports Center',
-            'startsOn': '2026-09-20',
-        })
+        response = self.client.post(
+            reverse('tournament-schedules'),
+            {
+                'title': 'Sinulog Cup',
+                'venue': 'Cebu City Sports Center',
+                'startsOn': '2026-09-20',
+            },
+        )
         self.assertEqual(response.status_code, 201)
         return TournamentSchedule.objects.get(pk=response.data['id'])
 
@@ -479,12 +483,10 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
         self.assertEqual(str(schedule.starts_on), '2026-09-20')
         self.assertEqual(schedule.venue, 'Cebu City Sports Center')
         self.assertEqual(schedule.document_path, '')
-        self.assertTrue(
-            AuditLog.objects.filter(action='tournament.draft_created').exists()
-        )
+        self.assertTrue(AuditLog.objects.filter(action='tournament.draft_created').exists())
 
     def test_coach_and_player_do_not_see_same_club_draft(self):
-        schedule = self._create_draft()
+        self._create_draft()
         self.client.force_authenticate(self.coach)
         coach_response = self.client.get(reverse('tournament-schedules'))
         self.assertEqual(coach_response.data, [])
@@ -494,9 +496,13 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
 
     def test_non_coordinator_cannot_create_or_mutate_tournament(self):
         self.client.force_authenticate(self.coach)
-        create_response = self.client.post(reverse('tournament-schedules'), {
-            'title': 'Denied Cup', 'startsOn': '2026-09-20',
-        })
+        create_response = self.client.post(
+            reverse('tournament-schedules'),
+            {
+                'title': 'Denied Cup',
+                'startsOn': '2026-09-20',
+            },
+        )
         self.assertEqual(create_response.status_code, 403)
         patch_response = self.client.patch(
             reverse('tournament-schedule-detail', args=[self.other_schedule.id]),
@@ -555,9 +561,7 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
             self.client.post(url, {'maxAge': 22}, format='json').status_code,
             400,
         )
-        other_url = reverse(
-            'tournament-bracket-create', args=[self.other_schedule.id]
-        )
+        other_url = reverse('tournament-bracket-create', args=[self.other_schedule.id])
         self.assertEqual(
             self.client.post(other_url, {'maxAge': 10}, format='json').status_code,
             404,
@@ -621,9 +625,7 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
             format='json',
         )
         self.client.post(reverse('tournament-schedule-publish', args=[schedule.id]))
-        response = self.client.delete(
-            reverse('tournament-bracket-detail', args=[bracket_id])
-        )
+        response = self.client.delete(reverse('tournament-bracket-detail', args=[bracket_id]))
         self.assertEqual(response.status_code, 400)
 
     @patch(
@@ -655,9 +657,7 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
     def test_mobile_document_rejects_invalid_type_and_oversize(self):
         schedule = self._create_draft()
         url = reverse('tournament-schedule-document', args=[schedule.id])
-        invalid = SimpleUploadedFile(
-            'schedule.txt', b'plain text', content_type='text/plain'
-        )
+        invalid = SimpleUploadedFile('schedule.txt', b'plain text', content_type='text/plain')
         response = self.client.post(url, {'document': invalid}, format='multipart')
         self.assertEqual(response.status_code, 400)
         oversized = SimpleUploadedFile(
@@ -665,9 +665,7 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
             b'%PDF-' + b'x' * (5 * 1024 * 1024),
             content_type='application/pdf',
         )
-        response = self.client.post(
-            url, {'document': oversized}, format='multipart'
-        )
+        response = self.client.post(url, {'document': oversized}, format='multipart')
         self.assertEqual(response.status_code, 400)
 
     def test_coordinator_adds_edits_and_deletes_manual_fixture(self):
@@ -680,9 +678,7 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
                 'stage': 'Quarterfinal',
                 'opponent': 'TBD',
                 'kickoffAt': (timezone.now() + timedelta(days=4)).isoformat(),
-                'endsAt': (
-                    timezone.now() + timedelta(days=4, hours=2)
-                ).isoformat(),
+                'endsAt': (timezone.now() + timedelta(days=4, hours=2)).isoformat(),
                 'venue': MatchVenue.AWAY,
                 'location': 'Mandaue Sports Complex',
                 'status': FixtureStatus.POSTPONED,
@@ -693,13 +689,9 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
         fixture.refresh_from_db()
         self.assertEqual(fixture.stage, 'Quarterfinal')
         self.assertEqual(fixture.status, FixtureStatus.POSTPONED)
-        delete = self.client.delete(
-            reverse('tournament-fixture-detail', args=[fixture.id])
-        )
+        delete = self.client.delete(reverse('tournament-fixture-detail', args=[fixture.id]))
         self.assertEqual(delete.status_code, 204)
-        self.assertTrue(
-            AuditLog.objects.filter(action='tournament.fixture_deleted').exists()
-        )
+        self.assertTrue(AuditLog.objects.filter(action='tournament.fixture_deleted').exists())
 
     def test_fixture_mutation_is_coordinator_only_and_club_scoped(self):
         schedule = self._create_draft()
@@ -734,9 +726,7 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
             max_age=12,
             kickoff_at=timezone.now() - timedelta(days=1),
         )
-        publish = self.client.post(
-            reverse('tournament-schedule-publish', args=[schedule.id])
-        )
+        publish = self.client.post(reverse('tournament-schedule-publish', args=[schedule.id]))
         self.assertEqual(publish.status_code, 200, publish.data)
         player = _user('result-player@mobile.test', Roles.PLAYER, self.club)
         PlayerProfile.objects.create(
@@ -759,27 +749,29 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
         payload = {
             'ourScore': 2,
             'opponentScore': 1,
-            'participants': [{
-                'playerId': player.id,
-                'statistics': {
-                    'position': 'CM',
-                    'starter': True,
-                    'minutesPlayed': 80,
-                    'goals': 1,
-                    'assists': 1,
-                    'shots': 2,
-                    'shotsOnTarget': 1,
-                    'passesAttempted': 30,
-                    'passesCompleted': 24,
-                    'tackles': 3,
-                    'interceptions': 2,
-                    'yellowCards': 0,
-                    'redCards': 0,
-                    'saves': 0,
-                    'goalsConceded': 0,
-                    'cleanSheet': False,
-                },
-            }],
+            'participants': [
+                {
+                    'playerId': player.id,
+                    'statistics': {
+                        'position': 'CM',
+                        'starter': True,
+                        'minutesPlayed': 80,
+                        'goals': 1,
+                        'assists': 1,
+                        'shots': 2,
+                        'shotsOnTarget': 1,
+                        'passesAttempted': 30,
+                        'passesCompleted': 24,
+                        'tackles': 3,
+                        'interceptions': 2,
+                        'yellowCards': 0,
+                        'redCards': 0,
+                        'saves': 0,
+                        'goalsConceded': 0,
+                        'cleanSheet': False,
+                    },
+                }
+            ],
         }
         url = reverse('tournament-fixture-result', args=[fixture.id])
         response = self.client.post(url, payload, format='json')
@@ -789,14 +781,15 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
         match = FootballMatch.objects.get(pk=fixture.completed_match_id)
         self.assertEqual(match.category, 'TOURNAMENT')
         performance = PlayerMatchPerformance.objects.get(
-            match=match, player=player,
+            match=match,
+            player=player,
         )
         self.assertEqual(performance.goals, 1)
         self.assertEqual(performance.recorded_by, self.coordinator)
         self.assertEqual(response.data['lifecycleStatus'], 'COMPLETED')
-        self.assertTrue(AuditLog.objects.filter(
-            action='tournament.fixture_result_recorded'
-        ).exists())
+        self.assertTrue(
+            AuditLog.objects.filter(action='tournament.fixture_result_recorded').exists()
+        )
         self.assertEqual(self.client.post(url, payload, format='json').status_code, 400)
         self.assertEqual(
             self.client.patch(
@@ -807,9 +800,7 @@ class TournamentCoordinatorMobileApiTests(APITestCase):
             400,
         )
         self.assertEqual(
-            self.client.delete(
-                reverse('tournament-fixture-detail', args=[fixture.id])
-            ).status_code,
+            self.client.delete(reverse('tournament-fixture-detail', args=[fixture.id])).status_code,
             400,
         )
         self.assertEqual(

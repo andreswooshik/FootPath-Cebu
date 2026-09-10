@@ -1,8 +1,103 @@
 """Compatibility facade for domain-focused academy models."""
 
-from .model_players import *  # noqa: F401,F403
-from .model_training import *  # noqa: F401,F403
-from .model_tournaments import *  # noqa: F401,F403
-from .model_match_performance import *  # noqa: F401,F403
-from .model_operations import *  # noqa: F401,F403
-from .model_notifications import *  # noqa: F401,F403
+from academy.model_match_performance import PlayerMatchPerformance
+from academy.model_notifications import (
+    DeviceToken,
+    NotificationRecord,
+    PushOutbox,
+)
+from academy.model_operations import (
+    Attendance,
+    AuditLog,
+    AuditLogQuerySet,
+    Dispute,
+    DisputeCategory,
+    DisputeResponse,
+    DisputeStatus,
+    InjuryRecord,
+    InjuryReportStatus,
+    InjuryStatus,
+    InjuryStatusUpdateRequest,
+    InjuryUpdateReviewStatus,
+    SessionConfirmation,
+)
+from academy.model_players import (
+    PLAYER_POSITION_CODES,
+    AgeTier,
+    AgeTierSetting,
+    AssessmentReason,
+    AttendanceStatus,
+    ConfirmationStatus,
+    Eligibility,
+    EligibilityHistory,
+    FixtureStatus,
+    MatchCategory,
+    MatchVenue,
+    PlayerAssessmentSnapshot,
+    PlayerDevelopmentAssessment,
+    PlayerEligibility,
+    PlayerPrivacyPin,
+    PlayerProfile,
+    PlayerStatsAssessment,
+    SessionFocus,
+    TrainingSessionStatus,
+    audit_logger,
+)
+from academy.model_tournaments import (
+    FootballMatch,
+    TournamentAgeBracket,
+    TournamentFixture,
+    TournamentSchedule,
+    TournamentSquad,
+    TournamentSquadEntry,
+    TournamentSquadStatus,
+)
+from academy.model_training import TrainingSession
+
+__all__ = [
+    'AgeTier',
+    'AgeTierSetting',
+    'AssessmentReason',
+    'Attendance',
+    'AttendanceStatus',
+    'AuditLog',
+    'AuditLogQuerySet',
+    'ConfirmationStatus',
+    'DeviceToken',
+    'Dispute',
+    'DisputeCategory',
+    'DisputeResponse',
+    'DisputeStatus',
+    'Eligibility',
+    'EligibilityHistory',
+    'FixtureStatus',
+    'FootballMatch',
+    'InjuryRecord',
+    'InjuryReportStatus',
+    'InjuryStatus',
+    'InjuryStatusUpdateRequest',
+    'InjuryUpdateReviewStatus',
+    'MatchCategory',
+    'MatchVenue',
+    'NotificationRecord',
+    'PLAYER_POSITION_CODES',
+    'PlayerAssessmentSnapshot',
+    'PlayerDevelopmentAssessment',
+    'PlayerEligibility',
+    'PlayerMatchPerformance',
+    'PlayerPrivacyPin',
+    'PlayerProfile',
+    'PlayerStatsAssessment',
+    'PushOutbox',
+    'SessionConfirmation',
+    'SessionFocus',
+    'TournamentAgeBracket',
+    'TournamentFixture',
+    'TournamentSchedule',
+    'TournamentSquad',
+    'TournamentSquadEntry',
+    'TournamentSquadStatus',
+    'TrainingSession',
+    'TrainingSessionStatus',
+    'audit_logger',
+]

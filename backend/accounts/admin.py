@@ -40,12 +40,12 @@ admin.site.unregister(Group)
 # Solid pill colour per role so the registry can be scanned at a glance. White text
 # on a saturated background stays legible in both light and dark theme.
 _ROLE_COLORS = {
-    Roles.ADMIN: '#7C3AED',         # violet
-    Roles.COORDINATOR: '#DB2777',   # rose
-    Roles.COACH: '#EA580C',         # orange
-    Roles.PLAYER: '#2563EB',        # blue
+    Roles.ADMIN: '#7C3AED',  # violet
+    Roles.COORDINATOR: '#DB2777',  # rose
+    Roles.COACH: '#EA580C',  # orange
+    Roles.PLAYER: '#2563EB',  # blue
     Roles.SCHOOL_STAFF: '#0D9488',  # teal
-    Roles.GUARDIAN: '#059669',      # emerald
+    Roles.GUARDIAN: '#059669',  # emerald
 }
 
 _PILL = (
@@ -71,9 +71,7 @@ class BulkActionLabelMixin:
     """
 
     def get_action_choices(self, request, default_choices=None):
-        return super().get_action_choices(
-            request, default_choices=[('', 'Bulk Actions')]
-        )
+        return super().get_action_choices(request, default_choices=[('', 'Bulk Actions')])
 
 
 class FootPathUserValidationMixin:
@@ -91,9 +89,7 @@ class FootPathUserValidationMixin:
         if role != Roles.ADMIN and club is None:
             self.add_error('club', 'Every club-member account needs a club.')
         if role == Roles.SCHOOL_STAFF and club and not club.allows_school_staff:
-            self.add_error(
-                'club', 'School Staff can be assigned only to a School club.'
-            )
+            self.add_error('club', 'School Staff can be assigned only to a School club.')
         if role == Roles.COORDINATOR and club:
             existing = User.objects.filter(club=club, role=Roles.COORDINATOR)
             if self.instance.pk:
@@ -114,9 +110,7 @@ class FirebasePasswordHashWidget(ReadOnlyPasswordHashWidget):
 
     def get_context(self, name, value, attrs):
         context = super().get_context(name, value, attrs)
-        context['summary'] = [
-            {'label': 'Password is managed by Firebase Authentication.'}
-        ]
+        context['summary'] = [{'label': 'Password is managed by Firebase Authentication.'}]
         context['button_label'] = 'Set Firebase password'
         return context
 
@@ -201,9 +195,7 @@ class ClubAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.needs_coordinator = (
-            not self.instance.pk or self.instance.coordinator is None
-        )
+        self.needs_coordinator = not self.instance.pk or self.instance.coordinator is None
         for field_name in (
             'coordinator_name',
             'coordinator_email',
@@ -212,20 +204,16 @@ class ClubAdminForm(forms.ModelForm):
         ):
             self.fields[field_name].required = self.needs_coordinator
         if self.needs_coordinator:
-            self.fields['coordinator_password1'].widget.attrs[
-                'data-password-check-url'
-            ] = reverse('admin:accounts_club_password_check')
+            self.fields['coordinator_password1'].widget.attrs['data-password-check-url'] = reverse(
+                'admin:accounts_club_password_check'
+            )
 
     def clean_coordinator_email(self):
         email = self.cleaned_data.get('coordinator_email', '').strip().lower()
         if not self.needs_coordinator or not email:
             return email
-        if User.objects.filter(
-            Q(email__iexact=email) | Q(username__iexact=email)
-        ).exists():
-            raise forms.ValidationError(
-                'An account already uses this Coordinator email.'
-            )
+        if User.objects.filter(Q(email__iexact=email) | Q(username__iexact=email)).exists():
+            raise forms.ValidationError('An account already uses this Coordinator email.')
         return email
 
     def clean(self):
@@ -261,9 +249,7 @@ class ClubAdminForm(forms.ModelForm):
 class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
     add_form = FootPathUserCreationForm
     form = FootPathUserChangeForm
-    list_display = (
-        'email', 'full_name', 'role_badge', 'club', 'status_chip', 'access_chip'
-    )
+    list_display = ('email', 'full_name', 'role_badge', 'club', 'status_chip', 'access_chip')
     list_display_links = ('email',)
     list_filter = ('role', 'club', 'is_active', 'is_staff')
     ordering = ('email',)
@@ -283,10 +269,13 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
     add_fieldsets = (
-        (None, {
-            'classes': ('wide',),
-            'fields': ('username', 'email', 'password1', 'password2', 'role', 'club'),
-        }),
+        (
+            None,
+            {
+                'classes': ('wide',),
+                'fields': ('username', 'email', 'password1', 'password2', 'role', 'club'),
+            },
+        ),
     )
 
     def user_change_password(self, request, id, form_url=''):
@@ -309,18 +298,14 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
             form = FirebaseAdminPasswordChangeForm(user, request.POST)
             if form.is_valid():
                 try:
-                    set_firebase_password(
-                        user, password=form.cleaned_data['password1']
-                    )
+                    set_firebase_password(user, password=form.cleaned_data['password1'])
                 except Exception:
                     form.add_error(
                         None,
                         'The Firebase password could not be updated. No password was changed.',
                     )
                 else:
-                    change_message = self.construct_change_message(
-                        request, form, None
-                    )
+                    change_message = self.construct_change_message(request, form, None)
                     self.log_change(request, user, change_message)
                     self.message_user(
                         request,
@@ -359,8 +344,7 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
         request.current_app = self.admin_site.name
         return TemplateResponse(
             request,
-            self.change_user_password_template
-            or 'admin/auth/user/change_password.html',
+            self.change_user_password_template or 'admin/auth/user/change_password.html',
             context,
         )
 
@@ -410,9 +394,7 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
         works in the app immediately.
         """
         if not change and obj.role == Roles.PLAYER:
-            raise forms.ValidationError(
-                'Create Players through the dedicated player flow.'
-            )
+            raise forms.ValidationError('Create Players through the dedicated player flow.')
         if obj.role != Roles.ADMIN and obj.club_id is None:
             raise forms.ValidationError('Every club-member account needs a club.')
         super().save_model(request, obj, form, change)
@@ -501,8 +483,10 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
 class GuardianLinkAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     list_display = ('guardian', 'player', 'created_at')
     search_fields = (
-        'guardian__email', 'player__email',
-        'guardian__username', 'player__username',
+        'guardian__email',
+        'player__email',
+        'guardian__username',
+        'player__username',
     )
     autocomplete_fields = ('guardian', 'player')
     readonly_fields = ('created_at',)
@@ -513,8 +497,13 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     form = ClubAdminForm
     change_form_template = 'admin/accounts/club/change_form.html'
     list_display = (
-        'name', 'coordinator_email', 'registration_status', 'member_count', 'school_chip',
-        'active_chip', 'created_at',
+        'name',
+        'coordinator_email',
+        'registration_status',
+        'member_count',
+        'school_chip',
+        'active_chip',
+        'created_at',
     )
     list_filter = ('is_active', 'is_school_affiliated')
     search_fields = ('name', 'slug', 'head_coach_name', 'cvfa_membership')
@@ -561,9 +550,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
             return {}
         return super().get_prepopulated_fields(request, obj)
 
-    def changeform_view(
-        self, request, object_id=None, form_url='', extra_context=None
-    ):
+    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
         club = self.get_object(request, object_id) if object_id else None
         decision = None
         if request.method == 'POST':
@@ -582,13 +569,9 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                     level=messages.WARNING,
                 )
             elif decision == 'approve':
-                self.approve_registrations(
-                    request, Club.objects.filter(pk=club.pk)
-                )
+                self.approve_registrations(request, Club.objects.filter(pk=club.pk))
             else:
-                self.disapprove_registrations(
-                    request, Club.objects.filter(pk=club.pk)
-                )
+                self.disapprove_registrations(request, Club.objects.filter(pk=club.pk))
             return HttpResponseRedirect(request.path)
 
         context = {
@@ -624,9 +607,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
         )
         needs_coordinator = obj is None or obj.coordinator is None
         if not needs_coordinator:
-            return (
-                ('Club details', {'fields': club_fields + ('created_at',)}),
-            )
+            return (('Club details', {'fields': club_fields + ('created_at',)}),)
         fieldsets = [
             (
                 'Club details',
@@ -735,9 +716,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                     changed = True
                 if changed:
                     try:
-                        set_coordinator_mobile_disabled(
-                            coordinator, disabled=False
-                        )
+                        set_coordinator_mobile_disabled(coordinator, disabled=False)
                     except Exception as exc:
                         self.message_user(
                             request,

@@ -1,4 +1,5 @@
 """Match performance API contract, calculations, and tenant security tests."""
+
 from datetime import date, timedelta
 
 from django.urls import reverse
@@ -55,12 +56,8 @@ class MatchPerformanceApiTests(APITestCase):
     def setUp(self):
         self.club_a = _club('Match Club A')
         self.club_b = _club('Match Club B')
-        self.coordinator_a = _user(
-            'coordinator-a@match.test', Roles.COORDINATOR, self.club_a
-        )
-        self.coordinator_b = _user(
-            'coordinator-b@match.test', Roles.COORDINATOR, self.club_b
-        )
+        self.coordinator_a = _user('coordinator-a@match.test', Roles.COORDINATOR, self.club_a)
+        self.coordinator_b = _user('coordinator-b@match.test', Roles.COORDINATOR, self.club_b)
         self.coach_a = _user('coach-a@match.test', Roles.COACH, self.club_a)
         self.coach_b = _user('coach-b@match.test', Roles.COACH, self.club_b)
         self.admin = _user('admin@match.test', Roles.ADMIN, None)
@@ -167,9 +164,7 @@ class MatchPerformanceApiTests(APITestCase):
             created_by=self.coordinator_b,
         )
         self.client.force_authenticate(self.admin)
-        self.assertEqual(
-            len(self.client.get(reverse('football-matches')).data), 2
-        )
+        self.assertEqual(len(self.client.get(reverse('football-matches')).data), 2)
         response = self.client.post(
             reverse('football-matches'),
             self._match_payload(),
@@ -190,9 +185,7 @@ class MatchPerformanceApiTests(APITestCase):
 
     def test_coordinator_records_statistics_then_coach_rates(self):
         self.client.force_authenticate(self.coordinator_a)
-        first = self.client.put(
-            self._performance_url(), self._performance_payload(), format='json'
-        )
+        first = self.client.put(self._performance_url(), self._performance_payload(), format='json')
         self.assertEqual(first.status_code, 201)
         self.assertEqual(first.data['ratingStatus'], 'AWAITING_RATING')
         self.assertNotIn('coachRating', first.data)
@@ -339,9 +332,7 @@ class MatchPerformanceApiTests(APITestCase):
         self.client.force_authenticate(self.coach_a)
         coach_row = self.client.get(url).data[0]
         self.assertEqual(coach_row['performance']['coachRating'], 8.5)
-        self.assertEqual(
-            coach_row['performance']['notes'], 'Private Coach evaluation.'
-        )
+        self.assertEqual(coach_row['performance']['notes'], 'Private Coach evaluation.')
 
     def test_unrated_appearance_counts_but_average_ignores_it(self):
         PlayerMatchPerformance.objects.create(
@@ -352,9 +343,7 @@ class MatchPerformanceApiTests(APITestCase):
             recorded_by=self.coordinator_a,
         )
         self.client.force_authenticate(self.player_a)
-        response = self.client.get(
-            reverse('player-match-statistics', args=[self.player_a.id])
-        )
+        response = self.client.get(reverse('player-match-statistics', args=[self.player_a.id]))
         self.assertEqual(response.data['summary']['matchesPlayed'], 1)
         self.assertIsNone(response.data['summary']['averageRating'])
         self.assertIsNone(response.data['performances'][0]['coachRating'])
@@ -378,24 +367,18 @@ class MatchPerformanceApiTests(APITestCase):
             recorded_by=self.coach_a,
         )
         self.client.force_authenticate(self.player_a)
-        response = self.client.get(
-            reverse('player-match-statistics', args=[self.player_a.id])
-        )
+        response = self.client.get(reverse('player-match-statistics', args=[self.player_a.id]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['summary']['matchesPlayed'], 1)
         self.assertEqual(response.data['summary']['goals'], 1)
         self.assertEqual(response.data['summary']['assists'], 2)
         self.assertEqual(response.data['summary']['passCompletionRate'], 80.0)
         self.assertEqual(response.data['summary']['averageRating'], 8.5)
-        self.assertEqual(response.data['performances'][0]['match']['id'], str(
-            self.match_a.id
-        ))
+        self.assertEqual(response.data['performances'][0]['match']['id'], str(self.match_a.id))
 
     def test_player_cannot_read_another_players_statistics(self):
         self.client.force_authenticate(self.player_b)
-        response = self.client.get(
-            reverse('player-match-statistics', args=[self.player_a.id])
-        )
+        response = self.client.get(reverse('player-match-statistics', args=[self.player_a.id]))
         self.assertEqual(response.status_code, 403)
 
     def test_coach_statistics_read_is_club_scoped(self):

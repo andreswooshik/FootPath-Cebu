@@ -61,9 +61,7 @@ class RolePermissionTests(APITestCase):
             Roles.GUARDIAN,
         ]:
             self.client.force_authenticate(self.users[role])
-            self.assertEqual(
-                self.client.get(url).status_code, 403, msg=f'{role} should be denied'
-            )
+            self.assertEqual(self.client.get(url).status_code, 403, msg=f'{role} should be denied')
         self.client.force_authenticate(self.users[Roles.ADMIN])
         self.assertEqual(self.client.get(url).status_code, 200)
 
@@ -103,31 +101,23 @@ class AdminUserLifecycleTests(APITestCase):
 
     def test_non_admin_is_denied(self):
         self.client.force_authenticate(self.coach)
-        resp = self.client.patch(
-            self._url(self.coach), {'is_active': False}, format='json'
-        )
+        resp = self.client.patch(self._url(self.coach), {'is_active': False}, format='json')
         self.assertEqual(resp.status_code, 403)
 
     def test_deactivate_and_reactivate(self):
-        resp = self.client.patch(
-            self._url(self.coach), {'is_active': False}, format='json'
-        )
+        resp = self.client.patch(self._url(self.coach), {'is_active': False}, format='json')
         self.assertEqual(resp.status_code, 200)
         self.coach.refresh_from_db()
         self.assertFalse(self.coach.is_active)
 
-        resp = self.client.patch(
-            self._url(self.coach), {'is_active': True}, format='json'
-        )
+        resp = self.client.patch(self._url(self.coach), {'is_active': True}, format='json')
         self.assertEqual(resp.status_code, 200)
         self.coach.refresh_from_db()
         self.assertTrue(self.coach.is_active)
 
     @patch('accounts.authentication.ensure_initialized')
     @patch('accounts.authentication.firebase_auth.verify_id_token')
-    def test_deactivated_user_is_locked_out_of_the_api(
-        self, mock_verify, _mock_init
-    ):
+    def test_deactivated_user_is_locked_out_of_the_api(self, mock_verify, _mock_init):
         """The authentication layer filters is_active — deactivation takes
         effect on the very next request, not at next login."""
         self.coach.is_active = False
@@ -140,9 +130,7 @@ class AdminUserLifecycleTests(APITestCase):
         self.assertIn(resp.status_code, (401, 403))
 
     def test_coach_becomes_school_staff_with_a_portal_password(self):
-        resp = self.client.patch(
-            self._url(self.coach), {'role': Roles.SCHOOL_STAFF}, format='json'
-        )
+        resp = self.client.patch(self._url(self.coach), {'role': Roles.SCHOOL_STAFF}, format='json')
         self.assertEqual(resp.status_code, 200)
         self.coach.refresh_from_db()
         self.assertEqual(self.coach.role, Roles.SCHOOL_STAFF)
@@ -154,9 +142,7 @@ class AdminUserLifecycleTests(APITestCase):
     @patch('accounts.services.link_or_create_firebase_user', return_value=None)
     def test_school_staff_becomes_coach_via_firebase(self, mock_link):
         staff = make_user(Roles.SCHOOL_STAFF)
-        resp = self.client.patch(
-            self._url(staff), {'role': Roles.COACH}, format='json'
-        )
+        resp = self.client.patch(self._url(staff), {'role': Roles.COACH}, format='json')
         self.assertEqual(resp.status_code, 200)
         staff.refresh_from_db()
         self.assertEqual(staff.role, Roles.COACH)
@@ -164,9 +150,7 @@ class AdminUserLifecycleTests(APITestCase):
 
     def test_player_role_is_locked(self):
         player = make_user(Roles.PLAYER)
-        resp = self.client.patch(
-            self._url(player), {'role': Roles.COACH}, format='json'
-        )
+        resp = self.client.patch(self._url(player), {'role': Roles.COACH}, format='json')
         self.assertEqual(resp.status_code, 400)
         player.refresh_from_db()
         self.assertEqual(player.role, Roles.PLAYER)
@@ -177,38 +161,31 @@ class AdminUserLifecycleTests(APITestCase):
         guardian = make_user(Roles.GUARDIAN)
         player = make_user(Roles.PLAYER)
         GuardianLink.objects.create(guardian=guardian, player=player)
-        resp = self.client.patch(
-            self._url(guardian), {'role': Roles.COACH}, format='json'
-        )
+        resp = self.client.patch(self._url(guardian), {'role': Roles.COACH}, format='json')
         self.assertEqual(resp.status_code, 400)
 
     def test_lifecycle_changes_are_audited(self):
         from academy.models import AuditLog
 
-        self.client.patch(
-            self._url(self.coach), {'role': Roles.SCHOOL_STAFF}, format='json'
-        )
-        self.client.patch(
-            self._url(self.coach), {'is_active': False}, format='json'
-        )
+        self.client.patch(self._url(self.coach), {'role': Roles.SCHOOL_STAFF}, format='json')
+        self.client.patch(self._url(self.coach), {'is_active': False}, format='json')
         self.assertTrue(
             AuditLog.objects.filter(
-                action='account.role_changed', actor=self.admin,
+                action='account.role_changed',
+                actor=self.admin,
                 target=self.coach.email,
             ).exists()
         )
-        self.assertTrue(
-            AuditLog.objects.filter(action='account.deactivated').exists()
-        )
+        self.assertTrue(AuditLog.objects.filter(action='account.deactivated').exists())
 
     def test_admin_accounts_are_out_of_reach(self):
         other_admin = User.objects.create(
-            username='root@footpathcebu.test', email='root@footpathcebu.test',
-            role=Roles.ADMIN, firebase_uid='uid-root',
+            username='root@footpathcebu.test',
+            email='root@footpathcebu.test',
+            role=Roles.ADMIN,
+            firebase_uid='uid-root',
         )
-        resp = self.client.patch(
-            self._url(other_admin), {'is_active': False}, format='json'
-        )
+        resp = self.client.patch(self._url(other_admin), {'is_active': False}, format='json')
         self.assertEqual(resp.status_code, 404)
 
 
@@ -233,9 +210,7 @@ class FirebaseAuthMappingTests(APITestCase):
 
     @patch('accounts.authentication.ensure_initialized')
     @patch('accounts.authentication.firebase_auth.verify_id_token')
-    def test_valid_token_without_local_account_is_rejected(
-        self, mock_verify, _mock_init
-    ):
+    def test_valid_token_without_local_account_is_rejected(self, mock_verify, _mock_init):
         # A real Firebase user who was never provisioned by an Admin.
         mock_verify.return_value = {'uid': 'ghost-uid'}
 

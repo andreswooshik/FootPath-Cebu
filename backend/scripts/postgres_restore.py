@@ -1,11 +1,12 @@
 """Restore a pg_dump archive after an explicit database-name confirmation."""
+
 from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 
 def required(name: str) -> str:
@@ -37,12 +38,20 @@ def main() -> None:
     env['PGPASSWORD'] = required('DB_PASSWORD')
     env['PGSSLMODE'] = os.environ.get('DB_SSLMODE', 'require')
     command = [
-        'pg_restore', '--clean', '--if-exists', '--no-owner', '--no-acl',
+        'pg_restore',
+        '--clean',
+        '--if-exists',
+        '--no-owner',
+        '--no-acl',
         '--exit-on-error',
-        '--host', required('DB_HOST'),
-        '--port', os.environ.get('DB_PORT', '5432'),
-        '--username', required('DB_USER'),
-        '--dbname', database,
+        '--host',
+        required('DB_HOST'),
+        '--port',
+        os.environ.get('DB_PORT', '5432'),
+        '--username',
+        required('DB_USER'),
+        '--dbname',
+        database,
         str(archive),
     ]
     subprocess.run(command, env=env, check=True)

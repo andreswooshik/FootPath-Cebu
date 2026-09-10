@@ -24,7 +24,10 @@ class CoordinatorMobileAccessServiceTests(TestCase):
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
     def test_creates_enabled_firebase_identity_with_same_password(
-        self, get_user, create_user, ensure_initialized,
+        self,
+        get_user,
+        create_user,
+        ensure_initialized,
     ):
         get_user.side_effect = firebase_auth.UserNotFoundError('not found')
         create_user.return_value = SimpleNamespace(uid='coordinator-firebase-uid')
@@ -81,11 +84,14 @@ class CoordinatorMobileAccessPortalTests(TestCase):
 
     @patch('portal.views.sync_coordinator_mobile_password', return_value=True)
     def test_password_change_updates_mobile_before_django(self, sync):
-        response = self.client.post(reverse('portal:password-change'), {
-            'old_password': 'Portal!Pass2026',
-            'new_password1': 'Updated!Pass2027',
-            'new_password2': 'Updated!Pass2027',
-        })
+        response = self.client.post(
+            reverse('portal:password-change'),
+            {
+                'old_password': 'Portal!Pass2026',
+                'new_password1': 'Updated!Pass2027',
+                'new_password2': 'Updated!Pass2027',
+            },
+        )
         self.assertRedirects(response, reverse('portal:dashboard'))
         sync.assert_called_once_with(
             self.coordinator,

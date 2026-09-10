@@ -1,7 +1,55 @@
 """Match statistics and player-growth API views."""
 
-from ._view_support import *  # noqa: F401,F403
+from django.db.models import (
+    Avg,
+    Count,
+    Q,
+)
+from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date
+from rest_framework.exceptions import (
+    PermissionDenied,
+    ValidationError,
+)
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from academy._view_support import _may_read_match_statistics
+from academy.assessment_framework import framework_for
+from academy.growth import (
+    build_assessment_growth,
+    build_development_assessment_growth,
+    build_match_growth,
+    build_tournament_groups,
+    build_training_groups,
+    limited,
+    resolve_growth_filter,
+)
+from academy.match_statistics import build_performance_summary
+from academy.model_match_performance import PlayerMatchPerformance
+from academy.model_operations import Attendance
+from academy.model_players import (
+    AttendanceStatus,
+    MatchCategory,
+    PlayerAssessmentSnapshot,
+    PlayerDevelopmentAssessment,
+    PlayerProfile,
+    PlayerStatsAssessment,
+)
+from academy.serializer_match_performance import PlayerMatchPerformanceSerializer
+from academy.serializer_players import (
+    PlayerAssessmentSnapshotSerializer,
+    PlayerDevelopmentAssessmentSerializer,
+    PlayerStatsAssessmentSerializer,
+)
+from academy.serializer_training import AttendanceSerializer
+from accounts.models import (
+    Roles,
+    User,
+)
+
 from .view_players import _require_unlock_when_pin_exists
+
 
 class PlayerMatchStatisticsView(APIView):
     """Historical match totals and trend rows for one authorized player."""
@@ -19,7 +67,9 @@ class PlayerMatchStatisticsView(APIView):
         )
 
         rows = PlayerMatchPerformance.objects.select_related(
-            'match', 'match__club', 'player',
+            'match',
+            'match__club',
+            'player',
         ).filter(player=player)
         from_text = request.query_params.get('from')
         to_text = request.query_params.get('to')
@@ -49,29 +99,28 @@ class PlayerMatchStatisticsView(APIView):
             except (TypeError, ValueError) as exc:
                 raise ValidationError({'limit': 'Use a whole number.'}) from exc
             if not 1 <= selected_limit <= self._MAX_ROWS:
-                raise ValidationError({
-                    'limit': f'Choose a value from 1 to {self._MAX_ROWS}.'
-                })
+                raise ValidationError({'limit': f'Choose a value from 1 to {self._MAX_ROWS}.'})
 
         # The summary uses the complete selected range. Only the history
         # payload is capped, so an "All" total is never silently truncated by
         # the response-size safeguard.
-        summary_records = list(
-            rows[:selected_limit] if selected_limit is not None else rows
-        )
-        records = summary_records[:self._MAX_ROWS]
+        summary_records = list(rows[:selected_limit] if selected_limit is not None else rows)
+        records = summary_records[: self._MAX_ROWS]
         name = f'{player.first_name} {player.last_name}'.strip()
-        return Response({
-            'playerId': str(player.id),
-            'playerName': name or player.email.split('@')[0],
-            'range': selected_range or (
-                f'last{selected_limit}' if selected_limit is not None else 'all'
-            ),
-            'summary': build_performance_summary(summary_records),
-            'performances': PlayerMatchPerformanceSerializer(
-                records, many=True, context={'request': request},
-            ).data,
-        })
+        return Response(
+            {
+                'playerId': str(player.id),
+                'playerName': name or player.email.split('@')[0],
+                'range': selected_range
+                or (f'last{selected_limit}' if selected_limit is not None else 'all'),
+                'summary': build_performance_summary(summary_records),
+                'performances': PlayerMatchPerformanceSerializer(
+                    records,
+                    many=True,
+                    context={'request': request},
+                ).data,
+            }
+        )
 
 
 class PlayerGrowthView(APIView):
@@ -111,13 +160,13 @@ class PlayerGrowthView(APIView):
                 'player', 'assessed_by'
             ).filter(player=player)
             if from_date:
-                development = development.filter(
-                    created_at__date__gte=from_date
-                )
+                development = development.filter(created_at__date__gte=from_date)
             if to_date:
                 development = development.filter(created_at__date__lte=to_date)
             development_rows = limited(development, limit)
-            player_stats = PlayerStatsAssessment.objects.select_related('assessed_by').filter(player=player)
+            player_stats = PlayerStatsAssessment.objects.select_related('assessed_by').filter(
+                player=player
+            )
             if from_date:
                 player_stats = player_stats.filter(created_at__date__gte=from_date)
             if to_date:
@@ -146,7 +195,9 @@ class PlayerGrowthView(APIView):
                         counts[focus] += 1
 
         match_base = PlayerMatchPerformance.objects.select_related(
-            'player', 'match', 'match__club',
+            'player',
+            'match',
+            'match__club',
             'match__source_fixture__schedule',
             'match__source_fixture__age_bracket',
         ).filter(player=player)
@@ -171,55 +222,58 @@ class PlayerGrowthView(APIView):
                 limit,
             )
 
-        assessment_data = {
-            'summary': build_assessment_growth(assessment_rows),
-            'history': PlayerAssessmentSnapshotSerializer(
-                assessment_rows, many=True
-            ).data,
-            'framework': framework_for(
-                player.player_profile.age_tier,
-                player.player_profile.position,
-            ),
-            'developmentSummary': build_development_assessment_growth(
-                development_rows
-            ),
-            'developmentHistory': PlayerDevelopmentAssessmentSerializer(
-                development_rows, many=True
-            ).data,
-            # Player Stats deliberately remains a separate 0–99, gamified
-            # stream; the formal 1–5 framework above is never combined with it.
-            'playerStatsHistory': PlayerStatsAssessmentSerializer(
-                player_stats_rows, many=True
-            ).data,
-        } if include('assessment') else None
+        assessment_data = (
+            {
+                'summary': build_assessment_growth(assessment_rows),
+                'history': PlayerAssessmentSnapshotSerializer(assessment_rows, many=True).data,
+                'framework': framework_for(
+                    player.player_profile.age_tier,
+                    player.player_profile.position,
+                ),
+                'developmentSummary': build_development_assessment_growth(development_rows),
+                'developmentHistory': PlayerDevelopmentAssessmentSerializer(
+                    development_rows, many=True
+                ).data,
+                # Player Stats deliberately remains a separate 0–99, gamified
+                # stream; the formal 1–5 framework above is never combined with it.
+                'playerStatsHistory': PlayerStatsAssessmentSerializer(
+                    player_stats_rows, many=True
+                ).data,
+            }
+            if include('assessment')
+            else None
+        )
 
         training_groups = build_training_groups(training_rows)
         if include('training'):
             for group in training_groups:
-                rows = [
-                    row for row in training_rows
-                    if row.session.focus == group['focus']
-                ]
+                rows = [row for row in training_rows if row.session.focus == group['focus']]
                 group['history'] = AttendanceSerializer(rows, many=True).data
 
-        regular_data = {
-            **build_match_growth(regular_rows),
-            'history': PlayerMatchPerformanceSerializer(
-                regular_rows, many=True, context={'request': request}
-            ).data,
-        } if include('regular_match') else None
+        regular_data = (
+            {
+                **build_match_growth(regular_rows),
+                'history': PlayerMatchPerformanceSerializer(
+                    regular_rows, many=True, context={'request': request}
+                ).data,
+            }
+            if include('regular_match')
+            else None
+        )
 
         tournament_groups = build_tournament_groups(tournament_rows)
         if include('tournament'):
             for group in tournament_groups:
                 rows = [
-                    row for row in tournament_rows
-                    if str(row.match.source_fixture.schedule_id)
-                    == group['tournamentId']
+                    row
+                    for row in tournament_rows
+                    if str(row.match.source_fixture.schedule_id) == group['tournamentId']
                     and (
                         str(row.match.source_fixture.age_bracket_id)
-                        if row.match.source_fixture.age_bracket_id else None
-                    ) == group['ageBracketId']
+                        if row.match.source_fixture.age_bracket_id
+                        else None
+                    )
+                    == group['ageBracketId']
                 ]
                 group['growth'] = build_match_growth(rows)
                 group['history'] = PlayerMatchPerformanceSerializer(
@@ -227,22 +281,23 @@ class PlayerGrowthView(APIView):
                 ).data
 
         name = f'{player.first_name} {player.last_name}'.strip()
-        return Response({
-            'playerId': str(player.id),
-            'playerName': name or player.email.split('@')[0],
-            'position': player.player_profile.position,
-            'filter': {
-                'range': selected['range'],
-                'from': from_date.isoformat() if from_date else None,
-                'to': to_date.isoformat() if to_date else None,
-                'category': category,
-            },
-            'assessments': assessment_data,
-            'training': {'groups': training_groups} if include('training') else None,
-            'regularMatches': regular_data,
-            'tournaments': {'groups': tournament_groups}
-            if include('tournament') else None,
-        })
+        return Response(
+            {
+                'playerId': str(player.id),
+                'playerName': name or player.email.split('@')[0],
+                'position': player.player_profile.position,
+                'filter': {
+                    'range': selected['range'],
+                    'from': from_date.isoformat() if from_date else None,
+                    'to': to_date.isoformat() if to_date else None,
+                    'category': category,
+                },
+                'assessments': assessment_data,
+                'training': {'groups': training_groups} if include('training') else None,
+                'regularMatches': regular_data,
+                'tournaments': {'groups': tournament_groups} if include('tournament') else None,
+            }
+        )
 
 
 class SquadProgressView(APIView):
@@ -255,9 +310,7 @@ class SquadProgressView(APIView):
 
     def get(self, request):
         if request.user.role not in (Roles.COACH, Roles.ADMIN):
-            raise PermissionDenied(
-                'Only Coaches and the Super Admin can view squad progress.'
-            )
+            raise PermissionDenied('Only Coaches and the Super Admin can view squad progress.')
 
         profiles = PlayerProfile.objects.select_related('user')
         attendance = Attendance.objects.all()
@@ -266,12 +319,8 @@ class SquadProgressView(APIView):
                 profiles = profiles.none()
                 attendance = attendance.none()
             else:
-                profiles = profiles.filter(
-                    user__club_id=request.user.club_id
-                )
-                attendance = attendance.filter(
-                    player__club_id=request.user.club_id
-                )
+                profiles = profiles.filter(user__club_id=request.user.club_id)
+                attendance = attendance.filter(player__club_id=request.user.club_id)
         profiles = profiles.order_by('user__first_name', 'user__last_name')
         stats = {
             row['player_id']: row
@@ -298,9 +347,7 @@ class SquadProgressView(APIView):
                 'present': s.get('present', 0),
                 'absent': s.get('absent', 0),
                 'excused': s.get('excused', 0),
-                'avgEffort': (
-                    round(avg_effort) if avg_effort is not None else None
-                ),
+                'avgEffort': (round(avg_effort) if avg_effort is not None else None),
             }
 
         return Response([row(p) for p in profiles])

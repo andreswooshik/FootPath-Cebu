@@ -1,19 +1,17 @@
-"""FCM push fan-out via the Firebase Admin SDK.
+"""Persist notification inbox entries and outbox jobs in the caller transaction.
 
-The Admin SDK is initialized once by accounts.firebase.ensure_initialized (also
-called eagerly in AccountsConfig.ready). These helpers collect recipients and
-send; they never raise into the request path — a push failure must not fail the
-write that triggered it.
+Network delivery belongs to academy.push_delivery and its worker command.
 """
+
 import logging
+from uuid import uuid4
 
-from firebase_admin import messaging
+from django.db import transaction
 
-from accounts.firebase import ensure_initialized
 from accounts.guardian_access import valid_guardian_links
-from accounts.models import GuardianLink, Roles, User
+from accounts.models import Roles, User
 
-from .models import DeviceToken, NotificationRecord, PlayerProfile
+from .models import NotificationRecord, PlayerProfile, PushOutbox
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +24,13 @@ def _recipients_for_session(session):
     club's players (multi-tenancy)."""
     tiers = session.age_tiers or []
     player_ids = set(
-        PlayerProfile.objects.filter(
-            age_tier__in=tiers, user__club_id=session.club_id
-        ).values_list('user_id', flat=True)
+        PlayerProfile.objects.filter(age_tier__in=tiers, user__club_id=session.club_id).values_list(
+            'user_id', flat=True
+        )
     )
     guardian_ids = set(
-        valid_guardian_links().filter(player_id__in=player_ids)
+        valid_guardian_links()
+        .filter(player_id__in=player_ids)
         .values_list('guardian_id', flat=True)
     )
     return player_ids | guardian_ids
@@ -40,63 +39,44 @@ def _recipients_for_session(session):
 def _player_and_guardian_ids(player_id):
     """The player plus every guardian linked to them."""
     guardian_ids = set(
-        valid_guardian_links(player_id=player_id)
-        .values_list('guardian_id', flat=True)
+        valid_guardian_links(player_id=player_id).values_list('guardian_id', flat=True)
     )
     return {player_id} | guardian_ids
 
 
+@transaction.atomic
 def _send_to_users(user_ids, *, title, body, data):
-    """Persist an inbox record, then fan out to every registered device.
-
-    Inbox persistence is authoritative and happens even when Firebase is not
-    configured or the recipient denied notification permission. FCM remains
-    best-effort: errors are logged/swallowed and dead tokens are pruned.
-    """
-    recipient_ids = list(
-        User.objects.filter(pk__in=set(user_ids), is_active=True)
-        .values_list('pk', flat=True)
+    """Persist inbox records and delivery intent; never perform network I/O."""
+    recipients = list(
+        User.objects.filter(
+            pk__in=set(user_ids),
+            is_active=True,
+        ).values_list('pk', flat=True)
     )
-    if not recipient_ids:
+    if not recipients:
         return 0
-    NotificationRecord.objects.bulk_create([
-        NotificationRecord(
-            user_id=user_id,
-            event_type=str(data.get('type') or 'general')[:40],
-            title=title[:120],
-            body=body[:300],
-            data=data,
-        )
-        for user_id in recipient_ids
-    ])
-
-    try:
-        ensure_initialized()
-    except Exception as exc:  # SDK not configured (e.g. local dev)
-        logger.info('Skipping push (Firebase unavailable): %s', exc)
-        return 0
-
-    tokens = list(
-        DeviceToken.objects.filter(user_id__in=recipient_ids)
-        .values_list('token', flat=True)
+    event_id = uuid4()
+    payload = {**data, 'eventId': str(event_id)}
+    NotificationRecord.objects.bulk_create(
+        [
+            NotificationRecord(
+                user_id=user_id,
+                event_type=str(data.get('type') or 'general')[:40],
+                title=title[:120],
+                body=body[:300],
+                data=payload,
+            )
+            for user_id in recipients
+        ]
     )
-    if not tokens:
-        return 0
-
-    message = messaging.MulticastMessage(
-        tokens=tokens,
-        notification=messaging.Notification(title=title, body=body),
-        data=data,
+    PushOutbox.objects.create(
+        event_id=event_id,
+        user_ids=recipients,
+        title=title[:120],
+        body=body[:300],
+        data=payload,
     )
-
-    try:
-        response = messaging.send_each_for_multicast(message)
-    except Exception as exc:
-        logger.warning('FCM send failed: %s', exc)
-        return 0
-
-    _prune_dead_tokens(tokens, response)
-    return response.success_count
+    return 0
 
 
 def notify_session_scheduled(session):
@@ -133,9 +113,7 @@ def notify_session_cancelled(session, user_ids=None, session_id=None):
 
 
 def notify_tournament_training_cancelled(session, fixture, user_ids=None):
-    recipients = set(
-        user_ids if user_ids is not None else _recipients_for_session(session)
-    )
+    recipients = set(user_ids if user_ids is not None else _recipients_for_session(session))
     recipients.update(
         User.objects.filter(
             club_id=session.club_id,
@@ -164,15 +142,15 @@ def notify_tournament_training_cancelled(session, fixture, user_ids=None):
 def notify_tournament_roster_published(squad):
     player_ids = set(squad.entries.values_list('player_id', flat=True))
     guardian_ids = set(
-        valid_guardian_links().filter(player_id__in=player_ids)
+        valid_guardian_links()
+        .filter(player_id__in=player_ids)
         .values_list('guardian_id', flat=True)
     )
     return _send_to_users(
         player_ids | guardian_ids,
         title='Tournament roster published',
         body=(
-            f'The {squad.bracket.label} roster for '
-            f'{squad.bracket.schedule.title} is now available.'
+            f'The {squad.bracket.label} roster for {squad.bracket.schedule.title} is now available.'
         ),
         data={
             'type': 'tournament_roster_published',
@@ -206,17 +184,3 @@ def notify_eligibility_changed(profile, previous):
             'playerId': str(profile.user_id),
         },
     )
-
-
-def _prune_dead_tokens(tokens, response):
-    """Delete tokens Firebase reports as unregistered/invalid."""
-    dead = []
-    for token, result in zip(tokens, response.responses):
-        if result.success:
-            continue
-        exc = result.exception
-        code = getattr(exc, 'code', '') or ''
-        if 'registration-token-not-registered' in str(code) or 'not-registered' in str(code):
-            dead.append(token)
-    if dead:
-        DeviceToken.objects.filter(token__in=dead).delete()

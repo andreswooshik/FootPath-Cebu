@@ -37,7 +37,8 @@ urlpatterns = [
         name='player-assessment-history',
     ),
     path(
-        'players/<int:player_id>/stats/', views.PlayerStatsView.as_view(),
+        'players/<int:player_id>/stats/',
+        views.PlayerStatsView.as_view(),
         name='player-stats',
     ),
     path(

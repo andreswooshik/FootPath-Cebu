@@ -6,6 +6,7 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+
 from test_uploads import jpeg_bytes
 
 from .admin import ClubAdmin, CustomUserAdmin
@@ -15,9 +16,7 @@ from .models import Club, Roles, User
 class ActiveCheckboxAdminTests(TestCase):
     def test_user_change_form_hides_raw_active_checkbox(self):
         field_names = {
-            field
-            for _title, options in CustomUserAdmin.fieldsets
-            for field in options['fields']
+            field for _title, options in CustomUserAdmin.fieldsets for field in options['fields']
         }
         self.assertNotIn('is_active', field_names)
 

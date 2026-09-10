@@ -1,6 +1,5 @@
 """Timezone-aware tournament priority rules shared by every write surface."""
 
-from django.db import transaction
 from django.utils import timezone
 
 from .models import (
@@ -15,10 +14,7 @@ from .notifications import (
     notify_tournament_training_cancelled,
 )
 
-
-CANCELLATION_REASON = (
-    'Automatically cancelled due to a tournament schedule conflict.'
-)
+CANCELLATION_REASON = 'Automatically cancelled due to a tournament schedule conflict.'
 
 
 def intervals_overlap(start_a, end_a, start_b, end_b):
@@ -54,19 +50,25 @@ def conflicting_fixture_for_training(*, club_id, tiers, start, end):
     # outside interval-based enforcement until the Coach supplies both times.
     if start is None or end is None:
         return None
-    fixtures = TournamentFixture.objects.select_related(
-        'schedule', 'age_bracket',
-    ).filter(
-        schedule__club_id=club_id,
-        schedule__is_published=True,
-        status__in=(FixtureStatus.SCHEDULED, FixtureStatus.POSTPONED),
-        kickoff_at__lt=end,
-        ends_at__gt=start,
-    ).order_by('kickoff_at', 'id')
+    fixtures = (
+        TournamentFixture.objects.select_related(
+            'schedule',
+            'age_bracket',
+        )
+        .filter(
+            schedule__club_id=club_id,
+            schedule__is_published=True,
+            status__in=(FixtureStatus.SCHEDULED, FixtureStatus.POSTPONED),
+            kickoff_at__lt=end,
+            ends_at__gt=start,
+        )
+        .order_by('kickoff_at', 'id')
+    )
     tier_set = set(tiers)
     return next(
         (
-            fixture for fixture in fixtures
+            fixture
+            for fixture in fixtures
             if tier_set.intersection(fixture.age_bracket.academy_tiers)
         ),
         None,
@@ -78,7 +80,9 @@ def training_conflicts_for_training(*, club_id, tiers, location, start, end, exc
     if start is None or end is None:
         return []
     sessions = TrainingSession.objects.filter(
-        club_id=club_id, status=TrainingSessionStatus.SCHEDULED, date=start.date(),
+        club_id=club_id,
+        status=TrainingSessionStatus.SCHEDULED,
+        date=start.date(),
     )
     if exclude_id:
         sessions = sessions.exclude(pk=exclude_id)
@@ -88,21 +92,30 @@ def training_conflicts_for_training(*, club_id, tiers, location, start, end, exc
         if other_start is None or not intervals_overlap(start, end, other_start, other_end):
             continue
         same_tier = bool(set(tiers).intersection(session.age_tiers))
-        same_location = bool(location.strip()) and location.strip().casefold() == session.location.strip().casefold()
+        same_location = (
+            bool(location.strip())
+            and location.strip().casefold() == session.location.strip().casefold()
+        )
         if same_tier or same_location:
-            conflicts.append({
-                'type': 'SAME_AGE_TIERS' if same_tier else 'LOCATION',
-                'title': session.title, 'ageTiers': session.age_tiers,
-                'date': session.date.isoformat(), 'startTime': session.start_time,
-                'endTime': session.end_time, 'location': session.location,
-            })
+            conflicts.append(
+                {
+                    'type': 'SAME_AGE_TIERS' if same_tier else 'LOCATION',
+                    'title': session.title,
+                    'ageTiers': session.age_tiers,
+                    'date': session.date.isoformat(),
+                    'startTime': session.start_time,
+                    'endTime': session.end_time,
+                    'location': session.location,
+                }
+            )
     return conflicts
 
 
 def conflicting_training_for_fixtures(fixtures, *, lock=False):
     """Return one authoritative fixture conflict per cancellable session."""
     fixtures = [
-        fixture for fixture in fixtures
+        fixture
+        for fixture in fixtures
         if fixture.status in (FixtureStatus.SCHEDULED, FixtureStatus.POSTPONED)
         and fixture.age_bracket_id
         and fixture.age_bracket.academy_tiers
@@ -123,9 +136,7 @@ def conflicting_training_for_fixtures(fixtures, *, lock=False):
         if session_start is None or session_start <= now:
             continue
         for fixture in fixtures:
-            if not set(session.age_tiers).intersection(
-                fixture.age_bracket.academy_tiers
-            ):
+            if not set(session.age_tiers).intersection(fixture.age_bracket.academy_tiers):
                 continue
             if intervals_overlap(
                 session_start,
@@ -169,27 +180,22 @@ def cancel_conflicting_training(fixtures, *, actor, action):
         session.conflicting_fixture_id = fixture.id
         session.cancelled_at = timezone.now()
         session.cancelled_by_action = action
-        session.save(update_fields=[
-            'status', 'cancellation_reason', 'conflicting_tournament_id',
-            'conflicting_fixture_id', 'cancelled_at',
-            'cancelled_by_action',
-        ])
+        session.save(
+            update_fields=[
+                'status',
+                'cancellation_reason',
+                'conflicting_tournament_id',
+                'conflicting_fixture_id',
+                'cancelled_at',
+                'cancelled_by_action',
+            ]
+        )
         AuditLog.record(
             actor,
             'session.tournament_conflict_cancelled',
             target=session.title,
-            detail=(
-                f'tournament={fixture.schedule_id}; fixture={fixture.id}; '
-                f'action={action}'
-            ),
+            detail=(f'tournament={fixture.schedule_id}; fixture={fixture.id}; action={action}'),
         )
-        transaction.on_commit(
-            lambda session=session, fixture=fixture, recipients=recipients:
-            notify_tournament_training_cancelled(
-                session,
-                fixture,
-                user_ids=recipients,
-            )
-        )
+        notify_tournament_training_cancelled(session, fixture, user_ids=recipients)
         cancelled.append((session, fixture))
     return cancelled

@@ -1,6 +1,40 @@
 """Academy serializers extracted from the legacy serializer module."""
 
-from .serializer_players import *  # noqa: F401,F403
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Count
+from django.utils import timezone
+from rest_framework import serializers
+
+from academy.model_operations import (
+    Attendance,
+    SessionConfirmation,
+)
+from academy.model_players import (
+    AgeTier,
+    EligibilityHistory,
+    PlayerProfile,
+    SessionFocus,
+)
+from academy.model_training import TrainingSession
+from academy.serializer_players import _display_name
+from accounts.models import Roles
+
+
+class TrainingSessionListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        sessions = list(data.all() if hasattr(data, 'all') else data)
+        counts = (
+            PlayerProfile.objects.filter(
+                user__club_id__in={session.club_id for session in sessions},
+            )
+            .values('user__club_id', 'age_tier')
+            .annotate(total=Count('pk'))
+        )
+        self.context['eligible_counts'] = {
+            (row['user__club_id'], row['age_tier']): row['total'] for row in counts
+        }
+        return super().to_representation(sessions)
+
 
 class TrainingSessionSerializer(serializers.ModelSerializer):
     """Matches TrainingSession.fromJson/toJson: id, title, ageTiers, date,
@@ -8,41 +42,73 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
 
     id = serializers.CharField(read_only=True)
     ageTiers = serializers.ListField(
-        source='age_tiers', child=serializers.CharField(), required=False,
+        source='age_tiers',
+        child=serializers.CharField(),
+        required=False,
     )
     startTime = serializers.CharField(source='start_time', required=False, allow_blank=True)
     endTime = serializers.CharField(source='end_time', required=False, allow_blank=True)
     attendeeCount = serializers.SerializerMethodField()
     cancellationReason = serializers.CharField(
-        source='cancellation_reason', read_only=True,
+        source='cancellation_reason',
+        read_only=True,
     )
     conflictingTournamentId = serializers.CharField(
-        source='conflicting_tournament_id', read_only=True, allow_null=True,
+        source='conflicting_tournament_id',
+        read_only=True,
+        allow_null=True,
     )
     conflictingFixtureId = serializers.CharField(
-        source='conflicting_fixture_id', read_only=True, allow_null=True,
+        source='conflicting_fixture_id',
+        read_only=True,
+        allow_null=True,
     )
     cancelledAt = serializers.DateTimeField(
-        source='cancelled_at', read_only=True, allow_null=True,
+        source='cancelled_at',
+        read_only=True,
+        allow_null=True,
     )
     primaryFocus = serializers.CharField(source='focus', required=False)
     additionalFocuses = serializers.ListField(
-        source='additional_focuses', child=serializers.CharField(), required=False,
+        source='additional_focuses',
+        child=serializers.CharField(),
+        required=False,
     )
-    sessionObjectives = serializers.CharField(source='session_objectives', required=False, allow_blank=True, max_length=2000)
-    equipmentRequirements = serializers.CharField(source='equipment_requirements', required=False, allow_blank=True, max_length=2000)
-    coachInstructions = serializers.CharField(source='coach_instructions', required=False, allow_blank=True, max_length=2000)
+    sessionObjectives = serializers.CharField(
+        source='session_objectives', required=False, allow_blank=True, max_length=2000
+    )
+    equipmentRequirements = serializers.CharField(
+        source='equipment_requirements', required=False, allow_blank=True, max_length=2000
+    )
+    coachInstructions = serializers.CharField(
+        source='coach_instructions', required=False, allow_blank=True, max_length=2000
+    )
     eligiblePlayerCount = serializers.SerializerMethodField()
 
     class Meta:
         model = TrainingSession
+        list_serializer_class = TrainingSessionListSerializer
         fields = [
-            'id', 'title', 'ageTiers', 'date', 'startTime', 'endTime',
-            'location', 'focus', 'primaryFocus', 'additionalFocuses',
-            'sessionObjectives', 'equipmentRequirements', 'coachInstructions',
-            'status', 'cancellationReason',
-            'conflictingTournamentId', 'conflictingFixtureId', 'cancelledAt',
-            'attendeeCount', 'eligiblePlayerCount',
+            'id',
+            'title',
+            'ageTiers',
+            'date',
+            'startTime',
+            'endTime',
+            'location',
+            'focus',
+            'primaryFocus',
+            'additionalFocuses',
+            'sessionObjectives',
+            'equipmentRequirements',
+            'coachInstructions',
+            'status',
+            'cancellationReason',
+            'conflictingTournamentId',
+            'conflictingFixtureId',
+            'cancelledAt',
+            'attendeeCount',
+            'eligiblePlayerCount',
         ]
         read_only_fields = ['status']
 
@@ -51,7 +117,12 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
         return getattr(obj, 'present_attendee_count', 0)
 
     def get_eligiblePlayerCount(self, obj):
-        return PlayerProfile.objects.filter(age_tier__in=obj.age_tiers, user__club_id=obj.club_id).count()
+        counts = self.context.get('eligible_counts')
+        if counts is not None:
+            return sum(counts.get((obj.club_id, tier), 0) for tier in set(obj.age_tiers))
+        return PlayerProfile.objects.filter(
+            age_tier__in=obj.age_tiers, user__club_id=obj.club_id
+        ).count()
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -67,10 +138,12 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
                 'start_time': 'startTime',
                 'end_time': 'endTime',
             }
-            raise serializers.ValidationError({
-                field_names.get(field, field): messages
-                for field, messages in exc.message_dict.items()
-            }) from exc
+            raise serializers.ValidationError(
+                {
+                    field_names.get(field, field): messages
+                    for field, messages in exc.message_dict.items()
+                }
+            ) from exc
         attrs['start_time'] = start_time
         attrs['end_time'] = end_time
         date = attrs.get('date', self.instance.date if self.instance else None)
@@ -78,8 +151,12 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
             draft = TrainingSession(date=date, start_time=start_time, end_time=end_time)
             start, _end = draft.interval()
             if start <= timezone.now():
-                raise serializers.ValidationError({'startTime': 'The session start time must be in the future.'})
-        focuses = attrs.get('additional_focuses', self.instance.additional_focuses if self.instance else [])
+                raise serializers.ValidationError(
+                    {'startTime': 'The session start time must be in the future.'}
+                )
+        focuses = attrs.get(
+            'additional_focuses', self.instance.additional_focuses if self.instance else []
+        )
         valid = set(SessionFocus.values)
         focuses = list(dict.fromkeys(str(value).upper() for value in focuses))
         if any(value not in valid for value in focuses):
@@ -106,9 +183,7 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
 
     def validate_date(self, value):
         if value < timezone.localdate():
-            raise serializers.ValidationError(
-                'The session date cannot be in the past.'
-            )
+            raise serializers.ValidationError('The session date cannot be in the past.')
         return value
 
 
@@ -132,17 +207,30 @@ class AttendanceSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     sessionFocus = serializers.CharField(
-        source='session.focus', read_only=True, allow_null=True,
+        source='session.focus',
+        read_only=True,
+        allow_null=True,
     )
     sessionDate = serializers.DateField(
-        source='session.date', read_only=True, allow_null=True,
+        source='session.date',
+        read_only=True,
+        allow_null=True,
     )
 
     class Meta:
         model = Attendance
         fields = [
-            'playerId', 'sessionId', 'status', 'effort', 'performanceScore', 'note',
-            'updatedAt', 'sessionName', 'sessionFocus', 'sessionDate', 'coachUid',
+            'playerId',
+            'sessionId',
+            'status',
+            'effort',
+            'performanceScore',
+            'note',
+            'updatedAt',
+            'sessionName',
+            'sessionFocus',
+            'sessionDate',
+            'coachUid',
         ]
 
     def get_sessionId(self, obj):
@@ -202,7 +290,8 @@ class EligibilityHistorySerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         viewer = getattr(request, 'user', None)
         privileged = viewer is not None and viewer.role in (
-            Roles.SCHOOL_STAFF, Roles.ADMIN,
+            Roles.SCHOOL_STAFF,
+            Roles.ADMIN,
         )
         # Staff/Admin see the person; Player/Guardian see only the role.
         return _display_name(actor) if privileged else actor.get_role_display()

@@ -5,8 +5,8 @@ an immutable assessment must always be interpretable against the exact catalog
 that validated it. A future catalog is introduced as a new version instead of
 silently changing the meaning of historical scores.
 """
-from decimal import Decimal, ROUND_HALF_UP
 
+from decimal import ROUND_HALF_UP, Decimal
 
 FRAMEWORK_VERSION = 1
 FRAMEWORK_NAME = 'FootPath Development Framework'
@@ -69,28 +69,84 @@ DOMAIN_META = {
 
 CORE_INDICATORS = {
     'technical': (
-        ('firstTouchBallControl', 'First touch and ball control', 'Prepares the next action with controlled, purposeful touches.'),
-        ('passingReceiving', 'Passing and receiving', 'Connects accurately and receives with awareness of the next action.'),
-        ('skillUnderPressure', 'Skill under pressure', 'Keeps useful technique when space or time is reduced.'),
+        (
+            'firstTouchBallControl',
+            'First touch and ball control',
+            'Prepares the next action with controlled, purposeful touches.',
+        ),
+        (
+            'passingReceiving',
+            'Passing and receiving',
+            'Connects accurately and receives with awareness of the next action.',
+        ),
+        (
+            'skillUnderPressure',
+            'Skill under pressure',
+            'Keeps useful technique when space or time is reduced.',
+        ),
     ),
     'tactical': (
-        ('scanningAwareness', 'Scanning and awareness', 'Checks surroundings and recognizes teammates, opponents, and space.'),
-        ('decisionMaking', 'Decision-making', 'Chooses an effective action for the game situation.'),
-        ('positioningSpace', 'Positioning and use of space', 'Creates, protects, or closes useful space for the team.'),
+        (
+            'scanningAwareness',
+            'Scanning and awareness',
+            'Checks surroundings and recognizes teammates, opponents, and space.',
+        ),
+        (
+            'decisionMaking',
+            'Decision-making',
+            'Chooses an effective action for the game situation.',
+        ),
+        (
+            'positioningSpace',
+            'Positioning and use of space',
+            'Creates, protects, or closes useful space for the team.',
+        ),
     ),
     'physical': (
-        ('coordinationBalance', 'Coordination and balance', 'Controls the body efficiently while changing football actions.'),
-        ('agilityDirection', 'Agility and change of direction', 'Accelerates, brakes, and changes direction with control.'),
-        ('repeatEffortEndurance', 'Repeat effort and endurance', 'Sustains useful football actions and recovers between efforts.'),
+        (
+            'coordinationBalance',
+            'Coordination and balance',
+            'Controls the body efficiently while changing football actions.',
+        ),
+        (
+            'agilityDirection',
+            'Agility and change of direction',
+            'Accelerates, brakes, and changes direction with control.',
+        ),
+        (
+            'repeatEffortEndurance',
+            'Repeat effort and endurance',
+            'Sustains useful football actions and recovers between efforts.',
+        ),
     ),
     'mental': (
-        ('focusLearning', 'Focus and learning', 'Listens, applies feedback, and stays engaged with the task.'),
-        ('confidenceCreativity', 'Confidence and creativity', 'Attempts solutions and expresses ideas without fear of mistakes.'),
-        ('resilienceEmotionalControl', 'Resilience and emotional control', 'Responds constructively to errors, pressure, and setbacks.'),
+        (
+            'focusLearning',
+            'Focus and learning',
+            'Listens, applies feedback, and stays engaged with the task.',
+        ),
+        (
+            'confidenceCreativity',
+            'Confidence and creativity',
+            'Attempts solutions and expresses ideas without fear of mistakes.',
+        ),
+        (
+            'resilienceEmotionalControl',
+            'Resilience and emotional control',
+            'Responds constructively to errors, pressure, and setbacks.',
+        ),
     ),
     'socialValues': (
-        ('humility', 'Humility', 'Accepts feedback, stays grounded, and values the contribution of others.'),
-        ('effortCommitment', 'Effort and commitment', 'Shows dependable preparation and purposeful effort for the team.'),
+        (
+            'humility',
+            'Humility',
+            'Accepts feedback, stays grounded, and values the contribution of others.',
+        ),
+        (
+            'effortCommitment',
+            'Effort and commitment',
+            'Shows dependable preparation and purposeful effort for the team.',
+        ),
         ('ambition', 'Ambition', 'Sets challenging goals and works deliberately to improve.'),
         ('respect', 'Respect', 'Treats teammates, opponents, officials, and staff appropriately.'),
         ('teamwork', 'Teamwork', 'Communicates, cooperates, and puts shared success into action.'),
@@ -113,66 +169,162 @@ POSITION_GROUPS = {
 POSITION_INDICATORS = {
     'GOALKEEPER': {
         'technical': (
-            ('handlingShotStopping', 'Handling and shot-stopping', 'Uses secure techniques to protect the goal and retain or divert the ball.'),
-            ('goalkeeperDistribution', 'Goalkeeper distribution', 'Restarts accurately and with an appropriate technique.'),
+            (
+                'handlingShotStopping',
+                'Handling and shot-stopping',
+                'Uses secure techniques to protect the goal and retain or divert the ball.',
+            ),
+            (
+                'goalkeeperDistribution',
+                'Goalkeeper distribution',
+                'Restarts accurately and with an appropriate technique.',
+            ),
         ),
         'tactical': (
-            ('anglesStartingPosition', 'Angles and starting position', 'Adjusts position early to protect space and the goal.'),
-            ('organisationSweeping', 'Organisation and sweeping', 'Communicates, supports the line, and manages space behind it.'),
+            (
+                'anglesStartingPosition',
+                'Angles and starting position',
+                'Adjusts position early to protect space and the goal.',
+            ),
+            (
+                'organisationSweeping',
+                'Organisation and sweeping',
+                'Communicates, supports the line, and manages space behind it.',
+            ),
         ),
         'physical': (
-            ('goalkeeperExplosiveness', 'Goalkeeper explosive movement', 'Moves powerfully and safely in goalkeeper-specific actions.'),
+            (
+                'goalkeeperExplosiveness',
+                'Goalkeeper explosive movement',
+                'Moves powerfully and safely in goalkeeper-specific actions.',
+            ),
         ),
         'mental': (
-            ('goalkeeperComposure', 'Goalkeeper composure', 'Resets quickly and communicates calmly after high-pressure moments.'),
+            (
+                'goalkeeperComposure',
+                'Goalkeeper composure',
+                'Resets quickly and communicates calmly after high-pressure moments.',
+            ),
         ),
     },
     'DEFENCE': {
         'technical': (
-            ('defensiveTechnique', 'Defensive technique', 'Uses appropriate body shape and technique in defensive actions.'),
-            ('buildUpPassing', 'Build-up passing', 'Progresses or retains possession securely from the back line.'),
+            (
+                'defensiveTechnique',
+                'Defensive technique',
+                'Uses appropriate body shape and technique in defensive actions.',
+            ),
+            (
+                'buildUpPassing',
+                'Build-up passing',
+                'Progresses or retains possession securely from the back line.',
+            ),
         ),
         'tactical': (
-            ('pressureCoverBalance', 'Pressure, cover, and balance', 'Coordinates with teammates to protect dangerous space.'),
-            ('defensiveLineDecisions', 'Line and build-up decisions', 'Recognizes when to step, drop, hold, or support possession.'),
+            (
+                'pressureCoverBalance',
+                'Pressure, cover, and balance',
+                'Coordinates with teammates to protect dangerous space.',
+            ),
+            (
+                'defensiveLineDecisions',
+                'Line and build-up decisions',
+                'Recognizes when to step, drop, hold, or support possession.',
+            ),
         ),
         'physical': (
-            ('defensiveDuelsMobility', 'Defensive duels and mobility', 'Moves and competes effectively while staying controlled.'),
+            (
+                'defensiveDuelsMobility',
+                'Defensive duels and mobility',
+                'Moves and competes effectively while staying controlled.',
+            ),
         ),
         'mental': (
-            ('defensiveDiscipline', 'Defensive discipline', 'Maintains concentration, patience, and responsibility when defending.'),
+            (
+                'defensiveDiscipline',
+                'Defensive discipline',
+                'Maintains concentration, patience, and responsibility when defending.',
+            ),
         ),
     },
     'MIDFIELD': {
         'technical': (
-            ('halfTurnReceiving', 'Receiving on the half-turn', 'Receives in a shape that opens useful forward options.'),
-            ('progressivePassing', 'Progressive passing', 'Breaks or shifts lines without forcing low-value actions.'),
+            (
+                'halfTurnReceiving',
+                'Receiving on the half-turn',
+                'Receives in a shape that opens useful forward options.',
+            ),
+            (
+                'progressivePassing',
+                'Progressive passing',
+                'Breaks or shifts lines without forcing low-value actions.',
+            ),
         ),
         'tactical': (
-            ('supportTempo', 'Support and tempo', 'Offers useful angles and helps control the speed of play.'),
-            ('midfieldTransitions', 'Midfield transitions', 'Reacts early when possession changes.'),
+            (
+                'supportTempo',
+                'Support and tempo',
+                'Offers useful angles and helps control the speed of play.',
+            ),
+            (
+                'midfieldTransitions',
+                'Midfield transitions',
+                'Reacts early when possession changes.',
+            ),
         ),
         'physical': (
-            ('midfieldRepeatMovement', 'Repeat midfield movement', 'Repeatedly supports play in and out of possession.'),
+            (
+                'midfieldRepeatMovement',
+                'Repeat midfield movement',
+                'Repeatedly supports play in and out of possession.',
+            ),
         ),
         'mental': (
-            ('midfieldResponsibility', 'Responsibility under pressure', 'Continues requesting and using the ball in difficult moments.'),
+            (
+                'midfieldResponsibility',
+                'Responsibility under pressure',
+                'Continues requesting and using the ball in difficult moments.',
+            ),
         ),
     },
     'ATTACK': {
         'technical': (
-            ('oneVOneDribbling', '1v1 and dribbling', 'Creates or protects an advantage when directly opposed.'),
-            ('finishing', 'Finishing', 'Selects and executes an appropriate final action near goal.'),
+            (
+                'oneVOneDribbling',
+                '1v1 and dribbling',
+                'Creates or protects an advantage when directly opposed.',
+            ),
+            (
+                'finishing',
+                'Finishing',
+                'Selects and executes an appropriate final action near goal.',
+            ),
         ),
         'tactical': (
-            ('movementChanceCreation', 'Movement and chance creation', 'Times movement to receive, combine, or open space for others.'),
-            ('attackingPressing', 'Attacking pressing', 'Recognizes cues and works with teammates to regain or delay possession.'),
+            (
+                'movementChanceCreation',
+                'Movement and chance creation',
+                'Times movement to receive, combine, or open space for others.',
+            ),
+            (
+                'attackingPressing',
+                'Attacking pressing',
+                'Recognizes cues and works with teammates to regain or delay possession.',
+            ),
         ),
         'physical': (
-            ('attackingAcceleration', 'Attacking acceleration and deceleration', 'Changes speed sharply and under control to create separation.'),
+            (
+                'attackingAcceleration',
+                'Attacking acceleration and deceleration',
+                'Changes speed sharply and under control to create separation.',
+            ),
         ),
         'mental': (
-            ('attackingInitiative', 'Attacking initiative', 'Persists and takes responsible initiative after unsuccessful actions.'),
+            (
+                'attackingInitiative',
+                'Attacking initiative',
+                'Persists and takes responsible initiative after unsuccessful actions.',
+            ),
         ),
     },
 }
@@ -236,13 +388,15 @@ def framework_for(age_tier, position):
             }
             for indicator_key, label, description in additions.get(key, ())
         )
-        domains.append({
-            'key': key,
-            **meta,
-            'guidance': AGE_GUIDANCE[tier][key],
-            'minimumObserved': (len(indicators) + 1) // 2,
-            'indicators': indicators,
-        })
+        domains.append(
+            {
+                'key': key,
+                **meta,
+                'guidance': AGE_GUIDANCE[tier][key],
+                'minimumObserved': (len(indicators) + 1) // 2,
+                'indicators': indicators,
+            }
+        )
     return {
         'version': FRAMEWORK_VERSION,
         'name': FRAMEWORK_NAME,
@@ -258,13 +412,17 @@ def framework_for(age_tier, position):
 
 def validate_scores(raw_scores, *, age_tier, position, version):
     if version != FRAMEWORK_VERSION:
-        raise AssessmentFrameworkError({
-            'frameworkVersion': f'Only framework version {FRAMEWORK_VERSION} is supported.',
-        })
+        raise AssessmentFrameworkError(
+            {
+                'frameworkVersion': f'Only framework version {FRAMEWORK_VERSION} is supported.',
+            }
+        )
     if not isinstance(raw_scores, dict):
-        raise AssessmentFrameworkError({
-            'developmentRatings': 'Use an object grouped by assessment domain.',
-        })
+        raise AssessmentFrameworkError(
+            {
+                'developmentRatings': 'Use an object grouped by assessment domain.',
+            }
+        )
 
     framework = framework_for(age_tier, position)
     expected_domains = {domain['key']: domain for domain in framework['domains']}
@@ -282,9 +440,7 @@ def validate_scores(raw_scores, *, age_tier, position, version):
         if not isinstance(raw_domain, dict):
             errors[domain_key] = 'Use an object containing every applicable indicator.'
             continue
-        expected_keys = {
-            indicator['key'] for indicator in domain['indicators']
-        }
+        expected_keys = {indicator['key'] for indicator in domain['indicators']}
         missing = sorted(expected_keys - set(raw_domain))
         unknown = sorted(set(raw_domain) - expected_keys)
         domain_errors = {}
@@ -300,9 +456,7 @@ def validate_scores(raw_scores, *, age_tier, position, version):
             if key not in raw_domain:
                 continue
             value = raw_domain[key]
-            if value is not None and (
-                type(value) is not int or value < 1 or value > 5
-            ):
+            if value is not None and (type(value) is not int or value < 1 or value > 5):
                 domain_errors[key] = 'Use an integer from 1 to 5 or null for Not observed.'
                 continue
             normalized[key] = value
@@ -337,9 +491,7 @@ def rounded_mean(values, digits=1):
 def domain_scores(scores):
     scores = scores if isinstance(scores, dict) else {}
     return {
-        key: rounded_mean(
-            list(domain.values()) if isinstance(domain, dict) else []
-        )
+        key: rounded_mean(list(domain.values()) if isinstance(domain, dict) else [])
         for key in DOMAIN_META
         for domain in [scores.get(key, {})]
     }

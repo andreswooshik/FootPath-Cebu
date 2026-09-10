@@ -1,5 +1,6 @@
 """Pure aggregation helpers for historical player match performances."""
-from decimal import Decimal, ROUND_HALF_UP
+
+from decimal import ROUND_HALF_UP, Decimal
 
 
 def build_performance_summary(performances):

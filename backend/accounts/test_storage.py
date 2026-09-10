@@ -10,11 +10,14 @@ from .storage import SupabaseCoachLicenseStorage
 @override_settings(TESTING=False, DEBUG=True)
 class SupabaseCoachLicenseStorageTests(SimpleTestCase):
     def setUp(self):
-        self.env = patch.dict(os.environ, {
-            'SUPABASE_URL': 'https://project.supabase.co',
-            'SUPABASE_SERVICE_KEY': 'sb_secret_test',
-            'SUPABASE_LICENSE_BUCKET': 'coach-licenses',
-        })
+        self.env = patch.dict(
+            os.environ,
+            {
+                'SUPABASE_URL': 'https://project.supabase.co',
+                'SUPABASE_SERVICE_KEY': 'sb_secret_test',
+                'SUPABASE_LICENSE_BUCKET': 'coach-licenses',
+            },
+        )
         self.env.start()
         self.addCleanup(self.env.stop)
         self.storage = SupabaseCoachLicenseStorage()
@@ -23,7 +26,9 @@ class SupabaseCoachLicenseStorageTests(SimpleTestCase):
     def test_save_uploads_to_private_license_bucket(self, post):
         post.return_value.raise_for_status.return_value = None
         upload = SimpleUploadedFile(
-            'license.pdf', b'%PDF-1.4 license', content_type='application/pdf',
+            'license.pdf',
+            b'%PDF-1.4 license',
+            content_type='application/pdf',
         )
 
         name = self.storage.save('coach-licenses/random.pdf', upload)

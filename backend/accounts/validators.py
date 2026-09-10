@@ -11,7 +11,6 @@ from config.upload_security import (
     sanitize_document,
 )
 
-
 COACH_LICENSE_MAX_BYTES = MAX_UPLOAD_BYTES
 COACH_LICENSE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.pdf'}
 COACH_LICENSE_CONTENT_TYPES = {
@@ -19,6 +18,8 @@ COACH_LICENSE_CONTENT_TYPES = {
     'image/png',
     'application/pdf',
 }
+
+
 def validate_coach_license_upload(upload):
     """Accept only fully parsed JPG, PNG, or passive PDF files up to 5 MB.
 
@@ -59,10 +60,7 @@ def _content_type_from_extension(extension):
 def sanitized_coach_license(upload):
     """Return a metadata-free upload after the field validator has accepted it."""
     extension = os.path.splitext(getattr(upload, 'name', ''))[1].lower()
-    content_type = (
-        getattr(upload, 'content_type', None)
-        or _content_type_from_extension(extension)
-    )
+    content_type = getattr(upload, 'content_type', None) or _content_type_from_extension(extension)
     try:
         content = sanitize_document(read_limited_upload(upload), content_type)
     except ValueError as exc:

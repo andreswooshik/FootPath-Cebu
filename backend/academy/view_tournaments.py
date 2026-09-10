@@ -1,6 +1,52 @@
 """Domain-focused API views extracted from the legacy view module."""
 
-from ._view_support import *  # noqa: F401,F403
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
+from django.db.models import Prefetch
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.exceptions import (
+    PermissionDenied,
+    ValidationError,
+)
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from academy._view_support import (
+    _confirmed,
+    _training_cancellation_details,
+)
+from academy.errors import WorkflowConflict
+from academy.model_operations import AuditLog
+from academy.model_players import FixtureStatus
+from academy.model_tournaments import (
+    TournamentFixture,
+    TournamentSchedule,
+)
+from academy.schedule_conflicts import (
+    cancel_conflicting_training,
+    conflicting_training_for_fixtures,
+)
+from academy.serializer_match_performance import TournamentFixtureResultWriteSerializer
+from academy.serializer_tournaments import (
+    TournamentFixtureWriteSerializer,
+    TournamentScheduleSerializer,
+    TournamentScheduleWriteSerializer,
+)
+from academy.storage import (
+    delete_tournament_document,
+    invalidate_signed_tournament_document_url,
+    sanitized_tournament_document_bytes,
+    upload_tournament_document,
+    validate_tournament_document,
+)
+from academy.tournament_results import complete_tournament_fixture
+from academy.tournament_rosters import invalid_squad_entries
+from accounts.models import Roles
+
+from .transactions import club_write_transaction
+
 
 def _tournament_schedule_data(value, request, *, many=False):
     return TournamentScheduleSerializer(
@@ -23,9 +69,7 @@ class TournamentScheduleListView(APIView):
 
     def get(self, request):
         if request.user.role not in self._roles:
-            raise PermissionDenied(
-                'Your role cannot view mobile tournament schedules.'
-            )
+            raise PermissionDenied('Your role cannot view mobile tournament schedules.')
         schedules = (
             TournamentSchedule.objects.all()
             .select_related('club')
@@ -33,7 +77,8 @@ class TournamentScheduleListView(APIView):
                 Prefetch(
                     'fixtures',
                     queryset=TournamentFixture.objects.select_related(
-                        'age_bracket', 'completed_match',
+                        'age_bracket',
+                        'completed_match',
                     ),
                 ),
                 'age_brackets__squad__entries__player__player_profile',
@@ -47,10 +92,9 @@ class TournamentScheduleListView(APIView):
             schedules = schedules.filter(club_id=request.user.club_id)
             if request.user.role != Roles.COORDINATOR:
                 schedules = schedules.filter(is_published=True)
-        return Response(
-            _tournament_schedule_data(schedules, request, many=True)
-        )
+        return Response(_tournament_schedule_data(schedules, request, many=True))
 
+    @club_write_transaction
     def post(self, request):
         if request.user.role != Roles.COORDINATOR:
             raise PermissionDenied('Only Coordinators can create tournaments.')
@@ -79,7 +123,8 @@ class TournamentScheduleListView(APIView):
                         request.user.club_id,
                         schedule.id,
                         sanitized_tournament_document_bytes(
-                            document, content_type,
+                            document,
+                            content_type,
                         ),
                         content_type,
                     )
@@ -94,8 +139,7 @@ class TournamentScheduleListView(APIView):
             'tournament.draft_created',
             target=schedule.title,
             detail=(
-                f'{schedule.starts_on} | '
-                f'{"document uploaded" if document else "manual schedule"}'
+                f'{schedule.starts_on} | {"document uploaded" if document else "manual schedule"}'
             ),
         )
         return Response(
@@ -110,16 +154,17 @@ def _coordinator_mobile_schedule(user, schedule_id, *, lock=False):
     if user.club_id is None:
         raise PermissionDenied('Coordinator account must belong to a club.')
     queryset = TournamentSchedule.objects.prefetch_related(
-            Prefetch(
-                'fixtures',
-                queryset=TournamentFixture.objects.select_related(
-                    'age_bracket', 'completed_match',
-                ),
+        Prefetch(
+            'fixtures',
+            queryset=TournamentFixture.objects.select_related(
+                'age_bracket',
+                'completed_match',
             ),
-            'age_brackets__squad__entries__player__player_profile',
-        )
+        ),
+        'age_brackets__squad__entries__player__player_profile',
+    )
     if lock:
-        queryset = queryset.select_for_update()
+        queryset = queryset.select_for_update(of=('self',))
     return get_object_or_404(
         queryset,
         pk=schedule_id,
@@ -134,13 +179,16 @@ class TournamentScheduleDetailView(APIView):
         schedule = _coordinator_mobile_schedule(request.user, schedule_id)
         return Response(_tournament_schedule_data(schedule, request))
 
+    @club_write_transaction
     def patch(self, request, schedule_id):
         schedule = _coordinator_mobile_schedule(request.user, schedule_id)
         old_title = schedule.title
         old_date = schedule.starts_on
         with transaction.atomic():
             serializer = TournamentScheduleWriteSerializer(
-                schedule, data=request.data, partial=True,
+                schedule,
+                data=request.data,
+                partial=True,
             )
             serializer.is_valid(raise_exception=True)
             schedule = serializer.save()
@@ -153,31 +201,26 @@ class TournamentScheduleDetailView(APIView):
                 )
             if invalid:
                 names = ', '.join(
-                    entry.player.get_full_name() or entry.player.email
-                    for entry, _ in invalid
+                    entry.player.get_full_name() or entry.player.email for entry, _ in invalid
                 )
-                raise ValidationError({
-                    'startsOn': f'Roster members must be reviewed first: {names}.'
-                })
+                raise ValidationError(
+                    {'startsOn': f'Roster members must be reviewed first: {names}.'}
+                )
         AuditLog.record(
             request.user,
             'tournament.updated',
             target=schedule.title,
-            detail=(
-                f'{old_title} ({old_date}) -> '
-                f'{schedule.title} ({schedule.starts_on})'
-            ),
+            detail=(f'{old_title} ({old_date}) -> {schedule.title} ({schedule.starts_on})'),
         )
         return Response(_tournament_schedule_data(schedule, request))
 
+    @club_write_transaction
     def delete(self, request, schedule_id):
         schedule = _coordinator_mobile_schedule(request.user, schedule_id)
         if schedule.fixtures.filter(completed_match__isnull=False).exists():
-            raise ValidationError({
-                'tournament': (
-                    'This tournament has completed matches and cannot be deleted.'
-                )
-            })
+            raise ValidationError(
+                {'tournament': ('This tournament has completed matches and cannot be deleted.')}
+            )
         target = schedule.title
         document_path = schedule.document_path
         schedule.delete()
@@ -189,10 +232,13 @@ class TournamentScheduleDetailView(APIView):
 class TournamentSchedulePublishView(APIView):
     """Publish a configured tournament to the whole club."""
 
+    @club_write_transaction
     def post(self, request, schedule_id):
         with transaction.atomic():
             schedule = _coordinator_mobile_schedule(
-                request.user, schedule_id, lock=True,
+                request.user,
+                schedule_id,
+                lock=True,
             )
             errors = schedule.publication_errors()
             if errors:
@@ -200,9 +246,12 @@ class TournamentSchedulePublishView(APIView):
             if schedule.is_published:
                 return Response(_tournament_schedule_data(schedule, request))
             fixtures = list(
-                TournamentFixture.objects.select_for_update().select_related(
-                    'schedule', 'age_bracket',
-                ).filter(schedule=schedule)
+                TournamentFixture.objects.select_for_update(of=('self',))
+                .select_related(
+                    'schedule',
+                    'age_bracket',
+                )
+                .filter(schedule=schedule)
             )
             conflicts = conflicting_training_for_fixtures(fixtures, lock=True)
             if conflicts and not _confirmed(request):
@@ -214,9 +263,13 @@ class TournamentSchedulePublishView(APIView):
                 )
             schedule.is_published = True
             schedule.published_at = timezone.now()
-            schedule.save(update_fields=[
-                'is_published', 'published_at', 'updated_at',
-            ])
+            schedule.save(
+                update_fields=[
+                    'is_published',
+                    'published_at',
+                    'updated_at',
+                ]
+            )
             cancel_conflicting_training(
                 fixtures,
                 actor=request.user,
@@ -236,6 +289,7 @@ class TournamentScheduleDocumentView(APIView):
 
     throttle_scope = 'uploads'
 
+    @club_write_transaction
     def post(self, request, schedule_id):
         schedule = _coordinator_mobile_schedule(request.user, schedule_id)
         document = request.FILES.get('document')
@@ -257,21 +311,25 @@ class TournamentScheduleDocumentView(APIView):
             raise ValidationError({'document': str(exc)}) from exc
         schedule.document_path = new_path
         schedule.uploaded_by = request.user
-        schedule.save(update_fields=[
-            'document_path', 'uploaded_by', 'updated_at',
-        ])
+        schedule.save(
+            update_fields=[
+                'document_path',
+                'uploaded_by',
+                'updated_at',
+            ]
+        )
         if old_path and old_path != new_path:
             invalidate_signed_tournament_document_url(old_path)
             delete_tournament_document(old_path)
         invalidate_signed_tournament_document_url(new_path)
         AuditLog.record(
             request.user,
-            'tournament.document_replaced' if old_path
-            else 'tournament.document_uploaded',
+            'tournament.document_replaced' if old_path else 'tournament.document_uploaded',
             target=schedule.title,
         )
         return Response(_tournament_schedule_data(schedule, request))
 
+    @club_write_transaction
     def delete(self, request, schedule_id):
         schedule = _coordinator_mobile_schedule(request.user, schedule_id)
         old_path = schedule.document_path
@@ -292,10 +350,13 @@ class TournamentScheduleDocumentView(APIView):
 class TournamentFixtureCreateView(APIView):
     """Add a manually-entered fixture to the shared tournament schedule."""
 
+    @club_write_transaction
     def post(self, request, schedule_id):
         with transaction.atomic():
             schedule = _coordinator_mobile_schedule(
-                request.user, schedule_id, lock=True,
+                request.user,
+                schedule_id,
+                lock=True,
             )
             serializer = TournamentFixtureWriteSerializer(
                 data=request.data,
@@ -305,7 +366,8 @@ class TournamentFixtureCreateView(APIView):
             fixture = serializer.save(schedule=schedule)
             if schedule.is_published:
                 conflicts = conflicting_training_for_fixtures(
-                    [fixture], lock=True,
+                    [fixture],
+                    lock=True,
                 )
                 if conflicts and not _confirmed(request):
                     raise WorkflowConflict(
@@ -338,10 +400,12 @@ def _coordinator_mobile_fixture(user, fixture_id, *, lock=False):
     if user.club_id is None:
         raise PermissionDenied('Coordinator account must belong to a club.')
     queryset = TournamentFixture.objects.select_related(
-        'schedule', 'age_bracket', 'completed_match',
+        'schedule',
+        'age_bracket',
+        'completed_match',
     )
     if lock:
-        queryset = queryset.select_for_update()
+        queryset = queryset.select_for_update(of=('self',))
     return get_object_or_404(
         queryset,
         pk=fixture_id,
@@ -350,18 +414,18 @@ def _coordinator_mobile_fixture(user, fixture_id, *, lock=False):
 
 
 class TournamentFixtureDetailView(APIView):
+    @club_write_transaction
     def patch(self, request, fixture_id):
         with transaction.atomic():
             fixture = _coordinator_mobile_fixture(
-                request.user, fixture_id, lock=True,
+                request.user,
+                fixture_id,
+                lock=True,
             )
-            if (
-                fixture.completed_match_id
-                or fixture.status == FixtureStatus.COMPLETED
-            ):
-                raise ValidationError({
-                    'fixture': 'A completed fixture\'s schedule cannot be edited.'
-                })
+            if fixture.completed_match_id or fixture.status == FixtureStatus.COMPLETED:
+                raise ValidationError(
+                    {'fixture': "A completed fixture's schedule cannot be edited."}
+                )
             serializer = TournamentFixtureWriteSerializer(
                 fixture,
                 data=request.data,
@@ -372,7 +436,8 @@ class TournamentFixtureDetailView(APIView):
             fixture = serializer.save()
             if fixture.schedule.is_published:
                 conflicts = conflicting_training_for_fixtures(
-                    [fixture], lock=True,
+                    [fixture],
+                    lock=True,
                 )
                 if conflicts and not _confirmed(request):
                     raise WorkflowConflict(
@@ -395,12 +460,11 @@ class TournamentFixtureDetailView(APIView):
         fixture.schedule.refresh_from_db()
         return Response(_tournament_schedule_data(fixture.schedule, request))
 
+    @club_write_transaction
     def delete(self, request, fixture_id):
         fixture = _coordinator_mobile_fixture(request.user, fixture_id)
         if fixture.completed_match_id or fixture.status == FixtureStatus.COMPLETED:
-            raise ValidationError({
-                'fixture': 'A completed fixture cannot be deleted.'
-            })
+            raise ValidationError({'fixture': 'A completed fixture cannot be deleted.'})
         schedule = fixture.schedule
         target = f'{schedule.title} vs {fixture.opponent}'
         fixture.delete()
@@ -415,13 +479,16 @@ class TournamentFixtureDetailView(APIView):
 class TournamentFixtureResultView(APIView):
     """Atomically create the tournament match and all participant statistics."""
 
+    @club_write_transaction
     def post(self, request, fixture_id):
         serializer = TournamentFixtureResultWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
         with transaction.atomic():
             fixture = _coordinator_mobile_fixture(
-                request.user, fixture_id, lock=True,
+                request.user,
+                fixture_id,
+                lock=True,
             )
             try:
                 complete_tournament_fixture(
@@ -433,5 +500,3 @@ class TournamentFixtureResultView(APIView):
                 raise ValidationError(exc.message_dict) from exc
         fixture.schedule.refresh_from_db()
         return Response(_tournament_schedule_data(fixture.schedule, request))
-
-__all__ = [name for name in globals() if not name.startswith('__')]

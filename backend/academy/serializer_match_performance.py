@@ -1,6 +1,13 @@
 """Match-performance and result serializers."""
 
-from .serializer_tournaments import *  # noqa: F401,F403
+from rest_framework import serializers
+
+from academy.model_match_performance import PlayerMatchPerformance
+from academy.model_players import PLAYER_POSITION_CODES
+from academy.serializer_players import _display_name
+from academy.serializer_tournaments import FootballMatchSerializer
+from accounts.models import Roles
+
 
 class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
     """Read contract for one player's statistics in one match."""
@@ -18,27 +25,53 @@ class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
     goalsConceded = serializers.IntegerField(source='goals_conceded')
     cleanSheet = serializers.BooleanField(source='clean_sheet')
     coachRating = serializers.DecimalField(
-        source='coach_rating', max_digits=3, decimal_places=1,
-        coerce_to_string=False, allow_null=True,
+        source='coach_rating',
+        max_digits=3,
+        decimal_places=1,
+        coerce_to_string=False,
+        allow_null=True,
     )
     ratingStatus = serializers.SerializerMethodField()
     squadException = serializers.SerializerMethodField()
     squadOverrideReason = serializers.CharField(
-        source='squad_override_reason', read_only=True,
+        source='squad_override_reason',
+        read_only=True,
     )
     squadOverrideAt = serializers.DateTimeField(
-        source='squad_override_at', read_only=True, allow_null=True,
+        source='squad_override_at',
+        read_only=True,
+        allow_null=True,
     )
 
     class Meta:
         model = PlayerMatchPerformance
         fields = [
-            'id', 'playerId', 'playerName', 'match', 'position', 'starter',
-            'minutesPlayed', 'goals', 'assists', 'shots', 'shotsOnTarget',
-            'passesAttempted', 'passesCompleted', 'tackles', 'interceptions',
-            'yellowCards', 'redCards', 'saves', 'goalsConceded', 'cleanSheet',
-            'coachRating', 'notes', 'ratingStatus',
-            'squadException', 'squadOverrideReason', 'squadOverrideAt',
+            'id',
+            'playerId',
+            'playerName',
+            'match',
+            'position',
+            'starter',
+            'minutesPlayed',
+            'goals',
+            'assists',
+            'shots',
+            'shotsOnTarget',
+            'passesAttempted',
+            'passesCompleted',
+            'tackles',
+            'interceptions',
+            'yellowCards',
+            'redCards',
+            'saves',
+            'goalsConceded',
+            'cleanSheet',
+            'coachRating',
+            'notes',
+            'ratingStatus',
+            'squadException',
+            'squadOverrideReason',
+            'squadOverrideAt',
         ]
 
     def get_playerName(self, obj):
@@ -67,34 +100,57 @@ class PlayerMatchStatisticsWriteSerializer(serializers.ModelSerializer):
     """Coordinator-owned objective statistics; match/player come from the URL."""
 
     minutesPlayed = serializers.IntegerField(
-        source='minutes_played', min_value=0, max_value=180,
+        source='minutes_played',
+        min_value=0,
+        max_value=180,
     )
     shotsOnTarget = serializers.IntegerField(
-        source='shots_on_target', min_value=0,
+        source='shots_on_target',
+        min_value=0,
     )
     passesAttempted = serializers.IntegerField(
-        source='passes_attempted', min_value=0,
+        source='passes_attempted',
+        min_value=0,
     )
     passesCompleted = serializers.IntegerField(
-        source='passes_completed', min_value=0,
+        source='passes_completed',
+        min_value=0,
     )
     yellowCards = serializers.IntegerField(
-        source='yellow_cards', min_value=0, max_value=2,
+        source='yellow_cards',
+        min_value=0,
+        max_value=2,
     )
     redCards = serializers.IntegerField(
-        source='red_cards', min_value=0, max_value=1,
+        source='red_cards',
+        min_value=0,
+        max_value=1,
     )
     goalsConceded = serializers.IntegerField(
-        source='goals_conceded', min_value=0,
+        source='goals_conceded',
+        min_value=0,
     )
     cleanSheet = serializers.BooleanField(source='clean_sheet')
+
     class Meta:
         model = PlayerMatchPerformance
         fields = [
-            'position', 'starter', 'minutesPlayed', 'goals', 'assists',
-            'shots', 'shotsOnTarget', 'passesAttempted', 'passesCompleted',
-            'tackles', 'interceptions', 'yellowCards', 'redCards', 'saves',
-            'goalsConceded', 'cleanSheet',
+            'position',
+            'starter',
+            'minutesPlayed',
+            'goals',
+            'assists',
+            'shots',
+            'shotsOnTarget',
+            'passesAttempted',
+            'passesCompleted',
+            'tackles',
+            'interceptions',
+            'yellowCards',
+            'redCards',
+            'saves',
+            'goalsConceded',
+            'cleanSheet',
         ]
         extra_kwargs = {
             'position': {'allow_blank': True, 'required': False},
@@ -123,32 +179,26 @@ class PlayerMatchStatisticsWriteSerializer(serializers.ModelSerializer):
             return default
 
         if current('shots_on_target') > current('shots'):
-            raise serializers.ValidationError({
-                'shotsOnTarget': 'Shots on target cannot exceed total shots.'
-            })
+            raise serializers.ValidationError(
+                {'shotsOnTarget': 'Shots on target cannot exceed total shots.'}
+            )
         if current('goals') > current('shots_on_target'):
-            raise serializers.ValidationError({
-                'goals': 'Goals cannot exceed shots on target.'
-            })
+            raise serializers.ValidationError({'goals': 'Goals cannot exceed shots on target.'})
         if current('passes_completed') > current('passes_attempted'):
-            raise serializers.ValidationError({
-                'passesCompleted': (
-                    'Completed passes cannot exceed attempted passes.'
-                )
-            })
+            raise serializers.ValidationError(
+                {'passesCompleted': ('Completed passes cannot exceed attempted passes.')}
+            )
         if current('clean_sheet', False) and current('goals_conceded'):
-            raise serializers.ValidationError({
-                'cleanSheet': 'A clean sheet cannot include goals conceded.'
-            })
+            raise serializers.ValidationError(
+                {'cleanSheet': 'A clean sheet cannot include goals conceded.'}
+            )
         position = current('position', '')
         if position != 'GK' and (
-            current('saves')
-            or current('goals_conceded')
-            or current('clean_sheet', False)
+            current('saves') or current('goals_conceded') or current('clean_sheet', False)
         ):
-            raise serializers.ValidationError({
-                'position': 'Goalkeeper statistics require the GK position.'
-            })
+            raise serializers.ValidationError(
+                {'position': 'Goalkeeper statistics require the GK position.'}
+            )
         return attrs
 
 
@@ -161,7 +211,8 @@ class TournamentFixtureResultWriteSerializer(serializers.Serializer):
     ourScore = serializers.IntegerField(min_value=0, max_value=99)
     opponentScore = serializers.IntegerField(min_value=0, max_value=99)
     participants = TournamentResultParticipantWriteSerializer(
-        many=True, allow_empty=False,
+        many=True,
+        allow_empty=False,
     )
 
     def validate_participants(self, value):
@@ -174,23 +225,21 @@ class TournamentFixtureResultWriteSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        total_goals = sum(
-            row['statistics'].get('goals', 0)
-            for row in attrs['participants']
-        )
+        total_goals = sum(row['statistics'].get('goals', 0) for row in attrs['participants'])
         if total_goals > attrs['ourScore']:
-            raise serializers.ValidationError({
-                'participants': 'Recorded player goals exceed the team score.'
-            })
+            raise serializers.ValidationError(
+                {'participants': 'Recorded player goals exceed the team score.'}
+            )
         for row in attrs['participants']:
             statistics = row['statistics']
             if statistics.get('goals_conceded', 0) > attrs['opponentScore']:
-                raise serializers.ValidationError({
-                    'participants': (
-                        'A goalkeeper\'s goals conceded cannot exceed the '
-                        'opponent score.'
-                    )
-                })
+                raise serializers.ValidationError(
+                    {
+                        'participants': (
+                            "A goalkeeper's goals conceded cannot exceed the opponent score."
+                        )
+                    }
+                )
         return attrs
 
 

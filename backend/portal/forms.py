@@ -4,6 +4,7 @@ Each account-creation form is scoped to the coordinator's club: the guardian /
 player pickers only ever offer members of `club`, and the club is never taken
 from form input (it is derived from `request.user.club` server-side).
 """
+
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.password_validation import validate_password
@@ -22,7 +23,6 @@ from academy.serializers import TournamentFixtureResultWriteSerializer
 from academy.storage import validate_tournament_document
 from accounts.models import Club, Roles, User
 from accounts.validators import (
-    COACH_LICENSE_MAX_BYTES,
     sanitized_coach_license,
     validate_coach_license_upload,
 )
@@ -35,45 +35,46 @@ class PortalAuthenticationForm(AuthenticationForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['username'].widget.attrs.update({
-            'autocomplete': 'username',
-            'autofocus': True,
-            'inputmode': 'email',
-            'placeholder': 'name@example.com',
-        })
-        self.fields['password'].widget.attrs.update({
-            'autocomplete': 'current-password',
-            'placeholder': 'Enter your password',
-        })
+        self.fields['username'].widget.attrs.update(
+            {
+                'autocomplete': 'username',
+                'autofocus': True,
+                'inputmode': 'email',
+                'placeholder': 'name@example.com',
+            }
+        )
+        self.fields['password'].widget.attrs.update(
+            {
+                'autocomplete': 'current-password',
+                'placeholder': 'Enter your password',
+            }
+        )
 
 
 class CoordinatorSignupForm(forms.Form):
     """Public club application form for a pending coordinator account."""
 
     club_name = forms.CharField(max_length=120, label='Club name')
-    coordinator_name = forms.CharField(
-        max_length=150, label='Name of the coordinator'
-    )
+    coordinator_name = forms.CharField(max_length=150, label='Name of the coordinator')
     head_coach_name = forms.CharField(max_length=150, label='Head coach name')
     coach_license = forms.FileField(
         label='Coach license',
         help_text='JPG, PNG or PDF, max 5 MB.',
         validators=[validate_coach_license_upload],
     )
-    cvfa_membership = forms.CharField(
-        max_length=80, label='CVFA membership number'
-    )
+    cvfa_membership = forms.CharField(max_length=80, label='CVFA membership number')
     is_school_affiliated = forms.BooleanField(
-        required=False, label='This club is affiliated with a school',
+        required=False,
+        label='This club is affiliated with a school',
     )
     school_name = forms.CharField(
-        max_length=150, required=False, label='School name (if affiliated)',
+        max_length=150,
+        required=False,
+        label='School name (if affiliated)',
     )
     email = forms.EmailField(label='Coordinator email')
     password1 = forms.CharField(widget=forms.PasswordInput, label='Password')
-    password2 = forms.CharField(
-        widget=forms.PasswordInput, label='Confirm password'
-    )
+    password2 = forms.CharField(widget=forms.PasswordInput, label='Confirm password')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -110,9 +111,7 @@ class CoordinatorSignupForm(forms.Form):
         if p1 and p2 and p1 != p2:
             self.add_error('password2', 'The two passwords do not match.')
         if cleaned.get('is_school_affiliated') and not cleaned.get('school_name'):
-            self.add_error(
-                'school_name', 'Enter the school name for an affiliated club.'
-            )
+            self.add_error('school_name', 'Enter the school name for an affiliated club.')
         return cleaned
 
 
@@ -158,9 +157,7 @@ class CreatePlayerForm(_BaseCreateAccountForm):
         ),
     )
     middle_initial = forms.CharField(max_length=5, required=False)
-    date_of_birth = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date'})
-    )
+    date_of_birth = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
     guardian = forms.ModelChoiceField(
         queryset=User.objects.none(),
         required=False,
@@ -203,9 +200,7 @@ class EligibilityUpdateForm(forms.Form):
         qs = PlayerProfile.objects.select_related('user')
         if club is not None:
             qs = qs.filter(user__club=club)
-        self.fields['player'].queryset = qs.order_by(
-            'user__last_name', 'user__first_name'
-        )
+        self.fields['player'].queryset = qs.order_by('user__last_name', 'user__first_name')
         self.fields['player'].label_from_instance = lambda p: _user_label(p.user)
 
 
@@ -264,9 +259,7 @@ class TournamentScheduleForm(forms.Form):
     venue = forms.CharField(
         max_length=160,
         label='Tournament venue',
-        widget=forms.TextInput(
-            attrs={'placeholder': 'e.g. Cebu City Sports Center'}
-        ),
+        widget=forms.TextInput(attrs={'placeholder': 'e.g. Cebu City Sports Center'}),
     )
     document = forms.FileField(
         label='Official schedule document',
@@ -295,9 +288,7 @@ class TournamentAgeBracketForm(forms.ModelForm):
         label='Optional division date and time',
         required=False,
         input_formats=['%Y-%m-%dT%H:%M'],
-        widget=forms.DateTimeInput(
-            format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}
-        ),
+        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
     )
     academy_tiers = forms.MultipleChoiceField(
         label='Academy tiers',
@@ -319,14 +310,13 @@ class TournamentAgeBracketForm(forms.ModelForm):
         max_age = self.cleaned_data['max_age']
         brackets = (
             self.schedule.age_brackets.filter(max_age=max_age)
-            if self.schedule is not None else TournamentAgeBracket.objects.none()
+            if self.schedule is not None
+            else TournamentAgeBracket.objects.none()
         )
         if self.instance.pk:
             brackets = brackets.exclude(pk=self.instance.pk)
         if brackets.exists():
-            raise forms.ValidationError(
-                f'{self.schedule.title} already has a U{max_age} bracket.'
-            )
+            raise forms.ValidationError(f'{self.schedule.title} already has a U{max_age} bracket.')
         return max_age
 
 
@@ -334,28 +324,32 @@ class TournamentFixtureForm(forms.ModelForm):
     kickoff_at = forms.DateTimeField(
         label='Kickoff',
         input_formats=['%Y-%m-%dT%H:%M'],
-        widget=forms.DateTimeInput(
-            format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}
-        ),
+        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
     )
     ends_at = forms.DateTimeField(
         label='Expected end',
         input_formats=['%Y-%m-%dT%H:%M'],
-        widget=forms.DateTimeInput(
-            format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}
-        ),
+        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
     )
-    status = forms.ChoiceField(choices=[
-        (FixtureStatus.SCHEDULED, FixtureStatus.SCHEDULED.label),
-        (FixtureStatus.POSTPONED, FixtureStatus.POSTPONED.label),
-        (FixtureStatus.CANCELLED, FixtureStatus.CANCELLED.label),
-    ])
+    status = forms.ChoiceField(
+        choices=[
+            (FixtureStatus.SCHEDULED, FixtureStatus.SCHEDULED.label),
+            (FixtureStatus.POSTPONED, FixtureStatus.POSTPONED.label),
+            (FixtureStatus.CANCELLED, FixtureStatus.CANCELLED.label),
+        ]
+    )
 
     class Meta:
         model = TournamentFixture
         fields = [
-            'age_bracket', 'stage', 'opponent', 'kickoff_at', 'ends_at',
-            'venue', 'location', 'status',
+            'age_bracket',
+            'stage',
+            'opponent',
+            'kickoff_at',
+            'ends_at',
+            'venue',
+            'location',
+            'status',
         ]
         labels = {
             'age_bracket': 'Age bracket',
@@ -383,12 +377,8 @@ class TournamentFixtureForm(forms.ModelForm):
 
     def clean_age_bracket(self):
         bracket = self.cleaned_data.get('age_bracket')
-        if bracket and (
-            self.schedule is None or bracket.schedule_id != self.schedule.id
-        ):
-            raise forms.ValidationError(
-                'Select an age bracket from this tournament.'
-            )
+        if bracket and (self.schedule is None or bracket.schedule_id != self.schedule.id):
+            raise forms.ValidationError('Select an age bracket from this tournament.')
         return bracket
 
     def clean_opponent(self):
@@ -400,7 +390,8 @@ class TournamentFixtureForm(forms.ModelForm):
         ends_at = cleaned.get('ends_at')
         if kickoff and ends_at and ends_at <= kickoff:
             self.add_error(
-                'ends_at', 'Expected end time must be later than kickoff.',
+                'ends_at',
+                'Expected end time must be later than kickoff.',
             )
         return cleaned
 
@@ -408,10 +399,8 @@ class TournamentFixtureForm(forms.ModelForm):
 class TournamentFixtureResultForm(forms.Form):
     """Dynamic result form limited to a fixture's Coach-published squad."""
 
-    our_score = forms.IntegerField(label='FootPath Cebu score', min_value=0,
-                                   max_value=99)
-    opponent_score = forms.IntegerField(label='Opponent score', min_value=0,
-                                        max_value=99)
+    our_score = forms.IntegerField(label='FootPath Cebu score', min_value=0, max_value=99)
+    opponent_score = forms.IntegerField(label='Opponent score', min_value=0, max_value=99)
     statistic_fields = (
         ('minutesPlayed', 'Minutes', 180),
         ('goals', 'Goals', None),
@@ -428,9 +417,17 @@ class TournamentFixtureResultForm(forms.Form):
         ('goalsConceded', 'Goals conceded (GK)', None),
     )
     positions = (
-        ('', 'Choose position'), ('GK', 'GK'), ('CB', 'CB'), ('LB', 'LB'),
-        ('RB', 'RB'), ('CDM', 'CDM'), ('CM', 'CM'), ('CAM', 'CAM'),
-        ('LW', 'LW'), ('RW', 'RW'), ('ST', 'ST'),
+        ('', 'Choose position'),
+        ('GK', 'GK'),
+        ('CB', 'CB'),
+        ('LB', 'LB'),
+        ('RB', 'RB'),
+        ('CDM', 'CDM'),
+        ('CM', 'CM'),
+        ('CAM', 'CAM'),
+        ('LW', 'LW'),
+        ('RW', 'RW'),
+        ('ST', 'ST'),
     )
 
     def __init__(self, *args, fixture, **kwargs):
@@ -438,13 +435,20 @@ class TournamentFixtureResultForm(forms.Form):
         self.fixture = fixture
         self.entries = []
         if fixture.age_bracket_id:
-            self.entries = list(
-                fixture.age_bracket.squad.entries.select_related(
-                    'player', 'player__player_profile',
-                ).filter(
-                    squad__status=TournamentSquadStatus.PUBLISHED,
-                ).order_by('player__last_name', 'player__first_name', 'player_id')
-            ) if hasattr(fixture.age_bracket, 'squad') else []
+            self.entries = (
+                list(
+                    fixture.age_bracket.squad.entries.select_related(
+                        'player',
+                        'player__player_profile',
+                    )
+                    .filter(
+                        squad__status=TournamentSquadStatus.PUBLISHED,
+                    )
+                    .order_by('player__last_name', 'player__first_name', 'player_id')
+                )
+                if hasattr(fixture.age_bracket, 'squad')
+                else []
+            )
         for entry in self.entries:
             player_id = entry.player_id
             position = entry.position
@@ -461,7 +465,8 @@ class TournamentFixtureResultForm(forms.Form):
                 label='Position',
             )
             self.fields[f'starter_{player_id}'] = forms.BooleanField(
-                required=False, label='Starter',
+                required=False,
+                label='Starter',
             )
             for name, label, maximum in self.statistic_fields:
                 self.fields[f'{name}_{player_id}'] = forms.IntegerField(
@@ -472,7 +477,8 @@ class TournamentFixtureResultForm(forms.Form):
                     label=label,
                 )
             self.fields[f'cleanSheet_{player_id}'] = forms.BooleanField(
-                required=False, label='Clean sheet (GK)',
+                required=False,
+                label='Clean sheet (GK)',
             )
 
     @property
@@ -480,17 +486,19 @@ class TournamentFixtureResultForm(forms.Form):
         rows = []
         for entry in self.entries:
             player_id = entry.player_id
-            rows.append({
-                'player': entry.player,
-                'selected': self[f'participant_{player_id}'],
-                'position': self[f'position_{player_id}'],
-                'starter': self[f'starter_{player_id}'],
-                'statistics': [
-                    self[f'{name}_{player_id}']
-                    for name, _label, _maximum in self.statistic_fields
-                ],
-                'clean_sheet': self[f'cleanSheet_{player_id}'],
-            })
+            rows.append(
+                {
+                    'player': entry.player,
+                    'selected': self[f'participant_{player_id}'],
+                    'position': self[f'position_{player_id}'],
+                    'starter': self[f'starter_{player_id}'],
+                    'statistics': [
+                        self[f'{name}_{player_id}']
+                        for name, _label, _maximum in self.statistic_fields
+                    ],
+                    'clean_sheet': self[f'cleanSheet_{player_id}'],
+                }
+            )
         return rows
 
     def clean(self):
@@ -509,15 +517,19 @@ class TournamentFixtureResultForm(forms.Form):
             }
             for name, _label, _maximum in self.statistic_fields:
                 statistics[name] = cleaned.get(f'{name}_{player_id}') or 0
-            participants.append({
-                'playerId': player_id,
-                'statistics': statistics,
-            })
-        serializer = TournamentFixtureResultWriteSerializer(data={
-            'ourScore': cleaned.get('our_score'),
-            'opponentScore': cleaned.get('opponent_score'),
-            'participants': participants,
-        })
+            participants.append(
+                {
+                    'playerId': player_id,
+                    'statistics': statistics,
+                }
+            )
+        serializer = TournamentFixtureResultWriteSerializer(
+            data={
+                'ourScore': cleaned.get('our_score'),
+                'opponentScore': cleaned.get('opponent_score'),
+                'participants': participants,
+            }
+        )
         if not serializer.is_valid():
             messages = []
             for value in serializer.errors.values():

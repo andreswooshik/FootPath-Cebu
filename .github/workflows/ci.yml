@@ -23,7 +23,11 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --require-hashes -r requirements.lock
-          pip install pip-audit bandit
+          pip install pip-audit bandit ruff==0.16.6
+      - name: Lint and check formatting
+        run: |
+          ruff check .
+          ruff format --check .
       - name: Audit Python dependencies and backend source
         run: |
           pip-audit --local
@@ -59,6 +63,36 @@ jobs:
           python -m compileall -q scripts
           python scripts/postgres_backup.py --help
           python scripts/postgres_restore.py --help
+
+  backend-postgres:
+    name: Django PostgreSQL integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: integration-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DJANGO_SECRET_KEY: ci-only-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz
+      DJANGO_DEBUG: '1'
+      TEST_POSTGRES_HOST: 127.0.0.1
+      TEST_POSTGRES_PASSWORD: integration-only-password
+      TEST_POSTGRES_NAME: test_footpath
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install --require-hashes -r requirements.lock
+      - run: python manage.py test --noinput
 
   container:
     name: Production container

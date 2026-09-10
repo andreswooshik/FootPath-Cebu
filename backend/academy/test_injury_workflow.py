@@ -59,12 +59,8 @@ class InjuryConfirmationWorkflowTests(APITestCase):
             player=self.player,
         )
         self.coach = _user('coach@care.test', Roles.COACH, self.club)
-        self.other_coach = _user(
-            'other-coach@care.test', Roles.COACH, self.other_club
-        )
-        self.coordinator = _user(
-            'coordinator@care.test', Roles.COORDINATOR, self.club
-        )
+        self.other_coach = _user('other-coach@care.test', Roles.COACH, self.other_club)
+        self.coordinator = _user('coordinator@care.test', Roles.COORDINATOR, self.club)
         self.other_coordinator = _user(
             'other-coordinator@care.test',
             Roles.COORDINATOR,
@@ -147,9 +143,7 @@ class InjuryConfirmationWorkflowTests(APITestCase):
 
         self.client.force_authenticate(self.coach)
         self.assertEqual(
-            self.client.put(
-                detail, {'description': 'Coach edit'}, format='json'
-            ).status_code,
+            self.client.put(detail, {'description': 'Coach edit'}, format='json').status_code,
             403,
         )
 
@@ -195,9 +189,7 @@ class InjuryConfirmationWorkflowTests(APITestCase):
         review_url = reverse('injury-review', args=[record.id])
         self.client.force_authenticate(self.coordinator)
         self.assertEqual(
-            self.client.post(
-                review_url, {'action': 'REJECT'}, format='json'
-            ).status_code,
+            self.client.post(review_url, {'action': 'REJECT'}, format='json').status_code,
             400,
         )
         response = self.client.post(
@@ -219,15 +211,15 @@ class InjuryConfirmationWorkflowTests(APITestCase):
         record = self._confirm(self._report())
         self.client.force_authenticate(self.coordinator)
         self.assertFalse(
-            self.client.get(
-                reverse('injury-detail', args=[record.id])
-            ).data['canRequestStatusUpdate']
+            self.client.get(reverse('injury-detail', args=[record.id])).data[
+                'canRequestStatusUpdate'
+            ]
         )
         self.client.force_authenticate(self.guardian)
         self.assertTrue(
-            self.client.get(
-                f"{reverse('injuries')}?player={self.player.id}"
-            ).data[0]['canRequestStatusUpdate']
+            self.client.get(f'{reverse("injuries")}?player={self.player.id}').data[0][
+                'canRequestStatusUpdate'
+            ]
         )
         response = self.client.post(
             reverse('injury-status-updates', args=[record.id]),
@@ -269,9 +261,7 @@ class InjuryConfirmationWorkflowTests(APITestCase):
         )
         self.assertEqual(first.status_code, 201)
         self.assertEqual(
-            self.client.post(
-                url, {'proposedStatus': 'RECOVERING'}, format='json'
-            ).status_code,
+            self.client.post(url, {'proposedStatus': 'RECOVERING'}, format='json').status_code,
             400,
         )
 
@@ -281,9 +271,7 @@ class InjuryConfirmationWorkflowTests(APITestCase):
             args=[record.id, first.data['id']],
         )
         self.assertEqual(
-            self.client.post(
-                review_url, {'action': 'REJECT'}, format='json'
-            ).status_code,
+            self.client.post(review_url, {'action': 'REJECT'}, format='json').status_code,
             400,
         )
         self.assertEqual(
@@ -333,11 +321,7 @@ class InjuryConfirmationWorkflowTests(APITestCase):
         self.assertIsNotNone(record.archived_at)
         self.assertEqual(len(self.client.get(reverse('injuries')).data), 0)
         self.assertEqual(
-            len(
-                self.client.get(
-                    f"{reverse('injuries')}?includeArchived=true"
-                ).data
-            ),
+            len(self.client.get(f'{reverse("injuries")}?includeArchived=true').data),
             1,
         )
 
@@ -356,14 +340,10 @@ class InjuryConfirmationWorkflowTests(APITestCase):
             'match-performance-detail',
             args=[match.id, self.player.id],
         )
-        roster = self.client.get(
-            reverse('match-roster', args=[match.id])
-        )
+        roster = self.client.get(reverse('match-roster', args=[match.id]))
         self.assertEqual(roster.status_code, 200)
         self.assertEqual(roster.data[0]['activeInjuryStatus'], 'ACTIVE')
-        response = self.client.put(
-            url, self._performance_payload(), format='json'
-        )
+        response = self.client.put(url, self._performance_payload(), format='json')
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data['code'], 'ACTIVE_INJURY_WARNING')
 

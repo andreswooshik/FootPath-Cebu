@@ -6,29 +6,25 @@ FOUNDATION / PRESENT) mirror the Flutter entities in
 `footpath_cebu/lib/domain/entities/` so the JSON contract needs no translation
 layer on the client.
 """
+
 import copy
-import hashlib
-import json
 import logging
-import re
-from datetime import date, datetime, timedelta
+from datetime import date
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import connection, models, transaction
-from django.utils import timezone
+from django.db import models, transaction
 
 from accounts.models import Roles
-
 
 audit_logger = logging.getLogger('footpath.audit')
 
 
 class AgeTier(models.TextChoices):
-    FOUNDATION = 'FOUNDATION', 'Foundation'      # ages 10–12
-    DEVELOPMENT = 'DEVELOPMENT', 'Development'    # ages 13–15
-    PATHWAY = 'PATHWAY', 'Pathway'               # ages 16–18
+    FOUNDATION = 'FOUNDATION', 'Foundation'  # ages 10–12
+    DEVELOPMENT = 'DEVELOPMENT', 'Development'  # ages 13–15
+    PATHWAY = 'PATHWAY', 'Pathway'  # ages 16–18
 
 
 class AgeTierSetting(models.Model):
@@ -41,9 +37,7 @@ class AgeTierSetting(models.Model):
     so retuning a boundary never reshuffles the current roster.
     """
 
-    tier = models.CharField(
-        max_length=20, choices=AgeTier.choices, unique=True
-    )
+    tier = models.CharField(max_length=20, choices=AgeTier.choices, unique=True)
     min_age = models.PositiveSmallIntegerField()
     max_age = models.PositiveSmallIntegerField()
 
@@ -72,9 +66,10 @@ class AgeTierSetting(models.Model):
     def profile_defaults_for(cls, date_of_birth):
         """(age, tier) for a new player born on `date_of_birth`."""
         today = date.today()
-        age = today.year - date_of_birth.year - (
-            (today.month, today.day)
-            < (date_of_birth.month, date_of_birth.day)
+        age = (
+            today.year
+            - date_of_birth.year
+            - ((today.month, today.day) < (date_of_birth.month, date_of_birth.day))
         )
         return age, cls.tier_for_age(age)
 
@@ -142,7 +137,16 @@ class FixtureStatus(models.TextChoices):
 
 
 PLAYER_POSITION_CODES = {
-    'GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST',
+    'GK',
+    'CB',
+    'LB',
+    'RB',
+    'CDM',
+    'CM',
+    'CAM',
+    'LW',
+    'RW',
+    'ST',
 }
 
 
@@ -163,9 +167,7 @@ class PlayerProfile(models.Model):
     )
     age = models.PositiveIntegerField(default=0)
     class_year = models.CharField(max_length=40, blank=True)
-    age_tier = models.CharField(
-        max_length=20, choices=AgeTier.choices, default=AgeTier.DEVELOPMENT
-    )
+    age_tier = models.CharField(max_length=20, choices=AgeTier.choices, default=AgeTier.DEVELOPMENT)
     position = models.CharField(max_length=8, blank=True)  # ST, CM, GK, ...
 
     pace = models.PositiveSmallIntegerField(default=0)
@@ -219,6 +221,13 @@ class PlayerProfile(models.Model):
 
     def __str__(self):
         return f'{self.user.email} · {self.get_age_tier_display()}'
+
+    def save(self, *args, **kwargs):
+        # Signals write history and notification intent inside this transaction.
+        with transaction.atomic():
+            if self.pk:
+                type(self).objects.select_for_update().filter(pk=self.pk).exists()
+            return super().save(*args, **kwargs)
 
 
 class PlayerAssessmentSnapshot(models.Model):
@@ -358,31 +367,45 @@ class PlayerDevelopmentAssessment(models.Model):
         )
 
     def __str__(self):
-        return (
-            f'{self.player.email} development assessment '
-            f'({self.created_at:%Y-%m-%d})'
-        )
+        return f'{self.player.email} development assessment ({self.created_at:%Y-%m-%d})'
 
 
 class PlayerStatsAssessment(models.Model):
     """Append-only gamified 0–99 assessment; never a development assessment."""
-    player = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
-        related_name='player_stats_assessments', limit_choices_to={'role': Roles.PLAYER})
-    assessed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
-        null=True, blank=True, related_name='assessed_player_stats_assessments',
-        limit_choices_to={'role': Roles.COACH})
+
+    player = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='player_stats_assessments',
+        limit_choices_to={'role': Roles.PLAYER},
+    )
+    assessed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assessed_player_stats_assessments',
+        limit_choices_to={'role': Roles.COACH},
+    )
     position = models.CharField(max_length=8)
     role_group = models.CharField(max_length=20)
     catalog_version = models.PositiveSmallIntegerField(default=1)
     scores = models.JSONField()
-    overall = models.PositiveSmallIntegerField(validators=[MinValueValidator(0), MaxValueValidator(99)])
+    overall = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(0), MaxValueValidator(99)]
+    )
     reason = models.CharField(max_length=100)
     coach_notes = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at', '-id']
-        indexes = [models.Index(fields=['player', 'role_group', 'catalog_version', '-created_at'], name='academy_stats_compat_idx')]
+        indexes = [
+            models.Index(
+                fields=['player', 'role_group', 'catalog_version', '-created_at'],
+                name='academy_stats_compat_idx',
+            )
+        ]
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -457,10 +480,13 @@ class EligibilityHistory(models.Model):
     )
     # Blank for the very first status a player is given (no prior value).
     old_status = models.CharField(
-        max_length=20, choices=Eligibility.choices, blank=True,
+        max_length=20,
+        choices=Eligibility.choices,
+        blank=True,
     )
     new_status = models.CharField(
-        max_length=20, choices=Eligibility.choices,
+        max_length=20,
+        choices=Eligibility.choices,
     )
     changed_at = models.DateTimeField(auto_now_add=True)
 
@@ -474,5 +500,3 @@ class EligibilityHistory(models.Model):
             f'{self.player.email}: {self.old_status or "—"} → '
             f'{self.new_status} ({self.changed_at:%Y-%m-%d})'
         )
-
-__all__ = [name for name in globals() if not name.startswith('__')]

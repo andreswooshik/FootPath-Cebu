@@ -1,31 +1,65 @@
 """Academy serializers extracted from the legacy serializer module."""
 
-from .serializer_players import *  # noqa: F401,F403
+from django.utils import timezone
+from rest_framework import serializers
 
-from .serializer_training import *  # noqa: F401,F403
+from academy.model_notifications import NotificationRecord
+from academy.model_operations import (
+    Dispute,
+    DisputeCategory,
+    DisputeResponse,
+    DisputeStatus,
+    InjuryRecord,
+    InjuryReportStatus,
+    InjuryStatus,
+    InjuryStatusUpdateRequest,
+    InjuryUpdateReviewStatus,
+)
+from academy.model_players import (
+    AgeTier,
+    AgeTierSetting,
+    AttendanceStatus,
+)
+from academy.serializer_players import _display_name
+from accounts.models import (
+    Roles,
+    User,
+)
+
 
 class InjuryStatusUpdateRequestSerializer(serializers.ModelSerializer):
     id = serializers.CharField(read_only=True)
     proposedStatus = serializers.CharField(source='proposed_status')
     proposedResolvedOn = serializers.DateField(
-        source='proposed_resolved_on', required=False, allow_null=True,
+        source='proposed_resolved_on',
+        required=False,
+        allow_null=True,
     )
     reviewStatus = serializers.CharField(source='review_status', read_only=True)
     submittedByName = serializers.SerializerMethodField()
     submittedByRole = serializers.CharField(
-        source='submitted_by.role', read_only=True, allow_null=True,
+        source='submitted_by.role',
+        read_only=True,
+        allow_null=True,
     )
     rejectionReason = serializers.CharField(
-        source='rejection_reason', read_only=True,
+        source='rejection_reason',
+        read_only=True,
     )
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
 
     class Meta:
         model = InjuryStatusUpdateRequest
         fields = [
-            'id', 'proposedStatus', 'proposedResolvedOn', 'notes',
-            'reviewStatus', 'submittedByName', 'submittedByRole',
-            'rejectionReason', 'createdAt',
+            'id',
+            'proposedStatus',
+            'proposedResolvedOn',
+            'notes',
+            'reviewStatus',
+            'submittedByName',
+            'submittedByRole',
+            'rejectionReason',
+            'createdAt',
         ]
         extra_kwargs = {
             'notes': {'required': False, 'allow_blank': True, 'max_length': 500},
@@ -37,9 +71,7 @@ class InjuryStatusUpdateRequestSerializer(serializers.ModelSerializer):
     def validate_proposedStatus(self, value):
         cleaned = str(value).upper()
         if cleaned not in (InjuryStatus.RECOVERING, InjuryStatus.RECOVERED):
-            raise serializers.ValidationError(
-                'Choose Recovering or Recovered.'
-            )
+            raise serializers.ValidationError('Choose Recovering or Recovered.')
         return cleaned
 
     def validate(self, attrs):
@@ -47,19 +79,17 @@ class InjuryStatusUpdateRequestSerializer(serializers.ModelSerializer):
         proposed = attrs.get('proposed_status')
         resolved = attrs.get('proposed_resolved_on')
         if proposed == InjuryStatus.RECOVERED and resolved is None:
-            raise serializers.ValidationError({
-                'proposedResolvedOn': 'A recovery date is required.'
-            })
+            raise serializers.ValidationError(
+                {'proposedResolvedOn': 'A recovery date is required.'}
+            )
         if proposed != InjuryStatus.RECOVERED and resolved is not None:
-            raise serializers.ValidationError({
-                'proposedResolvedOn': (
-                    'Only a Recovered update can include a recovery date.'
-                )
-            })
+            raise serializers.ValidationError(
+                {'proposedResolvedOn': ('Only a Recovered update can include a recovery date.')}
+            )
         if resolved and resolved > timezone.localdate():
-            raise serializers.ValidationError({
-                'proposedResolvedOn': 'The recovery date cannot be in the future.'
-            })
+            raise serializers.ValidationError(
+                {'proposedResolvedOn': 'The recovery date cannot be in the future.'}
+            )
         return attrs
 
 
@@ -72,24 +102,34 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
     playerId = serializers.CharField(source='player.id', read_only=True)
     playerName = serializers.SerializerMethodField()
     bodyPart = serializers.CharField(
-        source='body_part', required=False, allow_blank=True, max_length=80,
+        source='body_part',
+        required=False,
+        allow_blank=True,
+        max_length=80,
     )
     occurredOn = serializers.DateField(source='occurred_on')
     resolvedOn = serializers.DateField(
-        source='resolved_on', required=False, allow_null=True,
+        source='resolved_on',
+        required=False,
+        allow_null=True,
     )
     notes = serializers.CharField(
-        required=False, allow_blank=True, max_length=1000,
+        required=False,
+        allow_blank=True,
+        max_length=1000,
     )
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
     reviewStatus = serializers.CharField(source='review_status', read_only=True)
     reporterName = serializers.SerializerMethodField()
     reporterRole = serializers.CharField(
-        source='reported_by.role', read_only=True, allow_null=True,
+        source='reported_by.role',
+        read_only=True,
+        allow_null=True,
     )
     rejectionReason = serializers.CharField(
-        source='rejection_reason', read_only=True,
+        source='rejection_reason',
+        read_only=True,
     )
     reviewedAt = serializers.DateTimeField(source='reviewed_at', read_only=True)
     archivedAt = serializers.DateTimeField(source='archived_at', read_only=True)
@@ -103,12 +143,29 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = InjuryRecord
         fields = [
-            'id', 'playerId', 'playerName', 'description', 'bodyPart', 'status',
-            'occurredOn', 'resolvedOn', 'notes', 'reviewStatus',
-            'reporterName', 'reporterRole', 'rejectionReason', 'reviewedAt',
-            'archivedAt', 'pendingStatusUpdate', 'canEditPending', 'canReview',
-            'canEditConfirmed', 'canArchive', 'canRequestStatusUpdate',
-            'createdAt', 'updatedAt',
+            'id',
+            'playerId',
+            'playerName',
+            'description',
+            'bodyPart',
+            'status',
+            'occurredOn',
+            'resolvedOn',
+            'notes',
+            'reviewStatus',
+            'reporterName',
+            'reporterRole',
+            'rejectionReason',
+            'reviewedAt',
+            'archivedAt',
+            'pendingStatusUpdate',
+            'canEditPending',
+            'canReview',
+            'canEditConfirmed',
+            'canArchive',
+            'canRequestStatusUpdate',
+            'createdAt',
+            'updatedAt',
         ]
 
     def get_playerName(self, obj):
@@ -132,15 +189,13 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
     def get_pendingStatusUpdate(self, obj):
         pending = next(
             (
-                item for item in obj.status_update_requests.all()
+                item
+                for item in obj.status_update_requests.all()
                 if item.review_status == InjuryUpdateReviewStatus.PENDING
             ),
             None,
         )
-        return (
-            InjuryStatusUpdateRequestSerializer(pending).data
-            if pending else None
-        )
+        return InjuryStatusUpdateRequestSerializer(pending).data if pending else None
 
     def get_canEditPending(self, obj):
         viewer = self._viewer()
@@ -151,16 +206,10 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
         )
 
     def get_canReview(self, obj):
-        return bool(
-            obj.review_status == InjuryReportStatus.PENDING
-            and self._is_coordinator(obj)
-        )
+        return bool(obj.review_status == InjuryReportStatus.PENDING and self._is_coordinator(obj))
 
     def get_canEditConfirmed(self, obj):
-        return bool(
-            obj.review_status == InjuryReportStatus.CONFIRMED
-            and self._is_coordinator(obj)
-        )
+        return bool(obj.review_status == InjuryReportStatus.CONFIRMED and self._is_coordinator(obj))
 
     def get_canArchive(self, obj):
         return bool(
@@ -188,30 +237,33 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         occurred = attrs.get(
-            'occurred_on', self.instance.occurred_on if self.instance else None,
+            'occurred_on',
+            self.instance.occurred_on if self.instance else None,
         )
         resolved = attrs.get(
-            'resolved_on', self.instance.resolved_on if self.instance else None,
+            'resolved_on',
+            self.instance.resolved_on if self.instance else None,
         )
         injury_status = attrs.get(
-            'status', self.instance.status if self.instance else InjuryStatus.ACTIVE,
+            'status',
+            self.instance.status if self.instance else InjuryStatus.ACTIVE,
         )
         if occurred and occurred > timezone.localdate():
-            raise serializers.ValidationError({
-                'occurredOn': 'The injury date cannot be in the future.'
-            })
+            raise serializers.ValidationError(
+                {'occurredOn': 'The injury date cannot be in the future.'}
+            )
         if resolved and occurred and resolved < occurred:
-            raise serializers.ValidationError({
-                'resolvedOn': 'The recovery date cannot precede the injury.'
-            })
+            raise serializers.ValidationError(
+                {'resolvedOn': 'The recovery date cannot precede the injury.'}
+            )
         if injury_status == InjuryStatus.RECOVERED and resolved is None:
-            raise serializers.ValidationError({
-                'resolvedOn': 'A recovered injury needs a recovery date.'
-            })
+            raise serializers.ValidationError(
+                {'resolvedOn': 'A recovered injury needs a recovery date.'}
+            )
         if injury_status != InjuryStatus.RECOVERED and resolved is not None:
-            raise serializers.ValidationError({
-                'resolvedOn': 'Only a recovered injury can have a recovery date.'
-            })
+            raise serializers.ValidationError(
+                {'resolvedOn': 'Only a recovered injury can have a recovery date.'}
+            )
         return attrs
 
 
@@ -223,14 +275,14 @@ class DisputeResponseSerializer(serializers.ModelSerializer):
     authorName = serializers.SerializerMethodField()
     authorRole = serializers.SerializerMethodField()
     statusChangeTo = serializers.CharField(
-        source='status_change_to', read_only=True,
+        source='status_change_to',
+        read_only=True,
     )
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
 
     class Meta:
         model = DisputeResponse
-        fields = ['id', 'authorName', 'authorRole', 'body', 'statusChangeTo',
-                  'createdAt']
+        fields = ['id', 'authorName', 'authorRole', 'body', 'statusChangeTo', 'createdAt']
 
     def get_authorName(self, obj):
         return _display_name(obj.author)
@@ -250,14 +302,28 @@ class DisputeSerializer(serializers.ModelSerializer):
     subjectPlayerName = serializers.SerializerMethodField()
     createdAt = serializers.DateTimeField(source='created_at', read_only=True)
     updatedAt = serializers.DateTimeField(source='updated_at', read_only=True)
-    responses = DisputeResponseSerializer(many=True, read_only=True)
+    responses = serializers.SerializerMethodField()
+
+    def get_responses(self, obj):
+        responses = (
+            reversed(obj.list_responses) if hasattr(obj, 'list_responses') else obj.responses.all()
+        )
+        return DisputeResponseSerializer(responses, many=True).data
 
     class Meta:
         model = Dispute
         fields = [
-            'id', 'raisedByName', 'subjectPlayerId', 'subjectPlayerName',
-            'category', 'status', 'summary', 'detail', 'createdAt',
-            'updatedAt', 'responses',
+            'id',
+            'raisedByName',
+            'subjectPlayerId',
+            'subjectPlayerName',
+            'category',
+            'status',
+            'summary',
+            'detail',
+            'createdAt',
+            'updatedAt',
+            'responses',
         ]
 
     def get_raisedByName(self, obj):
@@ -278,7 +344,9 @@ class DisputeCreateSerializer(serializers.Serializer):
     category = serializers.CharField()
     summary = serializers.CharField(max_length=200)
     detail = serializers.CharField(
-        max_length=2000, required=False, allow_blank=True,
+        max_length=2000,
+        required=False,
+        allow_blank=True,
     )
 
     def validate_category(self, value):
@@ -301,7 +369,9 @@ class DisputeResponseCreateSerializer(serializers.Serializer):
 
     body = serializers.CharField(max_length=2000)
     statusChangeTo = serializers.CharField(
-        required=False, allow_null=True, allow_blank=True,
+        required=False,
+        allow_null=True,
+        allow_blank=True,
     )
 
     def validate_statusChangeTo(self, value):
@@ -320,7 +390,10 @@ class SessionAttendanceRecordSerializer(serializers.Serializer):
     playerId = serializers.IntegerField()
     status = serializers.CharField()
     effort = serializers.IntegerField(
-        min_value=0, max_value=100, required=False, allow_null=True,
+        min_value=0,
+        max_value=100,
+        required=False,
+        allow_null=True,
     )
     performanceScore = serializers.DecimalField(
         max_digits=3,
@@ -331,7 +404,9 @@ class SessionAttendanceRecordSerializer(serializers.Serializer):
         allow_null=True,
     )
     note = serializers.CharField(
-        max_length=1000, required=False, allow_blank=True,
+        max_length=1000,
+        required=False,
+        allow_blank=True,
     )
 
     def validate_playerId(self, value):
@@ -392,12 +467,8 @@ class AgeTierSettingSerializer(serializers.ModelSerializer):
     never used to create or rename tiers."""
 
     tier = serializers.ChoiceField(choices=AgeTier.choices)
-    minAge = serializers.IntegerField(
-        source='min_age', min_value=1, max_value=99
-    )
-    maxAge = serializers.IntegerField(
-        source='max_age', min_value=1, max_value=99
-    )
+    minAge = serializers.IntegerField(source='min_age', min_value=1, max_value=99)
+    maxAge = serializers.IntegerField(source='max_age', min_value=1, max_value=99)
 
     class Meta:
         model = AgeTierSetting
@@ -405,7 +476,9 @@ class AgeTierSettingSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         if attrs['min_age'] > attrs['max_age']:
-            raise serializers.ValidationError(
-                'min age must not exceed max age.'
-            )
+            raise serializers.ValidationError('min age must not exceed max age.')
         return attrs
+
+
+class AttendanceBatchSerializer(serializers.Serializer):
+    records = SessionAttendanceRecordSerializer(many=True, max_length=500)

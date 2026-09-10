@@ -45,9 +45,7 @@ class LinkOrCreateFirebaseUserTests(TestCase):
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_creates_new_firebase_account_with_given_password(
-        self, mock_get, mock_create, _init
-    ):
+    def test_creates_new_firebase_account_with_given_password(self, mock_get, mock_create, _init):
         mock_get.side_effect = firebase_auth.UserNotFoundError('not found')
         mock_create.return_value = Mock(uid='new-uid')
 
@@ -57,16 +55,12 @@ class LinkOrCreateFirebaseUserTests(TestCase):
         self.assertEqual(user.firebase_uid, 'new-uid')
         self.assertEqual(temp, 'TypedPass123!')
         self.assertFalse(user.has_usable_password())  # app auth via Firebase only
-        mock_create.assert_called_once_with(
-            email='a@x.test', password='TypedPass123!'
-        )
+        mock_create.assert_called_once_with(email='a@x.test', password='TypedPass123!')
 
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_generates_password_when_none_supplied(
-        self, mock_get, mock_create, _init
-    ):
+    def test_generates_password_when_none_supplied(self, mock_get, mock_create, _init):
         mock_get.side_effect = firebase_auth.UserNotFoundError('not found')
         mock_create.return_value = Mock(uid='new-uid')
 
@@ -81,9 +75,7 @@ class LinkOrCreateFirebaseUserTests(TestCase):
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_rejects_unlinked_existing_firebase_account(
-        self, mock_get, mock_create, _init
-    ):
+    def test_rejects_unlinked_existing_firebase_account(self, mock_get, mock_create, _init):
         mock_get.return_value = Mock(uid='existing-uid')  # account already there
 
         user = User(username='a@x.test', email='a@x.test', role=Roles.PLAYER)
@@ -94,12 +86,12 @@ class LinkOrCreateFirebaseUserTests(TestCase):
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_accepts_idempotent_resync_of_same_uid(
-        self, mock_get, mock_create, _init
-    ):
+    def test_accepts_idempotent_resync_of_same_uid(self, mock_get, mock_create, _init):
         mock_get.return_value = Mock(uid='existing-uid')
         user = User(
-            username='a@x.test', email='a@x.test', role=Roles.PLAYER,
+            username='a@x.test',
+            email='a@x.test',
+            role=Roles.PLAYER,
             firebase_uid='existing-uid',
         )
 
@@ -119,7 +111,9 @@ class FirebasePasswordResetTests(TestCase):
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.update_user')
     def test_sets_firebase_password_and_keeps_local_password_unusable(
-        self, update_user, initialize,
+        self,
+        update_user,
+        initialize,
     ):
         user = User.objects.create_user(
             username='firebase@x.test',
@@ -131,9 +125,7 @@ class FirebasePasswordResetTests(TestCase):
 
         set_firebase_password(user, password='NewFirebasePass123!')
 
-        update_user.assert_called_once_with(
-            'firebase-password-uid', password='NewFirebasePass123!'
-        )
+        update_user.assert_called_once_with('firebase-password-uid', password='NewFirebasePass123!')
         initialize.assert_called_once()
         user.refresh_from_db()
         self.assertFalse(user.has_usable_password())
@@ -144,22 +136,25 @@ class ProvisionUserTests(TestCase):
 
     def setUp(self):
         self.club = Club.objects.create(
-            name='Provisioning Club', slug='provisioning-club',
-            is_school_affiliated=True, school_name='Provisioning School',
+            name='Provisioning Club',
+            slug='provisioning-club',
+            is_school_affiliated=True,
+            school_name='Provisioning School',
         )
 
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_creates_local_row_and_returns_temp_password(
-        self, mock_get, mock_create, _init
-    ):
+    def test_creates_local_row_and_returns_temp_password(self, mock_get, mock_create, _init):
         mock_get.side_effect = firebase_auth.UserNotFoundError('not found')
         mock_create.return_value = Mock(uid='fb-uid-1')
 
         user, temp, note = provision_user(
-            email='new@x.test', first_name='New', last_name='Player',
-            role=Roles.COACH, club=self.club,
+            email='new@x.test',
+            first_name='New',
+            last_name='Player',
+            role=Roles.COACH,
+            club=self.club,
         )
 
         self.assertTrue(User.objects.filter(email='new@x.test').exists())
@@ -173,13 +168,19 @@ class ProvisionUserTests(TestCase):
     @patch('accounts.services.firebase_auth.get_user_by_email')
     def test_rejects_duplicate_email(self, mock_get, mock_create, _init):
         User.objects.create(
-            username='dupe@x.test', email='dupe@x.test',
-            role=Roles.COACH, firebase_uid='existing', club=self.club,
+            username='dupe@x.test',
+            email='dupe@x.test',
+            role=Roles.COACH,
+            firebase_uid='existing',
+            club=self.club,
         )
         with self.assertRaises(ProvisioningError):
             provision_user(
-                email='dupe@x.test', first_name='D', last_name='U',
-                role=Roles.COACH, club=self.club,
+                email='dupe@x.test',
+                first_name='D',
+                last_name='U',
+                role=Roles.COACH,
+                club=self.club,
             )
         mock_create.assert_not_called()  # never touches Firebase on a dupe
 
@@ -197,8 +198,11 @@ class ProvisionUserTests(TestCase):
         with patch.object(User, 'save', side_effect=RuntimeError('db down')):
             with self.assertRaises(RuntimeError):
                 provision_user(
-                    email='fail@x.test', first_name='F', last_name='X',
-                    role=Roles.COACH, club=self.club,
+                    email='fail@x.test',
+                    first_name='F',
+                    last_name='X',
+                    role=Roles.COACH,
+                    club=self.club,
                 )
 
         # Compensation ran: the orphan Firebase account was deleted.
@@ -217,8 +221,11 @@ class ProvisionUserTests(TestCase):
         with patch.object(User, 'save', side_effect=RuntimeError('db down')):
             with self.assertRaises(ProvisioningError):
                 provision_user(
-                    email='adopt@x.test', first_name='A', last_name='D',
-                    role=Roles.COACH, club=self.club,
+                    email='adopt@x.test',
+                    first_name='A',
+                    last_name='D',
+                    role=Roles.COACH,
+                    club=self.club,
                 )
 
         mock_create.assert_not_called()
@@ -235,27 +242,27 @@ class AdminAutoSyncTests(TestCase):
     def setUp(self):
         self.admin = CustomUserAdmin(User, site)
         self.club = Club.objects.create(
-            name='Admin Form Club', slug='admin-form-club',
-            is_school_affiliated=True, school_name='Admin Form School',
+            name='Admin Form Club',
+            slug='admin-form-club',
+            is_school_affiliated=True,
+            school_name='Admin Form School',
         )
 
     @patch.object(CustomUserAdmin, 'message_user')
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_new_app_user_is_synced_to_firebase(
-        self, mock_get, mock_create, _init, _msg
-    ):
+    def test_new_app_user_is_synced_to_firebase(self, mock_get, mock_create, _init, _msg):
         mock_get.side_effect = firebase_auth.UserNotFoundError('not found')
         mock_create.return_value = Mock(uid='synced-uid')
 
         obj = User(
-            username='p@x.test', email='p@x.test', role=Roles.COACH,
+            username='p@x.test',
+            email='p@x.test',
+            role=Roles.COACH,
             club=self.club,
         )
-        self.admin.save_model(
-            Mock(), obj, _FakeForm(password1='TypedPass123!'), change=False
-        )
+        self.admin.save_model(Mock(), obj, _FakeForm(password1='TypedPass123!'), change=False)
 
         obj.refresh_from_db()
         self.assertEqual(obj.firebase_uid, 'synced-uid')
@@ -265,16 +272,15 @@ class AdminAutoSyncTests(TestCase):
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_superuser_is_not_synced(
-        self, mock_get, mock_create, _init, _msg
-    ):
+    def test_superuser_is_not_synced(self, mock_get, mock_create, _init, _msg):
         obj = User(
-            username='root', email='root@x.test', role=Roles.ADMIN,
-            is_staff=True, is_superuser=True,
+            username='root',
+            email='root@x.test',
+            role=Roles.ADMIN,
+            is_staff=True,
+            is_superuser=True,
         )
-        self.admin.save_model(
-            Mock(), obj, _FakeForm(password1='x'), change=False
-        )
+        self.admin.save_model(Mock(), obj, _FakeForm(password1='x'), change=False)
 
         obj.refresh_from_db()
         self.assertIsNone(obj.firebase_uid)  # /admin/ account, session login
@@ -284,15 +290,14 @@ class AdminAutoSyncTests(TestCase):
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_user_without_email_is_not_synced(
-        self, mock_get, mock_create, _init, _msg
-    ):
+    def test_user_without_email_is_not_synced(self, mock_get, mock_create, _init, _msg):
         obj = User(
-            username='noemail', email='', role=Roles.COACH, club=self.club,
+            username='noemail',
+            email='',
+            role=Roles.COACH,
+            club=self.club,
         )
-        self.admin.save_model(
-            Mock(), obj, _FakeForm(password1='x'), change=False
-        )
+        self.admin.save_model(Mock(), obj, _FakeForm(password1='x'), change=False)
 
         obj.refresh_from_db()
         self.assertIsNone(obj.firebase_uid)
@@ -302,15 +307,18 @@ class AdminAutoSyncTests(TestCase):
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_editing_existing_user_does_not_resync(
-        self, mock_get, mock_create, _init, _msg
-    ):
+    def test_editing_existing_user_does_not_resync(self, mock_get, mock_create, _init, _msg):
         obj = User.objects.create(
-            username='edit@x.test', email='edit@x.test', role=Roles.COACH,
+            username='edit@x.test',
+            email='edit@x.test',
+            role=Roles.COACH,
             club=self.club,
         )
         self.admin.save_model(
-            Mock(), obj, _FakeForm(), change=True  # change=True -> an edit
+            Mock(),
+            obj,
+            _FakeForm(),
+            change=True,  # change=True -> an edit
         )
 
         obj.refresh_from_db()
@@ -343,12 +351,8 @@ class AdminAutoSyncTests(TestCase):
             },
         )
 
-        self.assertRedirects(
-            response, reverse('admin:accounts_user_change', args=(app_user.pk,))
-        )
-        reset_password.assert_called_once_with(
-            app_user, password='NewFirebasePass123!'
-        )
+        self.assertRedirects(response, reverse('admin:accounts_user_change', args=(app_user.pk,)))
+        reset_password.assert_called_once_with(app_user, password='NewFirebasePass123!')
 
     def test_admin_user_detail_labels_firebase_only_password(self):
         admin_user = User.objects.create_superuser(
@@ -367,9 +371,7 @@ class AdminAutoSyncTests(TestCase):
         app_user.save(update_fields=['password'])
         self.client.force_login(admin_user)
 
-        response = self.client.get(
-            reverse('admin:accounts_user_change', args=(app_user.pk,))
-        )
+        response = self.client.get(reverse('admin:accounts_user_change', args=(app_user.pk,)))
 
         self.assertContains(response, 'Password is managed by Firebase Authentication.')
         self.assertContains(response, 'Set Firebase password')
@@ -380,24 +382,29 @@ class ConsoleProvisioningApiTests(APITestCase):
 
     def setUp(self):
         self.club = Club.objects.create(
-            name='Console Club', slug='console-club',
-            is_school_affiliated=True, school_name='Console School',
+            name='Console Club',
+            slug='console-club',
+            is_school_affiliated=True,
+            school_name='Console School',
         )
         self.admin = User.objects.create(
-            username='admin@x.test', email='admin@x.test',
-            role=Roles.ADMIN, firebase_uid='admin-uid',
+            username='admin@x.test',
+            email='admin@x.test',
+            role=Roles.ADMIN,
+            firebase_uid='admin-uid',
         )
         self.coach = User.objects.create(
-            username='coach@x.test', email='coach@x.test',
-            role=Roles.COACH, firebase_uid='coach-uid', club=self.club,
+            username='coach@x.test',
+            email='coach@x.test',
+            role=Roles.COACH,
+            firebase_uid='coach-uid',
+            club=self.club,
         )
 
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')
     @patch('accounts.services.firebase_auth.get_user_by_email')
-    def test_admin_creates_account_with_email(
-        self, mock_get, mock_create, _init
-    ):
+    def test_admin_creates_account_with_email(self, mock_get, mock_create, _init):
         mock_get.side_effect = firebase_auth.UserNotFoundError('not found')
         mock_create.return_value = Mock(uid='provisioned-uid')
 
@@ -426,8 +433,11 @@ class ConsoleProvisioningApiTests(APITestCase):
         response = self.client.post(
             reverse('admin-users'),
             {
-                'email': 'x@x.test', 'first_name': '', 'last_name': '',
-                'role': Roles.COACH, 'club_id': self.club.id,
+                'email': 'x@x.test',
+                'first_name': '',
+                'last_name': '',
+                'role': Roles.COACH,
+                'club_id': self.club.id,
             },
             format='json',
         )
@@ -438,8 +448,10 @@ class ConsoleProvisioningApiTests(APITestCase):
         response = self.client.post(
             reverse('admin-users'),
             {
-                'first_name': 'No', 'last_name': 'Email',
-                'role': Roles.COACH, 'club_id': self.club.id,
+                'first_name': 'No',
+                'last_name': 'Email',
+                'role': Roles.COACH,
+                'club_id': self.club.id,
             },
             format='json',
         )
@@ -451,15 +463,21 @@ class ConsoleProvisioningApiTests(APITestCase):
     @patch('accounts.services.firebase_auth.get_user_by_email')
     def test_duplicate_email_is_rejected(self, mock_get, mock_create, _init):
         User.objects.create(
-            username='taken@x.test', email='taken@x.test',
-            role=Roles.COACH, firebase_uid='taken-uid', club=self.club,
+            username='taken@x.test',
+            email='taken@x.test',
+            role=Roles.COACH,
+            firebase_uid='taken-uid',
+            club=self.club,
         )
         self.client.force_authenticate(self.admin)
         response = self.client.post(
             reverse('admin-users'),
             {
-                'email': 'taken@x.test', 'first_name': '', 'last_name': '',
-                'role': Roles.COACH, 'club_id': self.club.id,
+                'email': 'taken@x.test',
+                'first_name': '',
+                'last_name': '',
+                'role': Roles.COACH,
+                'club_id': self.club.id,
             },
             format='json',
         )

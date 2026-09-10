@@ -11,7 +11,8 @@ class ReadinessProbeTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['status'], 'ready')
         self.assertEqual(
-            response.data['checks'], {'database': True, 'cache': True},
+            response.data['checks'],
+            {'database': True, 'cache': True},
         )
 
     @patch('accounts.views.cache.get', side_effect=RuntimeError('cache down'))

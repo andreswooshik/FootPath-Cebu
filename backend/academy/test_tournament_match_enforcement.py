@@ -53,31 +53,15 @@ class TournamentMatchEnforcementTests(APITestCase):
     def setUp(self):
         self.club = _club('Enforcement FC')
         self.other_club = _club('Other Enforcement FC')
-        self.coordinator = _user(
-            'coordinator@enforcement.test', Roles.COORDINATOR, self.club
-        )
+        self.coordinator = _user('coordinator@enforcement.test', Roles.COORDINATOR, self.club)
         self.coach = _user('coach@enforcement.test', Roles.COACH, self.club)
-        self.member = _player(
-            'member@enforcement.test', self.club, date(2018, 12, 31)
-        )
-        self.pending = _player(
-            'pending@enforcement.test', self.club, date(2019, 1, 1)
-        )
-        self.blocked_member = _player(
-            'blocked@enforcement.test', self.club, date(2018, 1, 1)
-        )
-        self.out_of_squad = _player(
-            'exception@enforcement.test', self.club, date(2020, 1, 1)
-        )
-        self.overage = _player(
-            'overage@enforcement.test', self.club, date(2017, 12, 31)
-        )
-        self.missing_dob = _player(
-            'missing@enforcement.test', self.club, None
-        )
-        self.injured = _player(
-            'injured@enforcement.test', self.club, date(2018, 6, 1)
-        )
+        self.member = _player('member@enforcement.test', self.club, date(2018, 12, 31))
+        self.pending = _player('pending@enforcement.test', self.club, date(2019, 1, 1))
+        self.blocked_member = _player('blocked@enforcement.test', self.club, date(2018, 1, 1))
+        self.out_of_squad = _player('exception@enforcement.test', self.club, date(2020, 1, 1))
+        self.overage = _player('overage@enforcement.test', self.club, date(2017, 12, 31))
+        self.missing_dob = _player('missing@enforcement.test', self.club, None)
+        self.injured = _player('injured@enforcement.test', self.club, date(2018, 6, 1))
         self.schedule = TournamentSchedule.objects.create(
             club=self.club,
             title='Sinulog Cup',
@@ -156,9 +140,7 @@ class TournamentMatchEnforcementTests(APITestCase):
         return payload
 
     def _performance_url(self, player):
-        return reverse(
-            'match-performance-detail', args=[self.match.id, player.id]
-        )
+        return reverse('match-performance-detail', args=[self.match.id, player.id])
 
     def test_fixture_bracket_must_belong_to_the_same_tournament(self):
         other_schedule = TournamentSchedule.objects.create(
@@ -205,10 +187,7 @@ class TournamentMatchEnforcementTests(APITestCase):
         self.assertNotIn(str(self.out_of_squad.id), by_id)
 
     def test_only_coordinator_can_request_eligible_out_of_squad_candidates(self):
-        url = (
-            f"{reverse('match-roster', args=[self.match.id])}"
-            '?includeOutOfSquad=true'
-        )
+        url = f'{reverse("match-roster", args=[self.match.id])}?includeOutOfSquad=true'
         self.client.force_authenticate(self.coordinator)
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
@@ -292,10 +271,7 @@ class TournamentMatchEnforcementTests(APITestCase):
         )
         self.client.force_authenticate(self.coordinator)
         response = self.client.get(reverse('match-roster', args=[self.match.id]))
-        row = next(
-            item for item in response.data
-            if item['id'] == str(self.blocked_member.id)
-        )
+        row = next(item for item in response.data if item['id'] == str(self.blocked_member.id))
         self.assertFalse(row['isSelectable'])
         self.assertEqual(row['performance']['id'], str(performance.id))
 
@@ -328,8 +304,6 @@ class TournamentMatchEnforcementTests(APITestCase):
         self.schedule.published_at = None
         self.schedule.save()
         self.client.force_authenticate(self.coordinator)
-        response = self.client.delete(
-            reverse('tournament-bracket-detail', args=[self.bracket.id])
-        )
+        response = self.client.delete(reverse('tournament-bracket-detail', args=[self.bracket.id]))
         self.assertEqual(response.status_code, 400)
         self.assertTrue(TournamentAgeBracket.objects.filter(pk=self.bracket.id).exists())

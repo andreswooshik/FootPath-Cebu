@@ -97,11 +97,7 @@ class Club(models.Model):
     @property
     def club_type(self):
         """Expose the approved SCHOOL/INDEPENDENT label without new storage."""
-        return (
-            ClubTypes.SCHOOL
-            if self.is_school_affiliated
-            else ClubTypes.INDEPENDENT
-        )
+        return ClubTypes.SCHOOL if self.is_school_affiliated else ClubTypes.INDEPENDENT
 
 
 class User(AbstractUser):
@@ -110,9 +106,7 @@ class User(AbstractUser):
     firebase_uid = models.CharField(
         max_length=128, unique=True, null=True, blank=True, db_index=True
     )
-    role = models.CharField(
-        max_length=20, choices=Roles.choices, default=Roles.PLAYER
-    )
+    role = models.CharField(max_length=20, choices=Roles.choices, default=Roles.PLAYER)
     # The club this account belongs to. Null for ADMIN / superusers (cross-club)
     # and for legacy rows created before multi-club tenancy existed. PROTECT
     # prevents deleting an occupied tenant and silently recreating club-less
@@ -197,11 +191,7 @@ class GuardianLink(models.Model):
                 errors['player'] = 'The player must belong to a club.'
             elif not self.player.club.is_active:
                 errors['player'] = 'The player club must be active.'
-        if (
-            self.guardian_id
-            and self.player_id
-            and self.guardian.club_id != self.player.club_id
-        ):
+        if self.guardian_id and self.player_id and self.guardian.club_id != self.player.club_id:
             errors['player'] = 'Guardian and player must belong to the same club.'
         if errors:
             raise ValidationError(errors)

@@ -1,6 +1,18 @@
 """Training-session model."""
 
-from .model_players import *  # noqa: F401,F403
+import re
+from datetime import datetime
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import models
+from django.utils import timezone
+
+from academy.model_players import (
+    SessionFocus,
+    TrainingSessionStatus,
+)
+
 
 class TrainingSession(models.Model):
     """A scheduled session. Times are display strings (e.g. "04:30 PM") to match
@@ -29,10 +41,12 @@ class TrainingSession(models.Model):
     )
     cancellation_reason = models.CharField(max_length=500, blank=True)
     conflicting_tournament_id = models.PositiveBigIntegerField(
-        null=True, blank=True,
+        null=True,
+        blank=True,
     )
     conflicting_fixture_id = models.PositiveBigIntegerField(
-        null=True, blank=True,
+        null=True,
+        blank=True,
     )
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancelled_by_action = models.CharField(max_length=80, blank=True)
@@ -76,9 +90,7 @@ class TrainingSession(models.Model):
 
         if bool(start_text) != bool(end_text):
             missing_field = 'start_time' if not start_text else 'end_time'
-            errors[missing_field] = (
-                'Start time and end time must be provided together.'
-            )
+            errors[missing_field] = 'Start time and end time must be provided together.'
         if errors:
             raise ValidationError(errors)
         if not start_text:
@@ -92,9 +104,7 @@ class TrainingSession(models.Model):
         ):
             match = cls._TIME_PATTERN.fullmatch(value)
             if match is None:
-                errors[field] = (
-                    'Use a 12-hour time such as 04:30 PM.'
-                )
+                errors[field] = 'Use a 12-hour time such as 04:30 PM.'
                 continue
             hour = int(match.group('hour'))
             minute = int(match.group('minute'))
@@ -106,16 +116,12 @@ class TrainingSession(models.Model):
         if errors:
             raise ValidationError(errors)
         if parsed['start_time'] >= parsed['end_time']:
-            raise ValidationError({
-                'end_time': 'End time must be later than start time.'
-            })
+            raise ValidationError({'end_time': 'End time must be later than start time.'})
         return normalized['start_time'], normalized['end_time']
 
     def clean(self):
         super().clean()
-        self.start_time, self.end_time = self.validate_time_window(
-            self.start_time, self.end_time
-        )
+        self.start_time, self.end_time = self.validate_time_window(self.start_time, self.end_time)
 
     def save(self, *args, **kwargs):
         # ModelForm/admin calls full_clean automatically, but ordinary ORM

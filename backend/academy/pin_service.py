@@ -45,24 +45,18 @@ class PinLocked(PinError):
 def validate_pin(pin):
     pin = str(pin or '').strip()
     if not _PIN_PATTERN.fullmatch(pin):
-        raise ValueError(
-            f'PIN must contain {MIN_PIN_LENGTH} to {MAX_PIN_LENGTH} digits.'
-        )
+        raise ValueError(f'PIN must contain {MIN_PIN_LENGTH} to {MAX_PIN_LENGTH} digits.')
     return pin
 
 
 def _state_for_update(player):
-    state, _ = PlayerPrivacyPin.objects.select_for_update().get_or_create(
-        player=player
-    )
+    state, _ = PlayerPrivacyPin.objects.select_for_update().get_or_create(player=player)
     return state
 
 
 def has_pin(player):
     return bool(
-        PlayerPrivacyPin.objects.filter(player=player)
-        .values_list('pin_hash', flat=True)
-        .first()
+        PlayerPrivacyPin.objects.filter(player=player).values_list('pin_hash', flat=True).first()
     )
 
 
@@ -82,9 +76,7 @@ def set_pin(player, pin, current_pin=None):
     pin = validate_pin(pin)
     state = _state_for_update(player)
     if state.pin_hash:
-        if current_pin is None or not check_password(
-            str(current_pin).strip(), state.pin_hash
-        ):
+        if current_pin is None or not check_password(str(current_pin).strip(), state.pin_hash):
             raise InvalidCurrentPin('The current PIN is incorrect.')
     state.pin_hash = make_password(pin)
     state.failed_attempts = 0

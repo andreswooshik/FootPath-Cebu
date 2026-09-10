@@ -2,7 +2,6 @@
 
 from django.core.exceptions import ValidationError
 
-
 CATALOG_VERSION = 1
 CATALOGS = {
     'GOALKEEPER': ('Diving', 'Handling', 'Kicking', 'Reflexes', 'Speed', 'Positioning'),
@@ -11,9 +10,16 @@ CATALOGS = {
     'ATTACKER': ('Pace', 'Shooting', 'Dribbling', 'Off-ball Movement', 'Passing', 'Physical'),
 }
 POSITION_GROUPS = {
-    'GK': 'GOALKEEPER', 'CB': 'DEFENDER', 'LB': 'DEFENDER', 'RB': 'DEFENDER',
-    'CDM': 'MIDFIELDER', 'CM': 'MIDFIELDER', 'CAM': 'MIDFIELDER',
-    'LW': 'ATTACKER', 'RW': 'ATTACKER', 'ST': 'ATTACKER',
+    'GK': 'GOALKEEPER',
+    'CB': 'DEFENDER',
+    'LB': 'DEFENDER',
+    'RB': 'DEFENDER',
+    'CDM': 'MIDFIELDER',
+    'CM': 'MIDFIELDER',
+    'CAM': 'MIDFIELDER',
+    'LW': 'ATTACKER',
+    'RW': 'ATTACKER',
+    'ST': 'ATTACKER',
 }
 
 
@@ -26,7 +32,9 @@ def role_group_for(position):
 
 def catalog_for(position, version=CATALOG_VERSION):
     if int(version) != CATALOG_VERSION:
-        raise ValidationError({'catalogVersion': 'This Player Stats catalog version is not supported.'})
+        raise ValidationError(
+            {'catalogVersion': 'This Player Stats catalog version is not supported.'}
+        )
     group = role_group_for(position)
     return group, list(CATALOGS[group])
 
@@ -53,9 +61,7 @@ def normalized_scores(position, scores, version=CATALOG_VERSION):
     for key in keys:
         value = scores[key]
         if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 99:
-            raise ValidationError({
-                'scores': f'{key}: enter a whole number from 0 to 99.'
-            })
+            raise ValidationError({'scores': f'{key}: enter a whole number from 0 to 99.'})
         cleaned[key] = value
     return cleaned
 

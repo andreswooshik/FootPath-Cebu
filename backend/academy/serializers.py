@@ -1,7 +1,99 @@
-"""Compatibility facade for domain-focused academy serializers."""
+"""Explicit compatibility exports for feature modules."""
 
-from .serializer_players import *  # noqa: F401,F403
-from .serializer_tournaments import *  # noqa: F401,F403
-from .serializer_match_performance import *  # noqa: F401,F403
-from .serializer_training import *  # noqa: F401,F403
-from .serializer_workflows import *  # noqa: F401,F403
+from academy.serializer_match_performance import (
+    CoachMatchRatingSerializer,
+    PlayerMatchPerformanceSerializer,
+    PlayerMatchStatisticsWriteSerializer,
+    TournamentFixtureResultWriteSerializer,
+    TournamentResultParticipantWriteSerializer,
+)
+from academy.serializer_players import (
+    AssessmentSerializer,
+    DevelopmentAssessmentWriteSerializer,
+    PlayerAssessmentSnapshotSerializer,
+    PlayerDevelopmentAssessmentSerializer,
+    PlayerPositionSerializer,
+    PlayerSelectorSerializer,
+    PlayerSerializer,
+    PlayerStatsAssessmentSerializer,
+    PlayerStatsAssessmentWriteSerializer,
+    _display_name,
+)
+from academy.serializer_tournaments import (
+    FootballMatchSerializer,
+    TournamentAgeBracketSerializer,
+    TournamentAgeBracketWriteSerializer,
+    TournamentFixtureSerializer,
+    TournamentFixtureWriteSerializer,
+    TournamentScheduleSerializer,
+    TournamentScheduleWriteSerializer,
+    TournamentSquadEntrySerializer,
+    TournamentSquadEntryWriteSerializer,
+    TournamentSquadSerializer,
+    TournamentSquadWriteSerializer,
+)
+from academy.serializer_training import (
+    AttendanceSerializer,
+    EligibilityHistorySerializer,
+    SessionConfirmationSerializer,
+    TrainingSessionListSerializer,
+    TrainingSessionSerializer,
+)
+from academy.serializer_workflows import (
+    AdminCreatePlayerSerializer,
+    AgeTierSettingSerializer,
+    AttendanceBatchSerializer,
+    DisputeCreateSerializer,
+    DisputeResponseCreateSerializer,
+    DisputeResponseSerializer,
+    DisputeSerializer,
+    InjuryRecordSerializer,
+    InjuryStatusUpdateRequestSerializer,
+    NotificationRecordSerializer,
+    SessionAttendanceRecordSerializer,
+)
+
+__all__ = [
+    'AdminCreatePlayerSerializer',
+    'AgeTierSettingSerializer',
+    'AssessmentSerializer',
+    'AttendanceBatchSerializer',
+    'AttendanceSerializer',
+    'CoachMatchRatingSerializer',
+    'DevelopmentAssessmentWriteSerializer',
+    'DisputeCreateSerializer',
+    'DisputeResponseCreateSerializer',
+    'DisputeResponseSerializer',
+    'DisputeSerializer',
+    'EligibilityHistorySerializer',
+    'FootballMatchSerializer',
+    'InjuryRecordSerializer',
+    'InjuryStatusUpdateRequestSerializer',
+    'NotificationRecordSerializer',
+    'PlayerAssessmentSnapshotSerializer',
+    'PlayerDevelopmentAssessmentSerializer',
+    'PlayerMatchPerformanceSerializer',
+    'PlayerMatchStatisticsWriteSerializer',
+    'PlayerPositionSerializer',
+    'PlayerSelectorSerializer',
+    'PlayerSerializer',
+    'PlayerStatsAssessmentSerializer',
+    'PlayerStatsAssessmentWriteSerializer',
+    'SessionAttendanceRecordSerializer',
+    'SessionConfirmationSerializer',
+    'TournamentAgeBracketSerializer',
+    'TournamentAgeBracketWriteSerializer',
+    'TournamentFixtureResultWriteSerializer',
+    'TournamentFixtureSerializer',
+    'TournamentFixtureWriteSerializer',
+    'TournamentResultParticipantWriteSerializer',
+    'TournamentScheduleSerializer',
+    'TournamentScheduleWriteSerializer',
+    'TournamentSquadEntrySerializer',
+    'TournamentSquadEntryWriteSerializer',
+    'TournamentSquadSerializer',
+    'TournamentSquadWriteSerializer',
+    'TrainingSessionListSerializer',
+    'TrainingSessionSerializer',
+    '_display_name',
+]

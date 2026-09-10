@@ -4,10 +4,9 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from firebase_admin import auth as firebase_auth
 
+from academy.models import AgeTierSetting, PlayerProfile
 from accounts.firebase import ensure_initialized
 from accounts.models import Club, Roles, User
-from academy.models import AgeTierSetting, PlayerProfile
-
 
 DEMO_CLUB_NAME = 'FootPath Cebu Demo Club'
 DEMO_CLUB_SLUG = 'footpath-cebu-demo'
@@ -141,14 +140,12 @@ class Command(BaseCommand):
                 )
             self.stdout.write(
                 self.style.SUCCESS(
-                    f'{"Created" if created else "Updated"} local user '
-                    f'{email} as {role}'
+                    f'{"Created" if created else "Updated"} local user {email} as {role}'
                 )
             )
 
         self.stdout.write(
             self.style.SUCCESS(
-                'Panel demo accounts are ready. All six use the password '
-                f'{password!r}.'
+                f'Panel demo accounts are ready. All six use the password {password!r}.'
             )
         )

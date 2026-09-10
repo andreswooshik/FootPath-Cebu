@@ -15,8 +15,8 @@ from .models import DeviceToken, NotificationRecord, PlayerProfile
 from .notifications import _send_to_users
 from .storage import (
     MAX_PHOTO_BYTES,
-    signed_photo_url,
     sanitized_photo_bytes,
+    signed_photo_url,
     upload_photo,
     validate_photo_upload,
 )
@@ -25,7 +25,9 @@ from .storage import (
 class StoragePhotoValidationTests(TestCase):
     def _photo(self, size):
         upload = SimpleUploadedFile(
-            'player.jpg', jpeg_bytes(), content_type='image/jpeg',
+            'player.jpg',
+            jpeg_bytes(),
+            content_type='image/jpeg',
         )
         upload.size = size
         return upload
@@ -42,7 +44,9 @@ class StoragePhotoValidationTests(TestCase):
     def test_sanitization_strips_trailing_polyglot_bytes(self):
         payload = jpeg_bytes() + b'<script>unsafe trailing payload</script>'
         upload = SimpleUploadedFile(
-            'player.jpg', payload, content_type='image/jpeg',
+            'player.jpg',
+            payload,
+            content_type='image/jpeg',
         )
         content_type = validate_photo_upload(upload)
         sanitized = sanitized_photo_bytes(upload, content_type)
@@ -51,11 +55,14 @@ class StoragePhotoValidationTests(TestCase):
 
 class StorageAuthenticationHeaderTests(TestCase):
     def _storage_env(self, key):
-        return patch.dict(os.environ, {
-            'SUPABASE_URL': 'https://project.supabase.co',
-            'SUPABASE_SERVICE_KEY': key,
-            'SUPABASE_PHOTO_BUCKET': 'player-photos',
-        })
+        return patch.dict(
+            os.environ,
+            {
+                'SUPABASE_URL': 'https://project.supabase.co',
+                'SUPABASE_SERVICE_KEY': key,
+                'SUPABASE_PHOTO_BUCKET': 'player-photos',
+            },
+        )
 
     def test_upload_uses_supported_headers_for_current_and_legacy_keys(self):
         cases = (
@@ -63,13 +70,17 @@ class StorageAuthenticationHeaderTests(TestCase):
             ('legacy.header.signature', True),
         )
         for key, expects_bearer in cases:
-            with self.subTest(key=key), self._storage_env(key), patch(
-                'academy.storage.httpx.post'
-            ) as post:
+            with (
+                self.subTest(key=key),
+                self._storage_env(key),
+                patch('academy.storage.httpx.post') as post,
+            ):
                 post.return_value.raise_for_status.return_value = None
 
                 result = upload_photo(
-                    42, b'image-bytes', content_type='image/jpeg',
+                    42,
+                    b'image-bytes',
+                    content_type='image/jpeg',
                 )
 
                 self.assertEqual(result, 'player-photos/42.jpg')
@@ -92,9 +103,11 @@ class StorageAuthenticationHeaderTests(TestCase):
             cache_key = f'photo-signed-url:3600:{photo_path}'
             cache.delete(cache_key)
             self.addCleanup(cache.delete, cache_key)
-            with self.subTest(key=key), self._storage_env(key), patch(
-                'academy.storage.httpx.post'
-            ) as post:
+            with (
+                self.subTest(key=key),
+                self._storage_env(key),
+                patch('academy.storage.httpx.post') as post,
+            ):
                 post.return_value.raise_for_status.return_value = None
                 post.return_value.json.return_value = {
                     'signedURL': f'/object/sign/{photo_path}?token=test',
@@ -104,8 +117,7 @@ class StorageAuthenticationHeaderTests(TestCase):
 
                 self.assertEqual(
                     result,
-                    'https://project.supabase.co/storage/v1'
-                    f'/object/sign/{photo_path}?token=test',
+                    f'https://project.supabase.co/storage/v1/object/sign/{photo_path}?token=test',
                 )
                 headers = post.call_args.kwargs['headers']
                 self.assertEqual(headers['apikey'], key)
@@ -117,7 +129,8 @@ class StorageAuthenticationHeaderTests(TestCase):
     def test_upload_rejects_a_publishable_key_as_server_credentials(self):
         with self._storage_env('sb_publishable_wrong-key'):
             with self.assertRaisesMessage(
-                RuntimeError, 'SUPABASE_SERVICE_KEY must be an sb_secret_ key',
+                RuntimeError,
+                'SUPABASE_SERVICE_KEY must be an sb_secret_ key',
             ):
                 upload_photo(42, b'image-bytes', content_type='image/jpeg')
 
@@ -125,7 +138,9 @@ class StorageAuthenticationHeaderTests(TestCase):
 class NotificationInboxTests(APITestCase):
     def setUp(self):
         self.club = Club.objects.create(
-            name='Inbox Club', slug='inbox-club', is_active=True,
+            name='Inbox Club',
+            slug='inbox-club',
+            is_active=True,
         )
         self.user = User.objects.create_user(
             username='player-inbox@example.test',
@@ -163,12 +178,15 @@ class NotificationInboxTests(APITestCase):
 
     def test_mark_read_cannot_touch_another_users_record(self):
         denied = self.client.patch(
-            reverse('notification-read', args=[self.other_record.pk]), {},
+            reverse('notification-read', args=[self.other_record.pk]),
+            {},
             format='json',
         )
         self.assertEqual(denied.status_code, status.HTTP_404_NOT_FOUND)
         ok = self.client.patch(
-            reverse('notification-read', args=[self.own.pk]), {}, format='json',
+            reverse('notification-read', args=[self.own.pk]),
+            {},
+            format='json',
         )
         self.assertEqual(ok.status_code, status.HTTP_200_OK)
         self.assertTrue(ok.data['isRead'])
@@ -181,7 +199,7 @@ class NotificationInboxTests(APITestCase):
         self.assertIsNotNone(self.own.read_at)
         self.assertIsNone(self.other_record.read_at)
 
-    @patch('academy.notifications.ensure_initialized')
+    @patch('academy.push_delivery.ensure_initialized')
     def test_inbox_persists_when_firebase_is_unavailable(self, initialize):
         initialize.side_effect = RuntimeError('not configured')
         sent = _send_to_users(
@@ -192,7 +210,8 @@ class NotificationInboxTests(APITestCase):
         )
         self.assertEqual(sent, 0)
         record = NotificationRecord.objects.filter(
-            user=self.user, event_type='eligibility_changed',
+            user=self.user,
+            event_type='eligibility_changed',
         ).latest('id')
         self.assertNotIn('eligibility', record.data)
         self.assertNotIn('previous', record.data)
@@ -201,23 +220,30 @@ class NotificationInboxTests(APITestCase):
 class DeviceLifecycleTests(APITestCase):
     def setUp(self):
         club = Club.objects.create(
-            name='Device Club', slug='device-club', is_active=True,
+            name='Device Club',
+            slug='device-club',
+            is_active=True,
         )
         self.user = User.objects.create_user(
-            username='device@example.test', email='device@example.test',
-            role=Roles.COACH, club=club,
+            username='device@example.test',
+            email='device@example.test',
+            role=Roles.COACH,
+            club=club,
         )
         self.other = User.objects.create_user(
             username='other-device@example.test',
             email='other-device@example.test',
-            role=Roles.COACH, club=club,
+            role=Roles.COACH,
+            club=club,
         )
         self.client.force_authenticate(self.user)
 
     def test_register_refresh_and_account_scoped_unregister(self):
         url = reverse('devices')
         response = self.client.post(
-            url, {'token': 'mine', 'platform': 'android'}, format='json',
+            url,
+            {'token': 'mine', 'platform': 'android'},
+            format='json',
         )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         DeviceToken.objects.create(user=self.other, token='theirs')
@@ -230,10 +256,14 @@ class DeviceLifecycleTests(APITestCase):
 class MobilePlayerPhotoTests(APITestCase):
     def setUp(self):
         self.club = Club.objects.create(
-            name='Photo Club', slug='photo-club', is_active=True,
+            name='Photo Club',
+            slug='photo-club',
+            is_active=True,
         )
         self.other_club = Club.objects.create(
-            name='Other Photo Club', slug='other-photo-club', is_active=True,
+            name='Other Photo Club',
+            slug='other-photo-club',
+            is_active=True,
         )
         self.coach = User.objects.create_user(
             username='photo-coach@example.test',
@@ -259,7 +289,9 @@ class MobilePlayerPhotoTests(APITestCase):
 
     def _photo(self):
         return SimpleUploadedFile(
-            'player.jpg', jpeg_bytes(), content_type='image/jpeg',
+            'player.jpg',
+            jpeg_bytes(),
+            content_type='image/jpeg',
         )
 
     @patch('academy.view_administration.upload_photo', return_value='player-photos/player.jpg')

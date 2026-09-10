@@ -1,6 +1,17 @@
 """Per-player match-performance model."""
 
-from .model_tournaments import *  # noqa: F401,F403
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import (
+    MaxValueValidator,
+    MinValueValidator,
+)
+from django.db import models
+
+from academy.model_players import PLAYER_POSITION_CODES
+from academy.model_tournaments import FootballMatch
+from accounts.models import Roles
+
 
 class PlayerMatchPerformance(models.Model):
     """Role-separated statistics and evaluation for one player/match.
@@ -90,29 +101,17 @@ class PlayerMatchPerformance(models.Model):
             errors['position'] = 'Unknown player position.'
         if self.player_id and self.player.role != Roles.PLAYER:
             errors['player'] = 'Match performances belong to player accounts.'
-        if (
-            self.player_id
-            and self.match_id
-            and self.player.club_id != self.match.club_id
-        ):
+        if self.player_id and self.match_id and self.player.club_id != self.match.club_id:
             errors['player'] = 'Player must belong to the match club.'
         if self.shots_on_target > self.shots:
-            errors['shots_on_target'] = (
-                'Shots on target cannot exceed total shots.'
-            )
+            errors['shots_on_target'] = 'Shots on target cannot exceed total shots.'
         if self.goals > self.shots_on_target:
             errors['goals'] = 'Goals cannot exceed shots on target.'
         if self.passes_completed > self.passes_attempted:
-            errors['passes_completed'] = (
-                'Completed passes cannot exceed attempted passes.'
-            )
+            errors['passes_completed'] = 'Completed passes cannot exceed attempted passes.'
         if self.clean_sheet and self.goals_conceded:
-            errors['clean_sheet'] = (
-                'A clean sheet cannot include goals conceded.'
-            )
-        if self.position != 'GK' and (
-            self.saves or self.goals_conceded or self.clean_sheet
-        ):
+            errors['clean_sheet'] = 'A clean sheet cannot include goals conceded.'
+        if self.position != 'GK' and (self.saves or self.goals_conceded or self.clean_sheet):
             errors['position'] = 'Goalkeeper statistics require the GK position.'
         if errors:
             raise ValidationError(errors)
@@ -137,9 +136,7 @@ class PlayerMatchPerformance(models.Model):
                 name='goals_lte_shots_on_target',
             ),
             models.CheckConstraint(
-                condition=models.Q(
-                    passes_completed__lte=models.F('passes_attempted')
-                ),
+                condition=models.Q(passes_completed__lte=models.F('passes_attempted')),
                 name='passes_completed_lte_attempted',
             ),
             models.CheckConstraint(

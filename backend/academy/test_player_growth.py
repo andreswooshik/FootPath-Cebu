@@ -1,6 +1,7 @@
 """End-to-end Player Growth history, calculation, and security tests."""
-from datetime import date, datetime, timedelta
+
 import importlib
+from datetime import date, datetime, timedelta
 from unittest.mock import patch
 
 from django.apps import apps as django_apps
@@ -28,10 +29,10 @@ from .models import (
     PlayerAssessmentSnapshot,
     PlayerMatchPerformance,
     PlayerProfile,
-    TrainingSession,
     TournamentAgeBracket,
     TournamentFixture,
     TournamentSchedule,
+    TrainingSession,
 )
 from .pin_service import set_pin
 from .player_unlock import issue_player_unlock
@@ -77,9 +78,7 @@ class AssessmentGrowthTests(APITestCase):
         self.club = _club('Growth Club')
         self.other_club = _club('Other Growth Club')
         self.coach = _user('coach@growth.test', Roles.COACH, self.club)
-        self.other_coach = _user(
-            'other-coach@growth.test', Roles.COACH, self.other_club
-        )
+        self.other_coach = _user('other-coach@growth.test', Roles.COACH, self.other_club)
         self.player = _player('player@growth.test', self.club)
         self.url = reverse('player-assessment', args=[self.player.id])
 
@@ -168,57 +167,61 @@ class TrainingPerformanceScoreTests(APITestCase):
         self.client.force_authenticate(self.coach)
 
     def _post(self, record):
-        return self.client.post(
-            self.url, {'records': [record]}, format='json'
-        )
+        return self.client.post(self.url, {'records': [record]}, format='json')
 
     def test_present_player_accepts_effort_and_performance(self):
-        response = self._post({
-            'playerId': self.player.id,
-            'status': 'PRESENT',
-            'effort': 83,
-            'performanceScore': 8.4,
-            'note': 'Strong first touch.',
-        })
+        response = self._post(
+            {
+                'playerId': self.player.id,
+                'status': 'PRESENT',
+                'effort': 83,
+                'performanceScore': 8.4,
+                'note': 'Strong first touch.',
+            }
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(float(response.data[0]['performanceScore']), 8.4)
 
     def test_absent_and_excused_normalize_participation_values(self):
         for status in ('ABSENT', 'EXCUSED'):
-            response = self._post({
-                'playerId': self.player.id,
-                'status': status,
-                'effort': 95,
-                'performanceScore': 9.5,
-            })
+            response = self._post(
+                {
+                    'playerId': self.player.id,
+                    'status': status,
+                    'effort': 95,
+                    'performanceScore': 9.5,
+                }
+            )
             self.assertEqual(response.status_code, 200)
             self.assertIsNone(response.data[0]['effort'])
             self.assertIsNone(response.data[0]['performanceScore'])
 
     def test_old_payload_without_optional_score_stays_valid(self):
-        response = self._post({
-            'playerId': self.player.id,
-            'status': 'PRESENT',
-            'effort': 70,
-        })
+        response = self._post(
+            {
+                'playerId': self.player.id,
+                'status': 'PRESENT',
+                'effort': 70,
+            }
+        )
         self.assertEqual(response.status_code, 200)
         self.assertIsNone(response.data[0]['performanceScore'])
 
     def test_performance_score_range_is_validated(self):
-        response = self._post({
-            'playerId': self.player.id,
-            'status': 'PRESENT',
-            'performanceScore': 10.1,
-        })
+        response = self._post(
+            {
+                'playerId': self.player.id,
+                'status': 'PRESENT',
+                'performanceScore': 10.1,
+            }
+        )
         self.assertEqual(response.status_code, 400)
 
 
 class MatchCategoryAndGrowthApiTests(APITestCase):
     def setUp(self):
         self.club = _club('Match Growth Club')
-        self.coordinator = _user(
-            'coordinator@match-growth.test', Roles.COORDINATOR, self.club
-        )
+        self.coordinator = _user('coordinator@match-growth.test', Roles.COORDINATOR, self.club)
         self.coach = _user('coach@match-growth.test', Roles.COACH, self.club)
         self.player = _player('player@match-growth.test', self.club)
 
@@ -288,17 +291,13 @@ class MatchCategoryAndGrowthApiTests(APITestCase):
             starts_on=date.today(),
             uploaded_by=self.coordinator,
         )
-        bracket = TournamentAgeBracket.objects.create(
-            schedule=schedule, max_age=16
-        )
+        bracket = TournamentAgeBracket.objects.create(schedule=schedule, max_age=16)
         fixture = TournamentFixture.objects.create(
             schedule=schedule,
             age_bracket=bracket,
             stage='Semi-final',
             opponent='Cup XI',
-            kickoff_at=timezone.make_aware(datetime.combine(
-                date.today(), datetime.min.time()
-            )),
+            kickoff_at=timezone.make_aware(datetime.combine(date.today(), datetime.min.time())),
         )
         response = self.client.post(
             reverse('football-matches'),
@@ -338,9 +337,7 @@ class MatchCategoryAndGrowthApiTests(APITestCase):
             {'range': 'all'},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.data['regularMatches']['summary']['goalsPer90'], None
-        )
+        self.assertEqual(response.data['regularMatches']['summary']['goalsPer90'], None)
         group = response.data['tournaments']['groups'][0]
         self.assertEqual(group['tournament'], 'Cebu Cup')
         self.assertEqual(group['ageBracketLabel'], 'U16')
@@ -383,15 +380,11 @@ class MatchCategoryAndGrowthApiTests(APITestCase):
     def test_growth_is_same_club_and_guardian_pin_protected(self):
         url = reverse('player-growth', args=[self.player.id])
         other_club = _club('Unauthorized Growth Club')
-        other_coach = _user(
-            'other-coach@match-growth.test', Roles.COACH, other_club
-        )
+        other_coach = _user('other-coach@match-growth.test', Roles.COACH, other_club)
         self.client.force_authenticate(other_coach)
         self.assertEqual(self.client.get(url).status_code, 403)
 
-        guardian = _user(
-            'guardian@match-growth.test', Roles.GUARDIAN, self.club
-        )
+        guardian = _user('guardian@match-growth.test', Roles.GUARDIAN, self.club)
         GuardianLink.objects.create(guardian=guardian, player=self.player)
         set_pin(self.player, '2468')
         self.client.force_authenticate(guardian)
@@ -446,19 +439,19 @@ class GrowthCalculationTests(APITestCase):
                 opponent_score=0,
                 created_by=coordinator,
             )
-            rows.append(PlayerMatchPerformance.objects.create(
-                match=match,
-                player=player,
-                position='CM',
-                minutes_played=90,
-                goals=goals,
-                shots=goals,
-                shots_on_target=goals,
-            ))
+            rows.append(
+                PlayerMatchPerformance.objects.create(
+                    match=match,
+                    player=player,
+                    position='CM',
+                    minutes_played=90,
+                    goals=goals,
+                    shots=goals,
+                    shots_on_target=goals,
+                )
+            )
         growth = build_match_growth(rows)
-        self.assertEqual(
-            growth['metrics']['goalsPer90']['classification'], IMPROVING
-        )
+        self.assertEqual(growth['metrics']['goalsPer90']['classification'], IMPROVING)
         self.assertEqual(
             build_match_growth(rows[:1])['metrics']['goalsPer90']['classification'],
             INSUFFICIENT_DATA,
@@ -484,16 +477,12 @@ class GrowthCalculationTests(APITestCase):
                 effort=effort,
                 recorded_by=coach,
             )
-        rows = Attendance.objects.select_related('session').order_by(
-            '-session__date'
-        )
+        rows = Attendance.objects.select_related('session').order_by('-session__date')
 
         technical = build_training_groups(rows)[0]
         self.assertEqual(technical['comparison']['metric'], 'EFFORT')
         self.assertEqual(technical['comparison']['effortDelta'], 20.0)
-        self.assertEqual(
-            technical['comparison']['classification'], IMPROVING
-        )
+        self.assertEqual(technical['comparison']['classification'], IMPROVING)
 
 
 class BaselineMigrationDataTests(APITestCase):
@@ -505,9 +494,7 @@ class BaselineMigrationDataTests(APITestCase):
         profile.coach_notes = 'Latest known evaluation only.'
         profile.save(update_fields=['diving', 'coach_notes'])
 
-        migration = importlib.import_module(
-            'academy.migrations.0023_player_growth'
-        )
+        migration = importlib.import_module('academy.migrations.0023_player_growth')
         migration.seed_growth_baselines(django_apps, None)
 
         snapshot = PlayerAssessmentSnapshot.objects.get(player=player)

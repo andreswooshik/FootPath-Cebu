@@ -2,11 +2,9 @@
 parse (footpath_cebu/lib/domain/entities/). Field names and casing here are the
 API contract — do not rename without changing the client `fromJson` factories.
 """
-from django.core.exceptions import ValidationError as DjangoValidationError
-from django.utils import timezone
-from rest_framework import serializers
 
-from accounts.models import Roles, User
+from django.core.exceptions import ValidationError as DjangoValidationError
+from rest_framework import serializers
 
 from .assessment_framework import (
     AssessmentFrameworkError,
@@ -14,49 +12,15 @@ from .assessment_framework import (
     validate_scores,
 )
 from .models import (
-    AgeTier,
-    AgeTierSetting,
-    AssessmentReason,
-    Attendance,
-    AttendanceStatus,
-    Dispute,
-    DisputeCategory,
-    DisputeResponse,
-    DisputeStatus,
-    Eligibility,
-    EligibilityHistory,
-    FixtureStatus,
-    FootballMatch,
-    InjuryRecord,
-    InjuryReportStatus,
-    InjuryStatus,
-    InjuryStatusUpdateRequest,
-    InjuryUpdateReviewStatus,
-    MatchCategory,
-    MatchVenue,
-    NotificationRecord,
     PLAYER_POSITION_CODES,
-    PlayerMatchPerformance,
+    AssessmentReason,
     PlayerAssessmentSnapshot,
     PlayerDevelopmentAssessment,
-    PlayerStatsAssessment,
     PlayerProfile,
-    SessionConfirmation,
-    SessionFocus,
-    TrainingSession,
-    TournamentAgeBracket,
-    TournamentFixture,
-    TournamentSchedule,
-    TournamentSquad,
-    TournamentSquadEntry,
-    TournamentSquadStatus,
+    PlayerStatsAssessment,
 )
-from .player_stats import catalog_for, normalized_scores, overall
-from .tournament_rosters import roster_eligibility
-from .storage import (
-    signed_photo_url,
-    signed_tournament_document_url,
-)
+from .player_stats import catalog_for, normalized_scores
+from .storage import signed_photo_url
 
 
 def _display_name(user):
@@ -86,9 +50,18 @@ class PlayerSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlayerProfile
         fields = [
-            'id', 'name', 'age', 'classYear', 'ageTier', 'position',
-            'ratings', 'eligibility', 'academicEligibilityApplicable',
-            'photoUrl', 'coachNotes', 'developmentAssessment',
+            'id',
+            'name',
+            'age',
+            'classYear',
+            'ageTier',
+            'position',
+            'ratings',
+            'eligibility',
+            'academicEligibilityApplicable',
+            'photoUrl',
+            'coachNotes',
+            'developmentAssessment',
         ]
 
     def get_name(self, obj):
@@ -119,10 +92,7 @@ class PlayerSerializer(serializers.ModelSerializer):
         return club is None or club.allows_academic_eligibility
 
     def get_developmentAssessment(self, obj):
-        if (
-            obj.development_framework_version is None
-            or not obj.development_scores
-        ):
+        if obj.development_framework_version is None or not obj.development_scores:
             return None
         return {
             'frameworkVersion': obj.development_framework_version,
@@ -173,7 +143,10 @@ class AssessmentSerializer(serializers.ModelSerializer):
     # Optional so an older client that posts only ratings still succeeds; when
     # omitted the existing note is left untouched rather than blanked.
     coachNotes = serializers.CharField(
-        source='coach_notes', required=False, allow_blank=True, max_length=2000,
+        source='coach_notes',
+        required=False,
+        allow_blank=True,
+        max_length=2000,
     )
     assessmentReason = serializers.ChoiceField(
         choices=AssessmentReason.choices,
@@ -184,8 +157,18 @@ class AssessmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlayerProfile
         fields = [
-            'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical',
-            'diving', 'handling', 'kicking', 'reflexes', 'speed', 'positioning',
+            'pace',
+            'shooting',
+            'passing',
+            'dribbling',
+            'defending',
+            'physical',
+            'diving',
+            'handling',
+            'kicking',
+            'reflexes',
+            'speed',
+            'positioning',
             'coachNotes',
             'assessmentReason',
         ]
@@ -223,8 +206,15 @@ class PlayerAssessmentSnapshotSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlayerAssessmentSnapshot
         fields = [
-            'id', 'playerId', 'assessedByRole', 'position', 'ratings',
-            'overall', 'coachNotes', 'assessmentReason', 'createdAt',
+            'id',
+            'playerId',
+            'assessedByRole',
+            'position',
+            'ratings',
+            'overall',
+            'coachNotes',
+            'assessmentReason',
+            'createdAt',
         ]
 
     def get_assessedByRole(self, obj):
@@ -234,9 +224,18 @@ class PlayerAssessmentSnapshotSerializer(serializers.ModelSerializer):
         return {
             field: getattr(obj, field)
             for field in (
-                'pace', 'shooting', 'passing', 'dribbling', 'defending',
-                'physical', 'diving', 'handling', 'kicking', 'reflexes',
-                'speed', 'positioning',
+                'pace',
+                'shooting',
+                'passing',
+                'dribbling',
+                'defending',
+                'physical',
+                'diving',
+                'handling',
+                'kicking',
+                'reflexes',
+                'speed',
+                'positioning',
             )
         }
 
@@ -265,9 +264,11 @@ class DevelopmentAssessmentWriteSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if attrs['assessmentReason'] == AssessmentReason.BASELINE:
-            raise serializers.ValidationError({
-                'assessmentReason': 'Baseline is reserved for migrated legacy records.',
-            })
+            raise serializers.ValidationError(
+                {
+                    'assessmentReason': 'Baseline is reserved for migrated legacy records.',
+                }
+            )
         profile = self.context['profile']
         try:
             attrs['developmentRatings'] = validate_scores(
@@ -307,10 +308,20 @@ class PlayerDevelopmentAssessmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlayerDevelopmentAssessment
         fields = [
-            'id', 'playerId', 'assessedByRole', 'position', 'ageTier',
-            'ageAtAssessment', 'frameworkVersion', 'ratings', 'domainScores',
-            'strengths', 'developmentTargets', 'coachNotes',
-            'assessmentReason', 'createdAt',
+            'id',
+            'playerId',
+            'assessedByRole',
+            'position',
+            'ageTier',
+            'ageAtAssessment',
+            'frameworkVersion',
+            'ratings',
+            'domainScores',
+            'strengths',
+            'developmentTargets',
+            'coachNotes',
+            'assessmentReason',
+            'createdAt',
         ]
 
     def get_assessedByRole(self, obj):
@@ -322,6 +333,7 @@ class PlayerDevelopmentAssessmentSerializer(serializers.ModelSerializer):
 
 class PlayerStatsAssessmentWriteSerializer(serializers.Serializer):
     """The client submits only raw inputs; all comparisons are server-owned."""
+
     catalogVersion = serializers.IntegerField(min_value=1)
     scores = serializers.JSONField()
     reason = serializers.CharField(min_length=1, max_length=100)
@@ -356,8 +368,19 @@ class PlayerStatsAssessmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PlayerStatsAssessment
-        fields = ['id', 'playerId', 'assessedBy', 'position', 'roleGroup',
-                  'catalogVersion', 'scores', 'overall', 'reason', 'coachNotes', 'createdAt']
+        fields = [
+            'id',
+            'playerId',
+            'assessedBy',
+            'position',
+            'roleGroup',
+            'catalogVersion',
+            'scores',
+            'overall',
+            'reason',
+            'coachNotes',
+            'createdAt',
+        ]
 
     def get_assessedBy(self, obj):
         if not obj.assessed_by_id:
@@ -379,7 +402,3 @@ class PlayerPositionSerializer(serializers.ModelSerializer):
         if v not in PLAYER_POSITION_CODES:
             raise serializers.ValidationError(f'Unknown position: {value}')
         return v
-
-
-
-__all__ = [name for name in globals() if not name.startswith('__')]

@@ -9,13 +9,14 @@ Every function degrades gracefully when Supabase env vars are unset (local
 dev / tests): uploads raise a clear error, signed-URL generation returns None
 so `photoUrl` is simply null and the client shows its avatar fallback.
 """
+
 import os
 
+import httpx
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-import httpx
 
 from config.upload_security import (
     MAX_UPLOAD_BYTES,
@@ -28,9 +29,13 @@ _TIMEOUT = 10.0
 MAX_PHOTO_BYTES = MAX_UPLOAD_BYTES
 ALLOWED_PHOTO_TYPES = frozenset({'image/jpeg', 'image/png', 'image/webp'})
 MAX_TOURNAMENT_DOCUMENT_BYTES = MAX_UPLOAD_BYTES
-ALLOWED_TOURNAMENT_DOCUMENT_TYPES = frozenset({
-    'application/pdf', 'image/jpeg', 'image/png',
-})
+ALLOWED_TOURNAMENT_DOCUMENT_TYPES = frozenset(
+    {
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+    }
+)
 
 
 def _config():
@@ -58,10 +63,7 @@ def _auth_headers(key):
         return {'apikey': key}
     if key.count('.') == 2:
         return {'apikey': key, 'Authorization': f'Bearer {key}'}
-    raise RuntimeError(
-        'SUPABASE_SERVICE_KEY must be an sb_secret_ key or legacy '
-        'service-role JWT.'
-    )
+    raise RuntimeError('SUPABASE_SERVICE_KEY must be an sb_secret_ key or legacy service-role JWT.')
 
 
 def validate_photo_upload(upload):
@@ -85,20 +87,21 @@ def upload_photo(user_id, content, content_type='image/jpeg'):
     """
     url, key, bucket = _config()
     if not (url and key):
-        raise RuntimeError('Supabase Storage is not configured (SUPABASE_URL / '
-                           'SUPABASE_SERVICE_KEY unset).')
-    ext = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp'}.get(
-        content_type, 'jpg'
-    )
+        raise RuntimeError(
+            'Supabase Storage is not configured (SUPABASE_URL / SUPABASE_SERVICE_KEY unset).'
+        )
+    ext = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp'}.get(content_type, 'jpg')
     path = f'{user_id}.{ext}'
     endpoint = f'{url}/storage/v1/object/{bucket}/{path}'
     try:
         headers = _auth_headers(key)
-        headers.update({
-            'Content-Type': content_type,
-            # Overwrite instead of erroring if the object already exists.
-            'x-upsert': 'true',
-        })
+        headers.update(
+            {
+                'Content-Type': content_type,
+                # Overwrite instead of erroring if the object already exists.
+                'x-upsert': 'true',
+            }
+        )
         resp = httpx.post(
             endpoint,
             content=content,
@@ -107,9 +110,7 @@ def upload_photo(user_id, content, content_type='image/jpeg'):
         )
         resp.raise_for_status()
     except httpx.HTTPError as exc:
-        raise RuntimeError(
-            'Profile photo storage is temporarily unavailable.'
-        ) from exc
+        raise RuntimeError('Profile photo storage is temporarily unavailable.') from exc
     return f'{bucket}/{path}'
 
 
@@ -207,9 +208,7 @@ def upload_tournament_document(club_id, schedule_id, content, content_type):
     url, key, bucket = _tournament_config()
     if not (url and key):
         if not (settings.DEBUG or getattr(settings, 'TESTING', False)):
-            raise RuntimeError(
-                'Supabase tournament-schedule storage is not configured.'
-            )
+            raise RuntimeError('Supabase tournament-schedule storage is not configured.')
         local_name = f'tournament-schedules/{object_name}'
         if default_storage.exists(local_name):
             default_storage.delete(local_name)
@@ -219,11 +218,13 @@ def upload_tournament_document(club_id, schedule_id, content, content_type):
     endpoint = f'{url}/storage/v1/object/{bucket}/{object_name}'
     try:
         headers = _auth_headers(key)
-        headers.update({
-            'Content-Type': content_type,
-            'Content-Disposition': 'attachment',
-            'x-upsert': 'true',
-        })
+        headers.update(
+            {
+                'Content-Type': content_type,
+                'Content-Disposition': 'attachment',
+                'x-upsert': 'true',
+            }
+        )
         response = httpx.post(
             endpoint,
             content=content,
@@ -232,9 +233,7 @@ def upload_tournament_document(club_id, schedule_id, content, content_type):
         )
         response.raise_for_status()
     except httpx.HTTPError as exc:
-        raise RuntimeError(
-            'Tournament schedule storage is temporarily unavailable.'
-        ) from exc
+        raise RuntimeError('Tournament schedule storage is temporarily unavailable.') from exc
     return f'{bucket}/{object_name}'
 
 

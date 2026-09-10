@@ -30,13 +30,9 @@ def roster_eligibility(player, bracket):
     try:
         profile = player.player_profile
     except PlayerProfile.DoesNotExist:
-        return RosterEligibility(
-            'BLOCKED', 'PROFILE_REQUIRED', 'Player profile is incomplete.'
-        )
+        return RosterEligibility('BLOCKED', 'PROFILE_REQUIRED', 'Player profile is incomplete.')
     if profile.date_of_birth is None:
-        return RosterEligibility(
-            'BLOCKED', 'DOB_REQUIRED', 'Date of birth is required.'
-        )
+        return RosterEligibility('BLOCKED', 'DOB_REQUIRED', 'Date of birth is required.')
     oldest_birth_year = bracket.schedule.starts_on.year - bracket.max_age
     if profile.date_of_birth.year < oldest_birth_year:
         return RosterEligibility(

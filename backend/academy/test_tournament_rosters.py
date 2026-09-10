@@ -49,12 +49,8 @@ class TournamentRosterEligibilityTests(APITestCase):
             title='Sinulog Cup',
             starts_on=date(2026, 9, 20),
         )
-        self.u8 = TournamentAgeBracket.objects.create(
-            schedule=self.schedule, max_age=8
-        )
-        self.u12 = TournamentAgeBracket.objects.create(
-            schedule=self.schedule, max_age=12
-        )
+        self.u8 = TournamentAgeBracket.objects.create(schedule=self.schedule, max_age=8)
+        self.u12 = TournamentAgeBracket.objects.create(schedule=self.schedule, max_age=12)
 
     def test_calendar_year_cutoff_and_play_up(self):
         cutoff = _player('cutoff@eligibility.test', self.club, date(2018, 12, 31))
@@ -81,9 +77,7 @@ class TournamentRosterEligibilityTests(APITestCase):
         injury.review_status = InjuryReportStatus.CONFIRMED
         injury.status = InjuryStatus.ACTIVE
         injury.save()
-        self.assertEqual(
-            roster_eligibility(player, self.u8).code, 'CONFIRMED_INJURY'
-        )
+        self.assertEqual(roster_eligibility(player, self.u8).code, 'CONFIRMED_INJURY')
         injury.status = InjuryStatus.RECOVERED
         injury.resolved_on = date(2026, 8, 28)
         injury.save()
@@ -97,18 +91,10 @@ class TournamentRosterApiTests(APITestCase):
         self.coordinator = _user('coordinator@roster.test', Roles.COORDINATOR, self.club)
         self.coach = _user('coach@roster.test', Roles.COACH, self.club)
         self.second_coach = _user('coach2@roster.test', Roles.COACH, self.club)
-        self.player_viewer = _player(
-            'viewer@roster.test', self.club, date(2018, 2, 1)
-        )
-        self.eligible = _player(
-            'eligible@roster.test', self.club, date(2018, 12, 31)
-        )
-        self.younger = _player(
-            'younger@roster.test', self.club, date(2020, 1, 1)
-        )
-        self.overage = _player(
-            'overage@roster.test', self.club, date(2017, 12, 31)
-        )
+        self.player_viewer = _player('viewer@roster.test', self.club, date(2018, 2, 1))
+        self.eligible = _player('eligible@roster.test', self.club, date(2018, 12, 31))
+        self.younger = _player('younger@roster.test', self.club, date(2020, 1, 1))
+        self.overage = _player('overage@roster.test', self.club, date(2017, 12, 31))
         self.no_dob = _player('nodob@roster.test', self.club, None)
         self.schedule = TournamentSchedule.objects.create(
             club=self.club,
@@ -117,12 +103,8 @@ class TournamentRosterApiTests(APITestCase):
             is_published=False,
             published_at=None,
         )
-        self.u8 = TournamentAgeBracket.objects.create(
-            schedule=self.schedule, max_age=8
-        )
-        self.u10 = TournamentAgeBracket.objects.create(
-            schedule=self.schedule, max_age=10
-        )
+        self.u8 = TournamentAgeBracket.objects.create(schedule=self.schedule, max_age=8)
+        self.u10 = TournamentAgeBracket.objects.create(schedule=self.schedule, max_age=10)
 
     def _save(self, entries, user=None, bracket=None):
         self.client.force_authenticate(user or self.coach)
@@ -134,9 +116,7 @@ class TournamentRosterApiTests(APITestCase):
 
     def test_candidates_explain_age_and_missing_dob_without_exposing_dates(self):
         self.client.force_authenticate(self.coach)
-        response = self.client.get(
-            reverse('tournament-squad-candidates', args=[self.u8.id])
-        )
+        response = self.client.get(reverse('tournament-squad-candidates', args=[self.u8.id]))
         self.assertEqual(response.status_code, 200)
         by_id = {row['playerId']: row for row in response.data}
         self.assertEqual(by_id[str(self.eligible.id)]['eligibility'], 'ELIGIBLE')
@@ -145,10 +125,12 @@ class TournamentRosterApiTests(APITestCase):
         self.assertNotIn('dateOfBirth', by_id[str(self.eligible.id)])
 
     def test_coach_saves_shared_multi_bracket_rosters(self):
-        first = self._save([
-            {'playerId': self.eligible.id, 'position': 'CM'},
-            {'playerId': self.younger.id, 'position': 'ST'},
-        ])
+        first = self._save(
+            [
+                {'playerId': self.eligible.id, 'position': 'CM'},
+                {'playerId': self.younger.id, 'position': 'ST'},
+            ]
+        )
         self.assertEqual(first.status_code, 200)
         shared_update = self._save(
             [{'playerId': self.younger.id, 'position': 'LW'}],
@@ -157,32 +139,35 @@ class TournamentRosterApiTests(APITestCase):
         self.assertEqual(shared_update.status_code, 200)
         u8_squad = TournamentSquad.objects.get(bracket=self.u8)
         self.assertEqual(u8_squad.updated_by, self.second_coach)
-        self.assertEqual(list(u8_squad.entries.values_list('player_id', flat=True)), [
-            self.younger.id,
-        ])
+        self.assertEqual(
+            list(u8_squad.entries.values_list('player_id', flat=True)),
+            [
+                self.younger.id,
+            ],
+        )
         second = self._save(
             [{'playerId': self.younger.id, 'position': 'LW'}],
             user=self.second_coach,
             bracket=self.u10,
         )
         self.assertEqual(second.status_code, 200)
-        self.assertEqual(
-            TournamentSquadEntry.objects.filter(player=self.younger).count(), 2
-        )
-        self.assertTrue(
-            AuditLog.objects.filter(action='tournament.squad_saved').exists()
-        )
+        self.assertEqual(TournamentSquadEntry.objects.filter(player=self.younger).count(), 2)
+        self.assertTrue(AuditLog.objects.filter(action='tournament.squad_saved').exists())
 
     def test_blocked_players_and_duplicate_entries_are_rejected(self):
-        blocked = self._save([
-            {'playerId': self.overage.id},
-            {'playerId': self.no_dob.id},
-        ])
+        blocked = self._save(
+            [
+                {'playerId': self.overage.id},
+                {'playerId': self.no_dob.id},
+            ]
+        )
         self.assertEqual(blocked.status_code, 400)
-        duplicate = self._save([
-            {'playerId': self.eligible.id},
-            {'playerId': self.eligible.id},
-        ])
+        duplicate = self._save(
+            [
+                {'playerId': self.eligible.id},
+                {'playerId': self.eligible.id},
+            ]
+        )
         self.assertEqual(duplicate.status_code, 400)
         self.assertFalse(TournamentSquadEntry.objects.exists())
 
@@ -196,18 +181,14 @@ class TournamentRosterApiTests(APITestCase):
         response = self._save([{'playerId': self.eligible.id}])
         self.assertEqual(response.status_code, 200)
         self.client.force_authenticate(self.coach)
-        candidates = self.client.get(
-            reverse('tournament-squad-candidates', args=[self.u8.id])
-        ).data
+        candidates = self.client.get(reverse('tournament-squad-candidates', args=[self.u8.id])).data
         row = next(row for row in candidates if row['playerId'] == str(self.eligible.id))
         self.assertEqual(row['eligibility'], 'WARNING')
 
     def test_coordinator_reviews_but_cannot_edit(self):
         self._save([{'playerId': self.eligible.id, 'position': 'CM'}])
         self.client.force_authenticate(self.coordinator)
-        read = self.client.get(
-            reverse('tournament-squad-detail', args=[self.u8.id])
-        )
+        read = self.client.get(reverse('tournament-squad-detail', args=[self.u8.id]))
         self.assertEqual(read.status_code, 200)
         self.assertEqual(read.data['status'], TournamentSquadStatus.DRAFT)
         write = self._save([], user=self.coordinator)
@@ -222,9 +203,7 @@ class TournamentRosterApiTests(APITestCase):
         self.schedule.save(update_fields=['is_published', 'updated_at'])
         self.assertEqual(self.client.post(publish_url).status_code, 200)
         self.client.force_authenticate(self.player_viewer)
-        public = self.client.get(
-            reverse('tournament-squad-detail', args=[self.u8.id])
-        )
+        public = self.client.get(reverse('tournament-squad-detail', args=[self.u8.id]))
         self.assertEqual(public.status_code, 200)
         entry = public.data['entries'][0]
         self.assertEqual(entry['playerName'], 'eligible')
@@ -245,12 +224,8 @@ class TournamentRosterApiTests(APITestCase):
             status=InjuryStatus.ACTIVE,
         )
         self.client.force_authenticate(self.coordinator)
-        response = self.client.get(
-            reverse('tournament-squad-detail', args=[self.u8.id])
-        )
-        self.assertEqual(
-            response.data['entries'][0]['availability'], 'BLOCKED'
-        )
+        response = self.client.get(reverse('tournament-squad-detail', args=[self.u8.id]))
+        self.assertEqual(response.data['entries'][0]['availability'], 'BLOCKED')
 
     def test_tournament_date_and_bracket_changes_revalidate_age(self):
         self._save([{'playerId': self.eligible.id}])

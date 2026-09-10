@@ -4,6 +4,7 @@ contract the Flutter client parses, and the push-notification fan-out.
 Firebase is never contacted: FirebaseAuthentication is bypassed with
 force_authenticate, and the FCM SDK is mocked. Mirrors accounts/tests.py.
 """
+
 from datetime import date, timedelta
 from unittest.mock import patch
 
@@ -16,14 +17,12 @@ from rest_framework.test import APITestCase
 from accounts.models import Club, GuardianLink, Roles, User
 from test_uploads import jpeg_bytes
 
-from .notifications import _recipients_for_session
-from .player_unlock import issue_player_unlock
 from .models import (
     AgeTier,
     AgeTierSetting,
     Attendance,
-    AuditLog,
     AttendanceStatus,
+    AuditLog,
     ConfirmationStatus,
     DeviceToken,
     Dispute,
@@ -35,13 +34,15 @@ from .models import (
     InjuryRecord,
     InjuryStatus,
     PlayerEligibility,
-    PlayerProfile,
     PlayerPrivacyPin,
+    PlayerProfile,
     SessionConfirmation,
     SessionFocus,
     TrainingSession,
     TrainingSessionStatus,
 )
+from .notifications import _recipients_for_session
+from .player_unlock import issue_player_unlock
 
 
 def default_test_club():
@@ -59,7 +60,9 @@ def default_test_club():
 def make_user(role, email=None):
     email = email or f'{role.lower()}@footpathcebu.test'
     return User.objects.create(
-        username=email, email=email, role=role,
+        username=email,
+        email=email,
+        role=role,
         firebase_uid=f'uid-{email}',
         # Super Admin intentionally remains cross-club; every ordinary test
         # account follows the production tenant invariant.
@@ -70,9 +73,17 @@ def make_user(role, email=None):
 def make_player(email, tier=AgeTier.DEVELOPMENT, **kwargs):
     user = make_user(Roles.PLAYER, email=email)
     PlayerProfile.objects.create(
-        user=user, age=kwargs.get('age', 15), class_year='Class of 2027',
-        age_tier=tier, position=kwargs.get('position', 'CM'),
-        pace=80, shooting=80, passing=80, dribbling=80, defending=80, physical=80,
+        user=user,
+        age=kwargs.get('age', 15),
+        class_year='Class of 2027',
+        age_tier=tier,
+        position=kwargs.get('position', 'CM'),
+        pace=80,
+        shooting=80,
+        passing=80,
+        dribbling=80,
+        defending=80,
+        physical=80,
         eligibility=Eligibility.ELIGIBLE,
     )
     return user
@@ -93,7 +104,8 @@ class SquadEndpointTests(APITestCase):
         for role in (Roles.PLAYER, Roles.GUARDIAN, Roles.SCHOOL_STAFF):
             self.client.force_authenticate(make_user(role, f'{role}@x.test'))
             self.assertEqual(
-                self.client.get(reverse('players-list')).status_code, 403,
+                self.client.get(reverse('players-list')).status_code,
+                403,
                 msg=f'{role} should not see the squad',
             )
 
@@ -103,14 +115,37 @@ class SquadEndpointTests(APITestCase):
         row = self.client.get(reverse('players-list')).data[0]
         self.assertEqual(
             set(row.keys()),
-            {'id', 'name', 'age', 'classYear', 'ageTier', 'position',
-             'ratings', 'eligibility', 'academicEligibilityApplicable',
-             'photoUrl', 'coachNotes', 'developmentAssessment'},
+            {
+                'id',
+                'name',
+                'age',
+                'classYear',
+                'ageTier',
+                'position',
+                'ratings',
+                'eligibility',
+                'academicEligibilityApplicable',
+                'photoUrl',
+                'coachNotes',
+                'developmentAssessment',
+            },
         )
         self.assertEqual(
             set(row['ratings'].keys()),
-            {'pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical',
-             'diving', 'handling', 'kicking', 'reflexes', 'speed', 'positioning'},
+            {
+                'pace',
+                'shooting',
+                'passing',
+                'dribbling',
+                'defending',
+                'physical',
+                'diving',
+                'handling',
+                'kicking',
+                'reflexes',
+                'speed',
+                'positioning',
+            },
         )
         # id is a string (client does json['id'].toString(), and attendance
         # keys off the same value as a hard String).
@@ -154,9 +189,7 @@ class PlayerDetailPrivacyTests(APITestCase):
 
     def test_linked_guardian_can_read_child_before_a_pin_is_created(self):
         self.client.force_authenticate(self.guardian)
-        response = self.client.get(
-            reverse('player-detail', args=[self.child.id])
-        )
+        response = self.client.get(reverse('player-detail', args=[self.child.id]))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['id'], str(self.child.id))
 
@@ -170,9 +203,7 @@ class PlayerDetailPrivacyTests(APITestCase):
         self.assertEqual(self.client.get(url).status_code, 403)
         response = self.client.get(
             url,
-            HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
-                self.guardian.id, self.child.id
-            ),
+            HTTP_X_PLAYER_UNLOCK=issue_player_unlock(self.guardian.id, self.child.id),
         )
         self.assertEqual(response.status_code, 200)
 
@@ -185,23 +216,17 @@ class AttendanceAuthorizationTests(APITestCase):
         self.my_child = make_player('child@footpathcebu.test')
         self.other_child = make_player('other@footpathcebu.test')
         GuardianLink.objects.create(guardian=self.guardian, player=self.my_child)
-        Attendance.objects.create(
-            player=self.my_child, status=AttendanceStatus.PRESENT
-        )
-        Attendance.objects.create(
-            player=self.other_child, status=AttendanceStatus.PRESENT
-        )
+        Attendance.objects.create(player=self.my_child, status=AttendanceStatus.PRESENT)
+        Attendance.objects.create(player=self.other_child, status=AttendanceStatus.PRESENT)
 
     def _url(self, player_id):
-        return f"{reverse('attendance-list')}?player={player_id}"
+        return f'{reverse("attendance-list")}?player={player_id}'
 
     def test_guardian_can_read_linked_child(self):
         self.client.force_authenticate(self.guardian)
         resp = self.client.get(
             self._url(self.my_child.id),
-            HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
-                self.guardian.id, self.my_child.id
-            ),
+            HTTP_X_PLAYER_UNLOCK=issue_player_unlock(self.guardian.id, self.my_child.id),
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
@@ -227,9 +252,19 @@ class AttendanceAuthorizationTests(APITestCase):
         row = self.client.get(self._url(self.my_child.id)).data[0]
         self.assertEqual(
             set(row.keys()),
-            {'playerId', 'sessionId', 'status', 'effort', 'note',
-             'performanceScore', 'updatedAt', 'sessionName', 'sessionFocus',
-             'sessionDate', 'coachUid'},
+            {
+                'playerId',
+                'sessionId',
+                'status',
+                'effort',
+                'note',
+                'performanceScore',
+                'updatedAt',
+                'sessionName',
+                'sessionFocus',
+                'sessionDate',
+                'coachUid',
+            },
         )
 
 
@@ -242,8 +277,10 @@ class SessionAttendanceTests(APITestCase):
         self.p1 = make_player('p1@footpathcebu.test')
         self.p2 = make_player('p2@footpathcebu.test')
         self.session = TrainingSession.objects.create(
-            title='Evening Training', date=date.today(),
-            age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+            title='Evening Training',
+            date=date.today(),
+            age_tiers=[AgeTier.DEVELOPMENT],
+            focus=SessionFocus.TECHNICAL,
             club=self.coach.club,
         )
 
@@ -251,11 +288,17 @@ class SessionAttendanceTests(APITestCase):
         return reverse('attendance-session', args=[self.session.id])
 
     def _payload(self):
-        return {'records': [
-            {'playerId': str(self.p1.id), 'status': 'PRESENT',
-             'effort': 85, 'note': 'Sharp in the final third.'},
-            {'playerId': str(self.p2.id), 'status': 'ABSENT'},
-        ]}
+        return {
+            'records': [
+                {
+                    'playerId': str(self.p1.id),
+                    'status': 'PRESENT',
+                    'effort': 85,
+                    'note': 'Sharp in the final third.',
+                },
+                {'playerId': str(self.p2.id), 'status': 'ABSENT'},
+            ]
+        }
 
     def test_coach_post_then_get_round_trip(self):
         self.client.force_authenticate(self.coach)
@@ -282,9 +325,15 @@ class SessionAttendanceTests(APITestCase):
         self.client.post(self._url(), self._payload(), format='json')
 
         # Resubmit with p1 corrected and p2 dropped entirely.
-        resp = self.client.post(self._url(), {'records': [
-            {'playerId': str(self.p1.id), 'status': 'EXCUSED'},
-        ]}, format='json')
+        resp = self.client.post(
+            self._url(),
+            {
+                'records': [
+                    {'playerId': str(self.p1.id), 'status': 'EXCUSED'},
+                ]
+            },
+            format='json',
+        )
         self.assertEqual(resp.status_code, 200)
 
         records = Attendance.objects.filter(session=self.session)
@@ -297,7 +346,8 @@ class SessionAttendanceTests(APITestCase):
             self.client.force_authenticate(make_user(role, f'{role}@x.test'))
             resp = self.client.post(self._url(), self._payload(), format='json')
             self.assertEqual(
-                resp.status_code, 403,
+                resp.status_code,
+                403,
                 msg=f'{role} should not record attendance',
             )
 
@@ -314,44 +364,72 @@ class SessionAttendanceTests(APITestCase):
         row = self.client.get(self._url()).data[0]
         self.assertEqual(
             set(row.keys()),
-            {'playerId', 'sessionId', 'status', 'effort', 'note',
-             'performanceScore', 'updatedAt', 'sessionName', 'sessionFocus',
-             'sessionDate', 'coachUid'},
+            {
+                'playerId',
+                'sessionId',
+                'status',
+                'effort',
+                'note',
+                'performanceScore',
+                'updatedAt',
+                'sessionName',
+                'sessionFocus',
+                'sessionDate',
+                'coachUid',
+            },
         )
 
     def test_invalid_status_rejected(self):
         self.client.force_authenticate(self.coach)
-        resp = self.client.post(self._url(), {'records': [
-            {'playerId': str(self.p1.id), 'status': 'LATE'},
-        ]}, format='json')
+        resp = self.client.post(
+            self._url(),
+            {
+                'records': [
+                    {'playerId': str(self.p1.id), 'status': 'LATE'},
+                ]
+            },
+            format='json',
+        )
         self.assertEqual(resp.status_code, 400)
 
     def test_out_of_range_effort_rejected(self):
         self.client.force_authenticate(self.coach)
-        resp = self.client.post(self._url(), {'records': [
-            {'playerId': str(self.p1.id), 'status': 'PRESENT', 'effort': 101},
-        ]}, format='json')
+        resp = self.client.post(
+            self._url(),
+            {
+                'records': [
+                    {'playerId': str(self.p1.id), 'status': 'PRESENT', 'effort': 101},
+                ]
+            },
+            format='json',
+        )
         self.assertEqual(resp.status_code, 400)
 
     def test_unknown_player_rejected(self):
         self.client.force_authenticate(self.coach)
-        resp = self.client.post(self._url(), {'records': [
-            {'playerId': '999999', 'status': 'PRESENT'},
-        ]}, format='json')
+        resp = self.client.post(
+            self._url(),
+            {
+                'records': [
+                    {'playerId': '999999', 'status': 'PRESENT'},
+                ]
+            },
+            format='json',
+        )
         self.assertEqual(resp.status_code, 400)
 
     def test_unknown_session_404(self):
         self.client.force_authenticate(self.coach)
         url = reverse('attendance-session', args=[999999])
         self.assertEqual(self.client.get(url).status_code, 404)
-        self.assertEqual(
-            self.client.post(url, self._payload(), format='json').status_code, 404
-        )
+        self.assertEqual(self.client.post(url, self._payload(), format='json').status_code, 404)
 
     def _post_to_session_dated(self, when):
         session = TrainingSession.objects.create(
-            title=f'session {when}', date=when,
-            age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+            title=f'session {when}',
+            date=when,
+            age_tiers=[AgeTier.DEVELOPMENT],
+            focus=SessionFocus.TECHNICAL,
             club=self.coach.club,
         )
         url = reverse('attendance-session', args=[session.id])
@@ -363,17 +441,19 @@ class SessionAttendanceTests(APITestCase):
         for offset in (0, 1, 2):
             when = date.today() - timedelta(days=offset)
             self.assertEqual(
-                self._post_to_session_dated(when).status_code, 200,
+                self._post_to_session_dated(when).status_code,
+                200,
                 msg=f'{offset} day(s) after should be open',
             )
 
     def test_attendance_closed_before_session_and_after_two_days(self):
         # Closed: before the session, and more than two days after.
         self.client.force_authenticate(self.coach)
-        for when in (date.today() + timedelta(days=1),
-                     date.today() - timedelta(days=3)):
+        for when in (date.today() + timedelta(days=1), date.today() - timedelta(days=3)):
             self.assertEqual(
-                self._post_to_session_dated(when).status_code, 400, msg=str(when),
+                self._post_to_session_dated(when).status_code,
+                400,
+                msg=str(when),
             )
 
 
@@ -386,8 +466,17 @@ class AssessmentTests(APITestCase):
         self.client.force_authenticate(self.coach)
         url = reverse('player-assessment', args=[self.player.id])
         resp = self.client.put(
-            url, {'ratings': {'pace': 90, 'shooting': 91, 'passing': 92,
-                              'dribbling': 93, 'defending': 94, 'physical': 95}},
+            url,
+            {
+                'ratings': {
+                    'pace': 90,
+                    'shooting': 91,
+                    'passing': 92,
+                    'dribbling': 93,
+                    'defending': 94,
+                    'physical': 95,
+                }
+            },
             format='json',
         )
         self.assertEqual(resp.status_code, 200)
@@ -403,16 +492,20 @@ class AssessmentTests(APITestCase):
         resp = self.client.put(
             url,
             {
-                'ratings': {'pace': 80, 'shooting': 80, 'passing': 80,
-                            'dribbling': 80, 'defending': 80, 'physical': 80},
+                'ratings': {
+                    'pace': 80,
+                    'shooting': 80,
+                    'passing': 80,
+                    'dribbling': 80,
+                    'defending': 80,
+                    'physical': 80,
+                },
                 'coachNotes': 'Reads the game well; needs a weaker foot.',
             },
             format='json',
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(
-            resp.data['coachNotes'], 'Reads the game well; needs a weaker foot.'
-        )
+        self.assertEqual(resp.data['coachNotes'], 'Reads the game well; needs a weaker foot.')
         self.player.player_profile.refresh_from_db()
         self.assertEqual(
             self.player.player_profile.coach_notes,
@@ -428,8 +521,16 @@ class AssessmentTests(APITestCase):
         self.client.force_authenticate(self.coach)
         resp = self.client.put(
             reverse('player-assessment', args=[self.player.id]),
-            {'ratings': {'pace': 70, 'shooting': 70, 'passing': 70,
-                         'dribbling': 70, 'defending': 70, 'physical': 70}},
+            {
+                'ratings': {
+                    'pace': 70,
+                    'shooting': 70,
+                    'passing': 70,
+                    'dribbling': 70,
+                    'defending': 70,
+                    'physical': 70,
+                }
+            },
             format='json',
         )
         self.assertEqual(resp.status_code, 200)
@@ -446,9 +547,17 @@ class AssessmentTests(APITestCase):
         self.client.force_authenticate(self.coach)
         resp = self.client.put(
             reverse('player-assessment', args=[self.player.id]),
-            {'ratings': {'pace': 70, 'shooting': 70, 'passing': 70,
-                         'dribbling': 70, 'defending': 70, 'physical': 70},
-             'coachNotes': ''},
+            {
+                'ratings': {
+                    'pace': 70,
+                    'shooting': 70,
+                    'passing': 70,
+                    'dribbling': 70,
+                    'defending': 70,
+                    'physical': 70,
+                },
+                'coachNotes': '',
+            },
             format='json',
         )
         self.assertEqual(resp.status_code, 200)
@@ -462,10 +571,22 @@ class AssessmentTests(APITestCase):
         self.client.force_authenticate(self.coach)
         resp = self.client.put(
             reverse('player-assessment', args=[self.player.id]),
-            {'ratings': {'pace': 60, 'shooting': 60, 'passing': 60,
-                         'dribbling': 60, 'defending': 60, 'physical': 60,
-                         'diving': 88, 'handling': 85, 'kicking': 70,
-                         'reflexes': 92, 'speed': 62, 'positioning': 84}},
+            {
+                'ratings': {
+                    'pace': 60,
+                    'shooting': 60,
+                    'passing': 60,
+                    'dribbling': 60,
+                    'defending': 60,
+                    'physical': 60,
+                    'diving': 88,
+                    'handling': 85,
+                    'kicking': 70,
+                    'reflexes': 92,
+                    'speed': 62,
+                    'positioning': 84,
+                }
+            },
             format='json',
         )
         self.assertEqual(resp.status_code, 200)
@@ -490,8 +611,16 @@ class AssessmentTests(APITestCase):
         self.client.force_authenticate(self.coach)
         resp = self.client.put(
             reverse('player-assessment', args=[self.player.id]),
-            {'ratings': {'pace': 70, 'shooting': 70, 'passing': 70,
-                         'dribbling': 70, 'defending': 70, 'physical': 70}},
+            {
+                'ratings': {
+                    'pace': 70,
+                    'shooting': 70,
+                    'passing': 70,
+                    'dribbling': 70,
+                    'defending': 70,
+                    'physical': 70,
+                }
+            },
             format='json',
         )
         self.assertEqual(resp.status_code, 200)
@@ -507,8 +636,17 @@ class AssessmentTests(APITestCase):
         self.client.force_authenticate(self.coach)
         url = reverse('player-assessment', args=[self.player.id])
         resp = self.client.put(
-            url, {'ratings': {'pace': 200, 'shooting': 0, 'passing': 0,
-                              'dribbling': 0, 'defending': 0, 'physical': 0}},
+            url,
+            {
+                'ratings': {
+                    'pace': 200,
+                    'shooting': 0,
+                    'passing': 0,
+                    'dribbling': 0,
+                    'defending': 0,
+                    'physical': 0,
+                }
+            },
             format='json',
         )
         self.assertEqual(resp.status_code, 400)
@@ -529,8 +667,7 @@ class AgeTierSettingsTests(APITestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(
             [(b['tier'], b['minAge'], b['maxAge']) for b in resp.data],
-            [('FOUNDATION', 10, 12), ('DEVELOPMENT', 13, 15),
-             ('PATHWAY', 16, 18)],
+            [('FOUNDATION', 10, 12), ('DEVELOPMENT', 13, 15), ('PATHWAY', 16, 18)],
         )
 
     def test_only_admin_may_update(self):
@@ -542,9 +679,11 @@ class AgeTierSettingsTests(APITestCase):
         self.client.force_authenticate(self.admin)
         resp = self.client.put(
             self.url,
-            [{'tier': 'FOUNDATION', 'minAge': 9, 'maxAge': 12},
-             {'tier': 'DEVELOPMENT', 'minAge': 13, 'maxAge': 14},
-             {'tier': 'PATHWAY', 'minAge': 15, 'maxAge': 19}],
+            [
+                {'tier': 'FOUNDATION', 'minAge': 9, 'maxAge': 12},
+                {'tier': 'DEVELOPMENT', 'minAge': 13, 'maxAge': 14},
+                {'tier': 'PATHWAY', 'minAge': 15, 'maxAge': 19},
+            ],
             format='json',
         )
         self.assertEqual(resp.status_code, 200)
@@ -555,9 +694,11 @@ class AgeTierSettingsTests(APITestCase):
         self.client.force_authenticate(self.admin)
         resp = self.client.put(
             self.url,
-            [{'tier': 'FOUNDATION', 'minAge': 10, 'maxAge': 14},
-             {'tier': 'DEVELOPMENT', 'minAge': 13, 'maxAge': 15},
-             {'tier': 'PATHWAY', 'minAge': 16, 'maxAge': 18}],
+            [
+                {'tier': 'FOUNDATION', 'minAge': 10, 'maxAge': 14},
+                {'tier': 'DEVELOPMENT', 'minAge': 13, 'maxAge': 15},
+                {'tier': 'PATHWAY', 'minAge': 16, 'maxAge': 18},
+            ],
             format='json',
         )
         self.assertEqual(resp.status_code, 400)
@@ -588,20 +729,28 @@ class SquadProgressTests(APITestCase):
         self.coach = make_user(Roles.COACH)
         self.player = make_player('prog@footpathcebu.test')
         s1 = TrainingSession.objects.create(
-            title='A', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL, club=self.coach.club,
+            title='A',
+            date=date.today(),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
         )
         s2 = TrainingSession.objects.create(
-            title='B', date=date.today() - timedelta(days=7),
-            age_tiers=['DEVELOPMENT'], focus=SessionFocus.TECHNICAL,
+            title='B',
+            date=date.today() - timedelta(days=7),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
             club=self.coach.club,
         )
         Attendance.objects.create(
-            player=self.player, session=s1,
-            status=AttendanceStatus.PRESENT, effort=80,
+            player=self.player,
+            session=s1,
+            status=AttendanceStatus.PRESENT,
+            effort=80,
         )
         Attendance.objects.create(
-            player=self.player, session=s2,
+            player=self.player,
+            session=s2,
             status=AttendanceStatus.ABSENT,
         )
 
@@ -625,9 +774,7 @@ class SquadProgressTests(APITestCase):
     def test_players_and_guardians_cannot_read(self):
         for role in (Roles.PLAYER, Roles.GUARDIAN):
             self.client.force_authenticate(make_user(role, f'{role}@x.test'))
-            self.assertEqual(
-                self.client.get(reverse('progress-squad')).status_code, 403
-            )
+            self.assertEqual(self.client.get(reverse('progress-squad')).status_code, 403)
 
 
 class AuditLogTests(APITestCase):
@@ -642,8 +789,16 @@ class AuditLogTests(APITestCase):
         self.client.force_authenticate(self.coach)
         self.client.put(
             reverse('player-assessment', args=[self.player.id]),
-            {'ratings': {'pace': 70, 'shooting': 70, 'passing': 70,
-                         'dribbling': 70, 'defending': 70, 'physical': 70}},
+            {
+                'ratings': {
+                    'pace': 70,
+                    'shooting': 70,
+                    'passing': 70,
+                    'dribbling': 70,
+                    'defending': 70,
+                    'physical': 70,
+                }
+            },
             format='json',
         )
         entry = AuditLog.objects.get(action='assessment.saved')
@@ -653,13 +808,14 @@ class AuditLogTests(APITestCase):
     @patch('academy.view_training.notify_session_cancelled')
     def test_session_cancellation_is_audited(self, _mock):
         session = TrainingSession.objects.create(
-            title='Doomed', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL, club=self.coach.club,
+            title='Doomed',
+            date=date.today(),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
         )
         self.client.force_authenticate(self.coach)
-        self.client.delete(
-            reverse('training-session-detail', args=[session.id])
-        )
+        self.client.delete(reverse('training-session-detail', args=[session.id]))
         entry = AuditLog.objects.get(action='session.cancelled')
         self.assertEqual(entry.target, 'Doomed')
 
@@ -703,7 +859,8 @@ class PlayerPrivacyPinTests(APITestCase):
         self.client.force_authenticate(self.player)
         response = self.client.put(
             reverse('player-pin', args=[self.player.id]),
-            {'pin': '2468'}, format='json',
+            {'pin': '2468'},
+            format='json',
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['hasPin'])
@@ -713,7 +870,8 @@ class PlayerPrivacyPinTests(APITestCase):
 
         response = self.client.post(
             reverse('player-pin-verify', args=[self.player.id]),
-            {'pin': '2468'}, format='json',
+            {'pin': '2468'},
+            format='json',
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['verified'])
@@ -721,12 +879,14 @@ class PlayerPrivacyPinTests(APITestCase):
 
         response = self.client.put(
             reverse('player-pin', args=[self.player.id]),
-            {'pin': '1357'}, format='json',
+            {'pin': '1357'},
+            format='json',
         )
         self.assertEqual(response.status_code, 400)
         response = self.client.put(
             reverse('player-pin', args=[self.player.id]),
-            {'currentPin': '2468', 'pin': '1357'}, format='json',
+            {'currentPin': '2468', 'pin': '1357'},
+            format='json',
         )
         self.assertEqual(response.status_code, 200)
 
@@ -734,20 +894,23 @@ class PlayerPrivacyPinTests(APITestCase):
         self.client.force_authenticate(self.player)
         self.client.put(
             reverse('player-pin', args=[self.player.id]),
-            {'pin': '2468'}, format='json',
+            {'pin': '2468'},
+            format='json',
         )
         for _ in range(4):
             self.assertEqual(
                 self.client.post(
                     reverse('player-pin-verify', args=[self.player.id]),
-                    {'pin': '0000'}, format='json',
+                    {'pin': '0000'},
+                    format='json',
                 ).status_code,
                 400,
             )
         self.assertEqual(
             self.client.post(
                 reverse('player-pin-verify', args=[self.player.id]),
-                {'pin': '0000'}, format='json',
+                {'pin': '0000'},
+                format='json',
             ).status_code,
             423,
         )
@@ -756,13 +919,15 @@ class PlayerPrivacyPinTests(APITestCase):
         self.client.force_authenticate(self.player)
         self.client.put(
             reverse('player-pin', args=[self.player.id]),
-            {'pin': '2468'}, format='json',
+            {'pin': '2468'},
+            format='json',
         )
         self.client.force_authenticate(
             self.guardian, token={'auth_time': timezone.now().timestamp()}
         )
         response = self.client.post(
-            reverse('player-pin-reset', args=[self.player.id]), format='json',
+            reverse('player-pin-reset', args=[self.player.id]),
+            format='json',
         )
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.data['hasPin'])
@@ -771,7 +936,8 @@ class PlayerPrivacyPinTests(APITestCase):
         self.client.force_authenticate(other_guardian)
         self.assertEqual(
             self.client.post(
-                reverse('player-pin-reset', args=[self.player.id]), format='json',
+                reverse('player-pin-reset', args=[self.player.id]),
+                format='json',
             ).status_code,
             403,
         )
@@ -780,19 +946,19 @@ class PlayerPrivacyPinTests(APITestCase):
         self.client.force_authenticate(self.player)
         self.client.put(
             reverse('player-pin', args=[self.player.id]),
-            {'pin': '2468'}, format='json',
+            {'pin': '2468'},
+            format='json',
         )
         self.client.force_authenticate(
             self.guardian,
             token={'auth_time': timezone.now().timestamp() - 301},
         )
         response = self.client.post(
-            reverse('player-pin-reset', args=[self.player.id]), format='json',
+            reverse('player-pin-reset', args=[self.player.id]),
+            format='json',
         )
         self.assertEqual(response.status_code, 403)
-        self.assertTrue(
-            PlayerPrivacyPin.objects.get(player=self.player).pin_hash
-        )
+        self.assertTrue(PlayerPrivacyPin.objects.get(player=self.player).pin_hash)
 
     def test_linked_guardian_can_set_first_pin_for_managed_player(self):
         self.player.firebase_uid = None
@@ -801,7 +967,8 @@ class PlayerPrivacyPinTests(APITestCase):
         self.client.force_authenticate(self.guardian)
         response = self.client.put(
             reverse('player-pin', args=[self.player.id]),
-            {'pin': '2468'}, format='json',
+            {'pin': '2468'},
+            format='json',
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(
@@ -811,7 +978,8 @@ class PlayerPrivacyPinTests(APITestCase):
         self.assertTrue(response.data['hasPin'])
         response = self.client.post(
             reverse('player-pin-verify', args=[self.player.id]),
-            {'pin': '2468'}, format='json',
+            {'pin': '2468'},
+            format='json',
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['verified'])
@@ -826,7 +994,8 @@ class PlayerPrivacyPinTests(APITestCase):
         )
         self.assertEqual(
             self.client.post(
-                reverse('player-pin-reset', args=[other.id]), format='json',
+                reverse('player-pin-reset', args=[other.id]),
+                format='json',
             ).status_code,
             403,
         )
@@ -840,33 +1009,34 @@ class TrainingSessionTests(APITestCase):
         return {
             'title': 'Evening Training',
             'date': str(date.today() + timedelta(days=1)),
-            'startTime': '04:30 PM', 'endTime': '06:00 PM',
-            'location': 'Cebu City Sports Complex', 'focus': 'TECHNICAL',
+            'startTime': '04:30 PM',
+            'endTime': '06:00 PM',
+            'location': 'Cebu City Sports Complex',
+            'focus': 'TECHNICAL',
             'ageTiers': ['DEVELOPMENT', 'PATHWAY'],
         }
 
     @patch('academy.view_training.notify_session_scheduled')
     def test_coach_creates_session(self, _mock_notify):
         self.client.force_authenticate(self.coach)
-        resp = self.client.post(
-            reverse('training-sessions'), self._payload(), format='json'
-        )
+        resp = self.client.post(reverse('training-sessions'), self._payload(), format='json')
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data['ageTiers'], ['DEVELOPMENT', 'PATHWAY'])
         self.assertEqual(resp.data['attendeeCount'], 0)
 
     def test_non_coach_cannot_create(self):
         self.client.force_authenticate(make_user(Roles.PLAYER))
-        resp = self.client.post(
-            reverse('training-sessions'), self._payload(), format='json'
-        )
+        resp = self.client.post(reverse('training-sessions'), self._payload(), format='json')
         self.assertEqual(resp.status_code, 403)
 
     @patch('academy.view_training.notify_session_updated')
     def test_coach_edits_a_session(self, mock_notify):
         session = TrainingSession.objects.create(
-            title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL, club=self.coach.club,
+            title='X',
+            date=date.today(),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
         )
         self.client.force_authenticate(self.coach)
         # The push is deferred to on_commit, which a wrapped test transaction
@@ -887,18 +1057,21 @@ class TrainingSessionTests(APITestCase):
     def test_coach_cancels_a_session_and_attendance_survives(self, mock_notify):
         player = make_player('att@footpathcebu.test')
         session = TrainingSession.objects.create(
-            title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL, club=self.coach.club,
+            title='X',
+            date=date.today(),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
         )
         record = Attendance.objects.create(
-            player=player, session=session, status=AttendanceStatus.PRESENT,
+            player=player,
+            session=session,
+            status=AttendanceStatus.PRESENT,
         )
         original_session_id = session.id
         self.client.force_authenticate(self.coach)
         with self.captureOnCommitCallbacks(execute=True):
-            resp = self.client.delete(
-                reverse('training-session-detail', args=[session.id])
-            )
+            resp = self.client.delete(reverse('training-session-detail', args=[session.id]))
         self.assertEqual(resp.status_code, 204)
         session.refresh_from_db()
         self.assertEqual(session.status, TrainingSessionStatus.CANCELLED)
@@ -908,48 +1081,52 @@ class TrainingSessionTests(APITestCase):
         self.assertEqual(record.session_id, session.id)
         mock_notify.assert_called_once()
         self.assertEqual(
-            mock_notify.call_args.kwargs['session_id'], original_session_id,
+            mock_notify.call_args.kwargs['session_id'],
+            original_session_id,
         )
 
     def test_non_coach_cannot_edit_or_cancel(self):
         session = TrainingSession.objects.create(
-            title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL, club=self.coach.club,
+            title='X',
+            date=date.today(),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
         )
         url = reverse('training-session-detail', args=[session.id])
         self.client.force_authenticate(make_user(Roles.PLAYER))
-        self.assertEqual(
-            self.client.put(url, {'title': 'H'}, format='json').status_code, 403
-        )
+        self.assertEqual(self.client.put(url, {'title': 'H'}, format='json').status_code, 403)
         self.assertEqual(self.client.delete(url).status_code, 403)
 
     @patch('academy.view_training.notify_session_updated')
     def test_coach_cannot_touch_another_clubs_session(self, _mock):
         other_club = Club.objects.create(name='Rival FC', slug='rival-fc')
         session = TrainingSession.objects.create(
-            title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL, club=other_club,
+            title='X',
+            date=date.today(),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=other_club,
         )
         url = reverse('training-session-detail', args=[session.id])
         self.client.force_authenticate(self.coach)
-        self.assertEqual(
-            self.client.put(url, {'title': 'H'}, format='json').status_code, 403
-        )
+        self.assertEqual(self.client.put(url, {'title': 'H'}, format='json').status_code, 403)
         self.assertEqual(self.client.delete(url).status_code, 403)
 
     def test_session_without_tier_rejected(self):
         self.client.force_authenticate(self.coach)
         payload = self._payload()
         payload['ageTiers'] = []
-        resp = self.client.post(
-            reverse('training-sessions'), payload, format='json'
-        )
+        resp = self.client.post(reverse('training-sessions'), payload, format='json')
         self.assertEqual(resp.status_code, 400)
 
     def test_any_authenticated_user_can_list(self):
         TrainingSession.objects.create(
-            title='X', date=date.today(), age_tiers=['DEVELOPMENT'],
-            focus=SessionFocus.TECHNICAL, club=default_test_club(),
+            title='X',
+            date=date.today(),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=default_test_club(),
         )
         self.client.force_authenticate(make_user(Roles.GUARDIAN))
         resp = self.client.get(reverse('training-sessions'))
@@ -1008,20 +1185,20 @@ class DisputeTests(APITestCase):
             self.client.force_authenticate(user)
             self.assertEqual(self.client.get(reverse('disputes')).status_code, 403)
             self.assertEqual(
-                self.client.get(
-                    reverse('dispute-detail', args=[self.dispute.id])
-                ).status_code, 403,
+                self.client.get(reverse('dispute-detail', args=[self.dispute.id])).status_code,
+                403,
             )
             self.assertEqual(
-                self.client.post(
-                    reverse('disputes'), self._payload(), format='json'
-                ).status_code, 403,
+                self.client.post(reverse('disputes'), self._payload(), format='json').status_code,
+                403,
             )
             self.assertEqual(
                 self.client.post(
                     reverse('dispute-responses', args=[self.dispute.id]),
-                    {'body': 'hi'}, format='json',
-                ).status_code, 403,
+                    {'body': 'hi'},
+                    format='json',
+                ).status_code,
+                403,
             )
 
     def test_staff_and_admin_list_but_cannot_create(self):
@@ -1031,9 +1208,8 @@ class DisputeTests(APITestCase):
             self.assertEqual(resp.status_code, 200)
             self.assertEqual(len(resp.data), 1)
             self.assertEqual(
-                self.client.post(
-                    reverse('disputes'), self._payload(), format='json'
-                ).status_code, 403,
+                self.client.post(reverse('disputes'), self._payload(), format='json').status_code,
+                403,
                 msg=f'{user.role} must not raise disputes',
             )
 
@@ -1041,8 +1217,10 @@ class DisputeTests(APITestCase):
         self.client.force_authenticate(self.staff)
         resp = self.client.post(
             reverse('dispute-responses', args=[self.dispute.id]),
-            {'body': 'Reviewed the sign-in sheet; correcting the record.',
-             'statusChangeTo': 'RESOLVED'},
+            {
+                'body': 'Reviewed the sign-in sheet; correcting the record.',
+                'statusChangeTo': 'RESOLVED',
+            },
             format='json',
         )
         self.assertEqual(resp.status_code, 201)
@@ -1068,33 +1246,46 @@ class DisputeTests(APITestCase):
         self.client.force_authenticate(self.coach)
         payload = self._payload() | {'category': 'VIBES'}
         self.assertEqual(
-            self.client.post(reverse('disputes'), payload, format='json')
-            .status_code, 400,
+            self.client.post(reverse('disputes'), payload, format='json').status_code,
+            400,
         )
         self.assertEqual(
             self.client.post(
                 reverse('dispute-responses', args=[self.dispute.id]),
-                {'body': 'x', 'statusChangeTo': 'MAYBE'}, format='json',
-            ).status_code, 400,
+                {'body': 'x', 'statusChangeTo': 'MAYBE'},
+                format='json',
+            ).status_code,
+            400,
         )
 
     def test_dispute_json_matches_flutter_contract(self):
         DisputeResponse.objects.create(
-            dispute=self.dispute, author=self.staff, body='Looking into it.',
+            dispute=self.dispute,
+            author=self.staff,
+            body='Looking into it.',
             status_change_to=DisputeStatus.UNDER_REVIEW,
         )
         self.client.force_authenticate(self.coach)
         row = self.client.get(reverse('disputes')).data[0]
         self.assertEqual(
             set(row.keys()),
-            {'id', 'raisedByName', 'subjectPlayerId', 'subjectPlayerName',
-             'category', 'status', 'summary', 'detail', 'createdAt',
-             'updatedAt', 'responses'},
+            {
+                'id',
+                'raisedByName',
+                'subjectPlayerId',
+                'subjectPlayerName',
+                'category',
+                'status',
+                'summary',
+                'detail',
+                'createdAt',
+                'updatedAt',
+                'responses',
+            },
         )
         self.assertEqual(
             set(row['responses'][0].keys()),
-            {'id', 'authorName', 'authorRole', 'body', 'statusChangeTo',
-             'createdAt'},
+            {'id', 'authorName', 'authorRole', 'body', 'statusChangeTo', 'createdAt'},
         )
         self.assertIsInstance(row['id'], str)
 
@@ -1109,10 +1300,14 @@ class InjuryRecordTests(APITestCase):
         self.guardian = make_user(Roles.GUARDIAN)
         GuardianLink.objects.create(guardian=self.guardian, player=self.player)
         self.record = InjuryRecord.objects.create(
-            player=self.player, description='Sprained ankle',
-            body_part='Left ankle', status=InjuryStatus.RECOVERING,
-            occurred_on=date(2026, 7, 1), notes='Twisted landing from a header.',
-            reported_by=self.player, review_status='CONFIRMED',
+            player=self.player,
+            description='Sprained ankle',
+            body_part='Left ankle',
+            status=InjuryStatus.RECOVERING,
+            occurred_on=date(2026, 7, 1),
+            notes='Twisted landing from a header.',
+            reported_by=self.player,
+            review_status='CONFIRMED',
         )
 
     def _detail(self, pk=None):
@@ -1120,8 +1315,10 @@ class InjuryRecordTests(APITestCase):
 
     def _payload(self):
         return {
-            'description': 'Hamstring strain', 'bodyPart': 'Right hamstring',
-            'status': 'ACTIVE', 'occurredOn': '2026-07-10',
+            'description': 'Hamstring strain',
+            'bodyPart': 'Right hamstring',
+            'status': 'ACTIVE',
+            'occurredOn': '2026-07-10',
             'notes': 'Felt a pull during sprints.',
         }
 
@@ -1130,13 +1327,12 @@ class InjuryRecordTests(APITestCase):
         resp = self.client.post(reverse('injuries'), self._payload(), format='json')
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data['playerId'], str(self.player.id))
-        self.assertEqual(
-            InjuryRecord.objects.filter(player=self.player).count(), 2
-        )
+        self.assertEqual(InjuryRecord.objects.filter(player=self.player).count(), 2)
 
     def test_player_lists_own_records_only(self):
         InjuryRecord.objects.create(
-            player=self.other_player, description='Bruised knee',
+            player=self.other_player,
+            description='Bruised knee',
             occurred_on=date(2026, 7, 5),
         )
         self.client.force_authenticate(self.player)
@@ -1148,7 +1344,8 @@ class InjuryRecordTests(APITestCase):
     def test_player_cannot_update_or_delete_confirmed_record(self):
         self.client.force_authenticate(self.player)
         resp = self.client.put(
-            self._detail(), {'status': 'RECOVERED', 'resolvedOn': '2026-07-15'},
+            self._detail(),
+            {'status': 'RECOVERED', 'resolvedOn': '2026-07-15'},
             format='json',
         )
         self.assertEqual(resp.status_code, 403)
@@ -1158,9 +1355,7 @@ class InjuryRecordTests(APITestCase):
     def test_player_cannot_touch_another_players_record(self):
         self.client.force_authenticate(self.other_player)
         self.assertEqual(self.client.get(self._detail()).status_code, 403)
-        self.assertEqual(
-            self.client.put(self._detail(), {}, format='json').status_code, 403
-        )
+        self.assertEqual(self.client.put(self._detail(), {}, format='json').status_code, 403)
         self.assertEqual(self.client.delete(self._detail()).status_code, 403)
 
     def test_coach_reads_and_can_submit_but_cannot_edit_confirmed(self):
@@ -1171,7 +1366,7 @@ class InjuryRecordTests(APITestCase):
         self.assertEqual(self.client.get(self._detail()).status_code, 200)
 
         # Narrowing to one player works for the coach's profile view.
-        resp = self.client.get(f"{reverse('injuries')}?player={self.player.id}")
+        resp = self.client.get(f'{reverse("injuries")}?player={self.player.id}')
         self.assertEqual(len(resp.data), 1)
 
         self.assertEqual(
@@ -1179,12 +1374,12 @@ class InjuryRecordTests(APITestCase):
                 reverse('injuries'),
                 self._payload() | {'playerId': str(self.player.id)},
                 format='json',
-            ).status_code, 201,
+            ).status_code,
+            201,
         )
         self.assertEqual(
-            self.client.put(
-                self._detail(), {'status': 'RECOVERED'}, format='json'
-            ).status_code, 403,
+            self.client.put(self._detail(), {'status': 'RECOVERED'}, format='json').status_code,
+            403,
         )
         self.assertEqual(self.client.delete(self._detail()).status_code, 403)
 
@@ -1193,15 +1388,12 @@ class InjuryRecordTests(APITestCase):
         # Must name a linked child — no blanket listing, no unlinked child.
         self.assertEqual(self.client.get(reverse('injuries')).status_code, 403)
         self.assertEqual(
-            self.client.get(
-                f"{reverse('injuries')}?player={self.other_player.id}"
-            ).status_code, 403,
+            self.client.get(f'{reverse("injuries")}?player={self.other_player.id}').status_code,
+            403,
         )
         resp = self.client.get(
-            f"{reverse('injuries')}?player={self.player.id}",
-            HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
-                self.guardian.id, self.player.id
-            ),
+            f'{reverse("injuries")}?player={self.player.id}',
+            HTTP_X_PLAYER_UNLOCK=issue_player_unlock(self.guardian.id, self.player.id),
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
@@ -1210,9 +1402,7 @@ class InjuryRecordTests(APITestCase):
         self.assertEqual(
             self.client.get(
                 self._detail(),
-                HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
-                    self.guardian.id, self.player.id
-                ),
+                HTTP_X_PLAYER_UNLOCK=issue_player_unlock(self.guardian.id, self.player.id),
             ).status_code,
             200,
         )
@@ -1222,13 +1412,13 @@ class InjuryRecordTests(APITestCase):
                 reverse('injuries'),
                 self._payload() | {'playerId': str(self.player.id)},
                 format='json',
-            ).status_code, 201,
+            ).status_code,
+            201,
         )
         # Confirmed records remain Coordinator-owned.
         self.assertEqual(
-            self.client.put(
-                self._detail(), {'status': 'RECOVERED'}, format='json'
-            ).status_code, 403,
+            self.client.put(self._detail(), {'status': 'RECOVERED'}, format='json').status_code,
+            403,
         )
         self.assertEqual(self.client.delete(self._detail()).status_code, 403)
 
@@ -1238,12 +1428,29 @@ class InjuryRecordTests(APITestCase):
         self.assertEqual(
             set(row.keys()),
             {
-                'id', 'playerId', 'playerName', 'description', 'bodyPart',
-                'status', 'occurredOn', 'resolvedOn', 'notes', 'reviewStatus',
-                'reporterName', 'reporterRole', 'rejectionReason',
-                'reviewedAt', 'archivedAt', 'pendingStatusUpdate',
-                'canEditPending', 'canReview', 'canEditConfirmed', 'canArchive',
-                'canRequestStatusUpdate', 'createdAt', 'updatedAt',
+                'id',
+                'playerId',
+                'playerName',
+                'description',
+                'bodyPart',
+                'status',
+                'occurredOn',
+                'resolvedOn',
+                'notes',
+                'reviewStatus',
+                'reporterName',
+                'reporterRole',
+                'rejectionReason',
+                'reviewedAt',
+                'archivedAt',
+                'pendingStatusUpdate',
+                'canEditPending',
+                'canReview',
+                'canEditConfirmed',
+                'canArchive',
+                'canRequestStatusUpdate',
+                'createdAt',
+                'updatedAt',
             },
         )
         self.assertIsInstance(row['id'], str)
@@ -1262,7 +1469,8 @@ class DeviceRegistrationTests(APITestCase):
         self.client.force_authenticate(user)
         for _ in range(2):  # idempotent
             resp = self.client.post(
-                reverse('devices'), {'token': 'abc', 'platform': 'android'},
+                reverse('devices'),
+                {'token': 'abc', 'platform': 'android'},
                 format='json',
             )
             self.assertEqual(resp.status_code, 204)
@@ -1280,11 +1488,7 @@ class PhotoUploadTests(APITestCase):
         self.player = make_player('p@footpathcebu.test')
 
     def _upload(self):
-        return {
-            'photo': SimpleUploadedFile(
-                'player.jpg', jpeg_bytes(), content_type='image/jpeg'
-            )
-        }
+        return {'photo': SimpleUploadedFile('player.jpg', jpeg_bytes(), content_type='image/jpeg')}
 
     def test_non_coach_non_admin_cannot_upload(self):
         self.client.force_authenticate(make_user(Roles.GUARDIAN))
@@ -1330,38 +1534,48 @@ class PushTriggerTests(APITestCase):
         def _fake_send(msg):
             class _R:
                 success_count = len(msg.tokens)
-                responses = [type('x', (), {'success': True, 'exception': None})()
-                             for _ in msg.tokens]
+                responses = [
+                    type('x', (), {'success': True, 'exception': None})() for _ in msg.tokens
+                ]
+
             return _R()
 
         mock_messaging.send_each_for_multicast.side_effect = _fake_send
-        mock_messaging.MulticastMessage.side_effect = \
-            lambda **kw: type('M', (), kw)()
+        mock_messaging.MulticastMessage.side_effect = lambda **kw: type('M', (), kw)()
         mock_messaging.Notification.side_effect = lambda **kw: kw
 
-    @patch('academy.notifications.ensure_initialized')
-    @patch('academy.notifications.messaging')
-    def test_assessment_put_notifies_player_and_guardian(
-        self, mock_messaging, _mock_init
-    ):
+    @patch('academy.push_delivery.ensure_initialized')
+    @patch('academy.push_delivery.messaging')
+    def test_assessment_put_notifies_player_and_guardian(self, mock_messaging, _mock_init):
         self._mock_send(mock_messaging)
         self.client.force_authenticate(self.coach)
         url = reverse('player-assessment', args=[self.player.id])
         with self.captureOnCommitCallbacks(execute=True):
             resp = self.client.put(
-                url, {'ratings': {'pace': 90, 'shooting': 91, 'passing': 92,
-                                  'dribbling': 93, 'defending': 94,
-                                  'physical': 95}},
+                url,
+                {
+                    'ratings': {
+                        'pace': 90,
+                        'shooting': 91,
+                        'passing': 92,
+                        'dribbling': 93,
+                        'defending': 94,
+                        'physical': 95,
+                    }
+                },
                 format='json',
             )
         self.assertEqual(resp.status_code, 200)
+        from academy.push_delivery import deliver_pending
+
+        deliver_pending()
         self.assertEqual(mock_messaging.send_each_for_multicast.call_count, 1)
         sent = mock_messaging.send_each_for_multicast.call_args[0][0]
         self.assertEqual(set(sent.tokens), {'t0', 't1'})
         self.assertEqual(sent.data['type'], 'assessment_saved')
 
-    @patch('academy.notifications.ensure_initialized')
-    @patch('academy.notifications.messaging')
+    @patch('academy.push_delivery.ensure_initialized')
+    @patch('academy.push_delivery.messaging')
     def test_orm_eligibility_change_fires_regardless_of_write_path(
         self, mock_messaging, _mock_init
     ):
@@ -1371,6 +1585,9 @@ class PushTriggerTests(APITestCase):
             profile.eligibility = Eligibility.ACADEMIC_WARNING
             profile.save()
 
+        from academy.push_delivery import deliver_pending
+
+        deliver_pending()
         self.assertEqual(mock_messaging.send_each_for_multicast.call_count, 1)
         sent = mock_messaging.send_each_for_multicast.call_args[0][0]
         self.assertEqual(set(sent.tokens), {'t0', 't1'})
@@ -1378,11 +1595,9 @@ class PushTriggerTests(APITestCase):
         self.assertNotIn('previous', sent.data)
         self.assertNotIn('eligibility', sent.data)
 
-    @patch('academy.notifications.ensure_initialized')
-    @patch('academy.notifications.messaging')
-    def test_unchanged_eligibility_save_does_not_fire(
-        self, mock_messaging, _mock_init
-    ):
+    @patch('academy.push_delivery.ensure_initialized')
+    @patch('academy.push_delivery.messaging')
+    def test_unchanged_eligibility_save_does_not_fire(self, mock_messaging, _mock_init):
         self._mock_send(mock_messaging)
         profile = self.player.player_profile
         with self.captureOnCommitCallbacks(execute=True):
@@ -1424,9 +1639,7 @@ class EligibilityHistorySignalTests(APITestCase):
 
     def test_history_is_append_only_across_changes(self):
         profile = self.player.player_profile
-        for status in (Eligibility.PENDING,
-                       Eligibility.NOT_ELIGIBLE,
-                       Eligibility.ELIGIBLE):
+        for status in (Eligibility.PENDING, Eligibility.NOT_ELIGIBLE, Eligibility.ELIGIBLE):
             profile.eligibility = status
             profile.save()
         rows = EligibilityHistory.objects.filter(player=self.player)
@@ -1459,9 +1672,7 @@ class EligibilityHistoryEndpointTests(APITestCase):
         profile.save()
 
     def _url(self, player_id=None):
-        return reverse(
-            'eligibility-history', args=[player_id or self.player.id]
-        )
+        return reverse('eligibility-history', args=[player_id or self.player.id])
 
     def test_player_reads_own_history_newest_first(self):
         self.client.force_authenticate(self.player)
@@ -1492,14 +1703,13 @@ class EligibilityHistoryEndpointTests(APITestCase):
         self.assertEqual(
             self.client.get(
                 self._url(),
-                HTTP_X_PLAYER_UNLOCK=issue_player_unlock(
-                    self.guardian.id, self.player.id
-                ),
+                HTTP_X_PLAYER_UNLOCK=issue_player_unlock(self.guardian.id, self.player.id),
             ).status_code,
             200,
         )
         self.assertEqual(
-            self.client.get(self._url(self.other_player.id)).status_code, 403,
+            self.client.get(self._url(self.other_player.id)).status_code,
+            403,
         )
 
     def test_player_cannot_read_another_players_history(self):
@@ -1514,7 +1724,9 @@ class EligibilityHistoryEndpointTests(APITestCase):
         ):
             self.client.force_authenticate(user)
             self.assertEqual(
-                self.client.get(self._url()).status_code, expected, user.role,
+                self.client.get(self._url()).status_code,
+                expected,
+                user.role,
             )
 
     def test_unknown_player_404(self):
@@ -1526,11 +1738,9 @@ class NotificationFanOutTests(APITestCase):
     """The session-scheduled push targets players in the session's tiers plus
     their linked guardians — and nobody else."""
 
-    @patch('academy.notifications.ensure_initialized')
-    @patch('academy.notifications.messaging')
-    def test_recipients_are_targeted_players_and_their_guardians(
-        self, mock_messaging, _mock_init
-    ):
+    @patch('academy.push_delivery.ensure_initialized')
+    @patch('academy.push_delivery.messaging')
+    def test_recipients_are_targeted_players_and_their_guardians(self, mock_messaging, _mock_init):
         from academy.notifications import notify_session_scheduled
 
         dev_player = make_player('dev@x.test', tier=AgeTier.DEVELOPMENT)
@@ -1546,43 +1756,61 @@ class NotificationFanOutTests(APITestCase):
         def _fake_send(msg):
             class _R:
                 success_count = len(msg.tokens)
-                responses = [type('x', (), {'success': True, 'exception': None})()
-                             for _ in msg.tokens]
+                responses = [
+                    type('x', (), {'success': True, 'exception': None})() for _ in msg.tokens
+                ]
+
             return _R()
 
         mock_messaging.send_each_for_multicast.side_effect = _fake_send
-        mock_messaging.MulticastMessage.side_effect = \
-            lambda **kw: type('M', (), kw)()
+        mock_messaging.MulticastMessage.side_effect = lambda **kw: type('M', (), kw)()
         mock_messaging.Notification.side_effect = lambda **kw: kw
 
         session = TrainingSession.objects.create(
-            title='Dev only', date=date.today(), age_tiers=[AgeTier.DEVELOPMENT],
-            focus=SessionFocus.TECHNICAL, club=dev_player.club,
+            title='Dev only',
+            date=date.today(),
+            age_tiers=[AgeTier.DEVELOPMENT],
+            focus=SessionFocus.TECHNICAL,
+            club=dev_player.club,
         )
-        sent = notify_session_scheduled(session)
+        notify_session_scheduled(session)
+        from academy.push_delivery import deliver_pending
+
+        sent = deliver_pending()
 
         # dev_player + its guardian = 2 tokens. Foundation player excluded.
         self.assertEqual(sent, 2)
-        sent_tokens = set(
-            mock_messaging.send_each_for_multicast.call_args[0][0].tokens
-        )
+        sent_tokens = set(mock_messaging.send_each_for_multicast.call_args[0][0].tokens)
         self.assertEqual(sent_tokens, {'t0', 't2'})
 
 
 def _fake_provision_player(
-    *, email, first_name, last_name, middle_initial, date_of_birth, club,
+    *,
+    email,
+    first_name,
+    last_name,
+    middle_initial,
+    date_of_birth,
+    club,
     guardian=None,
 ):
     """Stand-in for the aggregate player service that skips Firebase."""
     user = User.objects.create(
-        username=email, email=email, first_name=first_name,
-        last_name=last_name, role=Roles.PLAYER, firebase_uid=f'uid-{email}',
+        username=email,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        role=Roles.PLAYER,
+        firebase_uid=f'uid-{email}',
         club=club,
     )
     age, tier = AgeTierSetting.profile_defaults_for(date_of_birth)
     profile = PlayerProfile.objects.create(
-        user=user, middle_initial=middle_initial, date_of_birth=date_of_birth,
-        age=age, age_tier=tier,
+        user=user,
+        middle_initial=middle_initial,
+        date_of_birth=date_of_birth,
+        age=age,
+        age_tier=tier,
     )
     if guardian is not None:
         GuardianLink.objects.create(guardian=guardian, player=user)
@@ -1598,8 +1826,10 @@ class AdminCreatePlayerViewTests(APITestCase):
         self.coach = make_user(Roles.COACH)
         self.guardian = make_user(Roles.GUARDIAN, email='g@footpathcebu.test')
         self.club = Club.objects.create(
-            name='Admin Player Club', slug='admin-player-club',
-            is_school_affiliated=True, school_name='Admin Player School',
+            name='Admin Player Club',
+            slug='admin-player-club',
+            is_school_affiliated=True,
+            school_name='Admin Player School',
         )
         self.guardian.club = self.club
         self.guardian.save(update_fields=['club'])
@@ -1634,11 +1864,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         profile = PlayerProfile.objects.get(user=user)
         self.assertEqual(profile.middle_initial, 'S')
         self.assertEqual(str(profile.date_of_birth), '2012-05-04')
-        self.assertTrue(
-            GuardianLink.objects.filter(
-                guardian=self.guardian, player=user
-            ).exists()
-        )
+        self.assertTrue(GuardianLink.objects.filter(guardian=self.guardian, player=user).exists())
         self.assertEqual(response.data['temporary_password'], 'TempPass123')
 
     @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
@@ -1648,13 +1874,16 @@ class AdminCreatePlayerViewTests(APITestCase):
         The bands are retuned so an 11-year-old lands in PATHWAY, a result
         neither the stock bands nor the model default could produce."""
         AgeTierSetting.objects.filter(tier=AgeTier.FOUNDATION).update(
-            min_age=4, max_age=6,
+            min_age=4,
+            max_age=6,
         )
         AgeTierSetting.objects.filter(tier=AgeTier.DEVELOPMENT).update(
-            min_age=7, max_age=9,
+            min_age=7,
+            max_age=9,
         )
         AgeTierSetting.objects.filter(tier=AgeTier.PATHWAY).update(
-            min_age=10, max_age=18,
+            min_age=10,
+            max_age=18,
         )
         today = date.today()
         try:
@@ -1663,14 +1892,10 @@ class AdminCreatePlayerViewTests(APITestCase):
             dob = today.replace(year=today.year - 11, day=28)
 
         self.client.force_authenticate(self.admin)
-        response = self.client.post(
-            self.url, self._payload(date_of_birth=str(dob)), format='json'
-        )
+        response = self.client.post(self.url, self._payload(date_of_birth=str(dob)), format='json')
 
         self.assertEqual(response.status_code, 201)
-        profile = PlayerProfile.objects.get(
-            user__email='newplayer@footpathcebu.test'
-        )
+        profile = PlayerProfile.objects.get(user__email='newplayer@footpathcebu.test')
         self.assertEqual(profile.age, 11)
         self.assertEqual(profile.age_tier, AgeTier.PATHWAY)
 
@@ -1687,18 +1912,12 @@ class AdminCreatePlayerViewTests(APITestCase):
 
     def test_blank_email_creates_guardian_managed_player(self):
         self.client.force_authenticate(self.admin)
-        response = self.client.post(
-            self.url, self._payload(email=''), format='json'
-        )
+        response = self.client.post(self.url, self._payload(email=''), format='json')
         self.assertEqual(response.status_code, 201)
         user = User.objects.get(first_name='Juan')
         self.assertEqual(user.email, '')
         self.assertIsNone(user.firebase_uid)
-        self.assertTrue(
-            GuardianLink.objects.filter(
-                guardian=self.guardian, player=user
-            ).exists()
-        )
+        self.assertTrue(GuardianLink.objects.filter(guardian=self.guardian, player=user).exists())
         self.assertIsNone(response.data['temporary_password'])
 
     @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
@@ -1709,17 +1928,13 @@ class AdminCreatePlayerViewTests(APITestCase):
         response = self.client.post(self.url, payload, format='json')
 
         self.assertEqual(response.status_code, 400)
-        self.assertFalse(
-            User.objects.filter(email='newplayer@footpathcebu.test').exists()
-        )
+        self.assertFalse(User.objects.filter(email='newplayer@footpathcebu.test').exists())
         self.assertFalse(PlayerProfile.objects.exists())
 
     @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
     def test_blank_name_is_rejected(self, _mock):
         self.client.force_authenticate(self.admin)
-        response = self.client.post(
-            self.url, self._payload(first_name=''), format='json'
-        )
+        response = self.client.post(self.url, self._payload(first_name=''), format='json')
         self.assertEqual(response.status_code, 400)
 
     def test_non_admin_denied(self):
@@ -1775,8 +1990,10 @@ class SessionConfirmationTests(APITestCase):
         GuardianLink.objects.create(guardian=self.guardian, player=self.player)
         self.other = make_player('other-rsvp@footpathcebu.test')
         self.session = TrainingSession.objects.create(
-            title='Evening Training', date=date.today(),
-            age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+            title='Evening Training',
+            date=date.today(),
+            age_tiers=[AgeTier.DEVELOPMENT],
+            focus=SessionFocus.TECHNICAL,
             club=self.player.club,
         )
 
@@ -1814,8 +2031,10 @@ class SessionConfirmationTests(APITestCase):
 
     def test_player_cannot_confirm_a_future_session(self):
         future = TrainingSession.objects.create(
-            title='Future Training', date=date.today() + timedelta(days=1),
-            age_tiers=[AgeTier.DEVELOPMENT], focus=SessionFocus.TECHNICAL,
+            title='Future Training',
+            date=date.today() + timedelta(days=1),
+            age_tiers=[AgeTier.DEVELOPMENT],
+            focus=SessionFocus.TECHNICAL,
             club=self.player.club,
         )
         self.client.force_authenticate(self.player)
@@ -1825,19 +2044,19 @@ class SessionConfirmationTests(APITestCase):
             format='json',
         )
         self.assertEqual(resp.status_code, 400)
-        self.assertFalse(
-            SessionConfirmation.objects.filter(session=future).exists()
-        )
+        self.assertFalse(SessionConfirmation.objects.filter(session=future).exists())
 
     def test_json_matches_flutter_contract(self):
         SessionConfirmation.objects.create(
-            player=self.player, session=self.session,
+            player=self.player,
+            session=self.session,
             status=ConfirmationStatus.CONFIRMED,
         )
         self.client.force_authenticate(self.player)
         row = self.client.get(self._url(self.player.id)).data[0]
         self.assertEqual(
-            set(row.keys()), {'sessionId', 'playerId', 'status', 'respondedAt'},
+            set(row.keys()),
+            {'sessionId', 'playerId', 'status', 'respondedAt'},
         )
         self.assertEqual(row['playerId'], str(self.player.id))
         self.assertEqual(row['sessionId'], str(self.session.id))
@@ -1852,21 +2071,25 @@ class SessionConfirmationTests(APITestCase):
 
     def test_guardian_reads_linked_child_but_not_others(self):
         SessionConfirmation.objects.create(
-            player=self.player, session=self.session,
+            player=self.player,
+            session=self.session,
             status=ConfirmationStatus.CONFIRMED,
         )
         self.client.force_authenticate(self.guardian)
         self.assertEqual(
-            self.client.get(self._url(self.player.id)).status_code, 200,
+            self.client.get(self._url(self.player.id)).status_code,
+            200,
         )
         self.assertEqual(
-            self.client.get(self._url(self.other.id)).status_code, 403,
+            self.client.get(self._url(self.other.id)).status_code,
+            403,
         )
 
     def test_coach_can_read_any_player(self):
         self.client.force_authenticate(make_user(Roles.COACH))
         self.assertEqual(
-            self.client.get(self._url(self.player.id)).status_code, 200,
+            self.client.get(self._url(self.player.id)).status_code,
+            200,
         )
 
     def test_unknown_status_is_rejected(self):
@@ -1903,12 +2126,18 @@ class SessionTenancyTests(APITestCase):
         self.club_b = Club.objects.create(name='Club B', slug='club-b')
         self.coach_a = _club_user(self.club_a, Roles.COACH, 'coach-a@t.test')
         self.session_a = TrainingSession.objects.create(
-            title='A Session', date=date.today(), age_tiers=[AgeTier.DEVELOPMENT],
-            focus=SessionFocus.TECHNICAL, club=self.club_a,
+            title='A Session',
+            date=date.today(),
+            age_tiers=[AgeTier.DEVELOPMENT],
+            focus=SessionFocus.TECHNICAL,
+            club=self.club_a,
         )
         self.session_b = TrainingSession.objects.create(
-            title='B Session', date=date.today(), age_tiers=[AgeTier.DEVELOPMENT],
-            focus=SessionFocus.TECHNICAL, club=self.club_b,
+            title='B Session',
+            date=date.today(),
+            age_tiers=[AgeTier.DEVELOPMENT],
+            focus=SessionFocus.TECHNICAL,
+            club=self.club_b,
         )
 
     def test_coach_lists_only_own_club_sessions(self):
@@ -1924,14 +2153,18 @@ class SessionTenancyTests(APITestCase):
     @patch('academy.view_training.notify_session_scheduled')
     def test_created_session_is_stamped_with_coach_club(self, _mock_notify):
         self.client.force_authenticate(self.coach_a)
-        resp = self.client.post(reverse('training-sessions'), {
-            'title': 'Fresh', 'date': str(date.today() + timedelta(days=1)),
-            'ageTiers': ['DEVELOPMENT'], 'focus': 'TECHNICAL',
-        }, format='json')
-        self.assertEqual(resp.status_code, 201)
-        self.assertEqual(
-            TrainingSession.objects.get(title='Fresh').club, self.club_a
+        resp = self.client.post(
+            reverse('training-sessions'),
+            {
+                'title': 'Fresh',
+                'date': str(date.today() + timedelta(days=1)),
+                'ageTiers': ['DEVELOPMENT'],
+                'focus': 'TECHNICAL',
+            },
+            format='json',
         )
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(TrainingSession.objects.get(title='Fresh').club, self.club_a)
 
     def test_coach_cannot_view_other_club_rollcall(self):
         self.client.force_authenticate(self.coach_a)

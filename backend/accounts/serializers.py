@@ -1,5 +1,5 @@
-from rest_framework import serializers
 from django.utils.text import slugify
+from rest_framework import serializers
 
 from academy.storage import signed_photo_url
 
@@ -13,9 +13,7 @@ CREATABLE_ROLES = [
 
 
 class UserSerializer(serializers.ModelSerializer):
-    role_display = serializers.CharField(
-        source='get_role_display', read_only=True
-    )
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
     club_id = serializers.IntegerField(read_only=True)
     club_name = serializers.CharField(source='club.name', read_only=True)
     club_type = serializers.CharField(source='club.club_type', read_only=True)
@@ -39,10 +37,7 @@ class UserSerializer(serializers.ModelSerializer):
         ]
 
     def get_photo_url(self, obj):
-        return (
-            signed_photo_url(obj.profile_photo_path)
-            if obj.profile_photo_path else None
-        )
+        return signed_photo_url(obj.profile_photo_path) if obj.profile_photo_path else None
 
 
 class AdminUpdateUserSerializer(serializers.Serializer):
@@ -67,13 +62,10 @@ class AdminCreateUserSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
-        if (
-            attrs['role'] == Roles.SCHOOL_STAFF
-            and not attrs['club'].allows_school_staff
-        ):
-            raise serializers.ValidationError({
-                'role': 'School Staff can be assigned only to a School club.'
-            })
+        if attrs['role'] == Roles.SCHOOL_STAFF and not attrs['club'].allows_school_staff:
+            raise serializers.ValidationError(
+                {'role': 'School Staff can be assigned only to a School club.'}
+            )
         return attrs
 
 
@@ -85,23 +77,27 @@ class AdminClubSerializer(serializers.ModelSerializer):
     class Meta:
         model = Club
         fields = [
-            'id', 'name', 'slug', 'club_type', 'is_active', 'school_name',
-            'head_coach_name', 'coach_license', 'cvfa_membership', 'created_at',
+            'id',
+            'name',
+            'slug',
+            'club_type',
+            'is_active',
+            'school_name',
+            'head_coach_name',
+            'coach_license',
+            'cvfa_membership',
+            'created_at',
         ]
         read_only_fields = ['slug', 'created_at']
 
     def validate(self, attrs):
-        current_type = (
-            self.instance.club_type if self.instance else ClubTypes.INDEPENDENT
-        )
+        current_type = self.instance.club_type if self.instance else ClubTypes.INDEPENDENT
         club_type = attrs.get('club_type', current_type)
-        school_name = attrs.get(
-            'school_name', self.instance.school_name if self.instance else ''
-        )
+        school_name = attrs.get('school_name', self.instance.school_name if self.instance else '')
         if club_type == ClubTypes.SCHOOL and not school_name.strip():
-            raise serializers.ValidationError({
-                'school_name': 'School name is required for a School club.'
-            })
+            raise serializers.ValidationError(
+                {'school_name': 'School name is required for a School club.'}
+            )
         return attrs
 
     @staticmethod
@@ -129,9 +125,7 @@ class AdminClubSerializer(serializers.ModelSerializer):
         club_type = validated_data.pop('club_type', instance.club_type)
         validated_data['is_school_affiliated'] = club_type == ClubTypes.SCHOOL
         if 'name' in validated_data and validated_data['name'] != instance.name:
-            validated_data['slug'] = self._unique_slug(
-                validated_data['name'], instance=instance
-            )
+            validated_data['slug'] = self._unique_slug(validated_data['name'], instance=instance)
         if club_type == ClubTypes.INDEPENDENT:
             validated_data['school_name'] = ''
         return super().update(instance, validated_data)
@@ -177,11 +171,7 @@ class GuardianLinkSerializer(serializers.ModelSerializer):
         guardian = attrs['guardian']
         player = attrs['player']
         if not guardian.is_active or not player.is_active:
-            raise serializers.ValidationError(
-                'Guardian and player accounts must both be active.'
-            )
+            raise serializers.ValidationError('Guardian and player accounts must both be active.')
         if guardian.club_id is None or guardian.club_id != player.club_id:
-            raise serializers.ValidationError(
-                'Guardian and player must belong to the same club.'
-            )
+            raise serializers.ValidationError('Guardian and player must belong to the same club.')
         return attrs

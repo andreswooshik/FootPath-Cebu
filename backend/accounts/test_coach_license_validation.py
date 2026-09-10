@@ -4,6 +4,7 @@ from django.contrib.admin.sites import site
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+
 from test_uploads import pdf_bytes
 
 from .admin import ClubAdmin
@@ -115,9 +116,7 @@ class ClubAdminCoordinatorCreationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'passwords do not match')
         self.assertFalse(Club.objects.filter(slug='new-united-fc').exists())
-        self.assertFalse(
-            User.objects.filter(email='andrea@new-united.test').exists()
-        )
+        self.assertFalse(User.objects.filter(email='andrea@new-united.test').exists())
 
     def test_existing_incomplete_club_can_be_given_a_coordinator(self):
         club = Club.objects.create(name='Incomplete FC', slug='incomplete-fc')
@@ -133,11 +132,13 @@ class ClubAdminCoordinatorCreationTests(TestCase):
     def test_password_check_uses_django_validators(self):
         response = self.client.post(
             reverse('admin:accounts_club_password_check'),
-            data=json.dumps({
-                'password': '12345678',
-                'email': 'andrea@new-united.test',
-                'name': 'Andrea Santos',
-            }),
+            data=json.dumps(
+                {
+                    'password': '12345678',
+                    'email': 'andrea@new-united.test',
+                    'name': 'Andrea Santos',
+                }
+            ),
             content_type='application/json',
         )
 

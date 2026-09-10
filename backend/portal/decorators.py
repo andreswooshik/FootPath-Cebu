@@ -4,6 +4,7 @@ Mirrors the DRF-side `accounts.permissions.role_required` but for classic
 Django views: deny by default, redirect anonymous users to login, 403 the
 wrong role (OWASP A01 — Broken Access Control).
 """
+
 from functools import wraps
 
 from django.contrib.auth.views import redirect_to_login
@@ -24,10 +25,7 @@ def portal_role_required(*roles):
                 raise PermissionDenied('Your account is not assigned to a club.')
             if not request.user.club.is_active:
                 raise PermissionDenied('Your club is inactive.')
-            if (
-                request.user.role == 'SCHOOL_STAFF'
-                and not request.user.club.allows_school_staff
-            ):
+            if request.user.role == 'SCHOOL_STAFF' and not request.user.club.allows_school_staff:
                 raise PermissionDenied(
                     'School Staff access is unavailable for an Independent club.'
                 )

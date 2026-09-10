@@ -4,14 +4,15 @@ The browser submits the document to Django. Django alone holds the Supabase
 secret key, stores the object in a private bucket, and exposes short-lived
 signed URLs to authorized admin users through Django's FileField integration.
 """
+
 import os
 from urllib.parse import quote
 
 import httpx
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage, Storage
-from django.core.exceptions import ImproperlyConfigured
 from django.utils.deconstruct import deconstructible
 
 
@@ -21,8 +22,7 @@ def _auth_headers(key):
     if key.count('.') == 2:
         return {'apikey': key, 'Authorization': f'Bearer {key}'}
     raise ImproperlyConfigured(
-        'SUPABASE_SERVICE_KEY must be an sb_secret_ key or legacy '
-        'service-role JWT.'
+        'SUPABASE_SERVICE_KEY must be an sb_secret_ key or legacy service-role JWT.'
     )
 
 
@@ -58,9 +58,7 @@ class SupabaseCoachLicenseStorage(Storage):
             return False
         if settings.DEBUG:
             return True
-        raise ImproperlyConfigured(
-            'Supabase coach-license storage is not configured.'
-        )
+        raise ImproperlyConfigured('Supabase coach-license storage is not configured.')
 
     @staticmethod
     def _object_name(name):
@@ -74,24 +72,17 @@ class SupabaseCoachLicenseStorage(Storage):
         name = self._object_name(name)
         if hasattr(content, 'seek'):
             content.seek(0)
-        payload = (
-            b''.join(content.chunks())
-            if hasattr(content, 'chunks')
-            else content.read()
-        )
-        content_type = getattr(
-            content, 'content_type', 'application/octet-stream'
-        )
-        endpoint = (
-            f'{url}/storage/v1/object/{quote(bucket)}/'
-            f'{quote(name, safe="/")}'
-        )
+        payload = b''.join(content.chunks()) if hasattr(content, 'chunks') else content.read()
+        content_type = getattr(content, 'content_type', 'application/octet-stream')
+        endpoint = f'{url}/storage/v1/object/{quote(bucket)}/{quote(name, safe="/")}'
         headers = _auth_headers(key)
-        headers.update({
-            'Content-Type': content_type,
-            'Content-Disposition': 'attachment',
-            'x-upsert': 'false',
-        })
+        headers.update(
+            {
+                'Content-Type': content_type,
+                'Content-Disposition': 'attachment',
+                'x-upsert': 'false',
+            }
+        )
         try:
             response = httpx.post(
                 endpoint,
@@ -101,9 +92,7 @@ class SupabaseCoachLicenseStorage(Storage):
             )
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise OSError(
-                'Coach-license storage is temporarily unavailable.'
-            ) from exc
+            raise OSError('Coach-license storage is temporarily unavailable.') from exc
         return name
 
     def _open(self, name, mode='rb'):
@@ -114,10 +103,7 @@ class SupabaseCoachLicenseStorage(Storage):
 
         url, key, bucket = self._config()
         name = self._object_name(name)
-        endpoint = (
-            f'{url}/storage/v1/object/authenticated/{quote(bucket)}/'
-            f'{quote(name, safe="/")}'
-        )
+        endpoint = f'{url}/storage/v1/object/authenticated/{quote(bucket)}/{quote(name, safe="/")}'
         try:
             response = httpx.get(
                 endpoint,
@@ -126,9 +112,7 @@ class SupabaseCoachLicenseStorage(Storage):
             )
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise OSError(
-                'Coach-license storage is temporarily unavailable.'
-            ) from exc
+            raise OSError('Coach-license storage is temporarily unavailable.') from exc
         return ContentFile(response.content, name=name)
 
     def exists(self, name):
@@ -160,10 +144,7 @@ class SupabaseCoachLicenseStorage(Storage):
 
         url, key, bucket = self._config()
         name = self._object_name(name)
-        endpoint = (
-            f'{url}/storage/v1/object/sign/{quote(bucket)}/'
-            f'{quote(name, safe="/")}'
-        )
+        endpoint = f'{url}/storage/v1/object/sign/{quote(bucket)}/{quote(name, safe="/")}'
         try:
             response = httpx.post(
                 endpoint,
@@ -172,14 +153,9 @@ class SupabaseCoachLicenseStorage(Storage):
                 timeout=self.timeout,
             )
             response.raise_for_status()
-            signed = (
-                response.json().get('signedURL')
-                or response.json().get('signedUrl')
-            )
+            signed = response.json().get('signedURL') or response.json().get('signedUrl')
         except httpx.HTTPError as exc:
-            raise OSError(
-                'Coach-license link is temporarily unavailable.'
-            ) from exc
+            raise OSError('Coach-license link is temporarily unavailable.') from exc
         if not signed:
             raise OSError('Supabase did not return a coach-license link.')
         return f'{url}/storage/v1{signed}'

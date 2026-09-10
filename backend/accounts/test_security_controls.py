@@ -1,25 +1,29 @@
+from unittest.mock import patch
+
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
-from unittest.mock import patch
 
-from .throttling import AuthenticatedUserRateThrottle
-from .views import MeView
 from .guardian_access import guardian_can_access_player
 from .models import Club, GuardianLink, Roles, User
+from .throttling import AuthenticatedUserRateThrottle
+from .views import MeView
 
 
 class GuardianLinkInvariantTests(TestCase):
     def setUp(self):
         self.club = Club.objects.create(name='Safe Club', slug='safe-club')
         self.guardian = User.objects.create_user(
-            username='guardian@safe.test', role=Roles.GUARDIAN,
+            username='guardian@safe.test',
+            role=Roles.GUARDIAN,
             club=self.club,
         )
         self.player = User.objects.create_user(
-            username='player@safe.test', role=Roles.PLAYER, club=self.club,
+            username='player@safe.test',
+            role=Roles.PLAYER,
+            club=self.club,
         )
 
     def test_direct_orm_create_runs_model_validation(self):
@@ -27,7 +31,8 @@ class GuardianLinkInvariantTests(TestCase):
         self.guardian.save(update_fields=['is_active'])
         with self.assertRaises(ValidationError):
             GuardianLink.objects.create(
-                guardian=self.guardian, player=self.player,
+                guardian=self.guardian,
+                player=self.player,
             )
 
     def test_legacy_invalid_link_does_not_authorize_access(self):
@@ -63,7 +68,9 @@ class AuthenticatedApiThrottleTests(APITestCase):
         cache.clear()
         club = Club.objects.create(name='Throttle Club', slug='throttle-club')
         self.user = User.objects.create_user(
-            username='throttle@safe.test', role=Roles.COACH, club=club,
+            username='throttle@safe.test',
+            role=Roles.COACH,
+            club=club,
         )
         self.client.force_authenticate(self.user)
 

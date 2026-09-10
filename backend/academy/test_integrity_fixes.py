@@ -15,15 +15,14 @@ from .models import (
     AgeTier,
     Attendance,
     AttendanceStatus,
-    FootballMatch,
     FixtureStatus,
+    FootballMatch,
     PlayerMatchPerformance,
     PlayerProfile,
     SessionFocus,
-    TrainingSession,
-    TournamentFixture,
     TournamentSchedule,
     TournamentSquadStatus,
+    TrainingSession,
 )
 from .serializers import TrainingSessionSerializer
 from .views import _in_same_club
@@ -54,7 +53,9 @@ class SeedCommandPlayerInvariantTests(TestCase):
     @patch('accounts.management.commands.seed_users.ensure_initialized')
     @patch('accounts.management.commands.seed_users.firebase_auth.create_user')
     def test_seed_users_is_idempotent_and_creates_a_complete_player(
-        self, create_firebase_user, _ensure_initialized,
+        self,
+        create_firebase_user,
+        _ensure_initialized,
     ):
         create_firebase_user.side_effect = lambda **kwargs: SimpleNamespace(
             uid=f'uid-{kwargs["email"]}'
@@ -67,9 +68,7 @@ class SeedCommandPlayerInvariantTests(TestCase):
         self.assertEqual(player.role, Roles.PLAYER)
         self.assertIsNotNone(player.club_id)
         self.assertTrue(player.club.is_active)
-        self.assertEqual(
-            PlayerProfile.objects.filter(user=player).count(), 1
-        )
+        self.assertEqual(PlayerProfile.objects.filter(user=player).count(), 1)
         for member in User.objects.exclude(role=Roles.ADMIN):
             self.assertIsNotNone(member.club_id)
             self.assertTrue(member.club.is_active)
@@ -87,17 +86,18 @@ class SeedCommandPlayerInvariantTests(TestCase):
         for player in players.select_related('club'):
             self.assertIsNotNone(player.club_id)
             self.assertTrue(player.club.is_active)
-            self.assertEqual(
-                PlayerProfile.objects.filter(user=player).count(), 1
-            )
+            self.assertEqual(PlayerProfile.objects.filter(user=player).count(), 1)
         coach.refresh_from_db()
         login_player.refresh_from_db()
         guardian.refresh_from_db()
         self.assertEqual(coach.club_id, login_player.club_id)
         self.assertEqual(guardian.club_id, login_player.club_id)
-        self.assertTrue(GuardianLink.objects.filter(
-            guardian=guardian, player=login_player,
-        ).exists())
+        self.assertTrue(
+            GuardianLink.objects.filter(
+                guardian=guardian,
+                player=login_player,
+            ).exists()
+        )
         self.assertEqual(FootballMatch.objects.count(), 2)
         self.assertEqual(
             PlayerMatchPerformance.objects.filter(player=login_player).count(),
@@ -107,7 +107,9 @@ class SeedCommandPlayerInvariantTests(TestCase):
     @patch('accounts.management.commands.seed_users.ensure_initialized')
     @patch('accounts.management.commands.seed_users.firebase_auth.create_user')
     def test_panel_seed_creates_six_roles_and_tournament_handoff(
-        self, create_firebase_user, _ensure_initialized,
+        self,
+        create_firebase_user,
+        _ensure_initialized,
     ):
         create_firebase_user.side_effect = lambda **kwargs: SimpleNamespace(
             uid=f'uid-{kwargs["email"]}'
@@ -116,9 +118,11 @@ class SeedCommandPlayerInvariantTests(TestCase):
         call_command('seed_academy', verbosity=0)
 
         self.assertEqual(
-            set(User.objects.filter(email__endswith='@footpathcebu.test').values_list(
-                'role', flat=True
-            )),
+            set(
+                User.objects.filter(email__endswith='@footpathcebu.test').values_list(
+                    'role', flat=True
+                )
+            ),
             set(Roles.values),
         )
         for email in (
@@ -135,32 +139,41 @@ class SeedCommandPlayerInvariantTests(TestCase):
             user = User.objects.get(email=email)
             self.assertFalse(user.has_usable_password())
             self.assertTrue(user.firebase_uid)
-        schedule = TournamentSchedule.objects.get(
-            title='Rising Star Cup — Boys U14'
-        )
+        schedule = TournamentSchedule.objects.get(title='Rising Star Cup — Boys U14')
         self.assertTrue(schedule.is_published)
-        self.assertEqual(schedule.age_brackets.get().squad.status,
-                         TournamentSquadStatus.PUBLISHED)
-        self.assertTrue(schedule.fixtures.filter(
-            status=FixtureStatus.COMPLETED,
-            completed_match__performances__coach_rating__isnull=True,
-        ).exists())
-        self.assertTrue(schedule.fixtures.filter(
-            stage='Semifinal', opponent='TBD', status=FixtureStatus.SCHEDULED,
-        ).exists())
+        self.assertEqual(schedule.age_brackets.get().squad.status, TournamentSquadStatus.PUBLISHED)
+        self.assertTrue(
+            schedule.fixtures.filter(
+                status=FixtureStatus.COMPLETED,
+                completed_match__performances__coach_rating__isnull=True,
+            ).exists()
+        )
+        self.assertTrue(
+            schedule.fixtures.filter(
+                stage='Semifinal',
+                opponent='TBD',
+                status=FixtureStatus.SCHEDULED,
+            ).exists()
+        )
 
 
 class SquadProgressScopeTests(APITestCase):
     def setUp(self):
         self.club_a = Club.objects.create(
-            name='Progress A', slug='progress-a', is_active=True,
+            name='Progress A',
+            slug='progress-a',
+            is_active=True,
         )
         self.club_b = Club.objects.create(
-            name='Progress B', slug='progress-b', is_active=True,
+            name='Progress B',
+            slug='progress-b',
+            is_active=True,
         )
         self.admin = _user('progress-admin@test.test', Roles.ADMIN)
         self.coach = _user(
-            'progress-coach@test.test', Roles.COACH, self.club_a,
+            'progress-coach@test.test',
+            Roles.COACH,
+            self.club_a,
         )
         self.player_a = _player('progress-a@test.test', self.club_a)
         self.player_b = _player('progress-b@test.test', self.club_b)
@@ -198,9 +211,7 @@ class SquadProgressScopeTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         rows = {row['id']: row for row in response.data}
-        self.assertEqual(
-            set(rows), {str(self.player_a.id), str(self.player_b.id)}
-        )
+        self.assertEqual(set(rows), {str(self.player_a.id), str(self.player_b.id)})
         self.assertEqual(rows[str(self.player_a.id)]['avgEffort'], 80)
         self.assertEqual(rows[str(self.player_b.id)]['avgEffort'], 90)
 
@@ -210,9 +221,7 @@ class SquadProgressScopeTests(APITestCase):
         response = self.client.get(reverse('progress-squad'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            {row['id'] for row in response.data}, {str(self.player_a.id)}
-        )
+        self.assertEqual({row['id'] for row in response.data}, {str(self.player_a.id)})
 
 
 class NullClubTenantIsolationTests(APITestCase):
@@ -230,9 +239,7 @@ class NullClubTenantIsolationTests(APITestCase):
         self.assertFalse(_in_same_club(self.coach, self.player.pk))
 
         self.client.force_authenticate(self.coach)
-        response = self.client.get(
-            reverse('player-detail', args=[self.player.pk])
-        )
+        response = self.client.get(reverse('player-detail', args=[self.player.pk]))
 
         self.assertEqual(response.status_code, 403)
 
@@ -253,16 +260,12 @@ class NullClubTenantIsolationTests(APITestCase):
     def test_super_admin_keeps_intentional_cross_club_read_access(self):
         self.client.force_authenticate(self.admin)
 
-        player = self.client.get(
-            reverse('player-detail', args=[self.player.pk])
-        )
+        player = self.client.get(reverse('player-detail', args=[self.player.pk]))
         sessions = self.client.get(reverse('training-sessions'))
 
         self.assertEqual(player.status_code, 200)
         self.assertEqual(sessions.status_code, 200)
-        self.assertIn(
-            str(self.session.pk), {row['id'] for row in sessions.data}
-        )
+        self.assertIn(str(self.session.pk), {row['id'] for row in sessions.data})
 
 
 class TrainingSessionTimeValidationTests(TestCase):
@@ -280,9 +283,12 @@ class TrainingSessionTimeValidationTests(TestCase):
         return payload
 
     def test_serializer_accepts_and_normalizes_supported_12_hour_time(self):
-        serializer = TrainingSessionSerializer(data=self._payload(
-            startTime='4:30 pm', endTime='6:00 PM',
-        ))
+        serializer = TrainingSessionSerializer(
+            data=self._payload(
+                startTime='4:30 pm',
+                endTime='6:00 PM',
+            )
+        )
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
         self.assertEqual(serializer.validated_data['start_time'], '04:30 PM')
@@ -295,15 +301,23 @@ class TrainingSessionTimeValidationTests(TestCase):
         self.assertIn('endTime', serializer.errors)
 
     def test_serializer_rejects_malformed_and_inverted_times(self):
-        malformed = TrainingSessionSerializer(data=self._payload(
-            startTime='16:30',
-        ))
-        inverted = TrainingSessionSerializer(data=self._payload(
-            startTime='06:00 PM', endTime='04:30 PM',
-        ))
-        equal = TrainingSessionSerializer(data=self._payload(
-            startTime='06:00 PM', endTime='06:00 PM',
-        ))
+        malformed = TrainingSessionSerializer(
+            data=self._payload(
+                startTime='16:30',
+            )
+        )
+        inverted = TrainingSessionSerializer(
+            data=self._payload(
+                startTime='06:00 PM',
+                endTime='04:30 PM',
+            )
+        )
+        equal = TrainingSessionSerializer(
+            data=self._payload(
+                startTime='06:00 PM',
+                endTime='06:00 PM',
+            )
+        )
 
         self.assertFalse(malformed.is_valid())
         self.assertIn('startTime', malformed.errors)
@@ -321,7 +335,9 @@ class TrainingSessionTimeValidationTests(TestCase):
             age_tiers=[AgeTier.DEVELOPMENT],
         )
         serializer = TrainingSessionSerializer(
-            session, data={'startTime': '07:00 PM'}, partial=True,
+            session,
+            data={'startTime': '07:00 PM'},
+            partial=True,
         )
 
         self.assertFalse(serializer.is_valid())
@@ -343,12 +359,14 @@ class TrainingSessionTimeValidationTests(TestCase):
             TrainingSession,
             fields=['title', 'date', 'start_time', 'end_time'],
         )
-        form = form_class(data={
-            'title': 'Invalid form time window',
-            'date': str(date.today()),
-            'start_time': '06:00 PM',
-            'end_time': '04:30 PM',
-        })
+        form = form_class(
+            data={
+                'title': 'Invalid form time window',
+                'date': str(date.today()),
+                'start_time': '06:00 PM',
+                'end_time': '04:30 PM',
+            }
+        )
 
         self.assertFalse(form.is_valid())
         self.assertIn('end_time', form.errors)

@@ -1,6 +1,24 @@
 """Academy domain models extracted from the legacy model module."""
 
-from .model_players import *  # noqa: F401,F403
+from datetime import timedelta
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import (
+    MaxValueValidator,
+    MinValueValidator,
+)
+from django.db import models
+from django.utils import timezone
+
+from academy.model_players import (
+    PLAYER_POSITION_CODES,
+    FixtureStatus,
+    MatchCategory,
+    MatchVenue,
+)
+from accounts.models import Roles
+
 
 class FootballMatch(models.Model):
     """One completed match owned by a club.
@@ -28,12 +46,8 @@ class FootballMatch(models.Model):
         choices=MatchCategory.choices,
         default=MatchCategory.OTHER,
     )
-    our_score = models.PositiveSmallIntegerField(
-        validators=[MaxValueValidator(99)]
-    )
-    opponent_score = models.PositiveSmallIntegerField(
-        validators=[MaxValueValidator(99)]
-    )
+    our_score = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
+    opponent_score = models.PositiveSmallIntegerField(validators=[MaxValueValidator(99)])
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -51,9 +65,9 @@ class FootballMatch(models.Model):
         if not self.opponent:
             raise ValidationError({'opponent': 'Opponent is required.'})
         if self.played_on and self.played_on > timezone.localdate():
-            raise ValidationError({
-                'played_on': 'Match statistics can only be recorded after play.'
-            })
+            raise ValidationError(
+                {'played_on': 'Match statistics can only be recorded after play.'}
+            )
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -141,12 +155,8 @@ class TournamentSchedule(models.Model):
             return 'DRAFT'
         fixture_states = list(self.fixtures.values_list('status', flat=True))
         has_completed = FixtureStatus.COMPLETED in fixture_states
-        active_states = [
-            value for value in fixture_states if value != FixtureStatus.CANCELLED
-        ]
-        if active_states and all(
-            value == FixtureStatus.COMPLETED for value in active_states
-        ):
+        active_states = [value for value in fixture_states if value != FixtureStatus.CANCELLED]
+        if active_states and all(value == FixtureStatus.COMPLETED for value in active_states):
             return 'COMPLETED'
         if has_completed or self.starts_on <= timezone.localdate():
             return 'IN_PROGRESS'
@@ -162,19 +172,16 @@ class TournamentSchedule(models.Model):
         if not self.venue.strip():
             errors['venue'] = 'Main venue is required.'
         if not self.age_brackets.exists():
-            errors['ageBrackets'] = (
-                'Add at least one age bracket before publishing.'
-            )
+            errors['ageBrackets'] = 'Add at least one age bracket before publishing.'
         elif self.age_brackets.filter(academy_tiers=[]).exists():
-            errors['ageBrackets'] = (
-                'Associate every age bracket with at least one academy tier.'
-            )
+            errors['ageBrackets'] = 'Associate every age bracket with at least one academy tier.'
         fixtures = list(self.fixtures.select_related('age_bracket'))
         if not fixtures:
             errors['fixtures'] = 'Add at least one fixture before publishing.'
             return errors
         incomplete = [
-            fixture for fixture in fixtures
+            fixture
+            for fixture in fixtures
             if fixture.age_bracket_id is None
             or not fixture.stage.strip()
             or not fixture.location.strip()
@@ -189,9 +196,7 @@ class TournamentSchedule(models.Model):
             fixture.status in (FixtureStatus.SCHEDULED, FixtureStatus.POSTPONED)
             for fixture in fixtures
         ):
-            errors['fixtures'] = (
-                'At least one scheduled or postponed fixture is required.'
-            )
+            errors['fixtures'] = 'At least one scheduled or postponed fixture is required.'
         return errors
 
 
@@ -301,9 +306,9 @@ class TournamentSquadEntry(models.Model):
             if self.player.role != Roles.PLAYER:
                 raise ValidationError({'player': 'Squad members must be players.'})
             if self.player.club_id != self.squad.bracket.schedule.club_id:
-                raise ValidationError({
-                    'player': 'Squad members must belong to the tournament club.'
-                })
+                raise ValidationError(
+                    {'player': 'Squad members must belong to the tournament club.'}
+                )
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -378,13 +383,9 @@ class TournamentFixture(models.Model):
             and self.schedule_id
             and self.age_bracket.schedule_id != self.schedule_id
         ):
-            raise ValidationError({
-                'age_bracket': 'Age bracket must belong to this tournament.'
-            })
+            raise ValidationError({'age_bracket': 'Age bracket must belong to this tournament.'})
         if self.ends_at and self.kickoff_at and self.ends_at <= self.kickoff_at:
-            raise ValidationError({
-                'ends_at': 'Expected end time must be later than kickoff.'
-            })
+            raise ValidationError({'ends_at': 'Expected end time must be later than kickoff.'})
         if self.completed_match_id:
             if self.completed_match.club_id != self.schedule.club_id:
                 raise ValidationError(
@@ -408,7 +409,6 @@ class TournamentFixture(models.Model):
     def __str__(self):
         return f'{self.schedule.title} · {self.opponent}'
 
-
     @property
     def effective_ends_at(self):
         return self.ends_at or self.kickoff_at + timedelta(hours=2)
@@ -424,10 +424,6 @@ class TournamentFixture(models.Model):
             return False
         kickoff = self.kickoff_at
         kickoff_date = (
-            timezone.localtime(kickoff).date()
-            if timezone.is_aware(kickoff)
-            else kickoff.date()
+            timezone.localtime(kickoff).date() if timezone.is_aware(kickoff) else kickoff.date()
         )
         return kickoff_date <= timezone.localdate()
-
-__all__ = [name for name in globals() if not name.startswith('__')]

@@ -1,0 +1,65 @@
+"""Atomic replacement of a complete session roll call."""
+
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied, ValidationError
+
+from accounts.models import Club, Roles, User
+
+from .errors import WorkflowConflict
+from .models import Attendance, AuditLog, TrainingSession, TrainingSessionStatus
+
+
+@transaction.atomic
+def replace_attendance(*, coach, session_id, records):
+    if coach.role != Roles.COACH or coach.club_id is None:
+        raise PermissionDenied('Only club coaches can record attendance.')
+    Club.objects.select_for_update().get(pk=coach.club_id)
+    session = get_object_or_404(
+        TrainingSession.objects.select_for_update(),
+        pk=session_id,
+    )
+    if session.club_id != coach.club_id:
+        raise PermissionDenied('That session is not in your club.')
+    if session.status == TrainingSessionStatus.CANCELLED:
+        raise WorkflowConflict(
+            'SESSION_CANCELLED',
+            'Attendance is unavailable for a cancelled training session.',
+        )
+    if not 0 <= (timezone.localdate() - session.date).days <= 2:
+        raise ValidationError(
+            'Attendance can only be logged on the session day or up to 2 days after.',
+        )
+    submitted_ids = [row['playerId'] for row in records]
+    if len(submitted_ids) != len(set(submitted_ids)):
+        raise ValidationError({'records': 'Each player may appear only once.'})
+    in_club = set(
+        User.objects.filter(
+            pk__in=submitted_ids,
+            club_id=coach.club_id,
+            role=Roles.PLAYER,
+        ).values_list('id', flat=True)
+    )
+    if in_club != set(submitted_ids):
+        raise PermissionDenied('One or more players are not in your club.')
+    for record in sorted(records, key=lambda row: row['playerId']):
+        Attendance.objects.update_or_create(
+            player_id=record['playerId'],
+            session=session,
+            defaults={
+                'status': record['status'],
+                'effort': record.get('effort'),
+                'performance_score': record.get('performanceScore'),
+                'note': record.get('note') or '',
+                'recorded_by': coach,
+            },
+        )
+    Attendance.objects.filter(session=session).exclude(player_id__in=submitted_ids).delete()
+    if session.status == TrainingSessionStatus.SCHEDULED:
+        session.status = TrainingSessionStatus.COMPLETED
+        session.save(update_fields=['status'])
+    AuditLog.record(
+        coach, 'attendance.replaced', target=str(session.pk), detail=f'{len(records)} players'
+    )
+    return session

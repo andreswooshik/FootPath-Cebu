@@ -87,20 +87,22 @@ class TournamentTrainingPriorityTests(APITestCase):
         self.schedule.published_at = timezone.now()
         self.schedule.save()
         self.client.force_authenticate(self.coach)
-        response = self.client.post(reverse('training-sessions'), {
-            'title': 'Conflicting Session',
-            'ageTiers': [AgeTier.FOUNDATION],
-            'date': self.day.isoformat(),
-            'startTime': '04:30 PM',
-            'endTime': '06:30 PM',
-            'location': 'Academy Pitch',
-            'focus': 'TECHNICAL',
-        }, format='json')
+        response = self.client.post(
+            reverse('training-sessions'),
+            {
+                'title': 'Conflicting Session',
+                'ageTiers': [AgeTier.FOUNDATION],
+                'date': self.day.isoformat(),
+                'startTime': '04:30 PM',
+                'endTime': '06:30 PM',
+                'location': 'Academy Pitch',
+                'focus': 'TECHNICAL',
+            },
+            format='json',
+        )
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data['code'], 'TOURNAMENT_SCHEDULE_CONFLICT')
-        self.assertEqual(
-            response.data['conflict']['fixtureId'], str(self.fixture.id)
-        )
+        self.assertEqual(response.data['conflict']['fixtureId'], str(self.fixture.id))
         self.assertFalse(TrainingSession.objects.exists())
 
     def test_publish_requires_confirmation_then_soft_cancels_atomically(self):
@@ -119,9 +121,7 @@ class TournamentTrainingPriorityTests(APITestCase):
         self.assertFalse(self.schedule.is_published)
         self.assertEqual(session.status, TrainingSessionStatus.SCHEDULED)
 
-        confirmed = self.client.post(
-            url, {'confirmTrainingCancellations': True}, format='json'
-        )
+        confirmed = self.client.post(url, {'confirmTrainingCancellations': True}, format='json')
         self.assertEqual(confirmed.status_code, 200)
         session.refresh_from_db()
         self.assertEqual(session.status, TrainingSessionStatus.CANCELLED)
@@ -140,15 +140,19 @@ class TournamentTrainingPriorityTests(APITestCase):
         self.schedule.published_at = timezone.now()
         self.schedule.save()
         self.client.force_authenticate(self.coach)
-        response = self.client.post(reverse('training-sessions'), {
-            'title': 'Starts after fixture',
-            'ageTiers': [AgeTier.FOUNDATION],
-            'date': self.day.isoformat(),
-            'startTime': '06:00 PM',
-            'endTime': '07:00 PM',
-            'location': 'Academy Pitch',
-            'focus': 'TECHNICAL',
-        }, format='json')
+        response = self.client.post(
+            reverse('training-sessions'),
+            {
+                'title': 'Starts after fixture',
+                'ageTiers': [AgeTier.FOUNDATION],
+                'date': self.day.isoformat(),
+                'startTime': '06:00 PM',
+                'endTime': '07:00 PM',
+                'location': 'Academy Pitch',
+                'focus': 'TECHNICAL',
+            },
+            format='json',
+        )
         self.assertEqual(response.status_code, 201)
 
     def test_cancelled_session_rejects_attendance(self):
@@ -158,9 +162,7 @@ class TournamentTrainingPriorityTests(APITestCase):
         session.cancelled_at = timezone.now()
         session.save()
         self.client.force_authenticate(self.coach)
-        response = self.client.get(
-            reverse('attendance-session', args=[session.id])
-        )
+        response = self.client.get(reverse('attendance-session', args=[session.id]))
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.data['code'], 'SESSION_CANCELLED')
 

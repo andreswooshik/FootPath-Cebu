@@ -21,9 +21,5 @@ def require_player_unlock(request, player_id):
     except signing.BadSignature as exc:
         raise PermissionDenied('Player profile unlock required.') from exc
 
-    if (
-        claims.get('user') != str(request.user.id)
-        or claims.get('player') != str(player_id)
-    ):
+    if claims.get('user') != str(request.user.id) or claims.get('player') != str(player_id):
         raise PermissionDenied('Player profile unlock required.')
-

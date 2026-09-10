@@ -1,7 +1,35 @@
 """Domain-focused API views extracted from the legacy view module."""
 
-from ._view_support import *  # noqa: F401,F403
+from django.db.models import Prefetch
+from django.shortcuts import get_object_or_404
+from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from academy._view_support import (
+    DISPUTE_ROLES,
+    _may_read_eligibility,
+)
+from academy.model_operations import (
+    Dispute,
+    DisputeResponse,
+)
+from academy.model_players import EligibilityHistory
+from academy.serializer_training import EligibilityHistorySerializer
+from academy.serializer_workflows import (
+    DisputeCreateSerializer,
+    DisputeResponseCreateSerializer,
+    DisputeSerializer,
+)
+from accounts.models import (
+    Roles,
+    User,
+)
+
+from .pagination import list_response
 from .view_players import _require_unlock_when_pin_exists
+
 
 def _dispute_in_user_scope(user, dispute):
     """True if `user` may act on `dispute` under club tenancy.
@@ -29,18 +57,22 @@ class DisputeListCreateView(APIView):
     def get(self, request):
         if request.user.role not in DISPUTE_ROLES:
             raise PermissionDenied('You may not view disputes.')
-        disputes = Dispute.objects.select_related(
-            'raised_by', 'subject_player'
-        ).prefetch_related('responses__author')
+        disputes = Dispute.objects.select_related('raised_by', 'subject_player').prefetch_related(
+            Prefetch(
+                'responses',
+                queryset=DisputeResponse.objects.select_related('author').order_by(
+                    '-created_at', '-id'
+                )[:100],
+                to_attr='list_responses',
+            )
+        )
         # Tenancy: coach/staff see only their own club's disputes; Admin all.
         if request.user.role != Roles.ADMIN:
             if request.user.club_id is None:
                 disputes = disputes.none()
             else:
-                disputes = disputes.filter(
-                    raised_by__club_id=request.user.club_id
-                )
-        return Response(DisputeSerializer(disputes, many=True).data)
+                disputes = disputes.filter(raised_by__club_id=request.user.club_id)
+        return list_response(request, disputes, DisputeSerializer)
 
     def post(self, request):
         if request.user.role != Roles.COACH:
@@ -52,9 +84,10 @@ class DisputeListCreateView(APIView):
         data = serializer.validated_data
         # Tenancy: the subject player, if any, must be in the coach's own club.
         subject_id = data.get('subjectPlayerId')
-        if subject_id is not None and not User.objects.filter(
-            pk=subject_id, club_id=request.user.club_id
-        ).exists():
+        if (
+            subject_id is not None
+            and not User.objects.filter(pk=subject_id, club_id=request.user.club_id).exists()
+        ):
             raise PermissionDenied('That player is not in your club.')
         dispute = Dispute.objects.create(
             raised_by=request.user,
@@ -63,9 +96,7 @@ class DisputeListCreateView(APIView):
             summary=data['summary'],
             detail=data.get('detail') or '',
         )
-        return Response(
-            DisputeSerializer(dispute).data, status=status.HTTP_201_CREATED
-        )
+        return Response(DisputeSerializer(dispute).data, status=status.HTTP_201_CREATED)
 
 
 class DisputeDetailView(APIView):
@@ -75,8 +106,9 @@ class DisputeDetailView(APIView):
         if request.user.role not in DISPUTE_ROLES:
             raise PermissionDenied('You may not view disputes.')
         dispute = get_object_or_404(
-            Dispute.objects.select_related('raised_by', 'subject_player')
-            .prefetch_related('responses__author'),
+            Dispute.objects.select_related('raised_by', 'subject_player').prefetch_related(
+                'responses__author'
+            ),
             pk=pk,
         )
         if not _dispute_in_user_scope(request.user, dispute):
@@ -95,28 +127,22 @@ class DisputeResponseCreateView(APIView):
     def post(self, request, pk):
         if request.user.role not in DISPUTE_ROLES:
             raise PermissionDenied('You may not respond to disputes.')
-        dispute = get_object_or_404(
-            Dispute.objects.select_related('raised_by'), pk=pk
-        )
+        dispute = get_object_or_404(Dispute.objects.select_related('raised_by'), pk=pk)
         if not _dispute_in_user_scope(request.user, dispute):
             raise PermissionDenied('You may not respond to this dispute.')
         serializer = DisputeResponseCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        new_status = data.get('statusChangeTo')
-        with transaction.atomic():
-            DisputeResponse.objects.create(
-                dispute=dispute,
-                author=request.user,
-                body=data['body'],
-                status_change_to=new_status,
-            )
-            if new_status:
-                dispute.status = new_status
-            dispute.save()  # bumps updated_at even without a status change
-        return Response(
-            DisputeSerializer(dispute).data, status=status.HTTP_201_CREATED
+        from .dispute_service import append_dispute_response
+
+        response = append_dispute_response(
+            actor=request.user,
+            dispute_id=dispute.pk,
+            body=data['body'],
+            status_change_to=data.get('statusChangeTo'),
         )
+        dispute = response.dispute
+        return Response(DisputeSerializer(dispute).data, status=status.HTTP_201_CREATED)
 
 
 class EligibilityHistoryView(APIView):
@@ -137,18 +163,18 @@ class EligibilityHistoryView(APIView):
             # coaches get 403 without revealing whether the id exists.
             if request.user.role in (Roles.ADMIN, Roles.SCHOOL_STAFF):
                 get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
-            raise PermissionDenied(
-                'You may not view this player\'s eligibility history.'
-            )
+            raise PermissionDenied("You may not view this player's eligibility history.")
         player = get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
         _require_unlock_when_pin_exists(request, player_id)
         if player.club_id is not None and not player.club.allows_academic_eligibility:
             return Response({'applicable': False, 'results': []})
-        history = EligibilityHistory.objects.filter(
-            player_id=player_id
-        ).select_related('changed_by')
+        history = EligibilityHistory.objects.filter(player_id=player_id).select_related(
+            'changed_by'
+        )
         return Response(
             EligibilityHistorySerializer(
-                history, many=True, context={'request': request},
+                history,
+                many=True,
+                context={'request': request},
             ).data
         )

@@ -6,17 +6,23 @@ from rest_framework.test import APITestCase
 from accounts.models import Roles
 
 from .models import PlayerStatsAssessment
-from .tests import make_player, make_user
-
 from .player_stats import catalog_for, normalized_scores, overall, role_group_for
+from .tests import make_player, make_user
 
 
 class PlayerStatsCatalogTests(SimpleTestCase):
     def test_every_supported_position_uses_its_role_catalog(self):
         expected = {
-            'GK': 'GOALKEEPER', 'CB': 'DEFENDER', 'LB': 'DEFENDER', 'RB': 'DEFENDER',
-            'CDM': 'MIDFIELDER', 'CM': 'MIDFIELDER', 'CAM': 'MIDFIELDER',
-            'LW': 'ATTACKER', 'RW': 'ATTACKER', 'ST': 'ATTACKER',
+            'GK': 'GOALKEEPER',
+            'CB': 'DEFENDER',
+            'LB': 'DEFENDER',
+            'RB': 'DEFENDER',
+            'CDM': 'MIDFIELDER',
+            'CM': 'MIDFIELDER',
+            'CAM': 'MIDFIELDER',
+            'LW': 'ATTACKER',
+            'RW': 'ATTACKER',
+            'ST': 'ATTACKER',
         }
         for position, group in expected.items():
             returned_group, attributes = catalog_for(position)
@@ -25,8 +31,12 @@ class PlayerStatsCatalogTests(SimpleTestCase):
 
     def test_scores_are_complete_bounded_and_overall_is_rounded(self):
         scores = {
-            'pace': 80, 'passing': 81, 'dribbling': 82,
-            'vision': 83, 'defending': 84, 'physical': 85,
+            'pace': 80,
+            'passing': 81,
+            'dribbling': 82,
+            'vision': 83,
+            'defending': 84,
+            'physical': 85,
         }
         self.assertEqual(scores, normalized_scores('CM', scores))
         self.assertEqual(83, overall(scores))
@@ -44,8 +54,12 @@ class PlayerStatsApiTests(APITestCase):
         self.player = make_player('stats-player@footpathcebu.test', position='CM')
         self.url = reverse('player-stats', args=[self.player.id])
         self.scores = {
-            'pace': 80, 'passing': 81, 'dribbling': 82,
-            'vision': 83, 'defending': 84, 'physical': 85,
+            'pace': 80,
+            'passing': 81,
+            'dribbling': 82,
+            'vision': 83,
+            'defending': 84,
+            'physical': 85,
         }
 
     def _assessment(self, scores):
@@ -97,8 +111,14 @@ class PlayerStatsApiTests(APITestCase):
             position='ST',
             role_group='ATTACKER',
             catalog_version=1,
-            scores={'pace': 1, 'shooting': 1, 'dribbling': 1,
-                    'off_ball_movement': 1, 'passing': 1, 'physical': 1},
+            scores={
+                'pace': 1,
+                'shooting': 1,
+                'dribbling': 1,
+                'off_ball_movement': 1,
+                'passing': 1,
+                'physical': 1,
+            },
             overall=1,
             reason='MONTHLY_REVIEW',
             coach_notes='Different role group.',

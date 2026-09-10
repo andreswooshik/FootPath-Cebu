@@ -1,7 +1,54 @@
 """Domain-focused API views extracted from the legacy view module."""
 
-from ._view_support import *  # noqa: F401,F403
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.exceptions import (
+    PermissionDenied,
+    ValidationError,
+)
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from academy._view_support import (
+    _guardian_may_read,
+    _session_in_user_scope,
+    _sessions_for,
+)
+from academy.errors import WorkflowConflict
+from academy.model_operations import (
+    Attendance,
+    AuditLog,
+    SessionConfirmation,
+)
+from academy.model_players import (
+    ConfirmationStatus,
+    TrainingSessionStatus,
+)
+from academy.model_training import TrainingSession
+from academy.notifications import (
+    _recipients_for_session,
+    notify_session_cancelled,
+    notify_session_scheduled,
+    notify_session_updated,
+)
+from academy.schedule_conflicts import (
+    conflicting_fixture_for_training,
+    fixture_conflict_payload,
+    training_conflicts_for_training,
+)
+from academy.serializer_training import (
+    AttendanceSerializer,
+    SessionConfirmationSerializer,
+    TrainingSessionSerializer,
+)
+from accounts.models import Roles
+
+from .pagination import list_response
+from .transactions import club_write_transaction
 from .view_players import _require_unlock_when_pin_exists
+
 
 class AttendanceListView(APIView):
     """GET /api/attendance/?player=<id> — one player's attendance history.
@@ -18,10 +65,10 @@ class AttendanceListView(APIView):
         if not _guardian_may_read(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
         _require_unlock_when_pin_exists(request, player_id)
-        records = Attendance.objects.select_related(
-            'session', 'recorded_by', 'player'
-        ).filter(player_id=player_id)
-        return Response(AttendanceSerializer(records, many=True).data)
+        records = Attendance.objects.select_related('session', 'recorded_by', 'player').filter(
+            player_id=player_id
+        )
+        return list_response(request, records, AttendanceSerializer)
 
 
 class SessionAttendanceView(APIView):
@@ -48,67 +95,24 @@ class SessionAttendanceView(APIView):
         records = Attendance.objects.select_related('session', 'recorded_by').filter(
             session_id=session_id
         )
-        return Response(AttendanceSerializer(records, many=True).data)
+        return list_response(request, records, AttendanceSerializer)
 
+    @club_write_transaction
     def post(self, request, session_id):
-        if request.user.role != Roles.COACH:
-            raise PermissionDenied('Only coaches can record attendance.')
-        session = get_object_or_404(TrainingSession, pk=session_id)
-        if not _session_in_user_scope(request.user, session):
-            raise PermissionDenied('That session is not in your club.')
-        if session.status == TrainingSessionStatus.CANCELLED:
-            raise WorkflowConflict(
-                'SESSION_CANCELLED',
-                'Attendance is unavailable for a cancelled training session.',
-            )
-        # Attendance is recorded close to when it happens: the session day
-        # through two days after — never before the session. Mirrors the
-        # client's TrainingSession.isAttendanceOpen guard.
-        days_since = (timezone.localdate() - session.date).days
-        if not 0 <= days_since <= 2:
-            raise ValidationError(
-                'Attendance can only be logged on the session day or up to '
-                '2 days after.'
-            )
-        serializer = SessionAttendanceRecordSerializer(
-            data=request.data.get('records', []), many=True
-        )
+        from .attendance_service import replace_attendance
+        from .serializer_workflows import AttendanceBatchSerializer
+
+        serializer = AttendanceBatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        # Tenancy: every player in the roll call must be in the coach's own club
-        # (the serializer only checks the PLAYER role, not the club).
-        submitted_ids = {r['playerId'] for r in serializer.validated_data}
-        in_club = set(
-            User.objects.filter(
-                pk__in=submitted_ids, club_id=request.user.club_id
-            ).values_list('id', flat=True)
+        session = replace_attendance(
+            coach=request.user,
+            session_id=session_id,
+            records=serializer.validated_data['records'],
         )
-        if in_club != submitted_ids:
-            raise PermissionDenied('One or more players are not in your club.')
-        with transaction.atomic():
-            kept_player_ids = []
-            for record in serializer.validated_data:
-                Attendance.objects.update_or_create(
-                    player_id=record['playerId'],
-                    session=session,
-                    defaults={
-                        'status': record['status'],
-                        'effort': record.get('effort'),
-                        'performance_score': record.get('performanceScore'),
-                        'note': record.get('note') or '',
-                        'recorded_by': request.user,
-                    },
-                )
-                kept_player_ids.append(record['playerId'])
-            Attendance.objects.filter(session=session).exclude(
-                player_id__in=kept_player_ids
-            ).delete()
-            if session.status == TrainingSessionStatus.SCHEDULED:
-                session.status = TrainingSessionStatus.COMPLETED
-                session.save(update_fields=['status'])
         records = Attendance.objects.select_related('session', 'recorded_by').filter(
             session=session
         )
-        return Response(AttendanceSerializer(records, many=True).data)
+        return list_response(request, records, AttendanceSerializer)
 
 
 class TrainingSessionListCreateView(APIView):
@@ -117,8 +121,9 @@ class TrainingSessionListCreateView(APIView):
 
     def get(self, request):
         sessions = _sessions_for(request.user)
-        return Response(TrainingSessionSerializer(sessions, many=True).data)
+        return list_response(request, sessions, TrainingSessionSerializer)
 
+    @club_write_transaction
     def post(self, request):
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can schedule sessions.')
@@ -130,27 +135,36 @@ class TrainingSessionListCreateView(APIView):
             draft = TrainingSession(**serializer.validated_data)
             session_start, session_end = draft.interval()
             fixture = conflicting_fixture_for_training(
-                club_id=request.user.club_id, tiers=draft.age_tiers,
-                start=session_start, end=session_end,
+                club_id=request.user.club_id,
+                tiers=draft.age_tiers,
+                start=session_start,
+                end=session_end,
             )
             if fixture is not None:
                 conflict = fixture_conflict_payload(fixture)
-                raise WorkflowConflict('TOURNAMENT_SCHEDULE_CONFLICT', conflict['message'], conflict=conflict)
+                raise WorkflowConflict(
+                    'TOURNAMENT_SCHEDULE_CONFLICT', conflict['message'], conflict=conflict
+                )
             conflicts = training_conflicts_for_training(
-                club_id=request.user.club_id, tiers=draft.age_tiers,
-                location=draft.location, start=session_start, end=session_end,
+                club_id=request.user.club_id,
+                tiers=draft.age_tiers,
+                location=draft.location,
+                start=session_start,
+                end=session_end,
             )
             if conflicts:
-                raise WorkflowConflict('TRAINING_SCHEDULE_CONFLICT', 'This session overlaps an existing training session.', conflicts=conflicts)
-            # The conflict queries take row locks while this transaction is open,
-            # so the final check and insertion are one authoritative operation.
+                raise WorkflowConflict(
+                    'TRAINING_SCHEDULE_CONFLICT',
+                    'This session overlaps an existing training session.',
+                    conflicts=conflicts,
+                )
+            # The club lock serializes conflict checks even on an empty schedule.
             session = serializer.save(created_by=request.user, club=request.user.club)
-            AuditLog.record(request.user, 'session.scheduled', target=session.title, detail=str(session.date))
-            transaction.on_commit(lambda: notify_session_scheduled(session))
-        return Response(
-            TrainingSessionSerializer(session).data, status=status.HTTP_201_CREATED
-        )
-
+            AuditLog.record(
+                request.user, 'session.scheduled', target=session.title, detail=str(session.date)
+            )
+            notify_session_scheduled(session)
+        return Response(TrainingSessionSerializer(session).data, status=status.HTTP_201_CREATED)
 
 
 class TrainingSessionDetailView(APIView):
@@ -169,18 +183,17 @@ class TrainingSessionDetailView(APIView):
             raise PermissionDenied('That session is not in your club.')
         return session
 
+    @club_write_transaction
     def put(self, request, pk):
         with transaction.atomic():
             session = self._session_for(request, pk)
-            session = TrainingSession.objects.select_for_update().get(pk=session.pk)
+            session = TrainingSession.objects.select_for_update(of=('self',)).get(pk=session.pk)
             if session.status != TrainingSessionStatus.SCHEDULED:
                 raise WorkflowConflict(
                     'SESSION_LOCKED',
                     'Only scheduled training sessions can be changed.',
                 )
-            serializer = TrainingSessionSerializer(
-                session, data=request.data, partial=True
-            )
+            serializer = TrainingSessionSerializer(session, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             values = serializer.validated_data
             draft = TrainingSession(
@@ -193,7 +206,9 @@ class TrainingSessionDetailView(APIView):
                 age_tiers=values.get('age_tiers', session.age_tiers),
                 additional_focuses=values.get('additional_focuses', session.additional_focuses),
                 session_objectives=values.get('session_objectives', session.session_objectives),
-                equipment_requirements=values.get('equipment_requirements', session.equipment_requirements),
+                equipment_requirements=values.get(
+                    'equipment_requirements', session.equipment_requirements
+                ),
                 coach_instructions=values.get('coach_instructions', session.coach_instructions),
             )
             session_start, session_end = draft.interval()
@@ -211,36 +226,42 @@ class TrainingSessionDetailView(APIView):
                     conflict=conflict,
                 )
             conflicts = training_conflicts_for_training(
-                club_id=request.user.club_id, tiers=draft.age_tiers,
-                location=draft.location, start=session_start, end=session_end,
+                club_id=request.user.club_id,
+                tiers=draft.age_tiers,
+                location=draft.location,
+                start=session_start,
+                end=session_end,
                 exclude_id=session.id,
             )
             if conflicts:
-                raise WorkflowConflict('TRAINING_SCHEDULE_CONFLICT', 'This session overlaps an existing training session.', conflicts=conflicts)
+                raise WorkflowConflict(
+                    'TRAINING_SCHEDULE_CONFLICT',
+                    'This session overlaps an existing training session.',
+                    conflicts=conflicts,
+                )
             session = serializer.save()
             AuditLog.record(
-                request.user, 'session.updated',
-                target=session.title, detail=str(session.date),
+                request.user,
+                'session.updated',
+                target=session.title,
+                detail=str(session.date),
             )
-            transaction.on_commit(lambda: notify_session_updated(session))
+            notify_session_updated(session)
         return Response(TrainingSessionSerializer(session).data)
 
+    @club_write_transaction
     def delete(self, request, pk):
         with transaction.atomic():
             scoped = self._session_for(request, pk)
-            session = TrainingSession.objects.select_for_update().get(pk=scoped.pk)
+            session = TrainingSession.objects.select_for_update(of=('self',)).get(pk=scoped.pk)
             if session.status != TrainingSessionStatus.SCHEDULED:
                 raise WorkflowConflict(
                     'SESSION_LOCKED',
                     'Only scheduled training sessions can be cancelled.',
                 )
             session_start, _session_end = session.interval()
-            if (
-                session_start is not None
-                and session_start <= timezone.now()
-            ) or (
-                session_start is None
-                and session.date < timezone.localdate()
+            if (session_start is not None and session_start <= timezone.now()) or (
+                session_start is None and session.date < timezone.localdate()
             ):
                 raise WorkflowConflict(
                     'SESSION_ALREADY_STARTED',
@@ -251,21 +272,21 @@ class TrainingSessionDetailView(APIView):
             session.cancellation_reason = 'Cancelled by the Coach.'
             session.cancelled_at = timezone.now()
             session.cancelled_by_action = 'coach.cancelled'
-            session.save(update_fields=[
-                'status', 'cancellation_reason', 'cancelled_at',
-                'cancelled_by_action',
-            ])
+            session.save(
+                update_fields=[
+                    'status',
+                    'cancellation_reason',
+                    'cancelled_at',
+                    'cancelled_by_action',
+                ]
+            )
             AuditLog.record(
-                request.user, 'session.cancelled',
-                target=session.title, detail=str(session.date),
+                request.user,
+                'session.cancelled',
+                target=session.title,
+                detail=str(session.date),
             )
-            transaction.on_commit(
-                lambda: notify_session_cancelled(
-                    session,
-                    user_ids=recipient_ids,
-                    session_id=session.id,
-                )
-            )
+            notify_session_cancelled(session, user_ids=recipient_ids, session_id=session.id)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -287,11 +308,10 @@ class SessionConfirmationView(APIView):
             raise ValidationError('A player query parameter is required.')
         if not _guardian_may_read(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
-        records = SessionConfirmation.objects.select_related('session').filter(
-            player_id=player_id
-        )
-        return Response(SessionConfirmationSerializer(records, many=True).data)
+        records = SessionConfirmation.objects.select_related('session').filter(player_id=player_id)
+        return list_response(request, records, SessionConfirmationSerializer)
 
+    @club_write_transaction
     def post(self, request):
         if request.user.role != Roles.PLAYER:
             raise PermissionDenied('Only players can confirm their own sessions.')
@@ -305,10 +325,10 @@ class SessionConfirmationView(APIView):
         # Tenancy: a player may only RSVP to sessions in their own club.
         if not _session_in_user_scope(request.user, session):
             raise PermissionDenied('That session is not in your club.')
-        if session.date > timezone.localdate():
-            raise ValidationError(
-                'Players can only confirm a session on its scheduled day.'
-            )
+        if session.date != timezone.localdate():
+            raise ValidationError('Players can only confirm a session on its scheduled day.')
+        if session.status == TrainingSessionStatus.CANCELLED:
+            raise WorkflowConflict('SESSION_CANCELLED', 'A cancelled session cannot be confirmed.')
         confirmation, _ = SessionConfirmation.objects.update_or_create(
             player=request.user,
             session=session,

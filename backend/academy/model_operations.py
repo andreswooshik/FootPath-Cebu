@@ -1,8 +1,28 @@
 """Academy domain models extracted from the legacy model module."""
 
-from .model_players import *  # noqa: F401,F403
-from .model_training import *  # noqa: F401,F403
-from .model_tournaments import *  # noqa: F401,F403
+import hashlib
+import json
+
+from django.conf import settings
+from django.core.validators import (
+    MaxValueValidator,
+    MinValueValidator,
+)
+from django.db import (
+    connection,
+    models,
+    transaction,
+)
+from django.utils import timezone
+
+from academy.model_players import (
+    AttendanceStatus,
+    ConfirmationStatus,
+    audit_logger,
+)
+from academy.model_training import TrainingSession
+from accounts.models import Roles
+
 
 class Attendance(models.Model):
     """One player's attendance for one training day."""
@@ -21,7 +41,8 @@ class Attendance(models.Model):
         related_name='attendance_records',
     )
     status = models.CharField(
-        max_length=10, choices=AttendanceStatus.choices,
+        max_length=10,
+        choices=AttendanceStatus.choices,
         default=AttendanceStatus.ABSENT,
     )
     # Effort/intensity the coach observed for this one session, 0–100. Session-
@@ -66,17 +87,13 @@ class Attendance(models.Model):
             models.CheckConstraint(
                 condition=(
                     models.Q(status=AttendanceStatus.PRESENT)
-                    | (
-                        models.Q(effort__isnull=True)
-                        & models.Q(performance_score__isnull=True)
-                    )
+                    | (models.Q(effort__isnull=True) & models.Q(performance_score__isnull=True))
                 ),
                 name='attendance_scores_require_present',
             ),
             models.CheckConstraint(
                 condition=(
-                    models.Q(effort__isnull=True)
-                    | models.Q(effort__gte=0, effort__lte=100)
+                    models.Q(effort__isnull=True) | models.Q(effort__gte=0, effort__lte=100)
                 ),
                 name='attendance_effort_0_100',
             ),
@@ -117,7 +134,8 @@ class SessionConfirmation(models.Model):
         related_name='confirmations',
     )
     status = models.CharField(
-        max_length=10, choices=ConfirmationStatus.choices,
+        max_length=10,
+        choices=ConfirmationStatus.choices,
         default=ConfirmationStatus.CONFIRMED,
     )
     responded_at = models.DateTimeField(auto_now=True)
@@ -296,11 +314,13 @@ class Dispute(models.Model):
         limit_choices_to={'role': Roles.PLAYER},
     )
     category = models.CharField(
-        max_length=20, choices=DisputeCategory.choices,
+        max_length=20,
+        choices=DisputeCategory.choices,
         default=DisputeCategory.OTHER,
     )
     status = models.CharField(
-        max_length=20, choices=DisputeStatus.choices,
+        max_length=20,
+        choices=DisputeStatus.choices,
         default=DisputeStatus.OPEN,
     )
     summary = models.CharField(max_length=200)
@@ -319,9 +339,7 @@ class DisputeResponse(models.Model):
     """One append-only entry in a dispute's thread. May carry a status change,
     which the create view applies to the parent dispute."""
 
-    dispute = models.ForeignKey(
-        Dispute, on_delete=models.CASCADE, related_name='responses'
-    )
+    dispute = models.ForeignKey(Dispute, on_delete=models.CASCADE, related_name='responses')
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -330,7 +348,10 @@ class DisputeResponse(models.Model):
     )
     body = models.CharField(max_length=2000)
     status_change_to = models.CharField(
-        max_length=20, choices=DisputeStatus.choices, null=True, blank=True,
+        max_length=20,
+        choices=DisputeStatus.choices,
+        null=True,
+        blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -376,8 +397,14 @@ class AuditLog(models.Model):
     created_at = models.DateTimeField(default=timezone.now, editable=False)
     previous_hash = models.CharField(max_length=64, blank=True, editable=False)
     entry_hash = models.CharField(
-        max_length=64, unique=True, editable=False,
+        max_length=64,
+        unique=True,
+        editable=False,
     )
+
+    sequence = models.PositiveBigIntegerField(unique=True, editable=False)
+    hash_version = models.PositiveSmallIntegerField(default=2, editable=False)
+    actor_identifier = models.CharField(max_length=64, blank=True, editable=False)
 
     objects = AuditLogQuerySet.as_manager()
 
@@ -396,15 +423,35 @@ class AuditLog(models.Model):
         raise TypeError('Audit log entries are append-only.')
 
     @staticmethod
-    def _digest(*, previous_hash, action, target, detail, created_at):
-        payload = json.dumps({
+    def _digest(
+        *,
+        previous_hash,
+        action,
+        target,
+        detail,
+        created_at,
+        hash_version=1,
+        sequence=None,
+        actor_identifier='',
+    ):
+        payload = {
             'previous_hash': previous_hash,
             'action': action,
             'target': target,
             'detail': detail,
             'created_at': created_at.isoformat(),
-        }, sort_keys=True, separators=(',', ':')).encode('utf-8')
-        return hashlib.sha256(payload).hexdigest()
+        }
+        if hash_version == 2:
+            payload.update(hash_version=2, sequence=sequence, actor_identifier=actor_identifier)
+        elif hash_version != 1:
+            raise ValueError('Unknown audit digest version.')
+        return hashlib.sha256(
+            json.dumps(
+                payload,
+                sort_keys=True,
+                separators=(',', ':'),
+            ).encode('utf-8')
+        ).hexdigest()
 
     @classmethod
     def record(cls, actor, action, target='', detail=''):
@@ -412,17 +459,20 @@ class AuditLog(models.Model):
         action = action[:40]
         target = str(target)[:200]
         detail = str(detail)[:500]
-        created_at = timezone.now()
         with transaction.atomic():
             if connection.vendor == 'postgresql':
                 with connection.cursor() as cursor:
                     cursor.execute('SELECT pg_advisory_xact_lock(%s)', [946271])
-            previous = cls.objects.exclude(entry_hash__isnull=True).order_by(
-                '-created_at', '-id'
-            ).first()
+            created_at = timezone.now()
+            previous = cls.objects.order_by('-sequence').first()
+            sequence = previous.sequence + 1 if previous else 1
+            actor_identifier = str(actor.pk) if getattr(actor, 'pk', None) else ''
             previous_hash = previous.entry_hash if previous else ''
             entry = cls.objects.create(
                 actor=actor if getattr(actor, 'pk', None) else None,
+                sequence=sequence,
+                hash_version=2,
+                actor_identifier=actor_identifier,
                 action=action,
                 target=target,
                 detail=detail,
@@ -434,35 +484,54 @@ class AuditLog(models.Model):
                     target=target,
                     detail=detail,
                     created_at=created_at,
+                    hash_version=2,
+                    sequence=sequence,
+                    actor_identifier=actor_identifier,
                 ),
             )
-        external_event = json.dumps({
-            'event': 'audit_log',
-            'id': entry.pk,
-            'entry_hash': entry.entry_hash,
-            'previous_hash': entry.previous_hash,
-            'action': entry.action,
-        }, sort_keys=True, separators=(',', ':'))
-        transaction.on_commit(lambda: audit_logger.info(external_event))
+        external_event = json.dumps(
+            {
+                'event': 'audit_log',
+                'id': entry.pk,
+                'entry_hash': entry.entry_hash,
+                'previous_hash': entry.previous_hash,
+                'action': entry.action,
+                'sequence': entry.sequence,
+                'actor_identifier': entry.actor_identifier,
+                'hash_version': entry.hash_version,
+            },
+            sort_keys=True,
+            separators=(',', ':'),
+        )
+        transaction.on_commit(lambda: audit_logger.info(external_event), robust=True)
         return entry
 
     @classmethod
     def verify_chain(cls):
         """Return ``(is_valid, failing_id)`` for chained entries."""
         previous_hash = ''
-        for entry in cls.objects.exclude(entry_hash__isnull=True).order_by(
-            'created_at', 'id'
-        ):
+        expected_sequence = 1
+        for entry in cls.objects.order_by('sequence').iterator():
+            if entry.sequence != expected_sequence or entry.hash_version not in (1, 2):
+                return False, entry.pk
+            if (
+                entry.hash_version == 2
+                and entry.actor_id is not None
+                and str(entry.actor_id) != entry.actor_identifier
+            ):
+                return False, entry.pk
             expected = cls._digest(
                 previous_hash=previous_hash,
                 action=entry.action,
                 target=entry.target,
                 detail=entry.detail,
                 created_at=entry.created_at,
+                hash_version=entry.hash_version,
+                sequence=entry.sequence,
+                actor_identifier=entry.actor_identifier,
             )
             if entry.previous_hash != previous_hash or entry.entry_hash != expected:
                 return False, entry.pk
             previous_hash = entry.entry_hash
+            expected_sequence += 1
         return True, None
-
-__all__ = [name for name in globals() if not name.startswith('__')]
