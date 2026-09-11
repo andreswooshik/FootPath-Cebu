@@ -40,9 +40,7 @@ def _payload_hash(records):
 
 
 @transaction.atomic
-def replace_attendance(
-    *, coach, session_id, records, request_key=None, expected_revision=None
-):
+def replace_attendance(*, coach, session_id, records, request_key=None, expected_revision=None):
     if coach.role != Roles.COACH or coach.club_id is None:
         raise PermissionDenied('Only club coaches can record attendance.')
     Club.objects.select_for_update().get(pk=coach.club_id)

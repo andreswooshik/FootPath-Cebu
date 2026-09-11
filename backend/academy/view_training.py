@@ -109,9 +109,7 @@ class SessionAttendanceView(APIView):
         serializer = AttendanceBatchSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         request_key = request.headers.get('Idempotency-Key')
-        if request_key is not None and not re.fullmatch(
-            r'[A-Za-z0-9._:-]{16,128}', request_key
-        ):
+        if request_key is not None and not re.fullmatch(r'[A-Za-z0-9._:-]{16,128}', request_key):
             raise ValidationError({'Idempotency-Key': 'Use 16 to 128 safe characters.'})
         expected_revision = self._expected_revision(request.headers.get('If-Match'))
         replacement = replace_attendance(
@@ -146,9 +144,7 @@ class SessionAttendanceView(APIView):
             return None
         match = re.fullmatch(r'(?:W/)?"?(\d+)"?', value.strip())
         if match is None:
-            raise ValidationError(
-                {'If-Match': 'Use the attendance revision returned by GET.'}
-            )
+            raise ValidationError({'If-Match': 'Use the attendance revision returned by GET.'})
         return int(match.group(1))
 
     @staticmethod
@@ -166,17 +162,11 @@ class TrainingSessionListCreateView(APIView):
         period = request.query_params.get('period')
         today = timezone.localdate()
         if period == 'UPCOMING':
-            sessions = sessions.filter(date__gte=today).order_by(
-                'date', 'start_time'
-            )
+            sessions = sessions.filter(date__gte=today).order_by('date', 'start_time')
         elif period == 'PAST':
-            sessions = sessions.filter(date__lte=today).order_by(
-                '-date', '-start_time'
-            )
+            sessions = sessions.filter(date__lte=today).order_by('-date', '-start_time')
         elif period is not None:
-            raise ValidationError(
-                {'period': 'Use UPCOMING or PAST.'}
-            )
+            raise ValidationError({'period': 'Use UPCOMING or PAST.'})
         return list_response(request, sessions, TrainingSessionSerializer)
 
     @club_write_transaction
