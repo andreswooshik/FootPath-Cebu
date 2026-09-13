@@ -18,6 +18,7 @@ class ClubMember {
     required this.email,
     this.mobileNumber = '',
     this.linkedPlayers = const [],
+    this.linkedPlayerIds = const [],
   });
 
   final String id;
@@ -27,6 +28,7 @@ class ClubMember {
   final String email;
   final String mobileNumber;
   final List<String> linkedPlayers;
+  final List<String> linkedPlayerIds;
 
   factory ClubMember.fromJson(Map<String, dynamic> json) => ClubMember(
     id: json['id'].toString(),
@@ -38,6 +40,9 @@ class ClubMember {
     email: json['email'] as String? ?? '',
     mobileNumber: json['mobileNumber'] as String? ?? '',
     linkedPlayers: (json['linkedPlayers'] as List? ?? const [])
+        .map((value) => value.toString())
+        .toList(growable: false),
+    linkedPlayerIds: (json['linkedPlayerIds'] as List? ?? const [])
         .map((value) => value.toString())
         .toList(growable: false),
   );

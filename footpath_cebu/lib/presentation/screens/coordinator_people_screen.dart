@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/club_member.dart';
+import 'package:footpath_cebu/domain/entities/coordinator_person.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
@@ -10,7 +11,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/club_member_providers.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_create_account_screen.dart';
-import 'package:footpath_cebu/presentation/screens/player_profile_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_person_details_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
@@ -44,11 +45,7 @@ class _CoordinatorPeopleScreenState
           IconButton(
             tooltip: 'Create account',
             icon: const Icon(Icons.add),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const CoordinatorCreateAccountScreen(),
-              ),
-            ),
+            onPressed: _openCreateAccount,
           ),
         ],
       ),
@@ -98,13 +95,9 @@ class _CoordinatorPeopleScreenState
                         final player = filtered[index - 1];
                         return _PlayerRow(
                           player: player,
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => PlayerProfileScreen(
-                                player: player,
-                                profile: widget.profile,
-                              ),
-                            ),
+                          onTap: () => _openDetails(
+                            CoordinatorPersonRole.player,
+                            player.id,
                           ),
                         );
                       },
@@ -124,8 +117,46 @@ class _CoordinatorPeopleScreenState
                 _query = '';
               }),
               onChanged: (value) => setState(() => _query = value),
+              onPersonTap: (member) => _openDetails(
+                member.role == ClubMemberRole.guardian
+                    ? CoordinatorPersonRole.guardian
+                    : CoordinatorPersonRole.coach,
+                member.id,
+              ),
             ),
     );
+  }
+
+  Future<void> _openCreateAccount() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const CoordinatorCreateAccountScreen()),
+    );
+    if (!mounted) return;
+    _invalidatePeople();
+  }
+
+  Future<void> _openDetails(CoordinatorPersonRole role, String personId) async {
+    final deletedRole = await Navigator.of(context).push<CoordinatorPersonRole>(
+      MaterialPageRoute(
+        builder: (_) =>
+            CoordinatorPersonDetailsScreen(role: role, personId: personId),
+      ),
+    );
+    if (!mounted) return;
+    _invalidatePeople();
+    if (deletedRole == null) return;
+    final message = deletedRole == CoordinatorPersonRole.player
+        ? 'Player deleted successfully.'
+        : '${deletedRole.label} account deleted successfully.';
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _invalidatePeople() {
+    ref.invalidate(squadProvider);
+    ref.invalidate(clubMembersProvider(ClubMemberRole.guardian));
+    ref.invalidate(clubMembersProvider(ClubMemberRole.coach));
   }
 
   List<Player> _filter(List<Player> players) {
@@ -192,9 +223,7 @@ class _PeopleHeader extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          activeTab == 'Players'
-              ? '$count ${count == 1 ? 'player' : 'players'}'
-              : '0 ${activeTab.toLowerCase()}',
+          '$count ${_countLabel(activeTab, count)}',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 12),
@@ -218,6 +247,7 @@ class _MemberDirectory extends ConsumerWidget {
     required this.query,
     required this.onTabChanged,
     required this.onChanged,
+    required this.onPersonTap,
   });
 
   final ClubMemberRole role;
@@ -225,6 +255,7 @@ class _MemberDirectory extends ConsumerWidget {
   final String query;
   final ValueChanged<String> onTabChanged;
   final ValueChanged<String> onChanged;
+  final ValueChanged<ClubMember> onPersonTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -274,7 +305,11 @@ class _MemberDirectory extends ConsumerWidget {
                     ),
                   );
                 }
-                return _MemberRow(member: filtered[index - 1]);
+                final member = filtered[index - 1];
+                return _MemberRow(
+                  member: member,
+                  onTap: () => onPersonTap(member),
+                );
               },
             ),
           ),
@@ -285,8 +320,9 @@ class _MemberDirectory extends ConsumerWidget {
 }
 
 class _MemberRow extends StatelessWidget {
-  const _MemberRow({required this.member});
+  const _MemberRow({required this.member, required this.onTap});
   final ClubMember member;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -319,11 +355,7 @@ class _MemberRow extends StatelessWidget {
             title: Text(member.name),
             subtitle: Text(detail),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('${member.roleDisplay} details are coming next.'),
-              ),
-            ),
+            onTap: onTap,
           ),
           const Divider(height: 1),
         ],
@@ -338,6 +370,16 @@ class _MemberRow extends StatelessWidget {
       .take(2)
       .map((part) => part[0].toUpperCase())
       .join();
+}
+
+String _countLabel(String activeTab, int count) {
+  final singular = switch (activeTab) {
+    'Guardians' => 'guardian',
+    'Coaches' => 'coach',
+    _ => 'player',
+  };
+  if (count == 1) return singular;
+  return singular == 'coach' ? 'coaches' : '${singular}s';
 }
 
 class _PlayerRow extends StatelessWidget {

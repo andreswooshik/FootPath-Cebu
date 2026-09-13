@@ -273,6 +273,16 @@ class MockPlayerRepository
     if (!_squad.any((existing) => existing.id == player.id)) _squad.add(player);
   }
 
+  Player? findPlayer(String id) {
+    for (final player in _squad) {
+      if (player.id == id) return player;
+    }
+    return null;
+  }
+
+  void removePlayer(String id) =>
+      _squad.removeWhere((player) => player.id == id);
+
   @override
   Future<Player> fetchMyProfile() async {
     await Future.delayed(const Duration(milliseconds: 500));

@@ -5,6 +5,11 @@ from . import views
 urlpatterns = [
     path('players/', views.SquadListView.as_view(), name='players-list'),
     path('club-members/', views.ClubMemberDirectoryView.as_view(), name='club-member-directory'),
+    path(
+        'coordinator/people/<str:role>/<int:person_id>/',
+        views.CoordinatorPersonDetailView.as_view(),
+        name='coordinator-person-detail',
+    ),
     path('players/me/', views.MyProfileView.as_view(), name='players-me'),
     path('players/linked/', views.LinkedPlayersView.as_view(), name='players-linked'),
     path(

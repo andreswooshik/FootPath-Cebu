@@ -20,6 +20,7 @@ def role_required(*roles):
 
 
 IsAdmin = role_required(Roles.ADMIN)
+IsCoordinator = role_required(Roles.COORDINATOR)
 IsCoach = role_required(Roles.COACH)
 IsPlayer = role_required(Roles.PLAYER)
 IsSchoolStaff = role_required(Roles.SCHOOL_STAFF)

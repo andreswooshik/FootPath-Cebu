@@ -75,7 +75,7 @@ class SquadListView(APIView):
     def get(self, request):
         if request.user.role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN):
             raise PermissionDenied('Only coaches and coordinators can view the squad.')
-        profiles = PlayerProfile.objects.select_related('user')
+        profiles = PlayerProfile.objects.select_related('user').filter(user__is_active=True)
         # Club staff see only their own roster; Admin sees every club.
         if request.user.role in (Roles.COACH, Roles.COORDINATOR):
             if request.user.club_id is None:
@@ -121,11 +121,17 @@ class ClubMemberDirectoryView(APIView):
                 if part
             ) or member.email.split('@')[0]
             linked_players = []
+            linked_player_ids = []
             if member.role == Roles.GUARDIAN:
+                links = member.guardian_links.select_related('player').filter(
+                    player__is_active=True
+                )
                 linked_players = [
-                    link.player.get_full_name().strip() or link.player.email.split('@')[0]
-                    for link in member.guardian_links.select_related('player').all()
+                    link.player.get_full_name().strip()
+                    or (link.player.email.split('@')[0] if link.player.email else f'Player {link.player_id}')
+                    for link in links
                 ]
+                linked_player_ids = [str(link.player_id) for link in links]
             rows.append(
                 {
                     'id': str(member.id),
@@ -135,6 +141,7 @@ class ClubMemberDirectoryView(APIView):
                     'email': member.email,
                     'mobileNumber': member.mobile_number,
                     'linkedPlayers': linked_players,
+                    'linkedPlayerIds': linked_player_ids,
                 }
             )
         return Response(rows)

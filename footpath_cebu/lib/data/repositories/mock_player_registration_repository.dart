@@ -74,7 +74,7 @@ class MockPlayerRegistrationRepository implements PlayerRegistrationRepository {
       ),
     );
     players.addRegisteredPlayer(player);
-    members.linkPlayer(guardian, player.name);
+    members.linkPlayer(guardian, player.id, player.name);
     final result = PlayerRegistrationResult(
       playerId: player.id,
       guardianId: guardian.id,

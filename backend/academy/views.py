@@ -50,6 +50,7 @@ from academy.view_notifications import (
     NotificationReadView,
     NotificationUnreadCountView,
 )
+from academy.view_people import CoordinatorPersonDetailView
 from academy.view_players import (
     ClubMemberDirectoryView,
     LinkedPlayersView,
@@ -100,6 +101,7 @@ from academy.view_training import (
 
 __all__ = [
     'ClubMemberDirectoryView',
+    'CoordinatorPersonDetailView',
     'AdminCreatePlayerView',
     'AgeTierSettingsView',
     'AttendanceListView',
