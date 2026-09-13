@@ -574,7 +574,6 @@ class CreateAccountTests(TestCase):
             {
                 'account_type': 'coach',
                 'first_name': 'Coa',
-                'middle_initial': 'C',
                 'last_name': 'Ch',
                 'email': 'coach@club.test',
             },
@@ -583,6 +582,7 @@ class CreateAccountTests(TestCase):
         self.assertEqual(user.role, Roles.COACH)
         self.assertEqual(user.club, self.club)
         self.assertEqual(user.firebase_uid, 'coach-uid')
+        self.assertEqual(user.middle_initial, '')
 
     def test_create_staff_is_web_user(self):
         self.client.post(
@@ -611,7 +611,6 @@ class CreateAccountTests(TestCase):
             {
                 'account_type': 'guardian',
                 'first_name': 'Guar',
-                'middle_initial': 'D',
                 'last_name': 'Dian',
                 'email': 'guardian@club.test',
                 'player': player.id,
@@ -619,6 +618,7 @@ class CreateAccountTests(TestCase):
         )
         guardian = User.objects.get(email='guardian@club.test')
         self.assertEqual(guardian.role, Roles.GUARDIAN)
+        self.assertEqual(guardian.middle_initial, '')
         self.assertTrue(GuardianLink.objects.filter(guardian=guardian, player=player).exists())
 
     def test_email_field_is_lowercased(self):

@@ -145,6 +145,7 @@ class CreateCoachForm(_BaseCreateAccountForm):
     middle_initial = forms.RegexField(
         regex=r'^[A-Za-z]\.?$',
         max_length=2,
+        required=False,
         error_messages={'invalid': 'Enter one letter for the middle initial.'},
     )
 
@@ -185,6 +186,7 @@ class CreateGuardianForm(_BaseCreateAccountForm):
     middle_initial = forms.RegexField(
         regex=r'^[A-Za-z]\.?$',
         max_length=2,
+        required=False,
         error_messages={'invalid': 'Enter one letter for the middle initial.'},
     )
     player = forms.ModelChoiceField(

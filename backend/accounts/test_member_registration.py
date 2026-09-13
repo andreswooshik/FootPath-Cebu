@@ -61,10 +61,9 @@ class CoordinatorMemberRegistrationTests(APITestCase):
         self.assertEqual(coach.role, Roles.COACH)
         self.assertEqual(coach.club, self.club)
 
-    def test_required_email_middle_initial_and_role_are_enforced(self):
+    def test_required_email_role_and_middle_initial_format_are_enforced(self):
         for key, value in (
             ('email', ''),
-            ('middleInitial', ''),
             ('middleInitial', 'DX'),
             ('role', Roles.PLAYER),
             ('role', Roles.COORDINATOR),
@@ -73,6 +72,24 @@ class CoordinatorMemberRegistrationTests(APITestCase):
             self.assertEqual(response.status_code, 400, (key, response.data))
         self.assertFalse(User.objects.filter(email='maria@example.com').exists())
         self.create.assert_not_called()
+
+    def test_middle_initial_is_optional_for_guardian_and_coach(self):
+        for index, role in enumerate((Roles.GUARDIAN, Roles.COACH)):
+            payload = {
+                **self.payload,
+                'requestId': str(uuid4()),
+                'role': role,
+                'email': f'optional-{index}@example.com',
+                'mobileNumber': f'0917123456{index}',
+            }
+            if index == 0:
+                payload.pop('middleInitial')
+            else:
+                payload['middleInitial'] = ''
+
+            response = self.client.post(self.url, payload, format='json')
+            self.assertEqual(response.status_code, 201, response.data)
+            self.assertEqual(User.objects.get(pk=response.data['memberId']).middle_initial, '')
 
     def test_duplicate_email_and_mobile_are_rejected_before_firebase(self):
         User.objects.create(

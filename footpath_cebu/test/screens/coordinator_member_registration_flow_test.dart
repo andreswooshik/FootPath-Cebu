@@ -94,4 +94,24 @@ void main() {
     expect(repository.role, MemberAccountRole.coach);
     expect(find.text('Coach account created successfully.'), findsOneWidget);
   });
+
+  testWidgets('creates Guardian without a middle initial', (tester) async {
+    await pumpScreen(tester);
+    await tester.tap(find.text('Guardian'));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'Maria');
+    await tester.enterText(fields.at(2), 'Santos');
+    await tester.enterText(fields.at(3), 'maria@example.com');
+    await tester.enterText(fields.at(4), '09171234567');
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Create guardian account'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.calls, 1);
+    expect(repository.data!.middleInitial, '');
+    expect(find.text('Guardian account created successfully.'), findsOneWidget);
+  });
 }

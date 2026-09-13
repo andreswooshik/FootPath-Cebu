@@ -75,6 +75,22 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         self.assertFalse(player.has_usable_password())
         self.assertTrue(AuditLog.objects.filter(action='player.registered').exists())
 
+    def test_new_guardian_middle_initial_can_be_omitted(self):
+        payload = self.new_guardian_payload()
+        payload['newGuardian'].pop('middleInitial')
+
+        response = self.client.post(self.url, payload, format='json')
+
+        self.assertEqual(response.status_code, 201, response.data)
+        guardian = User.objects.get(pk=response.data['guardianId'])
+        self.assertEqual(guardian.middle_initial, '')
+        self.assertTrue(
+            GuardianLink.objects.filter(
+                guardian=guardian,
+                player_id=response.data['playerId'],
+            ).exists()
+        )
+
     def test_guardian_check_is_read_only_and_duplicate_email_is_selectable(self):
         before = User.objects.count()
         response = self.client.post(reverse('coordinator-guardian-check'), self.guardian_data, format='json')

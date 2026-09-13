@@ -165,10 +165,8 @@ void main() {
     await tester.pump();
 
     expect(find.text('This field is required.'), findsNWidgets(2));
-    expect(
-      find.text('Enter one letter for the middle initial.'),
-      findsOneWidget,
-    );
+    expect(find.text('Middle initial (optional)'), findsOneWidget);
+    expect(find.text('Enter one letter for the middle initial.'), findsNothing);
     expect(find.text('Email is required.'), findsOneWidget);
     expect(
       find.text('Enter a Philippine mobile number, e.g. 09171234567.'),

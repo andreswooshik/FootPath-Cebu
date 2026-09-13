@@ -148,7 +148,7 @@ def member_registration_result(user, actor, *, temporary_password=None, replayed
             part
             for part in (
                 user.first_name,
-                f'{user.middle_initial}.',
+                f'{user.middle_initial}.' if user.middle_initial else '',
                 user.last_name,
             )
             if part

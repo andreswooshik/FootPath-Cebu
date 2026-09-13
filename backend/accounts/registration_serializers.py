@@ -17,6 +17,8 @@ def normalize_mobile_number(value):
 
 def normalize_middle_initial(value):
     initial = value.strip().rstrip('.').upper()
+    if not initial:
+        return ''
     if not re.fullmatch(r'[A-Z]', initial):
         raise serializers.ValidationError('Enter one letter for the middle initial.')
     return initial
@@ -24,7 +26,9 @@ def normalize_middle_initial(value):
 
 class GuardianRegistrationSerializer(serializers.Serializer):
     firstName = serializers.CharField(max_length=150)
-    middleInitial = serializers.CharField(max_length=2)
+    middleInitial = serializers.CharField(
+        max_length=2, required=False, allow_blank=True, default=''
+    )
     lastName = serializers.CharField(max_length=150)
     email = serializers.EmailField(max_length=254)
     mobileNumber = serializers.CharField(max_length=30)
@@ -74,7 +78,9 @@ class MemberRegistrationSerializer(serializers.Serializer):
     requestId = serializers.UUIDField()
     role = serializers.ChoiceField(choices=['GUARDIAN', 'COACH'])
     firstName = serializers.CharField(max_length=150)
-    middleInitial = serializers.CharField(max_length=2)
+    middleInitial = serializers.CharField(
+        max_length=2, required=False, allow_blank=True, default=''
+    )
     lastName = serializers.CharField(max_length=150)
     email = serializers.EmailField(max_length=254)
     mobileNumber = serializers.CharField(max_length=30)

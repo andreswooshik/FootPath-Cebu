@@ -16,6 +16,7 @@ String? registrationEmailError(String? value, {bool optional = false}) {
 
 String? registrationMiddleInitialError(String? value) {
   final initial = value?.trim() ?? '';
+  if (initial.isEmpty) return null;
   return RegExp(r'^[A-Za-z]\.?$').hasMatch(initial)
       ? null
       : 'Enter one letter for the middle initial.';
@@ -114,7 +115,7 @@ class _MemberRegistrationFormState extends State<MemberRegistrationForm> {
           onChanged: (value) => _first = value,
         ),
         RegistrationField(
-          label: 'Middle initial *',
+          label: 'Middle initial (optional)',
           initialValue: _middle,
           maxLength: 2,
           validator: registrationMiddleInitialError,
@@ -206,7 +207,7 @@ class _GuardianRegistrationFormState extends State<GuardianRegistrationForm> {
           },
         ),
         RegistrationField(
-          label: 'Middle initial *',
+          label: 'Middle initial (optional)',
           initialValue: _middle,
           maxLength: 2,
           validator: registrationMiddleInitialError,
