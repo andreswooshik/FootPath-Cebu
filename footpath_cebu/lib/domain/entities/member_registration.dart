@@ -50,6 +50,7 @@ class MemberRegistrationResult {
     required this.role,
     required this.name,
     required this.email,
+    this.mobileNumber = '',
     this.temporaryPassword,
     this.replayed = false,
   });
@@ -59,6 +60,7 @@ class MemberRegistrationResult {
   final MemberAccountRole role;
   final String name;
   final String email;
+  final String mobileNumber;
   final String? temporaryPassword;
   final bool replayed;
 
@@ -71,6 +73,7 @@ class MemberRegistrationResult {
             : MemberAccountRole.guardian,
         name: json['name'] as String,
         email: json['email'] as String,
+        mobileNumber: json['mobileNumber'] as String? ?? '',
         temporaryPassword: json['temporaryPassword'] as String?,
         replayed: json['replayed'] as bool? ?? false,
       );

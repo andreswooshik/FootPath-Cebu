@@ -9,7 +9,6 @@ import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 enum RegistrationStep {
   guardianQuestion,
   existingGuardian,
-  newGuardian,
   player,
   review,
   success,
@@ -56,13 +55,9 @@ class PlayerRegistrationController extends Notifier<RegistrationState> {
     );
   }
 
-  void chooseGuardian(bool exists) {
+  void chooseExistingGuardian() {
     if (state.isBusy || state.retryOnly) return;
-    _set(
-      step: exists
-          ? RegistrationStep.existingGuardian
-          : RegistrationStep.newGuardian,
-    );
+    _set(step: RegistrationStep.existingGuardian);
   }
 
   void selectGuardian(ClubMember guardian) {
@@ -73,43 +68,9 @@ class PlayerRegistrationController extends Notifier<RegistrationState> {
     );
   }
 
-  void editGuardian(GuardianRegistrationData guardian) {
-    if (state.isBusy || state.retryOnly) return;
-    _set(
-      draft: state.draft.copyWith(
-        guardian: guardian,
-        clearExistingGuardian: true,
-      ),
-    );
-  }
-
   void editPlayer(PlayerRegistrationData player) {
     if (state.isBusy || state.retryOnly) return;
     _set(draft: state.draft.copyWith(player: player));
-  }
-
-  Future<void> continueGuardian() async {
-    if (state.isBusy) return;
-    _set(busy: true);
-    try {
-      await ref
-          .read(playerRegistrationRepositoryProvider)
-          .checkGuardian(state.draft.guardian);
-      if (ref.mounted) {
-        _set(step: RegistrationStep.player);
-      }
-    } on PlayerRegistrationException catch (error) {
-      if (ref.mounted) {
-        _set(
-          error: error.message,
-          duplicateGuardianId: error.existingGuardianId,
-        );
-      }
-    } catch (_) {
-      if (ref.mounted) {
-        _set(error: 'Could not check guardian details. Please retry.');
-      }
-    }
   }
 
   void review() {
@@ -122,12 +83,8 @@ class PlayerRegistrationController extends Notifier<RegistrationState> {
     if (state.isBusy || state.retryOnly) return false;
     final previous = switch (state.step) {
       RegistrationStep.guardianQuestion || RegistrationStep.success => null,
-      RegistrationStep.existingGuardian ||
-      RegistrationStep.newGuardian => RegistrationStep.guardianQuestion,
-      RegistrationStep.player =>
-        state.draft.existingGuardian != null
-            ? RegistrationStep.existingGuardian
-            : RegistrationStep.newGuardian,
+      RegistrationStep.existingGuardian => RegistrationStep.guardianQuestion,
+      RegistrationStep.player => RegistrationStep.existingGuardian,
       RegistrationStep.review => RegistrationStep.player,
     };
     if (previous == null) return true;

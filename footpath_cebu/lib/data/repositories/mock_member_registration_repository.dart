@@ -21,6 +21,7 @@ class MockMemberRegistrationRepository implements MemberRegistrationRepository {
         role: previous.role,
         name: previous.name,
         email: previous.email,
+        mobileNumber: previous.mobileNumber,
         replayed: true,
       );
     }
@@ -49,6 +50,7 @@ class MockMemberRegistrationRepository implements MemberRegistrationRepository {
       role: role,
       name: member.name,
       email: member.email,
+      mobileNumber: member.mobileNumber,
       temporaryPassword: 'TempPass123',
     );
     _results[data.requestId] = result;

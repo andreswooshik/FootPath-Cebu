@@ -154,6 +154,7 @@ def member_registration_result(user, actor, *, temporary_password=None, replayed
             if part
         ),
         'email': user.email,
+        'mobileNumber': user.mobile_number or '',
         'temporaryPassword': temporary_password,
         'replayed': replayed,
     }

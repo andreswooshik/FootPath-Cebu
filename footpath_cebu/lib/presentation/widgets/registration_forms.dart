@@ -59,23 +59,6 @@ class RegistrationField extends StatelessWidget {
   );
 }
 
-class GuardianRegistrationForm extends StatefulWidget {
-  const GuardianRegistrationForm({
-    super.key,
-    required this.initial,
-    required this.onChanged,
-    required this.onContinue,
-    required this.busy,
-  });
-  final GuardianRegistrationData initial;
-  final ValueChanged<GuardianRegistrationData> onChanged;
-  final VoidCallback onContinue;
-  final bool busy;
-  @override
-  State<GuardianRegistrationForm> createState() =>
-      _GuardianRegistrationFormState();
-}
-
 class MemberRegistrationForm extends StatefulWidget {
   const MemberRegistrationForm({
     super.key,
@@ -168,97 +151,6 @@ class _MemberRegistrationFormState extends State<MemberRegistrationForm> {
             widget.busy
                 ? 'Creating account...'
                 : 'Create ${widget.role.label.toLowerCase()} account',
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _GuardianRegistrationFormState extends State<GuardianRegistrationForm> {
-  final _formKey = GlobalKey<FormState>();
-  late String _first = widget.initial.firstName,
-      _middle = widget.initial.middleInitial,
-      _last = widget.initial.lastName,
-      _email = widget.initial.email,
-      _phone = widget.initial.mobileNumber;
-  void _changed() => widget.onChanged(
-    GuardianRegistrationData(
-      firstName: _first.trim(),
-      middleInitial: _middle.trim().replaceAll('.', '').toUpperCase(),
-      lastName: _last.trim(),
-      email: _email.trim().toLowerCase(),
-      mobileNumber: _phone.trim(),
-    ),
-  );
-  @override
-  Widget build(BuildContext context) => Form(
-    key: _formKey,
-    child: Column(
-      children: [
-        RegistrationField(
-          label: 'First name *',
-          initialValue: _first,
-          maxLength: 150,
-          validator: registrationNameError,
-          onChanged: (v) {
-            _first = v;
-            _changed();
-          },
-        ),
-        RegistrationField(
-          label: 'Middle initial (optional)',
-          initialValue: _middle,
-          maxLength: 2,
-          validator: registrationMiddleInitialError,
-          onChanged: (v) {
-            _middle = v;
-            _changed();
-          },
-        ),
-        RegistrationField(
-          label: 'Last name *',
-          initialValue: _last,
-          maxLength: 150,
-          validator: registrationNameError,
-          onChanged: (v) {
-            _last = v;
-            _changed();
-          },
-        ),
-        RegistrationField(
-          label: 'Email *',
-          initialValue: _email,
-          maxLength: 254,
-          keyboardType: TextInputType.emailAddress,
-          validator: registrationEmailError,
-          onChanged: (v) {
-            _email = v;
-            _changed();
-          },
-        ),
-        RegistrationField(
-          label: 'Mobile number *',
-          initialValue: _phone,
-          maxLength: 30,
-          keyboardType: TextInputType.phone,
-          validator: registrationPhoneError,
-          onChanged: (v) {
-            _phone = v;
-            _changed();
-          },
-        ),
-        FilledButton(
-          onPressed: widget.busy
-              ? null
-              : () {
-                  if (_formKey.currentState!.validate()) {
-                    _changed();
-                    widget.onContinue();
-                  }
-                },
-          child: Text(
-            widget.busy ? 'Checking guardian...' : 'Continue to player',
           ),
         ),
       ],

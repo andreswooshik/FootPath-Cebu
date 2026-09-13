@@ -5,27 +5,65 @@ import 'package:footpath_cebu/presentation/providers/member_registration_provide
 import 'package:footpath_cebu/presentation/widgets/registration_forms.dart';
 import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 
+enum MemberRegistrationPurpose { standalone, playerRegistration }
+
 class CoordinatorMemberRegistrationFlow extends ConsumerWidget {
   const CoordinatorMemberRegistrationFlow({
     super.key,
     required this.role,
     required this.onAccountTypeChanged,
-  });
+    this.purpose = MemberRegistrationPurpose.standalone,
+    this.onBack,
+    this.onCreated,
+  }) : assert(
+         purpose == MemberRegistrationPurpose.standalone ||
+             role == MemberAccountRole.guardian,
+       ),
+       assert(
+         purpose == MemberRegistrationPurpose.standalone || onBack != null,
+       ),
+       assert(
+         purpose == MemberRegistrationPurpose.standalone || onCreated != null,
+       );
 
   final MemberAccountRole role;
   final ValueChanged<String> onAccountTypeChanged;
+  final MemberRegistrationPurpose purpose;
+  final VoidCallback? onBack;
+  final ValueChanged<MemberRegistrationResult>? onCreated;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(memberRegistrationControllerProvider);
     final controller = ref.read(memberRegistrationControllerProvider.notifier);
+    final isPlayerRegistration =
+        purpose == MemberRegistrationPurpose.playerRegistration;
+
+    void leave() {
+      controller.reset();
+      if (isPlayerRegistration) {
+        onBack!();
+      } else {
+        Navigator.of(context).pop();
+      }
+    }
+
+    ref.listen(memberRegistrationControllerProvider, (previous, next) {
+      if (isPlayerRegistration &&
+          previous?.result == null &&
+          next.result != null) {
+        onCreated!(next.result!);
+      }
+    });
+
     return PopScope(
-      canPop: !state.isBusy,
+      canPop: !state.isBusy && !isPlayerRegistration,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !state.isBusy && isPlayerRegistration) leave();
+      },
       child: Scaffold(
         appBar: AppBar(
-          leading: BackButton(
-            onPressed: state.isBusy ? null : () => Navigator.of(context).pop(),
-          ),
+          leading: BackButton(onPressed: state.isBusy ? null : leave),
           title: Text(
             state.result == null
                 ? 'Create ${role.label.toLowerCase()} account'
@@ -72,7 +110,7 @@ class CoordinatorMemberRegistrationFlow extends ConsumerWidget {
                     ButtonSegment(value: 'Coach', label: Text('Coach')),
                   ],
                   selected: {role.label},
-                  onSelectionChanged: state.isBusy
+                  onSelectionChanged: state.isBusy || isPlayerRegistration
                       ? null
                       : (selection) {
                           controller.reset();

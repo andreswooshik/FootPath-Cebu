@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/domain/entities/club_member.dart';
+import 'package:footpath_cebu/domain/entities/member_registration.dart';
 import 'package:footpath_cebu/presentation/providers/club_member_providers.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/player_registration_providers.dart';
@@ -8,15 +9,49 @@ import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/registration_forms.dart';
 import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 
-class CoordinatorPlayerRegistrationFlow extends ConsumerWidget {
+class CoordinatorPlayerRegistrationFlow extends ConsumerStatefulWidget {
   const CoordinatorPlayerRegistrationFlow({
     super.key,
     required this.onAccountTypeChanged,
+    required this.onCreateGuardianRequested,
+    this.createdGuardian,
   });
   final ValueChanged<String> onAccountTypeChanged;
+  final VoidCallback onCreateGuardianRequested;
+  final MemberRegistrationResult? createdGuardian;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CoordinatorPlayerRegistrationFlow> createState() =>
+      _CoordinatorPlayerRegistrationFlowState();
+}
+
+class _CoordinatorPlayerRegistrationFlowState
+    extends ConsumerState<CoordinatorPlayerRegistrationFlow> {
+  @override
+  void initState() {
+    super.initState();
+    final guardian = widget.createdGuardian;
+    if (guardian != null) {
+      Future<void>(() {
+        if (!mounted) return;
+        ref
+            .read(playerRegistrationControllerProvider.notifier)
+            .selectGuardian(
+              ClubMember(
+                id: guardian.memberId,
+                name: guardian.name,
+                role: ClubMemberRole.guardian,
+                roleDisplay: MemberAccountRole.guardian.label,
+                email: guardian.email,
+                mobileNumber: guardian.mobileNumber,
+              ),
+            );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(playerRegistrationControllerProvider);
     final controller = ref.read(playerRegistrationControllerProvider.notifier);
     final canPop =
@@ -33,7 +68,6 @@ class CoordinatorPlayerRegistrationFlow extends ConsumerWidget {
           title: Text(switch (state.step) {
             RegistrationStep.guardianQuestion => 'Create player account',
             RegistrationStep.existingGuardian => 'Select guardian',
-            RegistrationStep.newGuardian => 'Guardian information',
             RegistrationStep.player => 'Player information',
             RegistrationStep.review => 'Review registration',
             RegistrationStep.success => 'Registration complete',
@@ -58,7 +92,7 @@ class CoordinatorPlayerRegistrationFlow extends ConsumerWidget {
                 ),
                 if (state.duplicateGuardianId != null)
                   TextButton.icon(
-                    onPressed: () => controller.chooseGuardian(true),
+                    onPressed: controller.chooseExistingGuardian,
                     icon: const Icon(Icons.person_search_outlined),
                     label: const Text('Use existing guardian'),
                   ),
@@ -79,7 +113,7 @@ class CoordinatorPlayerRegistrationFlow extends ConsumerWidget {
                       ],
                       selected: const {'Player'},
                       onSelectionChanged: (value) =>
-                          onAccountTypeChanged(value.first),
+                          widget.onAccountTypeChanged(value.first),
                     ),
                     const SizedBox(height: 28),
                     Text(
@@ -88,12 +122,12 @@ class CoordinatorPlayerRegistrationFlow extends ConsumerWidget {
                     ),
                     const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: () => controller.chooseGuardian(true),
+                      onPressed: controller.chooseExistingGuardian,
                       child: const Text('Yes'),
                     ),
                     const SizedBox(height: 12),
                     OutlinedButton(
-                      onPressed: () => controller.chooseGuardian(false),
+                      onPressed: widget.onCreateGuardianRequested,
                       child: const Text('No'),
                     ),
                   ],
@@ -102,15 +136,6 @@ class CoordinatorPlayerRegistrationFlow extends ConsumerWidget {
                   initialQuery: state.draft.guardian.email,
                   selectedId: state.draft.existingGuardian?.id,
                   onSelected: controller.selectGuardian,
-                ),
-                RegistrationStep.newGuardian => AbsorbPointer(
-                  absorbing: state.isBusy,
-                  child: GuardianRegistrationForm(
-                    initial: state.draft.guardian,
-                    busy: state.isBusy,
-                    onChanged: controller.editGuardian,
-                    onContinue: controller.continueGuardian,
-                  ),
                 ),
                 RegistrationStep.player => Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -132,8 +157,12 @@ class CoordinatorPlayerRegistrationFlow extends ConsumerWidget {
                 RegistrationStep.review => _Review(
                   state: state,
                   onSubmit: controller.submit,
+                  createdGuardian: widget.createdGuardian,
                 ),
-                RegistrationStep.success => _Success(state: state),
+                RegistrationStep.success => _Success(
+                  state: state,
+                  createdGuardian: widget.createdGuardian,
+                ),
               },
             ],
           ),
@@ -244,80 +273,96 @@ class _GuardianSearchState extends ConsumerState<_GuardianSearch> {
 }
 
 class _Review extends StatelessWidget {
-  const _Review({required this.state, required this.onSubmit});
+  const _Review({
+    required this.state,
+    required this.onSubmit,
+    this.createdGuardian,
+  });
   final RegistrationState state;
   final VoidCallback onSubmit;
+  final MemberRegistrationResult? createdGuardian;
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Text('Player', style: Theme.of(context).textTheme.titleMedium),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(state.draft.player.name),
-        subtitle: Text(
-          '${MaterialLocalizations.of(context).formatMediumDate(state.draft.player.dateOfBirth!)}\nGuardian-managed profile',
+  Widget build(BuildContext context) {
+    final isNewGuardian =
+        createdGuardian?.memberId == state.draft.existingGuardian?.id;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Player', style: Theme.of(context).textTheme.titleMedium),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(state.draft.player.name),
+          subtitle: Text(
+            '${MaterialLocalizations.of(context).formatMediumDate(state.draft.player.dateOfBirth!)}\nGuardian-managed profile',
+          ),
         ),
-      ),
-      const Divider(),
-      Text(
-        state.draft.existingGuardian == null
-            ? 'New guardian'
-            : 'Existing guardian',
-        style: Theme.of(context).textTheme.titleMedium,
-      ),
-      ListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(state.draft.guardianName),
-        subtitle: Text(
-          '${state.draft.guardianEmail}\n${state.draft.existingGuardian?.mobileNumber ?? state.draft.guardian.mobileNumber}',
+        const Divider(),
+        Text(
+          isNewGuardian ? 'New guardian' : 'Existing guardian',
+          style: Theme.of(context).textTheme.titleMedium,
         ),
-      ),
-      const SizedBox(height: 20),
-      FilledButton.icon(
-        onPressed: state.isBusy ? null : onSubmit,
-        icon: const Icon(Icons.person_add_outlined),
-        label: Text(
-          state.isBusy
-              ? 'Creating account and player profile...'
-              : state.retryOnly
-              ? 'Retry registration'
-              : 'Create player profile',
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(state.draft.guardianName),
+          subtitle: Text(
+            '${state.draft.guardianEmail}\n${state.draft.existingGuardian?.mobileNumber ?? state.draft.guardian.mobileNumber}',
+          ),
         ),
-      ),
-    ],
-  );
+        const SizedBox(height: 20),
+        FilledButton.icon(
+          onPressed: state.isBusy ? null : onSubmit,
+          icon: const Icon(Icons.person_add_outlined),
+          label: Text(
+            state.isBusy
+                ? 'Creating account and player profile...'
+                : state.retryOnly
+                ? 'Retry registration'
+                : 'Create player profile',
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _Success extends StatelessWidget {
-  const _Success({required this.state});
+  const _Success({required this.state, this.createdGuardian});
   final RegistrationState state;
+  final MemberRegistrationResult? createdGuardian;
   @override
   Widget build(BuildContext context) {
     final result = state.result!;
+    final createdGuardianWasLinked =
+        createdGuardian?.memberId == state.draft.existingGuardian?.id;
+    final guardianWasCreated =
+        createdGuardianWasLinked || result.guardianCreated;
+    final guardianEmail = createdGuardianWasLinked
+        ? createdGuardian!.email
+        : result.guardianEmail;
+    final guardianPassword = createdGuardianWasLinked
+        ? createdGuardian!.temporaryPassword
+        : result.guardianTemporaryPassword;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Icon(Icons.check_circle_outline, size: 48),
         const SizedBox(height: 16),
         Text(
-          result.guardianCreated
+          guardianWasCreated
               ? 'Guardian account and player profile created successfully.'
               : 'Player profile added successfully.',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 12),
         Text(
-          result.guardianCreated
+          guardianWasCreated
               ? 'Guardian account created and linked successfully.'
               : 'Linked to ${state.draft.guardianName}.',
         ),
-        if (result.guardianTemporaryPassword != null) ...[
+        if (guardianPassword != null) ...[
           const SizedBox(height: 20),
-          Text('Guardian: ${result.guardianEmail}'),
-          SelectableText(
-            'Temporary password: ${result.guardianTemporaryPassword}',
-          ),
+          Text('Guardian: $guardianEmail'),
+          SelectableText('Temporary password: $guardianPassword'),
         ],
         if (result.replayed) ...[
           const SizedBox(height: 16),

@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/core/di/registration_dependencies.dart';
 import 'package:footpath_cebu/data/repositories/mock_club_member_repository.dart';
+import 'package:footpath_cebu/domain/entities/member_registration.dart';
 import 'package:footpath_cebu/domain/entities/player_registration.dart';
+import 'package:footpath_cebu/domain/repositories/member_registration_repository.dart';
 import 'package:footpath_cebu/domain/repositories/player_registration_repository.dart';
 import 'package:footpath_cebu/presentation/providers/player_registration_providers.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_create_account_screen.dart';
@@ -46,6 +48,29 @@ class _RegistrationRepository implements PlayerRegistrationRepository {
   }
 }
 
+class _MemberRepository implements MemberRegistrationRepository {
+  int calls = 0;
+  Object? error;
+
+  @override
+  Future<MemberRegistrationResult> create(
+    MemberAccountRole role,
+    MemberRegistrationData data,
+  ) async {
+    calls++;
+    if (error case final failure?) throw failure;
+    return MemberRegistrationResult(
+      memberId: 'guardian-created',
+      coordinatorId: 'coordinator-1',
+      role: role,
+      name: data.name,
+      email: data.email,
+      mobileNumber: data.mobileNumber,
+      temporaryPassword: 'GuardianPass1',
+    );
+  }
+}
+
 const _player = PlayerRegistrationData(
   firstName: 'Juan',
   lastName: 'Cruz',
@@ -60,13 +85,18 @@ PlayerRegistrationData validPlayer() => PlayerRegistrationData(
 
 void main() {
   late _RegistrationRepository repository;
+  late _MemberRepository memberRepository;
   late ProviderContainer container;
 
   Future<void> pumpFlow(WidgetTester tester) async {
     repository = _RegistrationRepository();
+    memberRepository = _MemberRepository();
     container = ProviderContainer(
       overrides: [
         playerRegistrationRepositoryProvider.overrideWithValue(repository),
+        memberRegistrationRepositoryProvider.overrideWithValue(
+          memberRepository,
+        ),
         mockClubMemberRepositoryProvider.overrideWithValue(
           MockClubMemberRepository(),
         ),
@@ -120,12 +150,21 @@ void main() {
     expect(find.text('Linked to Maria Santos.'), findsOneWidget);
   });
 
-  testWidgets('new guardian stays temporary until player submission', (
+  testWidgets('No reuses Guardian account flow and passes its ID to Player', (
     tester,
   ) async {
     await pumpFlow(tester);
     await tester.tap(find.widgetWithText(OutlinedButton, 'No'));
     await tester.pumpAndSettle();
+
+    expect(find.text('Create guardian account'), findsWidgets);
+    expect(find.text('Guardian information'), findsNothing);
+    expect(
+      tester
+          .widget<SegmentedButton<String>>(find.byType(SegmentedButton<String>))
+          .onSelectionChanged,
+      isNull,
+    );
 
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), ' Ana ');
@@ -133,35 +172,40 @@ void main() {
     await tester.enterText(fields.at(2), ' Cruz ');
     await tester.enterText(fields.at(3), 'ANA@EXAMPLE.COM');
     await tester.enterText(fields.at(4), '0918 123 4567');
-    expect(repository.checkCalls, 0);
-    expect(repository.registerCalls, 0);
-    await tester.tap(find.text('Continue to player'));
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Create guardian account'),
+    );
     await tester.pumpAndSettle();
 
-    expect(repository.checkCalls, 1);
+    expect(memberRepository.calls, 1);
+    expect(repository.checkCalls, 0);
     expect(find.text('Player information'), findsOneWidget);
     controller().editPlayer(validPlayer());
     controller().review();
     await tester.pump();
+    expect(find.text('New guardian'), findsOneWidget);
     await tester.tap(
       find.widgetWithText(FilledButton, 'Create player profile'),
     );
     await tester.pumpAndSettle();
 
     expect(repository.registerCalls, 1);
-    expect(repository.submitted!.existingGuardian, isNull);
-    expect(repository.submitted!.guardian.email, 'ana@example.com');
+    expect(repository.submitted!.existingGuardian!.id, 'guardian-created');
+    expect(repository.submitted!.existingGuardian!.email, 'ana@example.com');
     expect(
       find.text('Guardian account and player profile created successfully.'),
       findsOneWidget,
     );
+    expect(find.textContaining('GuardianPass1'), findsOneWidget);
   });
 
   testWidgets('invalid guardian fields remain on the form', (tester) async {
     await pumpFlow(tester);
     await tester.tap(find.widgetWithText(OutlinedButton, 'No'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Continue to player'));
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Create guardian account'),
+    );
     await tester.pump();
 
     expect(find.text('This field is required.'), findsNWidgets(2));
@@ -172,16 +216,16 @@ void main() {
       find.text('Enter a Philippine mobile number, e.g. 09171234567.'),
       findsOneWidget,
     );
-    expect(repository.checkCalls, 0);
+    expect(memberRepository.calls, 0);
+    expect(repository.registerCalls, 0);
   });
 
-  testWidgets('duplicate guardian offers the existing-guardian path', (
+  testWidgets('Guardian failure stays on the reused account screen', (
     tester,
   ) async {
     await pumpFlow(tester);
-    repository.checkError = const PlayerRegistrationException(
-      'A guardian with this email or mobile number already exists.',
-      existingGuardianId: 'guardian-1',
+    memberRepository.error = const MemberRegistrationException(
+      'An account with this email already exists.',
     );
     await tester.tap(find.widgetWithText(OutlinedButton, 'No'));
     await tester.pumpAndSettle();
@@ -191,14 +235,18 @@ void main() {
     await tester.enterText(fields.at(2), 'Santos');
     await tester.enterText(fields.at(3), 'maria.santos@example.com');
     await tester.enterText(fields.at(4), '09171234567');
-    await tester.tap(find.text('Continue to player'));
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Create guardian account'),
+    );
     await tester.pumpAndSettle();
 
-    expect(find.text('Use existing guardian'), findsOneWidget);
-    await tester.tap(find.text('Use existing guardian'));
-    await tester.pumpAndSettle();
-    expect(find.text('Select guardian'), findsOneWidget);
-    expect(find.text('Maria Santos'), findsOneWidget);
+    expect(
+      find.text('An account with this email already exists.'),
+      findsOneWidget,
+    );
+    expect(find.text('Create guardian account'), findsWidgets);
+    expect(find.text('Player information'), findsNothing);
+    expect(repository.registerCalls, 0);
   });
 
   testWidgets('double submit sends one request and uncertain failure retries', (
@@ -232,31 +280,22 @@ void main() {
     );
   });
 
-  testWidgets(
-    'back navigation preserves the guardian draft and cancel writes nothing',
-    (tester) async {
-      await pumpFlow(tester);
-      await tester.tap(find.widgetWithText(OutlinedButton, 'No'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextFormField).at(0), 'Ana');
-      await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Does this player already have a guardian account?'),
-        findsOneWidget,
-      );
-      await tester.tap(find.widgetWithText(OutlinedButton, 'No'));
-      await tester.pumpAndSettle();
-      expect(
-        tester
-            .widget<TextFormField>(find.byType(TextFormField).at(0))
-            .initialValue,
-        'Ana',
-      );
-      expect(repository.checkCalls, 0);
-      expect(repository.registerCalls, 0);
-    },
-  );
+  testWidgets('back from Guardian account returns to the guardian question', (
+    tester,
+  ) async {
+    await pumpFlow(tester);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'No'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).at(0), 'Ana');
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Does this player already have a guardian account?'),
+      findsOneWidget,
+    );
+    expect(memberRepository.calls, 0);
+    expect(repository.registerCalls, 0);
+  });
 
   testWidgets('player form contains no email field', (tester) async {
     await pumpFlow(tester);

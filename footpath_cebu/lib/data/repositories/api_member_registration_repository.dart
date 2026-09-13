@@ -20,7 +20,7 @@ class ApiMemberRegistrationRepository implements MemberRegistrationRepository {
         '/api/coordinator/member-registrations/',
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(data.toJson(role)),
-        expectedStatuses: {201},
+        expectedStatuses: {200, 201},
       );
       return MemberRegistrationResult.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,

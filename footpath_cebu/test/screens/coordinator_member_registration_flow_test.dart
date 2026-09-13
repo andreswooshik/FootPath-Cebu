@@ -25,6 +25,7 @@ class _MemberRepository implements MemberRegistrationRepository {
       role: role,
       name: data.name,
       email: data.email,
+      mobileNumber: data.mobileNumber,
       temporaryPassword: 'TempPass123',
     );
   }

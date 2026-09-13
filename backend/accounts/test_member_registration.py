@@ -5,8 +5,8 @@ from django.urls import reverse
 from firebase_admin import auth as firebase_auth
 from rest_framework.test import APITestCase
 
-from academy.models import AuditLog
-from .models import Club, Roles, User
+from academy.models import AuditLog, PlayerProfile
+from .models import Club, GuardianLink, Roles, User
 
 
 class CoordinatorMemberRegistrationTests(APITestCase):
@@ -48,6 +48,7 @@ class CoordinatorMemberRegistrationTests(APITestCase):
         self.assertEqual(guardian.last_name, 'Santos')
         self.assertEqual(guardian.email, 'maria@example.com')
         self.assertEqual(guardian.mobile_number, '+639171234567')
+        self.assertEqual(response.data['mobileNumber'], '+639171234567')
         self.assertEqual(guardian.club, self.club)
         self.assertIsNotNone(response.data['temporaryPassword'])
         self.assertEqual(response['Cache-Control'], 'no-store')
@@ -60,6 +61,40 @@ class CoordinatorMemberRegistrationTests(APITestCase):
         coach = User.objects.get(pk=response.data['memberId'])
         self.assertEqual(coach.role, Roles.COACH)
         self.assertEqual(coach.club, self.club)
+
+    def test_created_guardian_id_links_a_player_through_the_player_endpoint(self):
+        guardian_response = self.client.post(self.url, self.payload, format='json')
+        self.assertEqual(guardian_response.status_code, 201, guardian_response.data)
+
+        player_response = self.client.post(
+            reverse('coordinator-player-registration'),
+            {
+                'requestId': str(uuid4()),
+                'existingGuardianId': guardian_response.data['memberId'],
+                'player': {
+                    'firstName': 'John',
+                    'lastName': 'Santos',
+                    'dateOfBirth': '2012-03-02',
+                },
+            },
+            format='json',
+        )
+
+        self.assertEqual(player_response.status_code, 201, player_response.data)
+        self.assertEqual(
+            player_response.data['guardianId'],
+            guardian_response.data['memberId'],
+        )
+        self.assertTrue(
+            PlayerProfile.objects.filter(user_id=player_response.data['playerId']).exists()
+        )
+        self.assertTrue(
+            GuardianLink.objects.filter(
+                guardian_id=guardian_response.data['memberId'],
+                player_id=player_response.data['playerId'],
+            ).exists()
+        )
+        self.create.assert_called_once()
 
     def test_required_email_role_and_middle_initial_format_are_enforced(self):
         for key, value in (
