@@ -155,6 +155,30 @@ void main() {
     expect(find.text('John Santos'), findsOneWidget);
   });
 
+  testWidgets('player row keeps the statistics and eligibility profile', (
+    tester,
+  ) async {
+    await pumpPeople(tester);
+
+    await tester.tap(find.text('John Santos'));
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(AppBar, 'Player Profile'), findsOneWidget);
+    expect(find.byTooltip('Manage player'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Academic Eligibility'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Academic Eligibility'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('View Match Performance Trends'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('View Match Performance Trends'), findsOneWidget);
+  });
+
   testWidgets('cancel does not delete and a blocked delete stays on details', (
     tester,
   ) async {

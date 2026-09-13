@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/development_assessment.dart';
+import 'package:footpath_cebu/domain/entities/coordinator_person.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
@@ -11,6 +12,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/player_photo_controller.dart';
 import 'package:footpath_cebu/presentation/providers/player_position_controller.dart';
 import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_person_details_screen.dart';
 import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
@@ -47,6 +49,20 @@ class PlayerProfileScreen extends ConsumerStatefulWidget {
 
 class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   late Player _player = widget.player;
+
+  Future<void> _openCoordinatorDetails() async {
+    final deletedRole = await Navigator.of(context).push<CoordinatorPersonRole>(
+      MaterialPageRoute(
+        builder: (_) => CoordinatorPersonDetailsScreen(
+          role: CoordinatorPersonRole.player,
+          personId: _player.id,
+        ),
+      ),
+    );
+    if (deletedRole == CoordinatorPersonRole.player && mounted) {
+      Navigator.of(context).pop(deletedRole);
+    }
+  }
 
   Future<void> _pickAndUploadPhoto() async {
     XFile? picked;
@@ -199,6 +215,12 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
       appBar: AppBar(
         title: const Text('Player Profile'),
         actions: [
+          if (widget.profile.isCoordinator)
+            IconButton(
+              icon: const Icon(Icons.manage_accounts_outlined),
+              tooltip: 'Manage player',
+              onPressed: _openCoordinatorDetails,
+            ),
           // Only a coach can flag a dispute (server-enforced; hiding the
           // action for other roles is UX, not authorisation).
           if (widget.profile.isCoach)

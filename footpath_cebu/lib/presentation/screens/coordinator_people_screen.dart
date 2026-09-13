@@ -12,6 +12,7 @@ import 'package:footpath_cebu/presentation/providers/club_member_providers.dart'
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_create_account_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_person_details_screen.dart';
+import 'package:footpath_cebu/presentation/screens/player_profile_screen.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/eligibility_badge.dart';
@@ -95,10 +96,7 @@ class _CoordinatorPeopleScreenState
                         final player = filtered[index - 1];
                         return _PlayerRow(
                           player: player,
-                          onTap: () => _openDetails(
-                            CoordinatorPersonRole.player,
-                            player.id,
-                          ),
+                          onTap: () => _openPlayerProfile(player),
                         );
                       },
                     ),
@@ -151,6 +149,21 @@ class _CoordinatorPeopleScreenState
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openPlayerProfile(Player player) async {
+    final deletedRole = await Navigator.of(context).push<CoordinatorPersonRole>(
+      MaterialPageRoute(
+        builder: (_) =>
+            PlayerProfileScreen(player: player, profile: widget.profile),
+      ),
+    );
+    if (!mounted) return;
+    _invalidatePeople();
+    if (deletedRole != CoordinatorPersonRole.player) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Player deleted successfully.')),
+    );
   }
 
   void _invalidatePeople() {
