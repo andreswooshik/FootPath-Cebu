@@ -125,6 +125,7 @@ class ClubMemberDirectoryView(APIView):
                     'role': member.role,
                     'roleDisplay': member.get_role_display(),
                     'email': member.email,
+                    'mobileNumber': member.mobile_number,
                     'linkedPlayers': linked_players,
                 }
             )

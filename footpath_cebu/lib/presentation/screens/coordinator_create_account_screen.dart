@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:footpath_cebu/core/di/runtime_config.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_invite_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_player_registration_flow.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 
 class CoordinatorCreateAccountScreen extends StatefulWidget {
@@ -28,99 +29,112 @@ class _CoordinatorCreateAccountScreenState
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: const BackButton(),
-      title: const Text('Create account'),
-    ),
-    body: Form(
-      key: _formKey,
-      child: ListView(
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
-      children: [
-        const Text(
-          'Account type',
-          style: TextStyle(color: Color(0xFF6B6A66), fontSize: 12),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            for (final type in ['Player', 'Guardian', 'Coach'])
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _TypeChip(
-                    label: type,
-                    selected: _type == type,
-                    onTap: () => setState(() => _type = type),
+  Widget build(BuildContext context) => _type == 'Player'
+      ? CoordinatorPlayerRegistrationFlow(
+          onAccountTypeChanged: (type) => setState(() => _type = type),
+        )
+      : Scaffold(
+          appBar: AppBar(
+            leading: const BackButton(),
+            title: const Text('Create account'),
+          ),
+          body: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
+              children: [
+                const Text(
+                  'Account type',
+                  style: TextStyle(color: Color(0xFF6B6A66), fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    for (final type in ['Player', 'Guardian', 'Coach'])
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _TypeChip(
+                            label: type,
+                            selected: _type == type,
+                            onTap: () => setState(() => _type = type),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                _Field(
+                  label: 'Full name',
+                  hint: 'Juan Dela Cruz',
+                  controller: _nameController,
+                  required: true,
+                ),
+                if (_type == 'Player') ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _Field(
+                          label: 'Date of birth',
+                          hint: 'DD/MM/YYYY',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _SelectField(label: 'Position', value: 'Winger'),
+                      ),
+                    ],
+                  ),
+                  _SelectField(label: 'Team', value: 'Boys U15'),
+                  const _Subsection('Guardian link'),
+                  const _SelectField(
+                    label: 'Linked guardian',
+                    value: 'Search existing guardians',
+                  ),
+                  const Text(
+                    "Can't find them? Create a new guardian account after saving this player.",
+                    style: TextStyle(color: Color(0xFF6B6A66), fontSize: 12),
+                  ),
+                ] else if (_type == 'Guardian') ...[
+                  const _SelectField(
+                    label: 'Relationship to player',
+                    value: 'Parent',
+                  ),
+                  const _SelectField(
+                    label: 'Linked player(s)',
+                    value: 'Search existing players',
+                  ),
+                ] else ...[
+                  const _SelectField(label: 'Role', value: 'Head coach'),
+                  const _SelectField(
+                    label: 'Team assignment',
+                    value: 'Boys U15',
+                  ),
+                ],
+                const _Subsection('Contact'),
+                _Field(
+                  label: 'Phone number',
+                  hint: '+63 900 000 0000',
+                  controller: _phoneController,
+                  required: true,
+                ),
+                _Field(
+                  label: 'Email (optional)',
+                  hint: 'name@email.com',
+                  controller: _emailController,
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _continueToInvite,
+                    child: Text('Create ${_type.toLowerCase()} account'),
                   ),
                 ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 22),
-        _Field(
-          label: 'Full name',
-          hint: 'Juan Dela Cruz',
-          controller: _nameController,
-          required: true,
-        ),
-        if (_type == 'Player') ...[
-          Row(
-            children: [
-              Expanded(
-                child: _Field(label: 'Date of birth', hint: 'DD/MM/YYYY'),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _SelectField(label: 'Position', value: 'Winger'),
-              ),
-            ],
+              ],
+            ),
           ),
-          _SelectField(label: 'Team', value: 'Boys U15'),
-          const _Subsection('Guardian link'),
-          const _SelectField(
-            label: 'Linked guardian',
-            value: 'Search existing guardians',
-          ),
-          const Text(
-            "Can't find them? Create a new guardian account after saving this player.",
-            style: TextStyle(color: Color(0xFF6B6A66), fontSize: 12),
-          ),
-        ] else if (_type == 'Guardian') ...[
-          const _SelectField(label: 'Relationship to player', value: 'Parent'),
-          const _SelectField(
-            label: 'Linked player(s)',
-            value: 'Search existing players',
-          ),
-        ] else ...[
-          const _SelectField(label: 'Role', value: 'Head coach'),
-          const _SelectField(label: 'Team assignment', value: 'Boys U15'),
-        ],
-        const _Subsection('Contact'),
-        _Field(
-          label: 'Phone number',
-          hint: '+63 900 000 0000',
-          controller: _phoneController,
-          required: true,
-        ),
-        _Field(
-          label: 'Email (optional)',
-          hint: 'name@email.com',
-          controller: _emailController,
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: _continueToInvite,
-            child: Text('Create ${_type.toLowerCase()} account'),
-          ),
-        ),
-      ],
-      ),
-    ),
-  );
+        );
 
   void _continueToInvite() {
     if (!_formKey.currentState!.validate()) return;

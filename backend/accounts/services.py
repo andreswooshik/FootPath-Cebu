@@ -139,7 +139,10 @@ def set_coordinator_mobile_disabled(user, *, disabled):
     return True
 
 
-def provision_user(*, email, first_name, last_name, role, club=None, _allow_player=False):
+def provision_user(
+    *, email, first_name, last_name, role, club=None, _allow_player=False,
+    created_identities=None,
+):
     """Create a Firebase account (if needed) and a linked local User.
 
     For app users (player / coach / guardian) who authenticate via Firebase.
@@ -170,6 +173,8 @@ def provision_user(*, email, first_name, last_name, role, club=None, _allow_play
         club=club,
     )
     temp_password = link_or_create_firebase_user(user)
+    if temp_password is not None and created_identities is not None:
+        created_identities.append(user.firebase_uid)
 
     try:
         with transaction.atomic():
@@ -178,7 +183,7 @@ def provision_user(*, email, first_name, last_name, role, club=None, _allow_play
         # Compensation: if we just CREATED the Firebase account, delete it so a
         # DB failure never leaves an orphaned identity (audit checklist item 5).
         # An idempotently re-linked account (temp_password is None) is left alone.
-        if temp_password is not None and user.firebase_uid:
+        if created_identities is None and temp_password is not None and user.firebase_uid:
             try:
                 firebase_auth.delete_user(user.firebase_uid)
             except Exception:
@@ -219,6 +224,7 @@ def provision_player(
     date_of_birth,
     club,
     guardian=None,
+    created_identities=None,
 ):
     """Create one valid PLAYER aggregate in a single transaction.
 
@@ -252,6 +258,7 @@ def provision_player(
                     role=Roles.PLAYER,
                     club=club,
                     _allow_player=True,
+                    created_identities=created_identities,
                 )
             else:
                 user = provision_managed_player(
@@ -271,7 +278,7 @@ def provision_player(
             if guardian is not None:
                 GuardianLink.objects.create(guardian=guardian, player=user)
     except Exception:
-        if temp_password is not None and user and user.firebase_uid:
+        if created_identities is None and temp_password is not None and user and user.firebase_uid:
             try:
                 firebase_auth.delete_user(user.firebase_uid)
             except Exception:

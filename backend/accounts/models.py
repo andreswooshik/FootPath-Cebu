@@ -101,6 +101,13 @@ class Club(models.Model):
 
 
 class User(AbstractUser):
+    mobile_number = models.CharField(
+        max_length=13,
+        blank=True,
+        null=True,
+        default='',
+        db_index=True,
+    )
     # Nullable so createsuperuser still works for the Django admin site;
     # every API user is provisioned with a Firebase UID.
     firebase_uid = models.CharField(
@@ -149,6 +156,32 @@ class GuardianLinkManager(models.Manager):
         for link in objs:
             link.full_clean()
         return super().bulk_create(objs, *args, **kwargs)
+
+
+class PlayerRegistration(models.Model):
+    """Receipt for one coordinator command; credentials are never persisted."""
+
+    coordinator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='player_registrations')
+    request_key = models.UUIDField()
+    payload_hash = models.CharField(max_length=64)
+    player = models.OneToOneField(User, on_delete=models.PROTECT, related_name='registration')
+    guardian = models.ForeignKey(User, on_delete=models.PROTECT, related_name='registrations_as_guardian')
+    guardian_created = models.BooleanField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['coordinator', 'request_key'], name='unique_player_registration_request'
+            ),
+        ]
+
+
+class FirebaseProvisioningCleanup(models.Model):
+    """Failed compensation, retried by retry_provisioning_cleanup."""
+
+    firebase_uid = models.CharField(max_length=128, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class GuardianLink(models.Model):

@@ -269,6 +269,10 @@ class MockPlayerRepository
     return List.unmodifiable(_squad);
   }
 
+  void addRegisteredPlayer(Player player) {
+    if (!_squad.any((existing) => existing.id == player.id)) _squad.add(player);
+  }
+
   @override
   Future<Player> fetchMyProfile() async {
     await Future.delayed(const Duration(milliseconds: 500));
