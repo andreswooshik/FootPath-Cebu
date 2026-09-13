@@ -1,10 +1,15 @@
 from django.urls import path
 
 from . import views
-from .view_registration import CoordinatorGuardianCheckView, CoordinatorPlayerRegistrationView
+from .view_registration import (
+    CoordinatorGuardianCheckView,
+    CoordinatorMemberRegistrationView,
+    CoordinatorPlayerRegistrationView,
+)
 
 urlpatterns = [
     path('coordinator/guardians/check/', CoordinatorGuardianCheckView.as_view(), name='coordinator-guardian-check'),
+    path('coordinator/member-registrations/', CoordinatorMemberRegistrationView.as_view(), name='coordinator-member-registration'),
     path('coordinator/player-registrations/', CoordinatorPlayerRegistrationView.as_view(), name='coordinator-player-registration'),
     path('auth/me/', views.MeView.as_view(), name='auth-me'),
     path(

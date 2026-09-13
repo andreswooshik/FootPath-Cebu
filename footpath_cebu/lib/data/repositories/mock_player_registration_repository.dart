@@ -80,7 +80,6 @@ class MockPlayerRegistrationRepository implements PlayerRegistrationRepository {
       guardianId: guardian.id,
       coordinatorId: 'mock-coordinator',
       guardianCreated: draft.existingGuardian == null,
-      playerEmail: draft.player.email,
       guardianEmail: guardian.email,
     );
     _results[draft.requestId] = result;

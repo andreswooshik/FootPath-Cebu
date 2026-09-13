@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:footpath_cebu/domain/entities/player_registration.dart';
+import 'package:footpath_cebu/domain/entities/member_registration.dart';
 
 String? registrationNameError(String? value) =>
     value == null || value.trim().isEmpty ? 'This field is required.' : null;
@@ -7,10 +8,17 @@ String? registrationNameError(String? value) =>
 String? registrationEmailError(String? value, {bool optional = false}) {
   final email = value?.trim() ?? '';
   if (optional && email.isEmpty) return null;
-  if (email.isEmpty) return 'Email address is required.';
+  if (email.isEmpty) return 'Email is required.';
   return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)
       ? null
       : 'Enter a valid email address.';
+}
+
+String? registrationMiddleInitialError(String? value) {
+  final initial = value?.trim() ?? '';
+  return RegExp(r'^[A-Za-z]\.?$').hasMatch(initial)
+      ? null
+      : 'Enter one letter for the middle initial.';
 }
 
 String? registrationPhoneError(String? value) {
@@ -67,15 +75,116 @@ class GuardianRegistrationForm extends StatefulWidget {
       _GuardianRegistrationFormState();
 }
 
+class MemberRegistrationForm extends StatefulWidget {
+  const MemberRegistrationForm({
+    super.key,
+    required this.role,
+    required this.busy,
+    required this.onSubmit,
+  });
+
+  final MemberAccountRole role;
+  final bool busy;
+  final ValueChanged<MemberRegistrationData> onSubmit;
+
+  @override
+  State<MemberRegistrationForm> createState() => _MemberRegistrationFormState();
+}
+
+class _MemberRegistrationFormState extends State<MemberRegistrationForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final String _requestId = newRegistrationRequestId();
+  String _first = '';
+  String _middle = '';
+  String _last = '';
+  String _email = '';
+  String _phone = '';
+
+  @override
+  Widget build(BuildContext context) => Form(
+    key: _formKey,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        RegistrationField(
+          label: 'First name *',
+          initialValue: _first,
+          maxLength: 150,
+          validator: registrationNameError,
+          onChanged: (value) => _first = value,
+        ),
+        RegistrationField(
+          label: 'Middle initial *',
+          initialValue: _middle,
+          maxLength: 2,
+          validator: registrationMiddleInitialError,
+          onChanged: (value) => _middle = value,
+        ),
+        RegistrationField(
+          label: 'Last name *',
+          initialValue: _last,
+          maxLength: 150,
+          validator: registrationNameError,
+          onChanged: (value) => _last = value,
+        ),
+        RegistrationField(
+          label: 'Email *',
+          initialValue: _email,
+          maxLength: 254,
+          keyboardType: TextInputType.emailAddress,
+          validator: registrationEmailError,
+          onChanged: (value) => _email = value,
+        ),
+        RegistrationField(
+          label: 'Mobile number *',
+          initialValue: _phone,
+          maxLength: 30,
+          keyboardType: TextInputType.phone,
+          validator: registrationPhoneError,
+          onChanged: (value) => _phone = value,
+        ),
+        FilledButton.icon(
+          onPressed: widget.busy
+              ? null
+              : () {
+                  if (!_formKey.currentState!.validate()) return;
+                  widget.onSubmit(
+                    MemberRegistrationData(
+                      requestId: _requestId,
+                      firstName: _first.trim(),
+                      middleInitial: _middle
+                          .trim()
+                          .replaceAll('.', '')
+                          .toUpperCase(),
+                      lastName: _last.trim(),
+                      email: _email.trim().toLowerCase(),
+                      mobileNumber: _phone.trim(),
+                    ),
+                  );
+                },
+          icon: const Icon(Icons.person_add_outlined),
+          label: Text(
+            widget.busy
+                ? 'Creating account...'
+                : 'Create ${widget.role.label.toLowerCase()} account',
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class _GuardianRegistrationFormState extends State<GuardianRegistrationForm> {
   final _formKey = GlobalKey<FormState>();
   late String _first = widget.initial.firstName,
+      _middle = widget.initial.middleInitial,
       _last = widget.initial.lastName,
       _email = widget.initial.email,
       _phone = widget.initial.mobileNumber;
   void _changed() => widget.onChanged(
     GuardianRegistrationData(
       firstName: _first.trim(),
+      middleInitial: _middle.trim().replaceAll('.', '').toUpperCase(),
       lastName: _last.trim(),
       email: _email.trim().toLowerCase(),
       mobileNumber: _phone.trim(),
@@ -87,7 +196,7 @@ class _GuardianRegistrationFormState extends State<GuardianRegistrationForm> {
     child: Column(
       children: [
         RegistrationField(
-          label: 'First name',
+          label: 'First name *',
           initialValue: _first,
           maxLength: 150,
           validator: registrationNameError,
@@ -97,7 +206,17 @@ class _GuardianRegistrationFormState extends State<GuardianRegistrationForm> {
           },
         ),
         RegistrationField(
-          label: 'Last name',
+          label: 'Middle initial *',
+          initialValue: _middle,
+          maxLength: 2,
+          validator: registrationMiddleInitialError,
+          onChanged: (v) {
+            _middle = v;
+            _changed();
+          },
+        ),
+        RegistrationField(
+          label: 'Last name *',
           initialValue: _last,
           maxLength: 150,
           validator: registrationNameError,
@@ -107,7 +226,7 @@ class _GuardianRegistrationFormState extends State<GuardianRegistrationForm> {
           },
         ),
         RegistrationField(
-          label: 'Email address',
+          label: 'Email *',
           initialValue: _email,
           maxLength: 254,
           keyboardType: TextInputType.emailAddress,
@@ -118,7 +237,7 @@ class _GuardianRegistrationFormState extends State<GuardianRegistrationForm> {
           },
         ),
         RegistrationField(
-          label: 'Mobile number',
+          label: 'Mobile number *',
           initialValue: _phone,
           maxLength: 30,
           keyboardType: TextInputType.phone,
@@ -165,15 +284,13 @@ class _PlayerAccountFormState extends State<PlayerAccountForm> {
   final _formKey = GlobalKey<FormState>();
   late String _first = widget.initial.firstName,
       _last = widget.initial.lastName,
-      _middle = widget.initial.middleInitial,
-      _email = widget.initial.email;
+      _middle = widget.initial.middleInitial;
   late DateTime? _dob = widget.initial.dateOfBirth;
   void _changed() => widget.onChanged(
     PlayerRegistrationData(
       firstName: _first.trim(),
       lastName: _last.trim(),
       middleInitial: _middle.trim(),
-      email: _email.trim().toLowerCase(),
       dateOfBirth: _dob,
     ),
   );
@@ -248,17 +365,6 @@ class _PlayerAccountFormState extends State<PlayerAccountForm> {
               ),
             ),
           ),
-        ),
-        RegistrationField(
-          label: 'Player email (optional)',
-          initialValue: _email,
-          maxLength: 254,
-          keyboardType: TextInputType.emailAddress,
-          validator: (v) => registrationEmailError(v, optional: true),
-          onChanged: (v) {
-            _email = v;
-            _changed();
-          },
         ),
         FilledButton(
           onPressed: () {

@@ -101,6 +101,14 @@ class Club(models.Model):
 
 
 class User(AbstractUser):
+    # Guardian and Coach names use the same normalized one-letter initial.
+    # Blank preserves existing rows and legacy Player accounts.
+    middle_initial = models.CharField(
+        max_length=1,
+        blank=True,
+        null=True,
+        default='',
+    )
     mobile_number = models.CharField(
         max_length=13,
         blank=True,
@@ -173,6 +181,32 @@ class PlayerRegistration(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['coordinator', 'request_key'], name='unique_player_registration_request'
+            ),
+        ]
+
+
+class MemberRegistration(models.Model):
+    """Idempotency receipt for Coordinator-created Guardian/Coach accounts."""
+
+    coordinator = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name='member_registrations',
+    )
+    request_key = models.UUIDField()
+    payload_hash = models.CharField(max_length=64)
+    member = models.OneToOneField(
+        User,
+        on_delete=models.PROTECT,
+        related_name='member_registration',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['coordinator', 'request_key'],
+                name='unique_member_registration_request',
             ),
         ]
 

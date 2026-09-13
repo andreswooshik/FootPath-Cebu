@@ -448,9 +448,8 @@ class AdminCreatePlayerSerializer(serializers.Serializer):
     Player flow. Unlike accounts.AdminCreateUserSerializer, name fields here
     are genuinely required (no allow_blank): this is the only path that
     creates both the User and its PlayerProfile together. A guardian is required;
-    email is optional for guardian-managed players."""
+    players are always guardian-managed and have no login email."""
 
-    email = serializers.EmailField(required=False, allow_blank=True)
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150)
     middle_initial = serializers.CharField(max_length=5)
@@ -459,6 +458,13 @@ class AdminCreatePlayerSerializer(serializers.Serializer):
         queryset=User.objects.filter(role=Roles.GUARDIAN),
         required=True,
     )
+
+    def to_internal_value(self, data):
+        if 'email' in data:
+            raise serializers.ValidationError(
+                {'email': 'Player profiles do not have a separate login email.'}
+            )
+        return super().to_internal_value(data)
 
 
 class AgeTierSettingSerializer(serializers.ModelSerializer):

@@ -142,26 +142,25 @@ class _BaseCreateAccountForm(forms.Form):
 class CreateCoachForm(_BaseCreateAccountForm):
     """Coach = a mobile-app (Firebase) account, no extra profile."""
 
+    middle_initial = forms.RegexField(
+        regex=r'^[A-Za-z]\.?$',
+        max_length=2,
+        error_messages={'invalid': 'Enter one letter for the middle initial.'},
+    )
+
 
 class CreateStaffForm(_BaseCreateAccountForm):
     """School staff = a web-portal (Django session) account."""
 
 
 class CreatePlayerForm(_BaseCreateAccountForm):
-    email = forms.EmailField(
-        required=False,
-        label='Player email (optional)',
-        help_text=(
-            'Leave blank for a guardian-managed player profile. Do not reuse '
-            'the guardian email as a second login.'
-        ),
-    )
+    email = None
     middle_initial = forms.CharField(max_length=5, required=False)
     date_of_birth = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}))
     guardian = forms.ModelChoiceField(
         queryset=User.objects.none(),
-        required=False,
-        help_text='Optional: link an existing Guardian in this club.',
+        required=True,
+        help_text='Every player profile must be linked to a Guardian in this club.',
     )
 
     def __init__(self, *args, **kwargs):
@@ -172,8 +171,22 @@ class CreatePlayerForm(_BaseCreateAccountForm):
             ).order_by('last_name', 'first_name')
         self.fields['guardian'].label_from_instance = _user_label
 
+    def clean(self):
+        cleaned = super().clean()
+        supplied_email = self.data.get('email') or self.data.get(self.add_prefix('email'))
+        if supplied_email:
+            raise forms.ValidationError(
+                'Player profiles do not have a separate login email.'
+            )
+        return cleaned
+
 
 class CreateGuardianForm(_BaseCreateAccountForm):
+    middle_initial = forms.RegexField(
+        regex=r'^[A-Za-z]\.?$',
+        max_length=2,
+        error_messages={'invalid': 'Enter one letter for the middle initial.'},
+    )
     player = forms.ModelChoiceField(
         queryset=User.objects.none(),
         required=False,

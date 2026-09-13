@@ -5,14 +5,20 @@ import 'package:footpath_cebu/domain/entities/club_member.dart';
 class GuardianRegistrationData {
   const GuardianRegistrationData({
     this.firstName = '',
+    this.middleInitial = '',
     this.lastName = '',
     this.email = '',
     this.mobileNumber = '',
   });
-  final String firstName, lastName, email, mobileNumber;
-  String get name => '$firstName $lastName'.trim();
+  final String firstName, middleInitial, lastName, email, mobileNumber;
+  String get name => [
+    firstName,
+    if (middleInitial.isNotEmpty) '${middleInitial.replaceAll('.', '')}.',
+    lastName,
+  ].where((part) => part.isNotEmpty).join(' ');
   Map<String, dynamic> toJson() => {
     'firstName': firstName.trim(),
+    'middleInitial': middleInitial.trim().replaceAll('.', '').toUpperCase(),
     'lastName': lastName.trim(),
     'email': email.trim().toLowerCase(),
     'mobileNumber': mobileNumber.trim(),
@@ -24,17 +30,15 @@ class PlayerRegistrationData {
     this.firstName = '',
     this.lastName = '',
     this.middleInitial = '',
-    this.email = '',
     this.dateOfBirth,
   });
-  final String firstName, lastName, middleInitial, email;
+  final String firstName, lastName, middleInitial;
   final DateTime? dateOfBirth;
   String get name => '$firstName $lastName'.trim();
   Map<String, dynamic> toJson() => {
     'firstName': firstName.trim(),
     'lastName': lastName.trim(),
     'middleInitial': middleInitial.trim(),
-    'email': email.trim().toLowerCase(),
     'dateOfBirth': dateOfBirth?.toIso8601String().split('T').first,
   };
 }
@@ -93,15 +97,13 @@ class PlayerRegistrationResult {
     required this.guardianId,
     required this.coordinatorId,
     required this.guardianCreated,
-    required this.playerEmail,
     required this.guardianEmail,
     this.guardianTemporaryPassword,
-    this.playerTemporaryPassword,
     this.replayed = false,
   });
-  final String playerId, guardianId, coordinatorId, playerEmail, guardianEmail;
+  final String playerId, guardianId, coordinatorId, guardianEmail;
   final bool guardianCreated, replayed;
-  final String? guardianTemporaryPassword, playerTemporaryPassword;
+  final String? guardianTemporaryPassword;
 
   factory PlayerRegistrationResult.fromJson(Map<String, dynamic> json) =>
       PlayerRegistrationResult(
@@ -109,10 +111,8 @@ class PlayerRegistrationResult {
         guardianId: json['guardianId'] as String,
         coordinatorId: json['coordinatorId'] as String,
         guardianCreated: json['guardianCreated'] as bool,
-        playerEmail: json['playerEmail'] as String,
         guardianEmail: json['guardianEmail'] as String,
         guardianTemporaryPassword: json['guardianTemporaryPassword'] as String?,
-        playerTemporaryPassword: json['playerTemporaryPassword'] as String?,
         replayed: json['replayed'] as bool? ?? false,
       );
 }

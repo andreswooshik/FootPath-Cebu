@@ -256,7 +256,7 @@ class _Review extends StatelessWidget {
         contentPadding: EdgeInsets.zero,
         title: Text(state.draft.player.name),
         subtitle: Text(
-          '${MaterialLocalizations.of(context).formatMediumDate(state.draft.player.dateOfBirth!)}\n${state.draft.player.email.isEmpty ? 'Guardian-managed profile' : state.draft.player.email}',
+          '${MaterialLocalizations.of(context).formatMediumDate(state.draft.player.dateOfBirth!)}\nGuardian-managed profile',
         ),
       ),
       const Divider(),
@@ -279,10 +279,10 @@ class _Review extends StatelessWidget {
         icon: const Icon(Icons.person_add_outlined),
         label: Text(
           state.isBusy
-              ? 'Creating and linking accounts...'
+              ? 'Creating account and player profile...'
               : state.retryOnly
               ? 'Retry registration'
-              : 'Create player account',
+              : 'Create player profile',
         ),
       ),
     ],
@@ -301,7 +301,9 @@ class _Success extends StatelessWidget {
         const Icon(Icons.check_circle_outline, size: 48),
         const SizedBox(height: 16),
         Text(
-          'Player account created successfully.',
+          result.guardianCreated
+              ? 'Guardian account and player profile created successfully.'
+              : 'Player profile added successfully.',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 12),
@@ -315,13 +317,6 @@ class _Success extends StatelessWidget {
           Text('Guardian: ${result.guardianEmail}'),
           SelectableText(
             'Temporary password: ${result.guardianTemporaryPassword}',
-          ),
-        ],
-        if (result.playerTemporaryPassword != null) ...[
-          const SizedBox(height: 20),
-          Text('Player: ${result.playerEmail}'),
-          SelectableText(
-            'Temporary password: ${result.playerTemporaryPassword}',
           ),
         ],
         if (result.replayed) ...[

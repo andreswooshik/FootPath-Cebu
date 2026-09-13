@@ -54,64 +54,65 @@ class _CoordinatorPeopleScreenState
       ),
       body: _activeTab == 'Players'
           ? roster.when(
-        loading: () => const DashboardLoadingState(),
-        error: (error, _) => DashboardErrorState(
-          message: friendlyErrorMessage(
-            error,
-            'Could not load the club roster.',
-          ),
-          onRetry: () => ref.invalidate(squadProvider),
-        ),
-        data: (players) {
-          final filtered = _filter(players);
-          return RefreshIndicator(
-            onRefresh: () => ref.refresh(squadProvider.future),
-            child: ResponsiveContent(
-              child: ListView.builder(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                itemCount: filtered.isEmpty ? 2 : filtered.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return _PeopleHeader(
-                      count: players.length,
-                      activeTab: _activeTab,
-                      onTabChanged: (value) => setState(() {
-                        _activeTab = value;
-                        _query = '';
-                      }),
-                      onChanged: (value) => setState(() => _query = value),
-                    );
-                  }
-                  if (index == 1 && filtered.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.only(top: 48),
-                      child: DashboardEmptyState(
-                        icon: Icons.person_search_outlined,
-                        title: 'No matching people',
-                        message: 'Try a different search or tab.',
-                        compact: true,
-                      ),
-                    );
-                  }
-                  final player = filtered[index - 1];
-                  return _PlayerRow(
-                    player: player,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => PlayerProfileScreen(
-                          player: player,
-                          profile: widget.profile,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+              loading: () => const DashboardLoadingState(),
+              error: (error, _) => DashboardErrorState(
+                message: friendlyErrorMessage(
+                  error,
+                  'Could not load the club roster.',
+                ),
+                onRetry: () => ref.invalidate(squadProvider),
               ),
-            ),
-          );
-        },
-      )
+              data: (players) {
+                final filtered = _filter(players);
+                return RefreshIndicator(
+                  onRefresh: () => ref.refresh(squadProvider.future),
+                  child: ResponsiveContent(
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                      itemCount: filtered.isEmpty ? 2 : filtered.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return _PeopleHeader(
+                            count: players.length,
+                            activeTab: _activeTab,
+                            onTabChanged: (value) => setState(() {
+                              _activeTab = value;
+                              _query = '';
+                            }),
+                            onChanged: (value) =>
+                                setState(() => _query = value),
+                          );
+                        }
+                        if (index == 1 && filtered.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.only(top: 48),
+                            child: DashboardEmptyState(
+                              icon: Icons.person_search_outlined,
+                              title: 'No matching people',
+                              message: 'Try a different search or tab.',
+                              compact: true,
+                            ),
+                          );
+                        }
+                        final player = filtered[index - 1];
+                        return _PlayerRow(
+                          player: player,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => PlayerProfileScreen(
+                                player: player,
+                                profile: widget.profile,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
+            )
           : _MemberDirectory(
               role: _activeTab == 'Guardians'
                   ? ClubMemberRole.guardian
@@ -236,14 +237,16 @@ class _MemberDirectory extends ConsumerWidget {
       ),
       data: (rows) {
         final normalized = query.trim().toLowerCase();
-        final filtered = rows.where((member) {
-          return normalized.isEmpty ||
-              member.name.toLowerCase().contains(normalized) ||
-              member.email.toLowerCase().contains(normalized) ||
-              member.linkedPlayers.any(
-                (player) => player.toLowerCase().contains(normalized),
-              );
-        }).toList(growable: false);
+        final filtered = rows
+            .where((member) {
+              return normalized.isEmpty ||
+                  member.name.toLowerCase().contains(normalized) ||
+                  member.email.toLowerCase().contains(normalized) ||
+                  member.linkedPlayers.any(
+                    (player) => player.toLowerCase().contains(normalized),
+                  );
+            })
+            .toList(growable: false);
         return RefreshIndicator(
           onRefresh: () => ref.refresh(clubMembersProvider(role).future),
           child: ResponsiveContent(
@@ -293,29 +296,37 @@ class _MemberRow extends StatelessWidget {
               ? 'No linked players'
               : linked.join(', ')
         : member.email;
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Color(0xFFE4E2DC))),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-        leading: CircleAvatar(
-          radius: 19,
-          backgroundColor: member.role == ClubMemberRole.coach
-              ? AppColors.teal
-              : AppColors.coral,
-          child: Text(
-            _initials(member.name),
-            style: const TextStyle(color: Colors.white),
+    return Material(
+      color: Colors.white,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 5,
+            ),
+            leading: CircleAvatar(
+              radius: 19,
+              backgroundColor: member.role == ClubMemberRole.coach
+                  ? AppColors.teal
+                  : AppColors.coral,
+              child: Text(
+                _initials(member.name),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+            title: Text(member.name),
+            subtitle: Text(detail),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('${member.roleDisplay} details are coming next.'),
+              ),
+            ),
           ),
-        ),
-        title: Text(member.name),
-        subtitle: Text(detail),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${member.roleDisplay} details are coming next.')),
-        ),
+          const Divider(height: 1),
+        ],
       ),
     );
   }
@@ -336,41 +347,49 @@ class _PlayerRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      color: Colors.white,
-      border: Border(bottom: BorderSide(color: Color(0xFFE4E2DC))),
-    ),
-    child: ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      leading: CircleAvatar(
-        radius: 19,
-        backgroundImage: player.photoUrl == null
-            ? null
-            : NetworkImage(player.photoUrl!),
-        child: player.photoUrl == null ? Text(_initials(player.name)) : null,
-      ),
-      title: Text(
-        player.name,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${player.position?.label ?? 'Position not assigned'} · ${player.ageTier.label}',
-            style: const TextStyle(fontSize: 13),
+  Widget build(BuildContext context) => Material(
+    color: Colors.white,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 5,
           ),
-          const SizedBox(height: 4),
-          EligibilityBadge(
-            status: player.eligibility,
-            applicable: player.academicEligibilityApplicable,
+          leading: CircleAvatar(
+            radius: 19,
+            backgroundImage: player.photoUrl == null
+                ? null
+                : NetworkImage(player.photoUrl!),
+            child: player.photoUrl == null
+                ? Text(_initials(player.name))
+                : null,
           ),
-        ],
-      ),
-      isThreeLine: true,
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
+          title: Text(
+            player.name,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${player.position?.label ?? 'Position not assigned'} · ${player.ageTier.label}',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              EligibilityBadge(
+                status: player.eligibility,
+                applicable: player.academicEligibilityApplicable,
+              ),
+            ],
+          ),
+          isThreeLine: true,
+          trailing: const Icon(Icons.chevron_right),
+          onTap: onTap,
+        ),
+        const Divider(height: 1),
+      ],
     ),
   );
 

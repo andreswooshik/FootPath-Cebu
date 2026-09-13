@@ -140,22 +140,20 @@ def set_coordinator_mobile_disabled(user, *, disabled):
 
 
 def provision_user(
-    *, email, first_name, last_name, role, club=None, _allow_player=False,
-    created_identities=None,
+    *, email, first_name, last_name, role, club=None, middle_initial='',
+    mobile_number='', created_identities=None,
 ):
     """Create a Firebase account (if needed) and a linked local User.
 
-    For app users (player / coach / guardian) who authenticate via Firebase.
+    For Coach and Guardian app users who authenticate via Firebase.
     `club` scopes the account to a tenant (None for cross-club ADMIN accounts).
 
     Returns (user, temporary_password_or_None, note). Unlinked pre-existing
     Firebase identities are rejected to prevent account pre-hijacking.
     """
-    if role == Roles.PLAYER and not _allow_player:
-        raise ProvisioningError('Players must be created through the player provisioning service.')
-    if role not in (Roles.COACH, Roles.GUARDIAN, Roles.PLAYER):
+    if role not in (Roles.COACH, Roles.GUARDIAN):
         raise ProvisioningError(
-            'This provisioning path supports Coach, Guardian, and Player app accounts only.'
+            'This provisioning path supports Coach and Guardian app accounts only.'
         )
     club = _require_active_club(club, role=role)
     email = email.strip().lower()
@@ -168,7 +166,9 @@ def provision_user(
         username=email,
         email=email,
         first_name=first_name,
+        middle_initial=(middle_initial or '').strip().rstrip('.').upper(),
         last_name=last_name,
+        mobile_number=mobile_number,
         role=role,
         club=club,
     )
@@ -217,75 +217,48 @@ def provision_managed_player(*, first_name, last_name, club):
 
 def provision_player(
     *,
-    email,
     first_name,
     last_name,
     middle_initial,
     date_of_birth,
     club,
-    guardian=None,
-    created_identities=None,
+    guardian,
 ):
     """Create one valid PLAYER aggregate in a single transaction.
 
     Every player creation path calls this service. It derives the age/tier,
-    creates exactly one User and PlayerProfile, and optionally creates a
-    same-club GuardianLink. A failed profile/link write rolls back the database
-    and compensates a newly-created Firebase identity.
+    creates exactly one managed User and PlayerProfile, and creates the
+    same-club GuardianLink. Players deliberately receive no Firebase identity,
+    email credential, or usable Django password.
     """
     from academy.models import AgeTierSetting, PlayerProfile
 
     club = _require_active_club(club, role=Roles.PLAYER)
-    if guardian is not None:
-        if guardian.role != Roles.GUARDIAN or not guardian.is_active:
-            raise ProvisioningError(
-                'The selected guardian must be active and have the Guardian role.'
-            )
-        if guardian.club_id != club.id:
-            raise ProvisioningError('Guardian and player must belong to the same club.')
+    if guardian is None or guardian.role != Roles.GUARDIAN or not guardian.is_active:
+        raise ProvisioningError(
+            'The selected guardian must be active and have the Guardian role.'
+        )
+    if guardian.club_id != club.id:
+        raise ProvisioningError('Guardian and player must belong to the same club.')
 
-    user = None
-    temp_password = None
     note = 'Managed player profile created without an independent login.'
-    try:
-        with transaction.atomic():
-            normalized_email = (email or '').strip().lower()
-            if normalized_email:
-                user, temp_password, note = provision_user(
-                    email=normalized_email,
-                    first_name=first_name,
-                    last_name=last_name,
-                    role=Roles.PLAYER,
-                    club=club,
-                    _allow_player=True,
-                    created_identities=created_identities,
-                )
-            else:
-                user = provision_managed_player(
-                    first_name=first_name,
-                    last_name=last_name,
-                    club=club,
-                )
+    with transaction.atomic():
+        user = provision_managed_player(
+            first_name=first_name,
+            last_name=last_name,
+            club=club,
+        )
+        age, tier = AgeTierSetting.profile_defaults_for(date_of_birth)
+        profile = PlayerProfile.objects.create(
+            user=user,
+            middle_initial=middle_initial or '',
+            date_of_birth=date_of_birth,
+            age=age,
+            age_tier=tier,
+        )
+        GuardianLink.objects.create(guardian=guardian, player=user)
 
-            age, tier = AgeTierSetting.profile_defaults_for(date_of_birth)
-            profile = PlayerProfile.objects.create(
-                user=user,
-                middle_initial=middle_initial or '',
-                date_of_birth=date_of_birth,
-                age=age,
-                age_tier=tier,
-            )
-            if guardian is not None:
-                GuardianLink.objects.create(guardian=guardian, player=user)
-    except Exception:
-        if created_identities is None and temp_password is not None and user and user.firebase_uid:
-            try:
-                firebase_auth.delete_user(user.firebase_uid)
-            except Exception:
-                pass
-        raise
-
-    return user, profile, temp_password, note
+    return user, profile, None, note
 
 
 # Roles an account may be switched between after creation. PLAYER is excluded

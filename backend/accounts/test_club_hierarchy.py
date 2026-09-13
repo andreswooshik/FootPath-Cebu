@@ -70,6 +70,11 @@ class ApprovedClubHierarchyTests(APITestCase):
             club=self.other,
             password='SafePass123!',
         )
+        self.school_guardian = self._member(
+            email='school.guardian@footpath.test',
+            role=Roles.GUARDIAN,
+            club=self.school,
+        )
 
     @staticmethod
     def _fake_firebase_link(user, *, password=None):
@@ -103,17 +108,15 @@ class ApprovedClubHierarchyTests(APITestCase):
         self.client.force_login(coordinator)
         return self.client.post(reverse('portal:create-account'), payload)
 
-    def _player_payload(self, *, email, guardian=None, **extra):
+    def _player_payload(self, *, guardian=None, **extra):
         payload = {
             'account_type': 'player',
-            'email': email,
             'first_name': 'Player',
             'last_name': 'Test',
             'middle_initial': 'Q',
             'date_of_birth': '2012-01-01',
         }
-        if guardian is not None:
-            payload['guardian'] = guardian.id
+        payload['guardian'] = (guardian or self.school_guardian).id
         payload.update(extra)
         return payload
 
@@ -198,12 +201,12 @@ class ApprovedClubHierarchyTests(APITestCase):
     def test_05_coordinator_can_create_player_in_own_club(self):
         response = self._portal_post(
             self.school_coordinator,
-            self._player_payload(email='player05@footpath.test'),
+            self._player_payload(),
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(
             User.objects.filter(
-                email='player05@footpath.test',
+                email='',
                 role=Roles.PLAYER,
                 club=self.school,
             ).exists()
@@ -212,10 +215,10 @@ class ApprovedClubHierarchyTests(APITestCase):
     def test_06_player_automatically_receives_coordinator_club(self):
         self._portal_post(
             self.school_coordinator,
-            self._player_payload(email='player06@footpath.test'),
+            self._player_payload(),
         )
         self.assertEqual(
-            User.objects.get(email='player06@footpath.test').club,
+            User.objects.get(first_name='Player', role=Roles.PLAYER).club,
             self.school,
         )
 
@@ -228,13 +231,12 @@ class ApprovedClubHierarchyTests(APITestCase):
         response = self._portal_post(
             self.school_coordinator,
             self._player_payload(
-                email='player07@footpath.test',
                 guardian=other_guardian,
                 club_id=self.other.id,
             ),
         )
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(User.objects.filter(email='player07@footpath.test').exists())
+        self.assertFalse(User.objects.filter(first_name='Player', role=Roles.PLAYER).exists())
 
     def test_08_modified_club_id_cannot_bypass_server_derived_club(self):
         guardian = self._member(
@@ -245,21 +247,20 @@ class ApprovedClubHierarchyTests(APITestCase):
         self._portal_post(
             self.school_coordinator,
             self._player_payload(
-                email='player08@footpath.test',
                 guardian=guardian,
                 club_id=self.other.id,
             ),
         )
-        player = User.objects.get(email='player08@footpath.test')
+        player = User.objects.get(first_name='Player', role=Roles.PLAYER)
         self.assertEqual(player.club, self.school)
         self.assertNotEqual(player.club, self.other)
 
     def test_09_created_player_always_has_exactly_one_profile(self):
         self._portal_post(
             self.school_coordinator,
-            self._player_payload(email='player09@footpath.test'),
+            self._player_payload(),
         )
-        player = User.objects.get(email='player09@footpath.test')
+        player = User.objects.get(first_name='Player', role=Roles.PLAYER)
         self.assertEqual(PlayerProfile.objects.filter(user=player).count(), 1)
 
     def test_10_coordinator_can_create_coach_in_own_club(self):
@@ -269,6 +270,7 @@ class ApprovedClubHierarchyTests(APITestCase):
                 'account_type': 'coach',
                 'email': 'coach10@footpath.test',
                 'first_name': 'Coach',
+                'middle_initial': 'T',
                 'last_name': 'Ten',
             },
         )
@@ -288,6 +290,7 @@ class ApprovedClubHierarchyTests(APITestCase):
                 'account_type': 'guardian',
                 'email': 'guardian11@footpath.test',
                 'first_name': 'Guardian',
+                'middle_initial': 'E',
                 'last_name': 'Eleven',
             },
         )

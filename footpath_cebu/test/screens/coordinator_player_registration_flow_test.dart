@@ -38,7 +38,6 @@ class _RegistrationRepository implements PlayerRegistrationRepository {
       guardianId: draft.existingGuardian?.id ?? 'guardian-2',
       coordinatorId: 'coordinator-1',
       guardianCreated: draft.existingGuardian == null,
-      playerEmail: draft.player.email,
       guardianEmail: draft.guardianEmail,
       guardianTemporaryPassword: draft.existingGuardian == null
           ? 'GuardianPass1'
@@ -111,13 +110,13 @@ void main() {
     controller().review();
     await tester.pump();
     await tester.tap(
-      find.widgetWithText(FilledButton, 'Create player account'),
+      find.widgetWithText(FilledButton, 'Create player profile'),
     );
     await tester.pumpAndSettle();
 
     expect(repository.registerCalls, 1);
     expect(repository.submitted!.existingGuardian!.id, 'guardian-1');
-    expect(find.text('Player account created successfully.'), findsOneWidget);
+    expect(find.text('Player profile added successfully.'), findsOneWidget);
     expect(find.text('Linked to Maria Santos.'), findsOneWidget);
   });
 
@@ -130,9 +129,10 @@ void main() {
 
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), ' Ana ');
-    await tester.enterText(fields.at(1), ' Cruz ');
-    await tester.enterText(fields.at(2), 'ANA@EXAMPLE.COM');
-    await tester.enterText(fields.at(3), '0918 123 4567');
+    await tester.enterText(fields.at(1), 'D');
+    await tester.enterText(fields.at(2), ' Cruz ');
+    await tester.enterText(fields.at(3), 'ANA@EXAMPLE.COM');
+    await tester.enterText(fields.at(4), '0918 123 4567');
     expect(repository.checkCalls, 0);
     expect(repository.registerCalls, 0);
     await tester.tap(find.text('Continue to player'));
@@ -144,7 +144,7 @@ void main() {
     controller().review();
     await tester.pump();
     await tester.tap(
-      find.widgetWithText(FilledButton, 'Create player account'),
+      find.widgetWithText(FilledButton, 'Create player profile'),
     );
     await tester.pumpAndSettle();
 
@@ -152,7 +152,7 @@ void main() {
     expect(repository.submitted!.existingGuardian, isNull);
     expect(repository.submitted!.guardian.email, 'ana@example.com');
     expect(
-      find.text('Guardian account created and linked successfully.'),
+      find.text('Guardian account and player profile created successfully.'),
       findsOneWidget,
     );
   });
@@ -165,7 +165,11 @@ void main() {
     await tester.pump();
 
     expect(find.text('This field is required.'), findsNWidgets(2));
-    expect(find.text('Email address is required.'), findsOneWidget);
+    expect(
+      find.text('Enter one letter for the middle initial.'),
+      findsOneWidget,
+    );
+    expect(find.text('Email is required.'), findsOneWidget);
     expect(
       find.text('Enter a Philippine mobile number, e.g. 09171234567.'),
       findsOneWidget,
@@ -185,9 +189,10 @@ void main() {
     await tester.pumpAndSettle();
     final fields = find.byType(TextFormField);
     await tester.enterText(fields.at(0), 'Maria');
-    await tester.enterText(fields.at(1), 'Santos');
-    await tester.enterText(fields.at(2), 'maria.santos@example.com');
-    await tester.enterText(fields.at(3), '09171234567');
+    await tester.enterText(fields.at(1), 'D');
+    await tester.enterText(fields.at(2), 'Santos');
+    await tester.enterText(fields.at(3), 'maria.santos@example.com');
+    await tester.enterText(fields.at(4), '09171234567');
     await tester.tap(find.text('Continue to player'));
     await tester.pumpAndSettle();
 
@@ -209,7 +214,7 @@ void main() {
     controller().review();
     repository.pending = Completer<PlayerRegistrationResult>();
     await tester.pump();
-    final submit = find.widgetWithText(FilledButton, 'Create player account');
+    final submit = find.widgetWithText(FilledButton, 'Create player profile');
     await tester.tap(submit);
     await tester.tap(submit);
     await tester.pump();
@@ -254,4 +259,15 @@ void main() {
       expect(repository.registerCalls, 0);
     },
   );
+
+  testWidgets('player form contains no email field', (tester) async {
+    await pumpFlow(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Yes'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Maria Santos'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Player email'), findsNothing);
+    expect(find.widgetWithText(TextFormField, 'Email'), findsNothing);
+  });
 }

@@ -146,7 +146,6 @@ class AdminCreatePlayerView(APIView):
 
         try:
             user, profile, temp_password, note = provision_player(
-                email=data.get('email', ''),
                 first_name=data['first_name'],
                 last_name=data['last_name'],
                 middle_initial=data['middle_initial'],

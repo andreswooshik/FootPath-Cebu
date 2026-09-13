@@ -8,7 +8,14 @@ from firebase_admin import auth as firebase_auth
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 
 from academy.models import AuditLog
-from .models import Club, FirebaseProvisioningCleanup, PlayerRegistration, Roles, User
+from .models import (
+    Club,
+    FirebaseProvisioningCleanup,
+    MemberRegistration,
+    PlayerRegistration,
+    Roles,
+    User,
+)
 from .services import provision_player, provision_user
 
 logger = logging.getLogger(__name__)
@@ -40,16 +47,14 @@ def check_guardian_duplicate(*, club, data):
         raise ValidationError({'email': 'An account with this email already exists.'})
 
 
-def registration_result(receipt, *, guardian_password=None, player_password=None, replayed=False):
+def registration_result(receipt, *, guardian_password=None, replayed=False):
     return {
         'playerId': str(receipt.player_id),
         'guardianId': str(receipt.guardian_id),
         'coordinatorId': str(receipt.coordinator_id),
         'guardianCreated': receipt.guardian_created,
-        'playerEmail': receipt.player.email,
         'guardianEmail': receipt.guardian.email,
         'guardianTemporaryPassword': guardian_password,
-        'playerTemporaryPassword': player_password,
         'replayed': replayed,
     }
 
@@ -63,6 +68,95 @@ def cleanup_identity(uid):
     except firebase_auth.UserNotFoundError:
         pass
     return True
+
+
+def cleanup_created_identities(created_identities):
+    for uid in reversed(created_identities):
+        try:
+            cleanup_identity(uid)
+        except Exception:
+            FirebaseProvisioningCleanup.objects.get_or_create(firebase_uid=uid)
+            logger.error('Registration identity cleanup queued for retry.')
+
+
+def register_member(*, actor, data):
+    """Create a same-club Guardian or Coach through Coordinator RBAC."""
+    club = coordinator_club(actor)
+    payload_hash = hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
+    created_identities = []
+    try:
+        with transaction.atomic():
+            locked_club = Club.objects.select_for_update().get(pk=club.pk)
+            if not locked_club.is_active:
+                raise PermissionDenied('Your club must be active.')
+            receipt = MemberRegistration.objects.filter(
+                coordinator=actor,
+                request_key=data['requestId'],
+            ).select_related('member').first()
+            if receipt:
+                if receipt.payload_hash != payload_hash:
+                    raise RegistrationConflict()
+                return member_registration_result(receipt.member, actor, replayed=True)
+            if User.objects.filter(email__iexact=data['email']).exists():
+                raise ValidationError({'email': 'An account with this email already exists.'})
+            if User.objects.filter(
+                club=club,
+                mobile_number=data['mobileNumber'],
+                role__in=(Roles.GUARDIAN, Roles.COACH),
+            ).exists():
+                raise ValidationError(
+                    {'mobileNumber': 'An account with this mobile number already exists.'}
+                )
+            user, temporary_password, _ = provision_user(
+                email=data['email'],
+                first_name=data['firstName'],
+                middle_initial=data['middleInitial'],
+                last_name=data['lastName'],
+                mobile_number=data['mobileNumber'],
+                role=data['role'],
+                club=club,
+                created_identities=created_identities,
+            )
+            MemberRegistration.objects.create(
+                coordinator=actor,
+                request_key=data['requestId'],
+                payload_hash=payload_hash,
+                member=user,
+            )
+            AuditLog.record(
+                actor,
+                'account.created',
+                target=user.email,
+                detail=user.role,
+            )
+        return member_registration_result(
+            user,
+            actor,
+            temporary_password=temporary_password,
+        )
+    except Exception:
+        cleanup_created_identities(created_identities)
+        raise
+
+
+def member_registration_result(user, actor, *, temporary_password=None, replayed=False):
+    return {
+        'memberId': str(user.pk),
+        'coordinatorId': str(actor.pk),
+        'role': user.role,
+        'name': ' '.join(
+            part
+            for part in (
+                user.first_name,
+                f'{user.middle_initial}.',
+                user.last_name,
+            )
+            if part
+        ),
+        'email': user.email,
+        'temporaryPassword': temporary_password,
+        'replayed': replayed,
+    }
 
 
 def register_player(*, actor, data):
@@ -85,32 +179,27 @@ def register_player(*, actor, data):
 
             player_data = data['player']
             guardian_data = data.get('newGuardian')
-            player_email = player_data['email']
-            if player_email and User.objects.filter(email__iexact=player_email).exists():
-                raise ValidationError({'player': {'email': 'An account with this email already exists.'}})
-            if guardian_data and player_email == guardian_data['email']:
-                raise ValidationError({'player': {'email': 'Use a separate player email or leave it blank.'}})
             guardian_password = None
             if guardian_data:
                 check_guardian_duplicate(club=club, data=guardian_data)
                 guardian, guardian_password, _ = provision_user(
                     email=guardian_data['email'], first_name=guardian_data['firstName'],
-                    last_name=guardian_data['lastName'], role=Roles.GUARDIAN, club=club,
+                    middle_initial=guardian_data['middleInitial'],
+                    last_name=guardian_data['lastName'],
+                    mobile_number=guardian_data['mobileNumber'],
+                    role=Roles.GUARDIAN, club=club,
                     created_identities=created_identities,
                 )
-                guardian.mobile_number = guardian_data['mobileNumber']
-                guardian.save(update_fields=['mobile_number'])
             else:
                 guardian = User.objects.select_for_update().filter(
                     pk=data['existingGuardianId'], club=club, role=Roles.GUARDIAN, is_active=True
                 ).first()
                 if guardian is None:
                     raise ValidationError({'existingGuardianId': 'Select an active guardian in your club.'})
-            player, _, player_password, _ = provision_player(
-                email=player_email, first_name=player_data['firstName'],
-                last_name=player_data['lastName'], middle_initial=player_data['middleInitial'],
+            player, _, _, _ = provision_player(
+                first_name=player_data['firstName'], last_name=player_data['lastName'],
+                middle_initial=player_data['middleInitial'],
                 date_of_birth=player_data['dateOfBirth'], club=club, guardian=guardian,
-                created_identities=created_identities,
             )
             receipt = PlayerRegistration.objects.create(
                 coordinator=actor, request_key=data['requestId'], payload_hash=payload_hash,
@@ -119,17 +208,10 @@ def register_player(*, actor, data):
             AuditLog.record(actor, 'player.registered', target=str(player.pk), detail=json.dumps({
                 'guardianId': guardian.pk, 'guardianCreated': receipt.guardian_created,
             }))
-            result = registration_result(
-                receipt, guardian_password=guardian_password, player_password=player_password
-            )
+            result = registration_result(receipt, guardian_password=guardian_password)
         return result
     except Exception:
         # Firebase is external to SQL. Compensate only identities created here,
         # after rollback, and retain failed cleanup for a scheduled retry.
-        for uid in reversed(created_identities):
-            try:
-                cleanup_identity(uid)
-            except Exception:
-                FirebaseProvisioningCleanup.objects.get_or_create(firebase_uid=uid)
-                logger.error('Registration identity cleanup queued for retry.')
+        cleanup_created_identities(created_identities)
         raise

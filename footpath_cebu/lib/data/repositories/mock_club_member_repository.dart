@@ -23,6 +23,8 @@ class MockClubMemberRepository {
   Future<List<ClubMember>> fetch(ClubMemberRole role) async =>
       List.unmodifiable(members.where((member) => member.role == role));
 
+  void addMember(ClubMember member) => members.add(member);
+
   void linkPlayer(ClubMember guardian, String playerName) {
     final index = members.indexWhere((member) => member.id == guardian.id);
     final updated = ClubMember(

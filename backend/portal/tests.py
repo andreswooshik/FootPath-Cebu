@@ -441,7 +441,7 @@ class CreateAccountTests(TestCase):
     @_fb_patches
     def test_create_player(self, mock_get, mock_create, _init):
         mock_get.side_effect = firebase_auth.UserNotFoundError('nf')
-        mock_create.return_value = Mock(uid='player-uid')
+        mock_create.return_value = Mock(uid='unused-player-uid')
         guardian = User.objects.create(
             username='parent@club.test',
             email='parent@club.test',
@@ -455,45 +455,44 @@ class CreateAccountTests(TestCase):
                 'account_type': 'player',
                 'first_name': 'Pat',
                 'last_name': 'Kick',
-                'email': 'pat@club.test',
                 'date_of_birth': '2010-05-01',
                 'middle_initial': 'X',
                 'guardian': guardian.id,
             },
         )
         self.assertEqual(resp.status_code, 200)
-        user = User.objects.get(email='pat@club.test')
+        user = User.objects.get(first_name='Pat', role=Roles.PLAYER)
         self.assertEqual(user.role, Roles.PLAYER)
         self.assertEqual(user.club, self.club)
         self.assertTrue(GuardianLink.objects.filter(guardian=guardian, player=user).exists())
         self.assertTrue(PlayerProfile.objects.filter(user=user).exists())
-        self.assertContains(resp, 'Temporary password')
+        self.assertEqual(user.email, '')
+        self.assertIsNone(user.firebase_uid)
+        self.assertFalse(user.has_usable_password())
+        mock_create.assert_not_called()
 
     @_fb_patches
-    def test_create_player_may_be_created_without_guardian_link(
+    def test_create_player_requires_guardian_link(
         self,
         mock_get,
         mock_create,
         _init,
     ):
         mock_get.side_effect = firebase_auth.UserNotFoundError('nf')
-        mock_create.return_value = Mock(uid='no-parent-player-uid')
+        mock_create.return_value = Mock(uid='unused-player-uid')
         response = self.client.post(
             reverse('portal:create-account'),
             {
                 'account_type': 'player',
                 'first_name': 'No',
                 'last_name': 'Parent',
-                'email': 'no-parent@club.test',
                 'date_of_birth': '2010-05-01',
             },
         )
         self.assertEqual(response.status_code, 200)
-        player = User.objects.get(email='no-parent@club.test')
-        self.assertEqual(player.club, self.club)
-        self.assertEqual(player.firebase_uid, 'no-parent-player-uid')
-        self.assertTrue(PlayerProfile.objects.filter(user=player).exists())
-        self.assertFalse(GuardianLink.objects.filter(player=player).exists())
+        self.assertContains(response, 'This field is required.')
+        self.assertFalse(User.objects.filter(first_name='No', role=Roles.PLAYER).exists())
+        mock_create.assert_not_called()
 
     def test_create_player_without_email_creates_guardian_managed_profile(self):
         guardian = User.objects.create(
@@ -509,7 +508,6 @@ class CreateAccountTests(TestCase):
                 'account_type': 'player',
                 'first_name': 'Managed',
                 'last_name': 'Child',
-                'email': '',
                 'date_of_birth': '2010-05-01',
                 'middle_initial': '',
                 'guardian': guardian.id,
@@ -523,7 +521,7 @@ class CreateAccountTests(TestCase):
         self.assertTrue(GuardianLink.objects.filter(guardian=guardian, player=player).exists())
         self.assertContains(response, 'guardian-managed profile')
 
-    def test_player_email_cannot_reuse_guardian_login_email(self):
+    def test_player_email_payload_is_rejected(self):
         guardian = User.objects.create(
             username='same-email-parent@club.test',
             email='same-email-parent@club.test',
@@ -544,7 +542,7 @@ class CreateAccountTests(TestCase):
             },
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'An account with this email already exists.')
+        self.assertContains(response, 'Player profiles do not have a separate login email.')
         self.assertFalse(User.objects.filter(first_name='Same').exists())
 
     def test_coordinator_can_reset_player_privacy_pin(self):
@@ -576,6 +574,7 @@ class CreateAccountTests(TestCase):
             {
                 'account_type': 'coach',
                 'first_name': 'Coa',
+                'middle_initial': 'C',
                 'last_name': 'Ch',
                 'email': 'coach@club.test',
             },
@@ -612,6 +611,7 @@ class CreateAccountTests(TestCase):
             {
                 'account_type': 'guardian',
                 'first_name': 'Guar',
+                'middle_initial': 'D',
                 'last_name': 'Dian',
                 'email': 'guardian@club.test',
                 'player': player.id,

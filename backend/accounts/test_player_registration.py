@@ -22,10 +22,10 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
             mobile_number='+639171234567')
         self.client.force_authenticate(self.coordinator)
         self.url = reverse('coordinator-player-registration')
-        self.guardian_data = {'firstName': ' Ana ', 'lastName': ' Cruz ',
+        self.guardian_data = {'firstName': ' Ana ', 'middleInitial': 'd.', 'lastName': ' Cruz ',
             'email': 'NEW@EXAMPLE.COM', 'mobileNumber': '0918 123 4567'}
         self.payload = {'requestId': str(uuid4()), 'existingGuardianId': self.guardian.pk,
-            'player': {'firstName': 'Juan', 'lastName': 'Cruz', 'dateOfBirth': '2012-03-02', 'email': ''}}
+            'player': {'firstName': 'Juan', 'lastName': 'Cruz', 'dateOfBirth': '2012-03-02'}}
         self.init = patch('accounts.services.ensure_initialized').start()
         self.lookup = patch('accounts.services.firebase_auth.get_user_by_email',
             side_effect=firebase_auth.UserNotFoundError('not found')).start()
@@ -55,20 +55,24 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
 
     def test_new_guardian_player_and_link_are_created_together(self):
         payload = self.new_guardian_payload()
-        payload['player']['email'] = 'player@example.com'
         response = self.client.post(self.url, payload, format='json')
         self.assertEqual(response.status_code, 201, response.data)
         guardian = User.objects.get(pk=response.data['guardianId'])
         self.assertEqual(guardian.first_name, 'Ana')
+        self.assertEqual(guardian.middle_initial, 'D')
         self.assertEqual(guardian.email, 'new@example.com')
         self.assertEqual(guardian.mobile_number, '+639181234567')
         self.assertEqual(guardian.club, self.club)
         self.assertFalse(guardian.has_usable_password())
         self.assertTrue(GuardianLink.objects.filter(guardian=guardian, player_id=response.data['playerId']).exists())
         self.assertEqual(len(response.data['guardianTemporaryPassword']), 12)
-        self.assertEqual(len(response.data['playerTemporaryPassword']), 12)
+        self.assertNotIn('playerTemporaryPassword', response.data)
         self.assertEqual(response['Cache-Control'], 'no-store')
-        self.assertEqual(self.create.call_count, 2)
+        self.assertEqual(self.create.call_count, 1)
+        player = User.objects.get(pk=response.data['playerId'])
+        self.assertEqual(player.email, '')
+        self.assertIsNone(player.firebase_uid)
+        self.assertFalse(player.has_usable_password())
         self.assertTrue(AuditLog.objects.filter(action='player.registered').exists())
 
     def test_guardian_check_is_read_only_and_duplicate_email_is_selectable(self):
@@ -97,11 +101,18 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         self.create.assert_not_called()
 
     def test_invalid_guardian_data_never_creates_accounts(self):
-        for key, value in [('firstName', '  '), ('lastName', ''), ('email', 'invalid'), ('mobileNumber', '1234')]:
+        for key, value in [('firstName', '  '), ('middleInitial', 'DD'), ('lastName', ''), ('email', 'invalid'), ('mobileNumber', '1234')]:
             payload = self.new_guardian_payload()
             payload['newGuardian'][key] = value
             response = self.client.post(self.url, payload, format='json')
             self.assertEqual(response.status_code, 400, key)
+        self.assertFalse(PlayerRegistration.objects.exists())
+        self.create.assert_not_called()
+
+    def test_player_email_is_rejected_and_creates_nothing(self):
+        self.payload['player']['email'] = 'player@example.com'
+        response = self.client.post(self.url, self.payload, format='json')
+        self.assertEqual(response.status_code, 400)
         self.assertFalse(PlayerRegistration.objects.exists())
         self.create.assert_not_called()
 
@@ -128,25 +139,23 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         payload['player']['firstName'] = 'Changed'
         self.assertEqual(self.client.post(self.url, payload, format='json').status_code, 409)
 
-    def test_player_profile_failure_rolls_back_guardian_and_both_identities(self):
+    def test_player_profile_failure_rolls_back_guardian_and_its_identity(self):
         payload = self.new_guardian_payload()
-        payload['player']['email'] = 'player@example.com'
         with patch('academy.models.PlayerProfile.objects.create', side_effect=IntegrityError('failed')):
             response = self.client.post(self.url, payload, format='json')
         self.assertEqual(response.status_code, 503)
         self.assertEqual(User.objects.count(), 2)
         self.assertFalse(GuardianLink.objects.exists())
         self.assertFalse(PlayerRegistration.objects.exists())
-        self.assertEqual({c.args[0] for c in self.delete.call_args_list}, {'uid-new@example.com', 'uid-player@example.com'})
+        self.delete.assert_called_once_with('uid-new@example.com')
 
     def test_link_failure_rolls_back_player_but_does_not_delete_existing_guardian(self):
-        self.payload['player']['email'] = 'player@example.com'
         with patch('accounts.services.GuardianLink.objects.create', side_effect=IntegrityError('failed')):
             response = self.client.post(self.url, self.payload, format='json')
         self.assertEqual(response.status_code, 503)
         self.assertTrue(User.objects.filter(pk=self.guardian.pk).exists())
         self.assertFalse(PlayerProfile.objects.exists())
-        self.delete.assert_called_once_with('uid-player@example.com')
+        self.delete.assert_not_called()
 
     def test_late_database_failure_rolls_back_and_cleans_up(self):
         with patch('accounts.registration_service.PlayerRegistration.objects.create', side_effect=IntegrityError('failed')):

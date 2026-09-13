@@ -1967,24 +1967,24 @@ class NotificationFanOutTests(APITestCase):
 
 def _fake_provision_player(
     *,
-    email,
     first_name,
     last_name,
     middle_initial,
     date_of_birth,
     club,
-    guardian=None,
+    guardian,
 ):
     """Stand-in for the aggregate player service that skips Firebase."""
     user = User.objects.create(
-        username=email,
-        email=email,
+        username=f'managed-{first_name}-{User.objects.count()}',
+        email='',
         first_name=first_name,
         last_name=last_name,
         role=Roles.PLAYER,
-        firebase_uid=f'uid-{email}',
         club=club,
     )
+    user.set_unusable_password()
+    user.save(update_fields=['password'])
     age, tier = AgeTierSetting.profile_defaults_for(date_of_birth)
     profile = PlayerProfile.objects.create(
         user=user,
@@ -1993,9 +1993,8 @@ def _fake_provision_player(
         age=age,
         age_tier=tier,
     )
-    if guardian is not None:
-        GuardianLink.objects.create(guardian=guardian, player=user)
-    return user, profile, 'TempPass123', 'New Firebase account created.'
+    GuardianLink.objects.create(guardian=guardian, player=user)
+    return user, profile, None, 'Managed player profile created.'
 
 
 class AdminCreatePlayerViewTests(APITestCase):
@@ -2020,7 +2019,6 @@ class AdminCreatePlayerViewTests(APITestCase):
 
     def _payload(self, **overrides):
         payload = {
-            'email': 'newplayer@footpathcebu.test',
             'first_name': 'Juan',
             'last_name': 'Dela Cruz',
             'middle_initial': 'S',
@@ -2040,13 +2038,13 @@ class AdminCreatePlayerViewTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 201)
-        user = User.objects.get(email='newplayer@footpathcebu.test')
+        user = User.objects.get(first_name='Juan')
         self.assertEqual(user.role, Roles.PLAYER)
         profile = PlayerProfile.objects.get(user=user)
         self.assertEqual(profile.middle_initial, 'S')
         self.assertEqual(str(profile.date_of_birth), '2012-05-04')
         self.assertTrue(GuardianLink.objects.filter(guardian=self.guardian, player=user).exists())
-        self.assertEqual(response.data['temporary_password'], 'TempPass123')
+        self.assertIsNone(response.data['temporary_password'])
 
     @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
     def test_age_and_tier_derived_from_dob(self, _mock):
@@ -2076,7 +2074,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         response = self.client.post(self.url, self._payload(date_of_birth=str(dob)), format='json')
 
         self.assertEqual(response.status_code, 201)
-        profile = PlayerProfile.objects.get(user__email='newplayer@footpathcebu.test')
+        profile = PlayerProfile.objects.get(user__first_name='Juan')
         self.assertEqual(profile.age, 11)
         self.assertEqual(profile.age_tier, AgeTier.PATHWAY)
 
@@ -2091,15 +2089,15 @@ class AdminCreatePlayerViewTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(GuardianLink.objects.count(), 0)
 
-    def test_blank_email_creates_guardian_managed_player(self):
+    def test_player_email_is_rejected(self):
         self.client.force_authenticate(self.admin)
-        response = self.client.post(self.url, self._payload(email=''), format='json')
-        self.assertEqual(response.status_code, 201)
-        user = User.objects.get(first_name='Juan')
-        self.assertEqual(user.email, '')
-        self.assertIsNone(user.firebase_uid)
-        self.assertTrue(GuardianLink.objects.filter(guardian=self.guardian, player=user).exists())
-        self.assertIsNone(response.data['temporary_password'])
+        response = self.client.post(
+            self.url,
+            self._payload(email='player@example.com'),
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(PlayerProfile.objects.exists())
 
     @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
     def test_missing_required_field_creates_nothing(self, _mock):
@@ -2109,7 +2107,7 @@ class AdminCreatePlayerViewTests(APITestCase):
         response = self.client.post(self.url, payload, format='json')
 
         self.assertEqual(response.status_code, 400)
-        self.assertFalse(User.objects.filter(email='newplayer@footpathcebu.test').exists())
+        self.assertFalse(User.objects.filter(first_name='Juan', role=Roles.PLAYER).exists())
         self.assertFalse(PlayerProfile.objects.exists())
 
     @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
@@ -2123,19 +2121,15 @@ class AdminCreatePlayerViewTests(APITestCase):
         response = self.client.post(self.url, self._payload(), format='json')
         self.assertEqual(response.status_code, 403)
 
-    @patch('accounts.services.ensure_initialized')
-    @patch('accounts.services.firebase_auth')
-    def test_duplicate_email_rejected(self, mock_firebase_auth, _mock_init):
-        # Uses the REAL provision_user (only the Firebase SDK call is
-        # mocked), since its email-uniqueness guard runs before Firebase is
-        # ever touched — exactly the path this test exercises.
-        make_user(Roles.PLAYER, email='newplayer@footpathcebu.test')
+    def test_real_service_creates_no_firebase_player_identity(self):
         self.client.force_authenticate(self.admin)
         response = self.client.post(self.url, self._payload(), format='json')
 
-        self.assertEqual(response.status_code, 400)
-        mock_firebase_auth.get_user_by_email.assert_not_called()
-        self.assertFalse(PlayerProfile.objects.exists())
+        self.assertEqual(response.status_code, 201, response.data)
+        player = User.objects.get(first_name='Juan', role=Roles.PLAYER)
+        self.assertEqual(player.email, '')
+        self.assertIsNone(player.firebase_uid)
+        self.assertFalse(player.has_usable_password())
 
 
 class AdminSiteRegistrationTests(APITestCase):

@@ -111,7 +111,15 @@ class ClubMemberDirectoryView(APIView):
         ).prefetch_related('guardian_links__player')
         rows = []
         for member in members.order_by('last_name', 'first_name', 'id'):
-            name = member.get_full_name().strip() or member.email.split('@')[0]
+            name = ' '.join(
+                part
+                for part in (
+                    member.first_name,
+                    f'{member.middle_initial}.' if member.middle_initial else '',
+                    member.last_name,
+                )
+                if part
+            ) or member.email.split('@')[0]
             linked_players = []
             if member.role == Roles.GUARDIAN:
                 linked_players = [

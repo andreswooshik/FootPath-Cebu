@@ -15,14 +15,25 @@ def normalize_mobile_number(value):
     return number
 
 
+def normalize_middle_initial(value):
+    initial = value.strip().rstrip('.').upper()
+    if not re.fullmatch(r'[A-Z]', initial):
+        raise serializers.ValidationError('Enter one letter for the middle initial.')
+    return initial
+
+
 class GuardianRegistrationSerializer(serializers.Serializer):
     firstName = serializers.CharField(max_length=150)
+    middleInitial = serializers.CharField(max_length=2)
     lastName = serializers.CharField(max_length=150)
     email = serializers.EmailField(max_length=254)
     mobileNumber = serializers.CharField(max_length=30)
 
     def validate_email(self, value):
         return value.lower()
+
+    def validate_middleInitial(self, value):
+        return normalize_middle_initial(value)
 
     def validate_mobileNumber(self, value):
         return normalize_mobile_number(value)
@@ -32,11 +43,14 @@ class PlayerRegistrationSerializer(serializers.Serializer):
     firstName = serializers.CharField(max_length=150)
     lastName = serializers.CharField(max_length=150)
     middleInitial = serializers.CharField(max_length=5, allow_blank=True, default='')
-    email = serializers.EmailField(max_length=254, allow_blank=True, default='')
     dateOfBirth = serializers.DateField()
 
-    def validate_email(self, value):
-        return value.lower()
+    def to_internal_value(self, data):
+        if 'email' in data:
+            raise serializers.ValidationError(
+                {'email': 'Player profiles do not have a separate login email.'}
+            )
+        return super().to_internal_value(data)
 
     def validate_dateOfBirth(self, value):
         if value > timezone.localdate():
@@ -54,3 +68,22 @@ class RegistrationCommandSerializer(serializers.Serializer):
         if ('existingGuardianId' in attrs) == ('newGuardian' in attrs):
             raise serializers.ValidationError('Select an existing guardian or enter a new guardian.')
         return attrs
+
+
+class MemberRegistrationSerializer(serializers.Serializer):
+    requestId = serializers.UUIDField()
+    role = serializers.ChoiceField(choices=['GUARDIAN', 'COACH'])
+    firstName = serializers.CharField(max_length=150)
+    middleInitial = serializers.CharField(max_length=2)
+    lastName = serializers.CharField(max_length=150)
+    email = serializers.EmailField(max_length=254)
+    mobileNumber = serializers.CharField(max_length=30)
+
+    def validate_middleInitial(self, value):
+        return normalize_middle_initial(value)
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+    def validate_mobileNumber(self, value):
+        return normalize_mobile_number(value)

@@ -86,6 +86,7 @@ def create_club_account(*, account_type, coordinator, data):
         user, temporary_password, _note = provision_user(
             email=data['email'],
             first_name=data['first_name'],
+            middle_initial=data['middle_initial'],
             last_name=data['last_name'],
             role=Roles.COACH,
             club=club,
@@ -105,7 +106,6 @@ def create_club_account(*, account_type, coordinator, data):
 
     if account_type == 'player':
         user, _profile, temporary_password, _note = provision_player(
-            email=data.get('email', ''),
             first_name=data['first_name'],
             last_name=data['last_name'],
             middle_initial=data.get('middle_initial', ''),
@@ -124,6 +124,7 @@ def create_club_account(*, account_type, coordinator, data):
         user, temporary_password, _note = provision_user(
             email=data['email'],
             first_name=data['first_name'],
+            middle_initial=data['middle_initial'],
             last_name=data['last_name'],
             role=Roles.GUARDIAN,
             club=club,
