@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
 import 'package:footpath_cebu/domain/entities/eligibility_change.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/eligibility_history_repository.dart';
 
 /// Live implementation backed by the Django REST API, authenticated with the
@@ -40,6 +41,23 @@ class ApiEligibilityHistoryRepository implements EligibilityHistoryRepository {
           .cast<Map<String, dynamic>>()
           .map(EligibilityChange.fromJson)
           .toList();
+    } on ApiException catch (error) {
+      throw EligibilityHistoryRepositoryException(error.message);
+    }
+  }
+
+  @override
+  Future<EligibilityStatus> updateEligibility(
+    String playerId,
+    EligibilityStatus status,
+  ) async {
+    try {
+      await _api.put(
+        '/api/players/$playerId/eligibility/',
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'eligibility': status.wire}),
+      );
+      return status;
     } on ApiException catch (error) {
       throw EligibilityHistoryRepositoryException(error.message);
     }

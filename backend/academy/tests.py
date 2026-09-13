@@ -101,6 +101,12 @@ class SquadEndpointTests(APITestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(len(resp.data), 1)
 
+    def test_coordinator_can_list_own_club_roster(self):
+        self.client.force_authenticate(make_user(Roles.COORDINATOR))
+        response = self.client.get(reverse('players-list'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+
     def test_non_coach_roles_are_denied(self):
         for role in (Roles.PLAYER, Roles.GUARDIAN, Roles.SCHOOL_STAFF):
             self.client.force_authenticate(make_user(role, f'{role}@x.test'))
@@ -1829,9 +1835,10 @@ class EligibilityHistoryEndpointTests(APITestCase):
         self.client.force_authenticate(self.other_player)
         self.assertEqual(self.client.get(self._url()).status_code, 403)
 
-    def test_staff_and_admin_read_any_coach_denied(self):
+    def test_reviewers_read_own_club_history_coach_denied(self):
         for user, expected in (
             (self.staff, 200),
+            (make_user(Roles.COORDINATOR), 200),
             (make_user(Roles.ADMIN), 200),
             (make_user(Roles.COACH), 403),
         ):
@@ -1845,6 +1852,67 @@ class EligibilityHistoryEndpointTests(APITestCase):
     def test_unknown_player_404(self):
         self.client.force_authenticate(self.staff)
         self.assertEqual(self.client.get(self._url(999999)).status_code, 404)
+
+
+class CoordinatorEligibilityUpdateTests(APITestCase):
+    def setUp(self):
+        self.player = make_player('coordinator-eligibility@footpathcebu.test')
+        self.coordinator = make_user(Roles.COORDINATOR)
+
+    def _url(self):
+        return reverse('eligibility-update', args=[self.player.id])
+
+    def test_school_coordinator_can_update_an_own_club_player(self):
+        self.client.force_authenticate(self.coordinator)
+        response = self.client.put(
+            self._url(),
+            {'eligibility': Eligibility.ACADEMIC_WARNING},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.player.player_profile.refresh_from_db()
+        self.assertEqual(
+            self.player.player_profile.eligibility,
+            Eligibility.ACADEMIC_WARNING,
+        )
+        self.assertTrue(
+            EligibilityHistory.objects.filter(
+                player=self.player,
+                changed_by=self.coordinator,
+                new_status=Eligibility.ACADEMIC_WARNING,
+            ).exists()
+        )
+
+    def test_independent_club_coordinator_is_denied(self):
+        club = Club.objects.create(name='Independent Club', slug='independent-club')
+        coordinator = User.objects.create(
+            username='independent-coordinator',
+            email='independent-coordinator@footpathcebu.test',
+            firebase_uid='independent-coordinator',
+            role=Roles.COORDINATOR,
+            club=club,
+        )
+        player = User.objects.create(
+            username='independent-player',
+            email='independent-player@footpathcebu.test',
+            firebase_uid='independent-player',
+            role=Roles.PLAYER,
+            club=club,
+        )
+        PlayerProfile.objects.create(
+            user=player,
+            age=15,
+            class_year='Class of 2027',
+            age_tier=AgeTier.DEVELOPMENT,
+            position='CM',
+        )
+        self.client.force_authenticate(coordinator)
+        response = self.client.put(
+            reverse('eligibility-update', args=[player.id]),
+            {'eligibility': Eligibility.ELIGIBLE},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 403)
 
 
 class NotificationFanOutTests(APITestCase):

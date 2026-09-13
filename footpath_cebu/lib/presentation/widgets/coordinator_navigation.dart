@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
 const _coordinatorDestinations = [
+  (Icons.home_outlined, 'Home'),
+  (Icons.groups_outlined, 'People'),
   (Icons.event_note_outlined, 'Schedule'),
-  (Icons.sports_score_outlined, 'Statistics'),
-  (Icons.healing_outlined, 'Injuries'),
+  (Icons.assignment_turned_in_outlined, 'Operations'),
   (Icons.person_outline, 'Profile'),
 ];
 

@@ -43,6 +43,8 @@ class UserProfile {
   /// what a role may actually write; never rely on this for authorisation.
   bool get isCoach => role == 'COACH';
 
+  bool get isCoordinator => role == 'COORDINATOR';
+
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
       id: json['id'].toString(),

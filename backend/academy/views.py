@@ -12,6 +12,7 @@ from academy.view_disputes import (
     DisputeListCreateView,
     DisputeResponseCreateView,
     EligibilityHistoryView,
+    EligibilityUpdateView,
     _dispute_in_user_scope,
 )
 from academy.view_injuries import (
@@ -50,6 +51,7 @@ from academy.view_notifications import (
     NotificationUnreadCountView,
 )
 from academy.view_players import (
+    ClubMemberDirectoryView,
     LinkedPlayersView,
     MyProfileView,
     PlayerAssessmentHistoryView,
@@ -97,6 +99,7 @@ from academy.view_training import (
 )
 
 __all__ = [
+    'ClubMemberDirectoryView',
     'AdminCreatePlayerView',
     'AgeTierSettingsView',
     'AttendanceListView',
@@ -105,6 +108,7 @@ __all__ = [
     'DisputeListCreateView',
     'DisputeResponseCreateView',
     'EligibilityHistoryView',
+    'EligibilityUpdateView',
     'FootballMatchDetailView',
     'FootballMatchListCreateView',
     'InjuryArchiveView',

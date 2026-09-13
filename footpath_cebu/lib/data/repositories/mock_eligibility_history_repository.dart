@@ -51,4 +51,22 @@ class MockEligibilityHistoryRepository implements EligibilityHistoryRepository {
       ..sort((a, b) => b.changedAt.compareTo(a.changedAt));
     return List.unmodifiable(records);
   }
+
+  @override
+  Future<EligibilityStatus> updateEligibility(
+    String playerId,
+    EligibilityStatus status,
+  ) async {
+    final previous = _records.isEmpty ? null : _records.last.newStatus;
+    _records.add(
+      EligibilityChange(
+        id: '$playerId-${DateTime.now().microsecondsSinceEpoch}',
+        oldStatus: previous,
+        newStatus: status,
+        changedAt: DateTime.now(),
+        changedBy: 'Coordinator',
+      ),
+    );
+    return status;
+  }
 }

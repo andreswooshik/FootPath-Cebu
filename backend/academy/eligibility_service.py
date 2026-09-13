@@ -10,7 +10,11 @@ from .models import Eligibility, PlayerProfile
 
 @transaction.atomic
 def change_eligibility(*, actor, player_id, new_status):
-    if not actor.is_active or actor.role not in (Roles.ADMIN, Roles.SCHOOL_STAFF):
+    if not actor.is_active or actor.role not in (
+        Roles.ADMIN,
+        Roles.SCHOOL_STAFF,
+        Roles.COORDINATOR,
+    ):
         raise PermissionDenied('Only reviewers can update eligibility.')
     profile = (
         PlayerProfile.objects.select_for_update(of=('self',))

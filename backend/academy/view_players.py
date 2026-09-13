@@ -73,16 +73,62 @@ class SquadListView(APIView):
     """GET /api/players/ — the roster. Coach (own club only) and Admin (all)."""
 
     def get(self, request):
-        if request.user.role not in (Roles.COACH, Roles.ADMIN):
-            raise PermissionDenied('Only coaches can view the squad.')
+        if request.user.role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN):
+            raise PermissionDenied('Only coaches and coordinators can view the squad.')
         profiles = PlayerProfile.objects.select_related('user')
-        # Coaches see only their own club's roster; Admin sees every club.
-        if request.user.role == Roles.COACH:
+        # Club staff see only their own roster; Admin sees every club.
+        if request.user.role in (Roles.COACH, Roles.COORDINATOR):
             if request.user.club_id is None:
                 profiles = profiles.none()
             else:
                 profiles = profiles.filter(user__club_id=request.user.club_id)
         return list_response(request, profiles, PlayerSerializer)
+
+
+class ClubMemberDirectoryView(APIView):
+    """Coordinator-only directory for non-player club accounts.
+
+    Player profiles stay on the roster endpoint because they carry football
+    data; this intentionally small response exposes only what a coordinator
+    needs to find Guardians and Coaches in the People tab.
+    """
+
+    def get(self, request):
+        if request.user.role != Roles.COORDINATOR or request.user.club_id is None:
+            raise PermissionDenied('Only club coordinators can view the member directory.')
+        if not request.user.club.is_active:
+            raise PermissionDenied('The club is inactive.')
+
+        requested_role = request.query_params.get('role', '').upper()
+        allowed_roles = {Roles.COACH, Roles.GUARDIAN}
+        if requested_role not in allowed_roles:
+            raise ValidationError({'role': 'Choose COACH or GUARDIAN.'})
+
+        members = User.objects.filter(
+            club_id=request.user.club_id,
+            role=requested_role,
+            is_active=True,
+        ).prefetch_related('guardian_links__player')
+        rows = []
+        for member in members.order_by('last_name', 'first_name', 'id'):
+            name = member.get_full_name().strip() or member.email.split('@')[0]
+            linked_players = []
+            if member.role == Roles.GUARDIAN:
+                linked_players = [
+                    link.player.get_full_name().strip() or link.player.email.split('@')[0]
+                    for link in member.guardian_links.select_related('player').all()
+                ]
+            rows.append(
+                {
+                    'id': str(member.id),
+                    'name': name,
+                    'role': member.role,
+                    'roleDisplay': member.get_role_display(),
+                    'email': member.email,
+                    'linkedPlayers': linked_players,
+                }
+            )
+        return Response(rows)
 
 
 class MyProfileView(APIView):

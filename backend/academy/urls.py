@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('players/', views.SquadListView.as_view(), name='players-list'),
+    path('club-members/', views.ClubMemberDirectoryView.as_view(), name='club-member-directory'),
     path('players/me/', views.MyProfileView.as_view(), name='players-me'),
     path('players/linked/', views.LinkedPlayersView.as_view(), name='players-linked'),
     path(
@@ -60,6 +61,11 @@ urlpatterns = [
         'players/<int:player_id>/eligibility-history/',
         views.EligibilityHistoryView.as_view(),
         name='eligibility-history',
+    ),
+    path(
+        'players/<int:player_id>/eligibility/',
+        views.EligibilityUpdateView.as_view(),
+        name='eligibility-update',
     ),
     path('age-tiers/', views.AgeTierSettingsView.as_view(), name='age-tiers'),
     path(

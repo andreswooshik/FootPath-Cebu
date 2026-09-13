@@ -95,11 +95,11 @@ def _may_read_eligibility(user, player_id):
     Deliberately narrower than [_guardian_may_read]: the coach is excluded —
     academic eligibility is the School Staff's domain, not the coach's. Allowed:
     the player themselves, their linked guardian(s), any School Staff (in the
-    same club), Admin.
+    same club), any Coordinator (same club), and Admin.
     """
     if user.role == Roles.ADMIN:
         return True
-    if user.role == Roles.SCHOOL_STAFF:
+    if user.role in (Roles.SCHOOL_STAFF, Roles.COORDINATOR):
         return _in_same_club(user, player_id)
     if user.role == Roles.PLAYER:
         return str(user.id) == str(player_id)

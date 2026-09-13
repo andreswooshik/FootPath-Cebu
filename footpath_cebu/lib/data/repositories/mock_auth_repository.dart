@@ -9,6 +9,7 @@ class MockAuthRepository implements AuthRepository {
   static const mockAccounts = {
     'player@example.com': 'demo123',
     'coach@example.com': 'demo123',
+    'coordinator@example.com': 'demo123',
     'admin@example.com': 'demo123',
     'guardian@example.com': 'demo123',
     'john.doe@example.com': 'demo123',
@@ -50,6 +51,7 @@ class MockAuthRepository implements AuthRepository {
   Future<UserProfile?> restoreSession() async => _signedInProfile;
 
   String _getRoleFromEmail(String email) {
+    if (email.contains('coordinator')) return 'coordinator';
     if (email.contains('coach')) return 'coach';
     if (email.contains('admin')) return 'admin';
     if (email.contains('guardian') || email.contains('parent')) {

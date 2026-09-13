@@ -11,6 +11,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/player_photo_controller.dart';
 import 'package:footpath_cebu/presentation/providers/player_position_controller.dart';
 import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
+import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
 import 'package:footpath_cebu/presentation/screens/injury_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/match_statistics_screen.dart';
@@ -281,6 +282,28 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           _AcademicStandingCard(
             status: _player.eligibility,
             applicable: _player.academicEligibilityApplicable,
+            onTap:
+                _player.academicEligibilityApplicable &&
+                    widget.profile.isCoordinator
+                ? () async {
+                    final updated = await Navigator.of(context)
+                        .push<EligibilityStatus>(
+                          MaterialPageRoute(
+                            builder: (_) => EligibilityHistoryScreen(
+                              playerId: _player.id,
+                              playerName: _player.name,
+                              canUpdate: widget.profile.isCoordinator,
+                              currentStatus: _player.eligibility,
+                            ),
+                          ),
+                        );
+                    if (updated != null && mounted) {
+                      setState(
+                        () => _player = _player.copyWith(eligibility: updated),
+                      );
+                    }
+                  }
+                : null,
           ),
           const SizedBox(height: 16),
           // Private care-team context. Coaches may report injuries and request
@@ -552,58 +575,69 @@ class _FeedbackSection extends StatelessWidget {
   );
 }
 
-/// The academic gate set by School Staff — read-only for the coach.
+/// The academic gate is read-only for coaches; school-club Coordinators may
+/// open its history and record an approved eligibility decision.
 class _AcademicStandingCard extends StatelessWidget {
-  const _AcademicStandingCard({required this.status, required this.applicable});
+  const _AcademicStandingCard({
+    required this.status,
+    required this.applicable,
+    this.onTap,
+  });
 
   final EligibilityStatus status;
   final bool applicable;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = applicable ? _eligibilityColor(status) : Colors.grey;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            child: const Icon(
-              Icons.school_outlined,
-              color: Colors.white,
-              size: 18,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              child: const Icon(
+                Icons.school_outlined,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Academic Eligibility',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.bold,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Academic Eligibility',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  applicable
-                      ? eligibilityStatusMessage(status)
-                      : 'Not applicable to an Independent club',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    applicable
+                        ? eligibilityStatusMessage(status)
+                        : 'Not applicable to an Independent club',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            if (onTap != null) const Icon(Icons.chevron_right),
+          ],
+        ),
       ),
     );
   }

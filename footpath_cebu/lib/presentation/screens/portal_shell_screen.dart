@@ -10,8 +10,9 @@ import 'package:footpath_cebu/presentation/screens/coach_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coach_profile_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coach_progress_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_account_screen.dart';
-import 'package:footpath_cebu/presentation/screens/coordinator_injuries_screen.dart';
-import 'package:footpath_cebu/presentation/screens/coordinator_matches_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_dashboard_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_operations_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coordinator_people_screen.dart';
 import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/guardian_dashboard_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_dashboard_screen.dart';
@@ -38,26 +39,61 @@ class CoordinatorPortalScreen extends StatelessWidget {
   final int initialTabIndex;
 
   @override
+  Widget build(BuildContext context) => _CoordinatorPortalShell(
+    profile: profile,
+    initialTabIndex: initialTabIndex,
+  );
+}
+
+class _CoordinatorPortalShell extends StatefulWidget {
+  const _CoordinatorPortalShell({
+    required this.profile,
+    required this.initialTabIndex,
+  });
+
+  final UserProfile profile;
+  final int initialTabIndex;
+
+  @override
+  State<_CoordinatorPortalShell> createState() =>
+      _CoordinatorPortalShellState();
+}
+
+class _CoordinatorPortalShellState extends State<_CoordinatorPortalShell> {
+  late int _selectedIndex = widget.initialTabIndex.clamp(0, 4).toInt();
+
+  @override
   Widget build(BuildContext context) => PortalShell(
-    initialIndex: initialTabIndex,
+    initialIndex: _selectedIndex,
     pages: [
+      CoordinatorDashboardScreen(
+        onOpenPeople: () => setState(() => _selectedIndex = 1),
+        onOpenSchedule: () => setState(() => _selectedIndex = 2),
+        onOpenOperations: () => setState(() => _selectedIndex = 3),
+      ),
+      CoordinatorPeopleScreen(profile: widget.profile),
       const TournamentScheduleScreen(
         asTab: true,
         canRecordResults: true,
         canManage: true,
       ),
-      const CoordinatorMatchesScreen(),
-      const CoordinatorInjuriesScreen(),
-      CoordinatorAccountScreen(profile: profile),
+      const CoordinatorOperationsScreen(),
+      CoordinatorAccountScreen(profile: widget.profile),
     ],
     navigationBarBuilder: (selectedIndex, onSelected) => CoordinatorBottomNav(
       selectedIndex: selectedIndex,
-      onDestinationSelected: onSelected,
+      onDestinationSelected: (index) {
+        setState(() => _selectedIndex = index);
+        onSelected(index);
+      },
     ),
     navigationRailBuilder: (selectedIndex, onSelected, extended) =>
         CoordinatorNavigationRail(
           selectedIndex: selectedIndex,
-          onDestinationSelected: onSelected,
+          onDestinationSelected: (index) {
+            setState(() => _selectedIndex = index);
+            onSelected(index);
+          },
           extended: extended,
         ),
   );

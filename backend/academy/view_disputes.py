@@ -3,7 +3,7 @@
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -15,7 +15,9 @@ from academy.model_operations import (
     Dispute,
     DisputeResponse,
 )
-from academy.model_players import EligibilityHistory
+from academy.eligibility_service import change_eligibility
+from academy.model_players import Eligibility, EligibilityHistory, PlayerProfile
+from academy.serializer_players import PlayerSerializer
 from academy.serializer_training import EligibilityHistorySerializer
 from academy.serializer_workflows import (
     DisputeCreateSerializer,
@@ -150,18 +152,23 @@ class EligibilityHistoryView(APIView):
     eligibility transitions, newest first.
 
     Object-scoped (audit finding F3): the player themselves, their linked
-    guardian(s), School Staff, and Admin may read; nobody else — notably not
-    the coach, since academic eligibility is not the coach's domain. The
+    guardian(s), School Staff, their club Coordinator, and Admin may read;
+    nobody else — notably not the coach, since academic eligibility is not
+    the coach's domain. The
     serializer hides the acting staff member's identity from families.
     """
 
     def get(self, request, player_id):
         if not _may_read_eligibility(request.user, player_id):
-            # Authorized reviewers (Admin / School Staff) who named a player
-            # that does not exist get a 404; a real player in another club still
-            # falls through to the 403 below (multi-tenant scope). Families and
-            # coaches get 403 without revealing whether the id exists.
-            if request.user.role in (Roles.ADMIN, Roles.SCHOOL_STAFF):
+            # Authorized reviewers who named a player that does not exist get
+            # a 404; a real player in another club still falls through to the
+            # 403 below (multi-tenant scope). Families and coaches get 403
+            # without revealing whether the id exists.
+            if request.user.role in (
+                Roles.ADMIN,
+                Roles.SCHOOL_STAFF,
+                Roles.COORDINATOR,
+            ):
                 get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
             raise PermissionDenied("You may not view this player's eligibility history.")
         player = get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
@@ -178,3 +185,40 @@ class EligibilityHistoryView(APIView):
                 context={'request': request},
             ).data
         )
+
+
+class EligibilityUpdateView(APIView):
+    """Update a school-club player's academic eligibility.
+
+    The service performs the club, affiliation, role, audit-history, and
+    notification checks. This view deliberately accepts only the three
+    Coordinator-managed statuses, leaving PENDING as a system/provisioning
+    state rather than an operator choice.
+    """
+
+    def put(self, request, player_id):
+        if request.user.role not in (
+            Roles.ADMIN,
+            Roles.SCHOOL_STAFF,
+            Roles.COORDINATOR,
+        ):
+            raise PermissionDenied('You may not update academic eligibility.')
+        new_status = str(request.data.get('eligibility', '')).upper()
+        allowed = {
+            Eligibility.ELIGIBLE,
+            Eligibility.NOT_ELIGIBLE,
+            Eligibility.ACADEMIC_WARNING,
+        }
+        if new_status not in allowed:
+            raise ValidationError(
+                {'eligibility': 'Choose ELIGIBLE, NOT_ELIGIBLE, or ACADEMIC_WARNING.'}
+            )
+        try:
+            profile = change_eligibility(
+                actor=request.user,
+                player_id=player_id,
+                new_status=new_status,
+            )
+        except PlayerProfile.DoesNotExist:
+            raise ValidationError({'player': 'The player does not exist.'})
+        return Response(PlayerSerializer(profile).data)

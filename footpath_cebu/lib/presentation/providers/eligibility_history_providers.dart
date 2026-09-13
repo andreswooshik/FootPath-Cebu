@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/eligibility_change.dart';
+import 'package:footpath_cebu/domain/entities/player.dart';
+import 'package:footpath_cebu/presentation/providers/mutation_controller.dart';
+import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 
 /// One player's eligibility transitions, newest first. Family-keyed by player
 /// id so the player's own view and the guardian's per-child view share
@@ -9,4 +12,24 @@ import 'package:footpath_cebu/domain/entities/eligibility_change.dart';
 final eligibilityHistoryProvider = FutureProvider.autoDispose
     .family<List<EligibilityChange>, String>(
       (ref, playerId) => ref.watch(getEligibilityHistoryProvider)(playerId),
+    );
+
+class EligibilityUpdateController extends MutationController {
+  Future<EligibilityStatus?> submit(
+    String playerId,
+    EligibilityStatus status,
+  ) => runMutation(
+    () => ref
+        .read(eligibilityHistoryRepositoryProvider)
+        .updateEligibility(playerId, status),
+    onSuccess: (_) {
+      ref.invalidate(eligibilityHistoryProvider(playerId));
+      ref.invalidate(squadProvider);
+    },
+  );
+}
+
+final eligibilityUpdateControllerProvider =
+    AsyncNotifierProvider.autoDispose<EligibilityUpdateController, void>(
+      EligibilityUpdateController.new,
     );

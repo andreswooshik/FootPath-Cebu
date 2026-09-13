@@ -20,6 +20,7 @@ flutter run --dart-define=USE_MOCK=true
 |-------|----------|------|
 | `player@example.com` | `demo123` | player |
 | `coach@example.com` | `demo123` | coach |
+| `coordinator@example.com` | `demo123` | coordinator |
 | `admin@example.com` | `demo123` | admin |
 | `john.doe@example.com` | `demo123` | player |
 | `maria.santos@example.com` | `demo123` | player |
@@ -54,7 +55,8 @@ The mock repository:
 - ✅ Simulates 500ms network delay
 - ✅ Returns a fake user profile with:
   - `id`, `email`, `name`, `role`, `avatar`, `created_at`
-  - Role is automatically set to `coach` if email contains "coach", otherwise `player`
+- Role is inferred from the email: use an address containing `coordinator`,
+  `coach`, `guardian`/`parent`, or `admin`; all other addresses become players
 
 ### Testing Different Scenarios
 
