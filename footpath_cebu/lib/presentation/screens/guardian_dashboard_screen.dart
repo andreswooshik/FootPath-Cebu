@@ -42,11 +42,13 @@ class GuardianDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(selectedChildProvider);
+    final privacyGateActive =
+        selected != null && isPlayerPrivacyGateActive(ref, selected.id);
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Players'),
         actions: [
-          const NotificationBell(),
+          if (!privacyGateActive) const NotificationBell(),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
@@ -96,16 +98,17 @@ class GuardianDashboardScreen extends ConsumerWidget {
                 }
                 return Column(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                      child: _PlayerSelector(
-                        children: children,
-                        selectedId: selected.id,
-                        onChanged: (id) => ref
-                            .read(selectedChildIdProvider.notifier)
-                            .select(id),
+                    if (!privacyGateActive)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        child: _PlayerSelector(
+                          children: children,
+                          selectedId: selected.id,
+                          onChanged: (id) => ref
+                              .read(selectedChildIdProvider.notifier)
+                              .select(id),
+                        ),
                       ),
-                    ),
                     Expanded(
                       child: PlayerPrivacyGate(
                         player: selected,

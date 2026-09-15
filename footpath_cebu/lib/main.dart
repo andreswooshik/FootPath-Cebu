@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/security/privacy_notification_guard.dart';
 import 'package:footpath_cebu/domain/entities/notification_destination.dart';
 import 'package:footpath_cebu/presentation/providers/notification_providers.dart';
 import 'package:footpath_cebu/presentation/screens/notification_destination_screen.dart';
@@ -59,6 +60,7 @@ class _FootPathAppState extends ConsumerState<FootPathApp> {
   @override
   void initState() {
     super.initState();
+    privacyNotificationGuard.addListener(_handlePrivacyGuardChange);
     if (widget.setupError == null && !useMockData) {
       _foregroundSubscription = FirebaseMessaging.onMessage.listen(
         _handleForegroundMessage,
@@ -77,6 +79,7 @@ class _FootPathAppState extends ConsumerState<FootPathApp> {
 
   @override
   void dispose() {
+    privacyNotificationGuard.removeListener(_handlePrivacyGuardChange);
     _foregroundSubscription?.cancel();
     _openedSubscription?.cancel();
     _tokenSubscription?.cancel();
@@ -88,9 +91,17 @@ class _FootPathAppState extends ConsumerState<FootPathApp> {
     ref.invalidate(notificationUnreadCountProvider);
   }
 
+  void _handlePrivacyGuardChange() {
+    if (!privacyNotificationGuard.isActive) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      messengerKey.currentState?.hideCurrentSnackBar();
+    });
+  }
+
   void _handleForegroundMessage(RemoteMessage message) {
     if (!mounted || FirebaseAuth.instance.currentUser == null) return;
     _refreshInbox();
+    if (privacyNotificationGuard.isActive) return;
     final title =
         message.notification?.title ??
         message.data['title'] ??
@@ -123,6 +134,7 @@ class _FootPathAppState extends ConsumerState<FootPathApp> {
     final ownerUid = FirebaseAuth.instance.currentUser?.uid;
     if (ownerUid == null) return;
     _refreshInbox();
+    if (privacyNotificationGuard.isActive) return;
     final request = NotificationOpenRequest.fromData(
       message.data,
       sourceMessageId: message.messageId,
@@ -133,12 +145,14 @@ class _FootPathAppState extends ConsumerState<FootPathApp> {
       if (!mounted || FirebaseAuth.instance.currentUser?.uid != ownerUid) {
         return;
       }
+      if (privacyNotificationGuard.isActive) return;
       var navigator = appNavigatorKey.currentState;
       if (navigator == null) {
         await WidgetsBinding.instance.endOfFrame;
         if (!mounted || FirebaseAuth.instance.currentUser?.uid != ownerUid) {
           return;
         }
+        if (privacyNotificationGuard.isActive) return;
         navigator = appNavigatorKey.currentState;
       }
       if (navigator == null || !navigator.mounted) return;

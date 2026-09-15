@@ -48,11 +48,15 @@ class PlayerDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(myProfileProvider).value;
+    final privacyGateActive =
+        profile != null &&
+        isPlayerPrivacyGateActive(ref, profile.id, requirePinSetup: true);
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Profile'),
         actions: [
-          const NotificationBell(),
+          if (!privacyGateActive) const NotificationBell(),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/security/privacy_notification_guard.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_privacy_pin.dart';
@@ -99,7 +100,7 @@ class _LockedPinRepo extends _PinRepo {
         ? PlayerPrivacyPinStatus(
             hasPin: true,
             locked: true,
-            lockedUntil: DateTime.now().add(const Duration(minutes: 2)),
+            lockedUntil: DateTime.now().add(const Duration(seconds: 2)),
           )
         : const PlayerPrivacyPinStatus(hasPin: true, locked: false);
   }
@@ -136,7 +137,7 @@ class _SwitcherState extends State<_Switcher> {
 }
 
 void main() {
-  testWidgets('locked PIN shows recovery timing and can refresh its status', (
+  testWidgets('locked PIN exposes no navigation or manual refresh actions', (
     tester,
   ) async {
     final repository = _LockedPinRepo();
@@ -159,14 +160,14 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('Try again in'), findsOneWidget);
-    expect(find.text('Check lock status'), findsOneWidget);
+    expect(find.text('Check lock status'), findsNothing);
+    expect(find.textContaining('Reset PIN'), findsNothing);
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
-
-    await tester.tap(find.text('Check lock status'));
+    expect(repository.fetchCount, 1);
+    expect(privacyNotificationGuard.isActive, isTrue);
+    await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
-
-    expect(repository.fetchCount, 2);
-    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
+    expect(privacyNotificationGuard.isActive, isFalse);
   });
 
   testWidgets('switching players clears the entered privacy PIN', (
@@ -182,14 +183,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Reset PIN in Player privacy PIN'), findsOneWidget);
-    await tester.tap(find.text('Reset PIN in Player privacy PIN'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Manage First Player'), findsOneWidget);
-    Navigator.of(
-      tester.element(find.textContaining('Manage First Player')),
-    ).pop();
-    await tester.pumpAndSettle();
+    expect(find.textContaining('Reset PIN'), findsNothing);
 
     await tester.enterText(find.byType(TextField), '1234');
     await tester.tap(find.text('switch'));

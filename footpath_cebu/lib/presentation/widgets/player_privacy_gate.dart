@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/core/security/privacy_notification_guard.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/repositories/player_privacy_pin_repository.dart';
 import 'package:footpath_cebu/presentation/providers/player_privacy_pin_providers.dart';
-import 'package:footpath_cebu/presentation/screens/player_privacy_pin_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/privacy_pin_ui.dart';
 
@@ -52,6 +52,7 @@ class PlayerPrivacyGate extends ConsumerStatefulWidget {
 }
 
 class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
+  final Object _notificationGuardToken = Object();
   final _pinController = TextEditingController();
   final _setupPinController = TextEditingController();
   final _setupConfirmController = TextEditingController();
@@ -60,6 +61,22 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
   final _setupConfirmFocus = FocusNode();
   String? _error;
   bool _busy = false;
+  bool _guardActive = false;
+  bool _appliedGuardActive = false;
+
+  void _setNotificationGuard(bool active) {
+    if (_guardActive == active) return;
+    _guardActive = active;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _appliedGuardActive == _guardActive) return;
+      _appliedGuardActive = _guardActive;
+      if (_appliedGuardActive) {
+        privacyNotificationGuard.activate(_notificationGuardToken);
+      } else {
+        privacyNotificationGuard.deactivate(_notificationGuardToken);
+      }
+    });
+  }
 
   @override
   void didUpdateWidget(covariant PlayerPrivacyGate oldWidget) {
@@ -78,6 +95,9 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
 
   @override
   void dispose() {
+    if (_appliedGuardActive) {
+      privacyNotificationGuard.deactivate(_notificationGuardToken);
+    }
     _pinController.dispose();
     _setupPinController.dispose();
     _setupConfirmController.dispose();
@@ -152,17 +172,6 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
     }
   }
 
-  void _openPrivacyPinManagement() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlayerPrivacyPinScreen(
-          player: widget.player,
-          isGuardian: widget.isGuardian,
-        ),
-      ),
-    );
-  }
-
   void _clearError() {
     if (_error != null) setState(() => _error = null);
   }
@@ -174,15 +183,26 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
         .watch(privacyUnlockedPlayersProvider)
         .contains(widget.player.id);
     return status.when(
-      loading: () => const DashboardLoadingState(compact: true),
-      error: (error, _) => Center(
-        child: FilledButton.tonal(
-          onPressed: () =>
-              ref.invalidate(playerPrivacyPinStatusProvider(widget.player.id)),
-          child: const Text('Retry privacy check'),
-        ),
-      ),
+      loading: () {
+        _setNotificationGuard(true);
+        return const DashboardLoadingState(compact: true);
+      },
+      error: (error, _) {
+        _setNotificationGuard(true);
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'The privacy lock could not be verified. Please sign out and try again.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      },
       data: (pinStatus) {
+        final gateActive =
+            !unlocked && (pinStatus.hasPin || widget.requirePinSetup);
+        _setNotificationGuard(gateActive);
         if (unlocked) return widget.child;
         if (!pinStatus.hasPin && widget.requirePinSetup) {
           return _PinSetupPrompt(
@@ -210,9 +230,6 @@ class _PlayerPrivacyGateState extends ConsumerState<PlayerPrivacyGate> {
           onClearError: _clearError,
           onRefreshStatus: () =>
               ref.invalidate(playerPrivacyPinStatusProvider(widget.player.id)),
-          onOpenPrivacyPin: widget.isGuardian
-              ? _openPrivacyPinManagement
-              : null,
         );
       },
     );
@@ -360,7 +377,6 @@ class _PinPrompt extends StatefulWidget {
     required this.onVerify,
     required this.onClearError,
     required this.onRefreshStatus,
-    required this.onOpenPrivacyPin,
   });
 
   final Player player;
@@ -373,7 +389,6 @@ class _PinPrompt extends StatefulWidget {
   final VoidCallback onVerify;
   final VoidCallback onClearError;
   final VoidCallback onRefreshStatus;
-  final VoidCallback? onOpenPrivacyPin;
 
   @override
   State<_PinPrompt> createState() => _PinPromptState();
@@ -479,27 +494,14 @@ class _PinPromptState extends State<_PinPrompt> {
             busy: widget.busy,
             icon: Icons.lock_open_rounded,
           ),
-          const SizedBox(height: 10),
-          if (widget.locked)
-            TextButton.icon(
-              onPressed: widget.busy ? null : widget.onRefreshStatus,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('Check lock status'),
+          const SizedBox(height: 12),
+          Text(
+            'Need help? Sign out, then ask the linked guardian or coordinator to reset the PIN.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
-          if (widget.onOpenPrivacyPin != null)
-            TextButton.icon(
-              onPressed: widget.busy ? null : widget.onOpenPrivacyPin,
-              icon: const Icon(Icons.lock_reset_outlined, size: 18),
-              label: const Text('Reset PIN in Player privacy PIN'),
-            )
-          else
-            Text(
-              'Need help? Ask the linked guardian or coordinator to reset the PIN.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
+          ),
         ],
       ),
     );
