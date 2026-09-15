@@ -7,9 +7,9 @@ from django.core.exceptions import PermissionDenied
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
+from academy.eligibility_service import change_eligibility
 from academy.models import Eligibility, EligibilityHistory, PlayerProfile
 from academy.serializers import PlayerSerializer
-from academy.eligibility_service import change_eligibility
 from portal.services import (
     create_club_account,
     link_guardian,

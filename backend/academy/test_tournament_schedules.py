@@ -417,6 +417,7 @@ class TournamentScheduleApiTests(APITestCase):
         )
         self.assertEqual(response.data[0]['fixtures'][0]['opponent'], 'Rivals FC')
 
+
 class TournamentCoordinatorMobileApiTests(APITestCase):
     def setUp(self):
         self.club = _club('Coordinator Mobile FC')

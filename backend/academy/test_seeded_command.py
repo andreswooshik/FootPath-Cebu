@@ -214,9 +214,7 @@ class UnifiedSeedCommandTests(TestCase):
                 2,
             )
         liam = User.objects.get(email='liam.tan@footpathcebu.test')
-        self.assertTrue(
-            tournament.age_brackets.get().squad.entries.filter(player=liam).exists()
-        )
+        self.assertTrue(tournament.age_brackets.get().squad.entries.filter(player=liam).exists())
         self.assertEqual(PlayerDevelopmentAssessment.objects.filter(player=liam).count(), 2)
         self.assertEqual(PlayerAssessmentSnapshot.objects.filter(player=liam).count(), 2)
         self.assertEqual(PlayerStatsAssessment.objects.filter(player=liam).count(), 2)

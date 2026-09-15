@@ -69,7 +69,9 @@ class CoordinatorPlayerRegistrationView(APIView):
             return Response({'detail': str(error)}, status=400)
         except Exception:
             logger.error('Player registration failed; no request data logged.')
-            return Response({'detail': 'Registration could not be completed. Please retry.'}, status=503)
+            return Response(
+                {'detail': 'Registration could not be completed. Please retry.'}, status=503
+            )
         response = Response(result, status=200 if result['replayed'] else 201)
         response['Cache-Control'] = 'no-store'
         return response

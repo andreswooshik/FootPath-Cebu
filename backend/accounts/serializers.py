@@ -62,6 +62,7 @@ class AdminCreateUserSerializer(serializers.Serializer):
         source='club', queryset=Club.objects.filter(is_active=True)
     )
 
+
 class AdminClubSerializer(serializers.ModelSerializer):
     """Super Admin club CRUD using the existing affiliation fields."""
 

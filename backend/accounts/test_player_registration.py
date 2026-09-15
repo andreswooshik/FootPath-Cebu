@@ -10,27 +10,48 @@ from firebase_admin import auth as firebase_auth
 from rest_framework.test import APITestCase
 
 from academy.models import AuditLog, PlayerProfile
+
 from .models import Club, FirebaseProvisioningCleanup, GuardianLink, PlayerRegistration, Roles, User
 
 
 class CoordinatorPlayerRegistrationTests(APITestCase):
     def setUp(self):
         self.club = Club.objects.create(name='Registration Club', slug='registration')
-        self.coordinator = User.objects.create(username='coordinator', role=Roles.COORDINATOR, club=self.club)
-        self.guardian = User.objects.create(username='guardian', email='existing@example.com',
-            first_name='Maria', last_name='Santos', role=Roles.GUARDIAN, club=self.club,
-            mobile_number='+639171234567')
+        self.coordinator = User.objects.create(
+            username='coordinator', role=Roles.COORDINATOR, club=self.club
+        )
+        self.guardian = User.objects.create(
+            username='guardian',
+            email='existing@example.com',
+            first_name='Maria',
+            last_name='Santos',
+            role=Roles.GUARDIAN,
+            club=self.club,
+            mobile_number='+639171234567',
+        )
         self.client.force_authenticate(self.coordinator)
         self.url = reverse('coordinator-player-registration')
-        self.guardian_data = {'firstName': ' Ana ', 'middleInitial': 'd.', 'lastName': ' Cruz ',
-            'email': 'NEW@EXAMPLE.COM', 'mobileNumber': '0918 123 4567'}
-        self.payload = {'requestId': str(uuid4()), 'existingGuardianId': self.guardian.pk,
-            'player': {'firstName': 'Juan', 'lastName': 'Cruz', 'dateOfBirth': '2012-03-02'}}
+        self.guardian_data = {
+            'firstName': ' Ana ',
+            'middleInitial': 'd.',
+            'lastName': ' Cruz ',
+            'email': 'NEW@EXAMPLE.COM',
+            'mobileNumber': '0918 123 4567',
+        }
+        self.payload = {
+            'requestId': str(uuid4()),
+            'existingGuardianId': self.guardian.pk,
+            'player': {'firstName': 'Juan', 'lastName': 'Cruz', 'dateOfBirth': '2012-03-02'},
+        }
         self.init = patch('accounts.services.ensure_initialized').start()
-        self.lookup = patch('accounts.services.firebase_auth.get_user_by_email',
-            side_effect=firebase_auth.UserNotFoundError('not found')).start()
-        self.create = patch('accounts.services.firebase_auth.create_user',
-            side_effect=lambda **kwargs: Mock(uid=f'uid-{kwargs["email"]}')).start()
+        self.lookup = patch(
+            'accounts.services.firebase_auth.get_user_by_email',
+            side_effect=firebase_auth.UserNotFoundError('not found'),
+        ).start()
+        self.create = patch(
+            'accounts.services.firebase_auth.create_user',
+            side_effect=lambda **kwargs: Mock(uid=f'uid-{kwargs["email"]}'),
+        ).start()
         self.delete = patch('accounts.services.firebase_auth.delete_user').start()
         self.addCleanup(patch.stopall)
 
@@ -48,7 +69,9 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
             self.assertEqual(response.data['guardianId'], str(self.guardian.pk))
             self.assertFalse(response.data['guardianCreated'])
             self.assertEqual(response.data['coordinatorId'], str(self.coordinator.pk))
-            self.assertTrue(PlayerProfile.objects.filter(user_id=response.data['playerId']).exists())
+            self.assertTrue(
+                PlayerProfile.objects.filter(user_id=response.data['playerId']).exists()
+            )
         self.assertEqual(User.objects.filter(role=Roles.GUARDIAN).count(), 1)
         self.assertEqual(GuardianLink.objects.filter(guardian=self.guardian).count(), 2)
         self.create.assert_not_called()
@@ -64,7 +87,11 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         self.assertEqual(guardian.mobile_number, '+639181234567')
         self.assertEqual(guardian.club, self.club)
         self.assertFalse(guardian.has_usable_password())
-        self.assertTrue(GuardianLink.objects.filter(guardian=guardian, player_id=response.data['playerId']).exists())
+        self.assertTrue(
+            GuardianLink.objects.filter(
+                guardian=guardian, player_id=response.data['playerId']
+            ).exists()
+        )
         self.assertEqual(len(response.data['guardianTemporaryPassword']), 12)
         self.assertNotIn('playerTemporaryPassword', response.data)
         self.assertEqual(response['Cache-Control'], 'no-store')
@@ -93,7 +120,9 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
 
     def test_guardian_check_is_read_only_and_duplicate_email_is_selectable(self):
         before = User.objects.count()
-        response = self.client.post(reverse('coordinator-guardian-check'), self.guardian_data, format='json')
+        response = self.client.post(
+            reverse('coordinator-guardian-check'), self.guardian_data, format='json'
+        )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(User.objects.count(), before)
         self.create.assert_not_called()
@@ -117,7 +146,13 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         self.create.assert_not_called()
 
     def test_invalid_guardian_data_never_creates_accounts(self):
-        for key, value in [('firstName', '  '), ('middleInitial', 'DD'), ('lastName', ''), ('email', 'invalid'), ('mobileNumber', '1234')]:
+        for key, value in [
+            ('firstName', '  '),
+            ('middleInitial', 'DD'),
+            ('lastName', ''),
+            ('email', 'invalid'),
+            ('mobileNumber', '1234'),
+        ]:
             payload = self.new_guardian_payload()
             payload['newGuardian'][key] = value
             response = self.client.post(self.url, payload, format='json')
@@ -157,7 +192,9 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
 
     def test_player_profile_failure_rolls_back_guardian_and_its_identity(self):
         payload = self.new_guardian_payload()
-        with patch('academy.models.PlayerProfile.objects.create', side_effect=IntegrityError('failed')):
+        with patch(
+            'academy.models.PlayerProfile.objects.create', side_effect=IntegrityError('failed')
+        ):
             response = self.client.post(self.url, payload, format='json')
         self.assertEqual(response.status_code, 503)
         self.assertEqual(User.objects.count(), 2)
@@ -166,7 +203,9 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         self.delete.assert_called_once_with('uid-new@example.com')
 
     def test_link_failure_rolls_back_player_but_does_not_delete_existing_guardian(self):
-        with patch('accounts.services.GuardianLink.objects.create', side_effect=IntegrityError('failed')):
+        with patch(
+            'accounts.services.GuardianLink.objects.create', side_effect=IntegrityError('failed')
+        ):
             response = self.client.post(self.url, self.payload, format='json')
         self.assertEqual(response.status_code, 503)
         self.assertTrue(User.objects.filter(pk=self.guardian.pk).exists())
@@ -174,7 +213,10 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         self.delete.assert_not_called()
 
     def test_late_database_failure_rolls_back_and_cleans_up(self):
-        with patch('accounts.registration_service.PlayerRegistration.objects.create', side_effect=IntegrityError('failed')):
+        with patch(
+            'accounts.registration_service.PlayerRegistration.objects.create',
+            side_effect=IntegrityError('failed'),
+        ):
             response = self.client.post(self.url, self.new_guardian_payload(), format='json')
         self.assertEqual(response.status_code, 503)
         self.assertEqual(User.objects.count(), 2)
@@ -183,7 +225,9 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
 
     def test_cleanup_outage_is_queued_and_retry_command_clears_it(self):
         self.delete.side_effect = RuntimeError('offline')
-        with patch('academy.models.PlayerProfile.objects.create', side_effect=IntegrityError('failed')):
+        with patch(
+            'academy.models.PlayerProfile.objects.create', side_effect=IntegrityError('failed')
+        ):
             self.client.post(self.url, self.new_guardian_payload(), format='json')
         self.assertEqual(FirebaseProvisioningCleanup.objects.count(), 1)
         self.assertFalse(GuardianLink.objects.exists())
@@ -197,7 +241,9 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         other = User.objects.create(username='other', role=Roles.GUARDIAN, club=other_club)
         for user_id in (other.pk, self.coordinator.pk, 999999):
             self.payload['existingGuardianId'] = user_id
-            self.assertEqual(self.client.post(self.url, self.payload, format='json').status_code, 400)
+            self.assertEqual(
+                self.client.post(self.url, self.payload, format='json').status_code, 400
+            )
         self.guardian.is_active = False
         self.guardian.save()
         self.payload['existingGuardianId'] = self.guardian.pk

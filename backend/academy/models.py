@@ -19,8 +19,8 @@ from academy.model_operations import (
     InjuryReportStatus,
     InjurySeverity,
     InjuryStatus,
-    InjuryType,
     InjuryStatusUpdateRequest,
+    InjuryType,
     InjuryUpdateReviewStatus,
     SessionConfirmation,
 )

@@ -599,9 +599,7 @@ class Command(BaseCommand):
                         'assists': player_assists,
                         'shots': 0 if is_goalkeeper else max(player_goals, 3 + (index % 3)),
                         'shots_on_target': (
-                            0
-                            if is_goalkeeper
-                            else max(player_goals, 1 + (index % 2))
+                            0 if is_goalkeeper else max(player_goals, 1 + (index % 2))
                         ),
                         'passes_attempted': 24 + index * 2,
                         'passes_completed': 18 + index,
@@ -858,9 +856,7 @@ class Command(BaseCommand):
             defaults={
                 'category': DisputeCategory.ATTENDANCE,
                 'status': DisputeStatus.OPEN,
-                'detail': (
-                    'The Coach flagged this demo record for Coordinator review.'
-                ),
+                'detail': ('The Coach flagged this demo record for Coordinator review.'),
             },
         )
         resolved_dispute, _ = Dispute.objects.update_or_create(

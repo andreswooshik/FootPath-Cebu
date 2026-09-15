@@ -9,14 +9,12 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.firebase import ensure_initialized
-from accounts.models import FirebaseProvisioningCleanup, PlayerRegistration, Roles, User
-from accounts.permissions import IsCoordinator
-
 from academy.model_operations import AuditLog
 from academy.model_tournaments import TournamentSquadEntry
 from academy.storage import delete_photo, invalidate_signed_photo_url
-
+from accounts.firebase import ensure_initialized
+from accounts.models import FirebaseProvisioningCleanup, PlayerRegistration, Roles, User
+from accounts.permissions import IsCoordinator
 
 logger = logging.getLogger(__name__)
 
@@ -29,9 +27,7 @@ _ROLES_BY_PATH = {
 
 def _display_name(user, *, player_profile=None):
     middle_initial = (
-        player_profile.middle_initial
-        if player_profile is not None
-        else user.middle_initial
+        player_profile.middle_initial if player_profile is not None else user.middle_initial
     )
     return ' '.join(
         part

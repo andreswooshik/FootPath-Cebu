@@ -123,9 +123,7 @@ def provision_coordinator_firebase_identity(user, *, password, disabled):
             try:
                 firebase_auth.delete_user(firebase_user.uid)
             except Exception:
-                FirebaseProvisioningCleanup.objects.get_or_create(
-                    firebase_uid=firebase_user.uid
-                )
+                FirebaseProvisioningCleanup.objects.get_or_create(firebase_uid=firebase_user.uid)
         raise
     return created
 
@@ -157,8 +155,15 @@ def set_coordinator_firebase_disabled(user, *, disabled):
 
 
 def provision_user(
-    *, email, first_name, last_name, role, club=None, middle_initial='',
-    mobile_number='', created_identities=None,
+    *,
+    email,
+    first_name,
+    last_name,
+    role,
+    club=None,
+    middle_initial='',
+    mobile_number='',
+    created_identities=None,
 ):
     """Create a Firebase account (if needed) and a linked local User.
 
@@ -252,9 +257,7 @@ def provision_player(
 
     club = _require_active_club(club, role=Roles.PLAYER)
     if guardian is None or guardian.role != Roles.GUARDIAN or not guardian.is_active:
-        raise ProvisioningError(
-            'The selected guardian must be active and have the Guardian role.'
-        )
+        raise ProvisioningError('The selected guardian must be active and have the Guardian role.')
     if guardian.club_id != club.id:
         raise ProvisioningError('Guardian and player must belong to the same club.')
 

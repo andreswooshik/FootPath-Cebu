@@ -25,7 +25,6 @@ from academy.models import (
 )
 from accounts.admin import ClubAdmin, CustomUserAdmin
 from accounts.models import Club, GuardianLink, Roles, User
-from accounts.services import provision_club_coordinator
 from test_uploads import jpeg_bytes, pdf_bytes
 
 _PASSWORD = 'Str0ng!passphrase9'
@@ -107,7 +106,7 @@ class CoordinatorSignupTests(TestCase):
         patch('accounts.services.ensure_initialized').start()
         self.addCleanup(patch.stopall)
         get_user.side_effect = firebase_auth.UserNotFoundError('not found')
-        create_user.side_effect = lambda **kwargs: Mock(uid=f"uid-{kwargs['email']}")
+        create_user.side_effect = lambda **kwargs: Mock(uid=f'uid-{kwargs["email"]}')
 
     def test_signup_creates_club_and_pending_coordinator(self):
         resp = self.client.post(
@@ -629,6 +628,7 @@ class DashboardUxTests(TestCase):
         self.assertContains(response, 'Players without guardian')
         self.assertContains(response, 'Roster items needing attention')
 
+
 class GuardianLinkManagementTests(TestCase):
     """Coordinators add/remove guardian↔player links after creation."""
 
@@ -808,8 +808,9 @@ class ApprovalActionTests(TestCase):
         self.assertFalse(user.is_active)
 
         admin = CustomUserAdmin(User, site)
-        with patch.object(CustomUserAdmin, 'message_user'), patch(
-            'accounts.admin.set_coordinator_firebase_disabled', return_value=True
+        with (
+            patch.object(CustomUserAdmin, 'message_user'),
+            patch('accounts.admin.set_coordinator_firebase_disabled', return_value=True),
         ):
             admin.approve_coordinators(Mock(), User.objects.filter(pk=user.pk))
 
@@ -833,8 +834,9 @@ class ApprovalActionTests(TestCase):
 
         club.is_active = False
         club.save(update_fields=['is_active'])
-        with patch.object(ClubAdmin, 'message_user'), patch(
-            'accounts.admin.set_coordinator_firebase_disabled', return_value=True
+        with (
+            patch.object(ClubAdmin, 'message_user'),
+            patch('accounts.admin.set_coordinator_firebase_disabled', return_value=True),
         ):
             admin.approve_registrations(Mock(), Club.objects.filter(pk=club.pk))
 
@@ -843,8 +845,9 @@ class ApprovalActionTests(TestCase):
         self.assertTrue(user.is_active)
         self.assertTrue(club.is_active)
 
-        with patch.object(ClubAdmin, 'message_user'), patch(
-            'accounts.admin.set_coordinator_firebase_disabled', return_value=True
+        with (
+            patch.object(ClubAdmin, 'message_user'),
+            patch('accounts.admin.set_coordinator_firebase_disabled', return_value=True),
         ):
             admin.disapprove_registrations(Mock(), Club.objects.filter(pk=club.pk))
 

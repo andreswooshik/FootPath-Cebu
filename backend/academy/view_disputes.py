@@ -11,11 +11,11 @@ from academy._view_support import (
     DISPUTE_ROLES,
     _may_read_eligibility,
 )
+from academy.eligibility_service import change_eligibility
 from academy.model_operations import (
     Dispute,
     DisputeResponse,
 )
-from academy.eligibility_service import change_eligibility
 from academy.model_players import Eligibility, EligibilityHistory, PlayerProfile
 from academy.serializer_players import PlayerSerializer
 from academy.serializer_training import EligibilityHistorySerializer

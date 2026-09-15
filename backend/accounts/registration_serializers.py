@@ -70,7 +70,9 @@ class RegistrationCommandSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         if ('existingGuardianId' in attrs) == ('newGuardian' in attrs):
-            raise serializers.ValidationError('Select an existing guardian or enter a new guardian.')
+            raise serializers.ValidationError(
+                'Select an existing guardian or enter a new guardian.'
+            )
         return attrs
 
 

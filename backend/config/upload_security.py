@@ -76,9 +76,7 @@ def sanitize_image(content, content_type, *, max_bytes=MAX_UPLOAD_BYTES):
         raise ValueError('The uploaded image is corrupt or unsafe.') from exc
     sanitized = output.getvalue()
     if len(sanitized) > max_bytes:
-        raise ValueError(
-            f'The processed image is larger than {_upload_size_label(max_bytes)}.'
-        )
+        raise ValueError(f'The processed image is larger than {_upload_size_label(max_bytes)}.')
     return sanitized
 
 
@@ -110,9 +108,7 @@ def sanitize_pdf(content, *, max_bytes=MAX_UPLOAD_BYTES):
     if not sanitized.startswith(b'%PDF-') or not reader.pages:
         raise ValueError('The uploaded PDF must contain at least one page.')
     if len(sanitized) > max_bytes:
-        raise ValueError(
-            f'The processed PDF is larger than {_upload_size_label(max_bytes)}.'
-        )
+        raise ValueError(f'The processed PDF is larger than {_upload_size_label(max_bytes)}.')
     return sanitized
 
 

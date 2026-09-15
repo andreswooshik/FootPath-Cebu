@@ -12,7 +12,6 @@ from django.contrib.auth.password_validation import validate_password
 from academy.models import (
     AgeTier,
     FixtureStatus,
-    PlayerProfile,
     TournamentAgeBracket,
     TournamentFixture,
     TournamentSquadStatus,
@@ -188,9 +187,7 @@ class CreatePlayerForm(_BaseCreateAccountForm):
         cleaned = super().clean()
         supplied_email = self.data.get('email') or self.data.get(self.add_prefix('email'))
         if supplied_email:
-            raise forms.ValidationError(
-                'Player profiles do not have a separate login email.'
-            )
+            raise forms.ValidationError('Player profiles do not have a separate login email.')
         return cleaned
 
 
@@ -534,8 +531,6 @@ class TournamentFixtureResultForm(forms.Form):
             raise forms.ValidationError(messages)
         self.result_payload = serializer.validated_data
         return cleaned
-
-
 
 
 def _user_label(user):

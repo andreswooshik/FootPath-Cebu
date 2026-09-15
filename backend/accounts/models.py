@@ -162,11 +162,15 @@ class GuardianLinkManager(models.Manager):
 class PlayerRegistration(models.Model):
     """Receipt for one coordinator command; credentials are never persisted."""
 
-    coordinator = models.ForeignKey(User, on_delete=models.PROTECT, related_name='player_registrations')
+    coordinator = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='player_registrations'
+    )
     request_key = models.UUIDField()
     payload_hash = models.CharField(max_length=64)
     player = models.OneToOneField(User, on_delete=models.PROTECT, related_name='registration')
-    guardian = models.ForeignKey(User, on_delete=models.PROTECT, related_name='registrations_as_guardian')
+    guardian = models.ForeignKey(
+        User, on_delete=models.PROTECT, related_name='registrations_as_guardian'
+    )
     guardian_created = models.BooleanField()
     created_at = models.DateTimeField(auto_now_add=True)
 

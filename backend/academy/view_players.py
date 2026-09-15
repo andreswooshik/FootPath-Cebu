@@ -111,15 +111,18 @@ class ClubMemberDirectoryView(APIView):
         ).prefetch_related('guardian_links__player')
         rows = []
         for member in members.order_by('last_name', 'first_name', 'id'):
-            name = ' '.join(
-                part
-                for part in (
-                    member.first_name,
-                    f'{member.middle_initial}.' if member.middle_initial else '',
-                    member.last_name,
+            name = (
+                ' '.join(
+                    part
+                    for part in (
+                        member.first_name,
+                        f'{member.middle_initial}.' if member.middle_initial else '',
+                        member.last_name,
+                    )
+                    if part
                 )
-                if part
-            ) or member.email.split('@')[0]
+                or member.email.split('@')[0]
+            )
             linked_players = []
             linked_player_ids = []
             if member.role == Roles.GUARDIAN:
@@ -128,7 +131,11 @@ class ClubMemberDirectoryView(APIView):
                 )
                 linked_players = [
                     link.player.get_full_name().strip()
-                    or (link.player.email.split('@')[0] if link.player.email else f'Player {link.player_id}')
+                    or (
+                        link.player.email.split('@')[0]
+                        if link.player.email
+                        else f'Player {link.player_id}'
+                    )
                     for link in links
                 ]
                 linked_player_ids = [str(link.player_id) for link in links]

@@ -5,6 +5,13 @@ from uuid import uuid4
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
+from academy.model_tournaments import (
+    TournamentAgeBracket,
+    TournamentSchedule,
+    TournamentSquad,
+    TournamentSquadEntry,
+)
+from academy.models import AuditLog, PlayerProfile
 from accounts.models import (
     Club,
     FirebaseProvisioningCleanup,
@@ -12,13 +19,6 @@ from accounts.models import (
     PlayerRegistration,
     Roles,
     User,
-)
-from academy.models import AuditLog, PlayerProfile
-from academy.model_tournaments import (
-    TournamentAgeBracket,
-    TournamentSchedule,
-    TournamentSquad,
-    TournamentSquadEntry,
 )
 
 
@@ -130,9 +130,7 @@ class CoordinatorPeopleTests(APITestCase):
         self.assertEqual(self.client.delete(self.url('players', self.player)).status_code, 403)
 
     @patch('academy.view_people.delete_photo')
-    def test_deleting_player_removes_entire_profile_and_related_records(
-        self, delete_photo
-    ):
+    def test_deleting_player_removes_entire_profile_and_related_records(self, delete_photo):
         player_id = self.player.pk
         self.player.player_profile.photo_path = 'player-photos/john.jpg'
         self.player.player_profile.save(update_fields=['photo_path'])
@@ -215,9 +213,7 @@ class CoordinatorPeopleTests(APITestCase):
         self.guardian.refresh_from_db()
         self.assertFalse(self.guardian.is_active)
         self.assertTrue(
-            FirebaseProvisioningCleanup.objects.filter(
-                firebase_uid='firebase-guardian'
-            ).exists()
+            FirebaseProvisioningCleanup.objects.filter(firebase_uid='firebase-guardian').exists()
         )
 
     def test_coach_retirement_removes_it_from_directory(self):

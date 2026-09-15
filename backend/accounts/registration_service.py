@@ -8,6 +8,7 @@ from firebase_admin import auth as firebase_auth
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 
 from academy.models import AuditLog
+
 from .models import (
     Club,
     FirebaseProvisioningCleanup,
@@ -35,14 +36,18 @@ def coordinator_club(actor):
 
 
 def check_guardian_duplicate(*, club, data):
-    duplicate = User.objects.filter(club=club, role=Roles.GUARDIAN).filter(
-        Q(email__iexact=data['email']) | Q(mobile_number=data['mobileNumber'])
-    ).first()
+    duplicate = (
+        User.objects.filter(club=club, role=Roles.GUARDIAN)
+        .filter(Q(email__iexact=data['email']) | Q(mobile_number=data['mobileNumber']))
+        .first()
+    )
     if duplicate:
-        raise RegistrationConflict({
-            'detail': 'A guardian with this email or mobile number already exists.',
-            'existingGuardianId': str(duplicate.pk) if duplicate.is_active else None,
-        })
+        raise RegistrationConflict(
+            {
+                'detail': 'A guardian with this email or mobile number already exists.',
+                'existingGuardianId': str(duplicate.pk) if duplicate.is_active else None,
+            }
+        )
     if User.objects.filter(email__iexact=data['email']).exists():
         raise ValidationError({'email': 'An account with this email already exists.'})
 
@@ -82,17 +87,23 @@ def cleanup_created_identities(created_identities):
 def register_member(*, actor, data):
     """Create a same-club Guardian or Coach through Coordinator RBAC."""
     club = coordinator_club(actor)
-    payload_hash = hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
+    payload_hash = hashlib.sha256(
+        json.dumps(data, sort_keys=True, default=str).encode()
+    ).hexdigest()
     created_identities = []
     try:
         with transaction.atomic():
             locked_club = Club.objects.select_for_update().get(pk=club.pk)
             if not locked_club.is_active:
                 raise PermissionDenied('Your club must be active.')
-            receipt = MemberRegistration.objects.filter(
-                coordinator=actor,
-                request_key=data['requestId'],
-            ).select_related('member').first()
+            receipt = (
+                MemberRegistration.objects.filter(
+                    coordinator=actor,
+                    request_key=data['requestId'],
+                )
+                .select_related('member')
+                .first()
+            )
             if receipt:
                 if receipt.payload_hash != payload_hash:
                     raise RegistrationConflict()
@@ -162,7 +173,9 @@ def member_registration_result(user, actor, *, temporary_password=None, replayed
 
 def register_player(*, actor, data):
     club = coordinator_club(actor)
-    payload_hash = hashlib.sha256(json.dumps(data, sort_keys=True, default=str).encode()).hexdigest()
+    payload_hash = hashlib.sha256(
+        json.dumps(data, sort_keys=True, default=str).encode()
+    ).hexdigest()
     created_identities = []
     try:
         with transaction.atomic():
@@ -170,9 +183,11 @@ def register_player(*, actor, data):
             locked_club = Club.objects.select_for_update().get(pk=club.pk)
             if not locked_club.is_active:
                 raise PermissionDenied('Your club must be active.')
-            receipt = PlayerRegistration.objects.filter(
-                coordinator=actor, request_key=data['requestId']
-            ).select_related('player', 'guardian').first()
+            receipt = (
+                PlayerRegistration.objects.filter(coordinator=actor, request_key=data['requestId'])
+                .select_related('player', 'guardian')
+                .first()
+            )
             if receipt:
                 if receipt.payload_hash != payload_hash:
                     raise RegistrationConflict()
@@ -184,31 +199,57 @@ def register_player(*, actor, data):
             if guardian_data:
                 check_guardian_duplicate(club=club, data=guardian_data)
                 guardian, guardian_password, _ = provision_user(
-                    email=guardian_data['email'], first_name=guardian_data['firstName'],
+                    email=guardian_data['email'],
+                    first_name=guardian_data['firstName'],
                     middle_initial=guardian_data['middleInitial'],
                     last_name=guardian_data['lastName'],
                     mobile_number=guardian_data['mobileNumber'],
-                    role=Roles.GUARDIAN, club=club,
+                    role=Roles.GUARDIAN,
+                    club=club,
                     created_identities=created_identities,
                 )
             else:
-                guardian = User.objects.select_for_update().filter(
-                    pk=data['existingGuardianId'], club=club, role=Roles.GUARDIAN, is_active=True
-                ).first()
+                guardian = (
+                    User.objects.select_for_update()
+                    .filter(
+                        pk=data['existingGuardianId'],
+                        club=club,
+                        role=Roles.GUARDIAN,
+                        is_active=True,
+                    )
+                    .first()
+                )
                 if guardian is None:
-                    raise ValidationError({'existingGuardianId': 'Select an active guardian in your club.'})
+                    raise ValidationError(
+                        {'existingGuardianId': 'Select an active guardian in your club.'}
+                    )
             player, _, _, _ = provision_player(
-                first_name=player_data['firstName'], last_name=player_data['lastName'],
+                first_name=player_data['firstName'],
+                last_name=player_data['lastName'],
                 middle_initial=player_data['middleInitial'],
-                date_of_birth=player_data['dateOfBirth'], club=club, guardian=guardian,
+                date_of_birth=player_data['dateOfBirth'],
+                club=club,
+                guardian=guardian,
             )
             receipt = PlayerRegistration.objects.create(
-                coordinator=actor, request_key=data['requestId'], payload_hash=payload_hash,
-                player=player, guardian=guardian, guardian_created=guardian_data is not None,
+                coordinator=actor,
+                request_key=data['requestId'],
+                payload_hash=payload_hash,
+                player=player,
+                guardian=guardian,
+                guardian_created=guardian_data is not None,
             )
-            AuditLog.record(actor, 'player.registered', target=str(player.pk), detail=json.dumps({
-                'guardianId': guardian.pk, 'guardianCreated': receipt.guardian_created,
-            }))
+            AuditLog.record(
+                actor,
+                'player.registered',
+                target=str(player.pk),
+                detail=json.dumps(
+                    {
+                        'guardianId': guardian.pk,
+                        'guardianCreated': receipt.guardian_created,
+                    }
+                ),
+            )
             result = registration_result(receipt, guardian_password=guardian_password)
         return result
     except Exception:

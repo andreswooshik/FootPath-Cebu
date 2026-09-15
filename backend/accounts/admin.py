@@ -27,8 +27,8 @@ from django.utils.html import escape, format_html
 from .models import Club, GuardianLink, Roles, User
 from .services import (
     link_or_create_firebase_user,
-    provision_coordinator_firebase_identity,
     provision_club_coordinator,
+    provision_coordinator_firebase_identity,
     set_coordinator_firebase_disabled,
     set_firebase_password,
 )
@@ -57,9 +57,7 @@ _PILL = (
 def uses_firebase_only_password(user):
     """Whether an account's sole password credential lives in Firebase."""
     return bool(user.firebase_uid) and (
-        not user.is_staff
-        and not user.is_superuser
-        and user.role != Roles.COORDINATOR
+        not user.is_staff and not user.is_superuser and user.role != Roles.COORDINATOR
     )
 
 

@@ -1,5 +1,4 @@
 import json
-
 from unittest.mock import Mock, patch
 
 from django.contrib.admin.sites import site
@@ -66,7 +65,7 @@ class ClubAdminCoordinatorCreationTests(TestCase):
         patch('accounts.services.ensure_initialized').start()
         self.addCleanup(patch.stopall)
         get_user.side_effect = firebase_auth.UserNotFoundError('not found')
-        create_user.side_effect = lambda **kwargs: Mock(uid=f"uid-{kwargs['email']}")
+        create_user.side_effect = lambda **kwargs: Mock(uid=f'uid-{kwargs["email"]}')
         self.super_admin = User.objects.create_superuser(
             username='superadmin',
             email='superadmin@footpath.test',

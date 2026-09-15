@@ -1,7 +1,7 @@
 from unittest.mock import Mock, patch
 
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from firebase_admin import auth as firebase_auth
@@ -44,7 +44,7 @@ class MobileClubRegistrationApiTests(TestCase):
         patch('accounts.services.ensure_initialized').start()
         self.addCleanup(patch.stopall)
         get_user.side_effect = firebase_auth.UserNotFoundError('not found')
-        create_user.side_effect = lambda **kwargs: Mock(uid=f"uid-{kwargs['email']}")
+        create_user.side_effect = lambda **kwargs: Mock(uid=f'uid-{kwargs["email"]}')
 
     def test_submission_uses_existing_pending_club_workflow(self):
         response = self.client.post(
@@ -104,7 +104,9 @@ class MobileClubRegistrationApiTests(TestCase):
         between_limits = _license()
         between_limits.size = COACH_LICENSE_MAX_BYTES + 1
         web_form = CoordinatorSignupForm(
-            data={key: value for key, value in _application_data().items() if key != 'coach_license'},
+            data={
+                key: value for key, value in _application_data().items() if key != 'coach_license'
+            },
             files={'coach_license': between_limits},
         )
         self.assertFalse(web_form.is_valid())
@@ -113,7 +115,9 @@ class MobileClubRegistrationApiTests(TestCase):
         mobile_file = _license()
         mobile_file.size = COACH_LICENSE_MAX_BYTES + 1
         mobile_form = CoordinatorSignupForm(
-            data={key: value for key, value in _application_data().items() if key != 'coach_license'},
+            data={
+                key: value for key, value in _application_data().items() if key != 'coach_license'
+            },
             files={'coach_license': mobile_file},
             coach_license_max_bytes=MOBILE_COACH_LICENSE_MAX_BYTES,
         )
@@ -126,7 +130,9 @@ class MobileClubRegistrationApiTests(TestCase):
         too_large = _license()
         too_large.size = MOBILE_COACH_LICENSE_MAX_BYTES + 1
         oversized_form = CoordinatorSignupForm(
-            data={key: value for key, value in _application_data().items() if key != 'coach_license'},
+            data={
+                key: value for key, value in _application_data().items() if key != 'coach_license'
+            },
             files={'coach_license': too_large},
             coach_license_max_bytes=MOBILE_COACH_LICENSE_MAX_BYTES,
         )

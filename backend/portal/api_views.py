@@ -57,7 +57,11 @@ class MobileClubRegistrationView(APIView):
             )
         except OSError:
             return Response(
-                {'errors': {'coach_license': ['Coach-license storage is temporarily unavailable.']}},
+                {
+                    'errors': {
+                        'coach_license': ['Coach-license storage is temporarily unavailable.']
+                    }
+                },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 

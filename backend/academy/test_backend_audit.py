@@ -11,8 +11,8 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import Club, Roles, User
-from .eligibility_service import change_eligibility
 
+from .eligibility_service import change_eligibility
 from .models import (
     Attendance,
     AuditLog,
