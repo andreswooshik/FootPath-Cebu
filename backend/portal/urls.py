@@ -29,11 +29,6 @@ urlpatterns = [
         views.PortalPasswordChangeView.as_view(),
         name='password-change',
     ),
-    path(
-        'mobile-access/',
-        views.coordinator_mobile_access,
-        name='mobile-access',
-    ),
     path('accounts/new/', views.create_account, name='create-account'),
     path('players/', views.players, name='players'),
     path(
@@ -83,12 +78,5 @@ urlpatterns = [
         'players/<int:player_id>/photo/',
         views.player_photo,
         name='player-photo',
-    ),
-    path('eligibility/', views.staff_eligibility, name='staff-eligibility'),
-    path('disputes/', views.staff_disputes, name='staff-disputes'),
-    path(
-        'disputes/<int:pk>/',
-        views.staff_dispute_detail,
-        name='staff-dispute-detail',
     ),
 ]

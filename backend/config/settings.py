@@ -268,7 +268,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model — must be set before the first migrate ever runs.
 AUTH_USER_MODEL = 'accounts.User'
 
-# Session-authenticated web portal (coordinators / school staff). App users
+# Session-authenticated web portal for coordinators. App users
 # authenticate via Firebase and never reach these pages.
 LOGIN_URL = '/portal/login/'
 LOGIN_REDIRECT_URL = '/portal/'

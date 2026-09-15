@@ -152,7 +152,7 @@ class EligibilityHistoryView(APIView):
     eligibility transitions, newest first.
 
     Object-scoped (audit finding F3): the player themselves, their linked
-    guardian(s), School Staff, their club Coordinator, and Admin may read;
+    guardian(s), their club Coordinator, and Admin may read;
     nobody else — notably not the coach, since academic eligibility is not
     the coach's domain. The
     serializer hides the acting staff member's identity from families.
@@ -166,7 +166,6 @@ class EligibilityHistoryView(APIView):
             # without revealing whether the id exists.
             if request.user.role in (
                 Roles.ADMIN,
-                Roles.SCHOOL_STAFF,
                 Roles.COORDINATOR,
             ):
                 get_object_or_404(User, pk=player_id, role=Roles.PLAYER)
@@ -199,7 +198,6 @@ class EligibilityUpdateView(APIView):
     def put(self, request, player_id):
         if request.user.role not in (
             Roles.ADMIN,
-            Roles.SCHOOL_STAFF,
             Roles.COORDINATOR,
         ):
             raise PermissionDenied('You may not update academic eligibility.')

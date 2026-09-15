@@ -53,7 +53,7 @@ class DisputeResponse {
   final DateTime createdAt;
   final String? authorName;
 
-  /// The author's wire role (COACH / SCHOOL_STAFF / ADMIN).
+  /// The author's wire role (COACH / COORDINATOR / ADMIN).
   final String? authorRole;
 
   /// The status this response moved the dispute to, when it did.

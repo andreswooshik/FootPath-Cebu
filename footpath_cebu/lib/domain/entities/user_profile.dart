@@ -20,10 +20,10 @@ class UserProfile {
   final String firstName;
   final String lastName;
 
-  /// Canonical wire value, always upper-case, e.g. `COACH`, `SCHOOL_STAFF`.
+  /// Canonical wire value, always upper-case, e.g. `COACH`, `COORDINATOR`.
   final String role;
 
-  /// Human-friendly label, e.g. `Coach`, `School Staff`.
+  /// Human-friendly label, e.g. `Coach`, `Club Coordinator`.
   final String roleDisplay;
 
   /// Short-lived signed Supabase URL for the user's private profile photo.

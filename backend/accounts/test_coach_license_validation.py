@@ -1,9 +1,12 @@
 import json
 
+from unittest.mock import Mock, patch
+
 from django.contrib.admin.sites import site
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from firebase_admin import auth as firebase_auth
 
 from test_uploads import pdf_bytes
 
@@ -58,6 +61,12 @@ class CoachLicenseAdminValidationTests(TestCase):
 
 class ClubAdminCoordinatorCreationTests(TestCase):
     def setUp(self):
+        get_user = patch('accounts.services.firebase_auth.get_user_by_email').start()
+        create_user = patch('accounts.services.firebase_auth.create_user').start()
+        patch('accounts.services.ensure_initialized').start()
+        self.addCleanup(patch.stopall)
+        get_user.side_effect = firebase_auth.UserNotFoundError('not found')
+        create_user.side_effect = lambda **kwargs: Mock(uid=f"uid-{kwargs['email']}")
         self.super_admin = User.objects.create_superuser(
             username='superadmin',
             email='superadmin@footpath.test',
@@ -105,6 +114,7 @@ class ClubAdminCoordinatorCreationTests(TestCase):
         self.assertEqual(coordinator.email, 'andrea@new-united.test')
         self.assertEqual(coordinator.role, Roles.COORDINATOR)
         self.assertTrue(coordinator.is_active)
+        self.assertEqual(coordinator.firebase_uid, 'uid-andrea@new-united.test')
         self.assertTrue(coordinator.check_password('Zebra!Galaxy2026'))
 
     def test_mismatched_passwords_do_not_create_club_or_coordinator(self):

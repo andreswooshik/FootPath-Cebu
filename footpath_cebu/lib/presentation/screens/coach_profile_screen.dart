@@ -215,7 +215,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
             onRetry: () => ref.invalidate(squadProvider),
           ),
           data: (squad) {
-            // Players cleared by School Staff to play, and players on an
+            // Players cleared by the Club Coordinator to play, and players on an
             // academic warning or blocked from selection.
             final eligible = squad
                 .where((p) => p.eligibility == EligibilityStatus.eligible)

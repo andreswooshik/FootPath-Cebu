@@ -6,7 +6,7 @@
 {% block content %}
 <div class="mx-auto max-w-4xl" data-account-tabs data-default-account-tab="{{ active_tab }}">
   <div class="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
-    <strong>Choose the account type first.</strong> Guardian and Coach accounts receive a one-time password. School Staff use this web portal. Players are guardian-managed profiles and do not receive login credentials.
+    <strong>Choose the account type first.</strong> Guardian and Coach accounts receive a one-time password. Players are guardian-managed profiles and do not receive login credentials.
   </div>
 
   {% if created %}
@@ -52,19 +52,10 @@
       <span class="account-tab-title">Coach</span>
       <span class="account-tab-description">Add mobile coaching access</span>
     </button>
-    {% if forms.staff %}
-    <button type="button" id="account-tab-staff" role="tab" aria-controls="account-panel-staff" data-account-tab="staff">
-      <span class="account-tab-title">School Staff</span>
-      <span class="account-tab-description">Add web eligibility access</span>
-    </button>
-    {% endif %}
   </div>
 
   {% include 'portal/_create_form.html' with title='Player' type='player' form=forms.player %}
   {% include 'portal/_create_form.html' with title='Guardian' type='guardian' form=forms.guardian %}
   {% include 'portal/_create_form.html' with title='Coach' type='coach' form=forms.coach %}
-  {% if forms.staff %}
-    {% include 'portal/_create_form.html' with title='School Staff' type='staff' form=forms.staff %}
-  {% endif %}
 </div>
 {% endblock %}

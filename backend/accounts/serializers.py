@@ -7,7 +7,6 @@ from .models import Club, ClubTypes, GuardianLink, Roles, User
 
 CREATABLE_ROLES = [
     Roles.COACH,
-    Roles.SCHOOL_STAFF,
     Roles.GUARDIAN,
 ]
 
@@ -48,7 +47,7 @@ class AdminUpdateUserSerializer(serializers.Serializer):
     role/auth-mode rules live in accounts.services.change_role."""
 
     role = serializers.ChoiceField(
-        choices=[Roles.COACH, Roles.SCHOOL_STAFF, Roles.GUARDIAN],
+        choices=[Roles.COACH, Roles.GUARDIAN],
         required=False,
     )
     is_active = serializers.BooleanField(required=False)
@@ -62,14 +61,6 @@ class AdminCreateUserSerializer(serializers.Serializer):
     club_id = serializers.PrimaryKeyRelatedField(
         source='club', queryset=Club.objects.filter(is_active=True)
     )
-
-    def validate(self, attrs):
-        if attrs['role'] == Roles.SCHOOL_STAFF and not attrs['club'].allows_school_staff:
-            raise serializers.ValidationError(
-                {'role': 'School Staff can be assigned only to a School club.'}
-            )
-        return attrs
-
 
 class AdminClubSerializer(serializers.ModelSerializer):
     """Super Admin club CRUD using the existing affiliation fields."""

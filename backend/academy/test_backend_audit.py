@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import Club, Roles, User
-from portal.services import set_player_eligibility
+from .eligibility_service import change_eligibility
 
 from .models import (
     Attendance,
@@ -36,8 +36,8 @@ class AuditFixtures:
         super().setUp()
         self.club = Club.objects.create(name='Audit FC', slug='audit-fc', is_school_affiliated=True)
         self.coach = User.objects.create(username='coach-audit', role=Roles.COACH, club=self.club)
-        self.staff = User.objects.create(
-            username='staff-audit', role=Roles.SCHOOL_STAFF, club=self.club
+        self.coordinator = User.objects.create(
+            username='coordinator-audit', role=Roles.COORDINATOR, club=self.club
         )
         self.player = User.objects.create(
             username='player-audit', role=Roles.PLAYER, club=self.club
@@ -158,8 +158,10 @@ class AuditIntegrityTests(AuditFixtures, TestCase):
             side_effect=DatabaseError('history failed'),
         ):
             with self.assertRaises(DatabaseError):
-                set_player_eligibility(
-                    staff=self.staff, player_profile=self.profile, new_status=Eligibility.ELIGIBLE
+                change_eligibility(
+                    actor=self.coordinator,
+                    player_id=self.profile.user_id,
+                    new_status=Eligibility.ELIGIBLE,
                 )
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.eligibility, original)
@@ -175,16 +177,16 @@ class AuditIntegrityTests(AuditFixtures, TestCase):
     def test_audit_chain_uses_sequence_despite_reversed_clock(self):
         now = timezone.now()
         with patch('academy.model_operations.timezone.now', return_value=now):
-            first = AuditLog.record(self.staff, 'audit.first')
+            first = AuditLog.record(self.coordinator, 'audit.first')
         with patch(
             'academy.model_operations.timezone.now', return_value=now - timedelta(seconds=1)
         ):
-            second = AuditLog.record(self.staff, 'audit.second')
+            second = AuditLog.record(self.coordinator, 'audit.second')
         self.assertEqual(second.sequence, first.sequence + 1)
         self.assertEqual(AuditLog.verify_chain(), (True, None))
 
     def test_actor_reassignment_breaks_audit_verification(self):
-        entry = AuditLog.record(self.staff, 'audit.actor')
+        entry = AuditLog.record(self.coordinator, 'audit.actor')
         with connection.cursor() as cursor:
             cursor.execute(
                 'UPDATE academy_auditlog SET actor_id = %s WHERE id = %s',
@@ -193,9 +195,9 @@ class AuditIntegrityTests(AuditFixtures, TestCase):
         self.assertEqual(AuditLog.verify_chain(), (False, entry.pk))
 
     def test_deleted_actor_preserves_immutable_identity_and_valid_chain(self):
-        entry = AuditLog.record(self.staff, 'audit.actor')
-        actor_id = str(self.staff.pk)
-        self.staff.delete()
+        entry = AuditLog.record(self.coordinator, 'audit.actor')
+        actor_id = str(self.coordinator.pk)
+        self.coordinator.delete()
         entry.refresh_from_db()
         self.assertEqual(entry.actor_identifier, actor_id)
         self.assertEqual(AuditLog.verify_chain(), (True, None))
@@ -221,7 +223,7 @@ class AuditIntegrityTests(AuditFixtures, TestCase):
             sequence=1,
             hash_version=1,
         )
-        new_entry = AuditLog.record(self.staff, 'new.event')
+        new_entry = AuditLog.record(self.coordinator, 'new.event')
         legacy.refresh_from_db()
         self.assertEqual(legacy.entry_hash, legacy_hash)
         self.assertEqual(new_entry.previous_hash, legacy_hash)

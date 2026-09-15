@@ -91,10 +91,9 @@ class UnifiedSeedCommandTests(TestCase):
             'coordinator@footpathcebu.test': Roles.COORDINATOR,
             'coach@footpathcebu.test': Roles.COACH,
             'player@footpathcebu.test': Roles.PLAYER,
-            'staff@footpathcebu.test': Roles.SCHOOL_STAFF,
             'guardian@footpathcebu.test': Roles.GUARDIAN,
         }
-        self.assertEqual(User.objects.filter(email__in=DEMO_EMAILS).count(), 12)
+        self.assertEqual(User.objects.filter(email__in=DEMO_EMAILS).count(), 11)
         self.assertEqual(
             PlayerProfile.objects.filter(user__email__in=DEMO_PLAYER_EMAILS).count(),
             7,
@@ -107,7 +106,6 @@ class UnifiedSeedCommandTests(TestCase):
         for email in (
             'admin@footpathcebu.test',
             'coordinator@footpathcebu.test',
-            'staff@footpathcebu.test',
         ):
             self.assertTrue(User.objects.get(email=email).check_password(password))
         for email in (

@@ -24,7 +24,7 @@ class MockDisputeRepository implements DisputeRepository {
           body: 'Checking the sign-in sheet with the P.E. department.',
           createdAt: DateTime(2026, 7, 12, 14),
           authorName: 'Staff Reyes',
-          authorRole: 'SCHOOL_STAFF',
+          authorRole: 'COORDINATOR',
           statusChangeTo: DisputeStatus.underReview,
         ),
       ],

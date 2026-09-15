@@ -9,14 +9,14 @@ from rest_framework.test import APITestCase
 
 from academy.models import Eligibility, EligibilityHistory, PlayerProfile
 from academy.serializers import PlayerSerializer
+from academy.eligibility_service import change_eligibility
 from portal.services import (
     create_club_account,
     link_guardian,
-    set_player_eligibility,
 )
 
 from .models import Club, ClubTypes, GuardianLink, Roles, User
-from .services import provision_club_coordinator, provision_web_user
+from .services import ProvisioningError, provision_club_coordinator
 
 
 class ApprovedClubHierarchyTests(APITestCase):
@@ -29,6 +29,12 @@ class ApprovedClubHierarchyTests(APITestCase):
         )
         self.firebase_patcher.start()
         self.addCleanup(self.firebase_patcher.stop)
+        self.coordinator_firebase_patcher = patch(
+            'accounts.services.provision_coordinator_firebase_identity',
+            side_effect=self._fake_coordinator_firebase_link,
+        )
+        self.coordinator_firebase_patcher.start()
+        self.addCleanup(self.coordinator_firebase_patcher.stop)
 
         self.super_admin = User.objects.create(
             username='super@footpath.test',
@@ -81,6 +87,12 @@ class ApprovedClubHierarchyTests(APITestCase):
         user.firebase_uid = f'uid-{user.username}'
         user.set_unusable_password()
         return password or 'TempPass123!'
+
+    @staticmethod
+    def _fake_coordinator_firebase_link(user, *, password, disabled):
+        user.firebase_uid = f'uid-{user.username}'
+        user.save(update_fields=['firebase_uid'])
+        return True
 
     @staticmethod
     def _member(*, email, role, club):
@@ -346,40 +358,34 @@ class ApprovedClubHierarchyTests(APITestCase):
             ).exists()
         )
 
-    def test_14_school_club_coordinator_can_create_school_staff(self):
+    def test_14_removed_account_type_is_unavailable(self):
         response = self._portal_post(
             self.school_coordinator,
             {
-                'account_type': 'staff',
-                'email': 'staff14@footpath.test',
-                'first_name': 'Staff',
+                'account_type': 'unsupported',
+                'email': 'unsupported14@footpath.test',
+                'first_name': 'Unsupported',
                 'last_name': 'Fourteen',
             },
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(
-            User.objects.filter(
-                email='staff14@footpath.test',
-                role=Roles.SCHOOL_STAFF,
-                club=self.school,
-            ).exists()
-        )
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(User.objects.filter(email='unsupported14@footpath.test').exists())
 
-    def test_15_independent_club_coordinator_cannot_create_school_staff(self):
+    def test_15_service_rejects_removed_account_type(self):
         response = self._portal_post(
             self.independent_coordinator,
             {
-                'account_type': 'staff',
-                'email': 'staff15@footpath.test',
+                'account_type': 'unsupported',
+                'email': 'unsupported15@footpath.test',
                 'first_name': 'Blocked',
-                'last_name': 'Staff',
+                'last_name': 'Account',
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertFalse(User.objects.filter(email='staff15@footpath.test').exists())
-        with self.assertRaises(PermissionDenied):
+        self.assertFalse(User.objects.filter(email='unsupported15@footpath.test').exists())
+        with self.assertRaisesMessage(ProvisioningError, 'Unknown or unavailable'):
             create_club_account(
-                account_type='staff',
+                account_type='unsupported',
                 coordinator=self.independent_coordinator,
                 data={
                     'email': 'service15@footpath.test',
@@ -389,20 +395,13 @@ class ApprovedClubHierarchyTests(APITestCase):
             )
 
     def test_16_school_club_can_use_status_only_eligibility_module(self):
-        staff, _ = provision_web_user(
-            email='staff16@footpath.test',
-            first_name='School',
-            last_name='Staff',
-            role=Roles.SCHOOL_STAFF,
-            club=self.school,
-        )
         _player, profile = self._profile(
             email='player16@footpath.test',
             club=self.school,
         )
-        set_player_eligibility(
-            staff=staff,
-            player_profile=profile,
+        change_eligibility(
+            actor=self.school_coordinator,
+            player_id=profile.user_id,
             new_status=Eligibility.ELIGIBLE,
         )
         profile.refresh_from_db()
@@ -475,9 +474,6 @@ class ApprovedClubHierarchyTests(APITestCase):
 
     def test_21_guardian_cannot_create_accounts(self):
         self._assert_role_cannot_create_accounts(Roles.GUARDIAN, 'guardian21@test.test')
-
-    def test_22_school_staff_cannot_create_accounts(self):
-        self._assert_role_cannot_create_accounts(Roles.SCHOOL_STAFF, 'staff22@test.test')
 
     def test_23_normal_coordinator_cannot_create_another_coordinator(self):
         before = User.objects.filter(role=Roles.COORDINATOR).count()

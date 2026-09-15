@@ -13,7 +13,7 @@ def append_dispute_response(*, actor, dispute_id, body, status_change_to=None):
     if not actor.is_active or actor.role not in (
         Roles.ADMIN,
         Roles.COACH,
-        Roles.SCHOOL_STAFF,
+        Roles.COORDINATOR,
     ):
         raise PermissionDenied('You may not respond to disputes.')
     dispute = (

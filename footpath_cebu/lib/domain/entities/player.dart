@@ -3,7 +3,7 @@ import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 /// Academic eligibility, mirroring the backend enum. Never stores grades —
-/// only the gating status set by School Staff.
+/// only the gating status set by the Club Coordinator.
 enum EligibilityStatus { eligible, notEligible, pending, academicWarning }
 
 extension EligibilityStatusLabel on EligibilityStatus {

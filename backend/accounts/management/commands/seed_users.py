@@ -24,8 +24,8 @@ def birth_date_for_age(age):
 
 class Command(BaseCommand):
     help = (
-        'Create panel-demo users for all six roles. Mobile users are synced '
-        'to Firebase; web users receive Django passwords. Idempotent and safe '
+        'Create panel-demo users for the supported roles. Mobile users are synced '
+        'to Firebase; portal users receive Django passwords. Idempotent and safe '
         'to rerun for the dedicated @footpathcebu.test accounts.'
     )
 
@@ -70,16 +70,6 @@ class Command(BaseCommand):
             '+639171000004',
             True,
             False,
-        ),
-        (
-            'staff@footpathcebu.test',
-            Roles.SCHOOL_STAFF,
-            'Sofia',
-            'Ramos',
-            'M',
-            '+639171000005',
-            False,
-            True,
         ),
         (
             'guardian@footpathcebu.test',
@@ -200,6 +190,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'Panel demo accounts are ready. All six use the password {password!r}.'
+                f'Panel demo accounts are ready. All accounts use the password {password!r}.'
             )
         )

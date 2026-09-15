@@ -32,8 +32,7 @@ from .services import (
     change_role,
     provision_club_coordinator,
     provision_user,
-    provision_web_user,
-    set_coordinator_mobile_disabled,
+    set_coordinator_firebase_disabled,
 )
 
 
@@ -140,12 +139,7 @@ class AdminUserListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            data = serializer.validated_data
-            if data['role'] == Roles.SCHOOL_STAFF:
-                user, temp_password = provision_web_user(**data)
-                note = 'School Staff portal account created.'
-            else:
-                user, temp_password, note = provision_user(**data)
+            user, temp_password, note = provision_user(**serializer.validated_data)
         except ProvisioningError as exc:
             raise ValidationError(str(exc))
         AuditLog.record(
@@ -197,13 +191,11 @@ class AdminClubDetailView(generics.RetrieveUpdateAPIView):
                 coordinator.is_active = False
                 coordinator.save(update_fields=['is_active'])
                 try:
-                    set_coordinator_mobile_disabled(coordinator, disabled=True)
+                    set_coordinator_firebase_disabled(coordinator, disabled=True)
                 except Exception:
                     # Local is_active is the API enforcement boundary; remote
                     # revocation is defense in depth and may be retried later.
                     pass
-        if not club.allows_school_staff:
-            club.members.filter(role=Roles.SCHOOL_STAFF).update(is_active=False)
         AuditLog.record(
             self.request.user,
             'club.updated',
@@ -244,7 +236,7 @@ class AdminCoordinatorCreateView(APIView):
 class AdminUserDetailView(APIView):
     """PATCH /api/admin/users/<pk>/ — post-creation account lifecycle.
 
-    Accepts `role` (between Coach / School Staff / Guardian; the switch rules
+    Accepts `role` (between Coach / Guardian; the switch rules
     and auth-mode handling live in services.change_role) and/or `is_active`
     (deactivation locks the account out everywhere at once: the API rejects
     inactive users at authentication, and Django's ModelBackend refuses their

@@ -417,13 +417,6 @@ class TournamentScheduleApiTests(APITestCase):
         )
         self.assertEqual(response.data[0]['fixtures'][0]['opponent'], 'Rivals FC')
 
-    def test_school_staff_mobile_schedule_access_is_denied(self):
-        staff = _user('staff@mobile.test', Roles.SCHOOL_STAFF, self.club)
-        self.client.force_authenticate(staff)
-        response = self.client.get(reverse('tournament-schedules'))
-        self.assertEqual(response.status_code, 403)
-
-
 class TournamentCoordinatorMobileApiTests(APITestCase):
     def setUp(self):
         self.club = _club('Coordinator Mobile FC')

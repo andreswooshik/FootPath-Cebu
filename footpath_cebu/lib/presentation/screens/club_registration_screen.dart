@@ -177,7 +177,7 @@ class _ClubRegistrationScreenState
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Register your club and proposed Club Coordinator. A FootPath administrator will review the application before portal access is enabled.',
+                        'Register your club and proposed Club Coordinator. A FootPath administrator will review the application before portal and mobile access are enabled.',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
@@ -471,7 +471,7 @@ class ClubRegistrationSuccessScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Your club registration application has been submitted successfully. A FootPath administrator will review it before Coordinator access is enabled.',
+                  'Your club registration application has been submitted successfully. After approval, use this email and password in either the portal or mobile app.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),

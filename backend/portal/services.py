@@ -1,6 +1,6 @@
 """Club-portal application services.
 
-Every tenant decision starts from the authenticated coordinator/staff account.
+Every tenant decision starts from the authenticated coordinator account.
 No caller may supply an arbitrary club identifier.
 """
 
@@ -8,18 +8,12 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.utils.text import slugify
 
-from academy.models import (
-    Dispute,
-    DisputeStatus,
-    Eligibility,
-)
 from accounts.models import Club, GuardianLink, Roles
 from accounts.services import (
     ProvisioningError,
     provision_club_coordinator,
     provision_player,
     provision_user,
-    provision_web_user,
 )
 
 
@@ -54,10 +48,10 @@ def register_coordinator(
     coach_license=None,
     cvfa_membership='',
 ):
-    """Create a club application and an inactive coordinator login.
+    """Create a club application and inactive portal/mobile credentials.
 
-    A Super Admin must approve the application before Django permits the
-    coordinator to sign in. No Firebase/mobile identity is created here.
+    A Super Admin must approve the application before either login surface
+    permits the Coordinator to sign in.
     """
     club = Club.objects.create(
         name=club_name,
@@ -99,17 +93,6 @@ def create_club_account(*, account_type, coordinator, data):
         )
         return user, temporary_password
 
-    if account_type == 'staff':
-        if not club.allows_school_staff:
-            raise PermissionDenied('School Staff accounts are unavailable for an Independent club.')
-        return provision_web_user(
-            email=data['email'],
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            role=Roles.SCHOOL_STAFF,
-            club=club,
-        )
-
     if account_type == 'player':
         user, _profile, temporary_password, _note = provision_player(
             first_name=data['first_name'],
@@ -140,70 +123,6 @@ def create_club_account(*, account_type, coordinator, data):
         return user, temporary_password
 
     raise ProvisioningError(f'Unknown or unavailable account type: {account_type!r}')
-
-
-def set_player_eligibility(*, staff, player_profile, new_status):
-    """Apply one of the four approved status flags; never accept grades."""
-    if staff.role != Roles.SCHOOL_STAFF or not staff.is_active:
-        raise PermissionDenied('Only active School Staff can update eligibility.')
-    if staff.club_id is None or not staff.club.allows_academic_eligibility:
-        raise PermissionDenied('Academic eligibility is not applicable to an Independent club.')
-    if player_profile.user.club_id != staff.club_id:
-        raise PermissionDenied('That player is not in your club.')
-    if new_status not in Eligibility.values:
-        raise ProvisioningError('Unknown eligibility status.')
-    from academy.eligibility_service import change_eligibility
-
-    return change_eligibility(
-        actor=staff,
-        player_id=player_profile.user_id,
-        new_status=new_status,
-    )
-
-
-def staff_dispute_queryset(*, staff):
-    """Return only disputes raised inside the School Staff user's Club."""
-    _assert_school_staff_access(staff)
-    return (
-        Dispute.objects.select_related('raised_by', 'subject_player')
-        .prefetch_related('responses__author')
-        .filter(raised_by__club_id=staff.club_id)
-    )
-
-
-@transaction.atomic
-def respond_to_dispute(
-    *,
-    staff,
-    dispute_id,
-    body,
-    status_change_to=None,
-):
-    """Append a response to one same-Club dispute and optionally change it.
-
-    The parent row is locked so simultaneous responses cannot lose a status
-    update. The response thread remains append-only.
-    """
-    _assert_school_staff_access(staff)
-    from academy.dispute_service import append_dispute_response
-
-    if status_change_to and status_change_to not in DisputeStatus.values:
-        raise ProvisioningError('Unknown dispute status.')
-    return append_dispute_response(
-        actor=staff,
-        dispute_id=dispute_id,
-        body=body,
-        status_change_to=status_change_to,
-    )
-
-
-def _assert_school_staff_access(staff):
-    if staff.role != Roles.SCHOOL_STAFF or not staff.is_active:
-        raise PermissionDenied('Only active School Staff can manage disputes.')
-    if staff.club_id is None or not staff.club.is_active:
-        raise PermissionDenied('School Staff must belong to an active club.')
-    if not staff.club.allows_school_staff:
-        raise PermissionDenied('School Staff access is unavailable for an Independent club.')
 
 
 def link_guardian(*, coordinator, guardian, player):

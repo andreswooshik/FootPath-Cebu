@@ -1,9 +1,11 @@
 """Portal controllers — thin: parse the request, call a service, render.
 
 Business rules and tenancy live in `portal.services`; role/auth policy in
-`portal.decorators`. Every coordinator/staff query derives its club from
+`portal.decorators`. Every coordinator query derives its club from
 `request.user.club`, never from client input.
 """
+
+import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -14,13 +16,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 
-from academy.models import (
-    AuditLog,
-    DisputeStatus,
-    Eligibility,
-    EligibilityHistory,
-    PlayerProfile,
-)
+from academy.models import AuditLog, PlayerProfile
 from academy.pin_service import reset_pin
 from academy.storage import (
     sanitized_photo_bytes,
@@ -30,20 +26,15 @@ from academy.storage import (
 from accounts.models import GuardianLink, Roles, User
 from accounts.services import (
     ProvisioningError,
-    enable_coordinator_mobile_access,
-    sync_coordinator_mobile_password,
+    sync_coordinator_firebase_password,
 )
 
 from .decorators import portal_role_required
 from .forms import (
-    CoordinatorMobileAccessForm,
     CoordinatorSignupForm,
     CreateCoachForm,
     CreateGuardianForm,
     CreatePlayerForm,
-    CreateStaffForm,
-    DisputeResponseForm,
-    EligibilityUpdateForm,
     GuardianLinkForm,
 )
 from .ratelimit import is_rate_limited
@@ -51,19 +42,17 @@ from .services import (
     create_club_account,
     link_guardian,
     register_coordinator,
-    respond_to_dispute,
-    set_player_eligibility,
     split_coordinator_name,
-    staff_dispute_queryset,
     unlink_guardian,
 )
 
 _ACCOUNT_FORMS = {
     'player': CreatePlayerForm,
     'coach': CreateCoachForm,
-    'staff': CreateStaffForm,
     'guardian': CreateGuardianForm,
 }
+
+logger = logging.getLogger(__name__)
 
 
 def signup(request):
@@ -87,19 +76,32 @@ def signup(request):
         if form.is_valid():
             data = form.cleaned_data
             first_name, last_name = split_coordinator_name(data['coordinator_name'])
-            register_coordinator(
-                first_name=first_name,
-                last_name=last_name,
-                email=data['email'],
-                club_name=data['club_name'],
-                password=data['password1'],
-                is_school_affiliated=data['is_school_affiliated'],
-                school_name=data.get('school_name', ''),
-                head_coach_name=data['head_coach_name'],
-                coach_license=data['coach_license'],
-                cvfa_membership=data['cvfa_membership'],
-            )
-            return redirect('portal:signup-done')
+            try:
+                register_coordinator(
+                    first_name=first_name,
+                    last_name=last_name,
+                    email=data['email'],
+                    club_name=data['club_name'],
+                    password=data['password1'],
+                    is_school_affiliated=data['is_school_affiliated'],
+                    school_name=data.get('school_name', ''),
+                    head_coach_name=data['head_coach_name'],
+                    coach_license=data['coach_license'],
+                    cvfa_membership=data['cvfa_membership'],
+                )
+            except ProvisioningError:
+                form.add_error(
+                    None,
+                    'The application could not be submitted. Please contact an administrator.',
+                )
+            except OSError:
+                logger.exception('Club application storage failed.')
+                form.add_error(
+                    'coach_license',
+                    'Coach-license storage is temporarily unavailable.',
+                )
+            else:
+                return redirect('portal:signup-done')
     else:
         form = CoordinatorSignupForm()
     return render(request, 'portal/signup.html', {'form': form})
@@ -129,35 +131,14 @@ def dashboard(request):
                 Q(photo_path='') | Q(photo_path__isnull=True)
             ).count(),
         }
-    elif request.user.role == Roles.SCHOOL_STAFF and club:
-        profiles = PlayerProfile.objects.filter(user__club=club)
-        disputes = staff_dispute_queryset(staff=request.user)
-        context['dashboard_stats'] = {
-            'players': profiles.count(),
-            'warnings': profiles.filter(
-                eligibility=Eligibility.ACADEMIC_WARNING,
-            ).count(),
-            'not_eligible': profiles.filter(
-                eligibility=Eligibility.NOT_ELIGIBLE,
-            ).count(),
-            'active_disputes': disputes.exclude(
-                status__in=[DisputeStatus.RESOLVED, DisputeStatus.DISMISSED],
-            ).count(),
-        }
-        context['recent_eligibility_changes'] = (
-            EligibilityHistory.objects.select_related('player', 'changed_by')
-            .filter(player__club=club)
-            .order_by('-changed_at')[:5]
-        )
-
     return render(request, 'portal/dashboard.html', context)
 
 
 class PortalPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
     """Change the signed-in portal user's password.
 
-    Coordinators and School Staff arrive with a password provisioned by an
-    authorized account creator. A linked Coordinator's Firebase password is
+    Coordinators arrive with a password created during club registration. The
+    Coordinator's Firebase password is
     updated before the local password so both login surfaces stay aligned.
     """
 
@@ -167,7 +148,7 @@ class PortalPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
 
     def form_valid(self, form):
         try:
-            sync_coordinator_mobile_password(
+            sync_coordinator_firebase_password(
                 self.request.user,
                 password=form.cleaned_data['new_password1'],
             )
@@ -181,51 +162,9 @@ class PortalPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
 
 
 @portal_role_required(Roles.COORDINATOR)
-def coordinator_mobile_access(request):
-    form = CoordinatorMobileAccessForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        try:
-            created = enable_coordinator_mobile_access(
-                request.user,
-                password=form.cleaned_data['current_password'],
-            )
-        except ProvisioningError as exc:
-            form.add_error('current_password', str(exc))
-        except Exception:
-            form.add_error(
-                None,
-                'Mobile access is temporarily unavailable. Please try again.',
-            )
-        else:
-            AuditLog.record(
-                request.user,
-                'coordinator.mobile_enabled',
-                target=request.user.email,
-                detail=('Firebase identity created.' if created else 'Firebase identity linked.'),
-            )
-            messages.success(
-                request,
-                'Mobile access is enabled. Use the same email and password in the app.',
-            )
-            return redirect('portal:mobile-access')
-    return render(
-        request,
-        'portal/coordinator_mobile_access.html',
-        {
-            'form': form,
-            'mobile_enabled': bool(request.user.firebase_uid),
-        },
-    )
-
-
-@portal_role_required(Roles.COORDINATOR)
 def create_account(request):
     club = request.user.club
-    # School staff exist only for school-affiliated clubs — drop the form
-    # entirely so it can neither render nor be submitted (server-side gate).
     available = dict(_ACCOUNT_FORMS)
-    if not club.allows_school_staff:
-        available.pop('staff', None)
     forms = {key: cls(club=club, auto_id=f'id_{key}_%s') for key, cls in available.items()}
     active_tab = 'player'
     created = None
@@ -265,7 +204,7 @@ def create_account(request):
                     'display_name': user.get_full_name() or user.username,
                     'role': user.get_role_display(),
                     'credential': credential,
-                    'is_web': account_type == 'staff',
+                    'is_web': False,
                     'managed': account_type == 'player' and not user.email,
                     'account_type': account_type,
                 }
@@ -424,73 +363,6 @@ def player_photo(request, player_id):
             profile.save(update_fields=['photo_path'])
             messages.success(request, f'Photo updated for {profile.user.email}.')
     return redirect('portal:players')
-
-
-@portal_role_required(Roles.SCHOOL_STAFF)
-def staff_eligibility(request):
-    club = request.user.club
-    form = EligibilityUpdateForm(request.POST or None, club=club)
-    if request.method == 'POST' and form.is_valid():
-        profile = set_player_eligibility(
-            staff=request.user,
-            player_profile=form.cleaned_data['player'],
-            new_status=form.cleaned_data['eligibility'],
-        )
-        messages.success(request, f'Eligibility updated for {profile.user.email}.')
-        return redirect('portal:staff-eligibility')
-
-    roster = (
-        PlayerProfile.objects.select_related('user')
-        .filter(user__club=club)
-        .order_by('user__last_name', 'user__first_name')
-    )
-    # The club's recent eligibility transitions (spec: staff view the status
-    # history of linked players — the club is the link). Same club-scoping as
-    # the roster; capped so years of history never bloat the page.
-    history = EligibilityHistory.objects.select_related('player', 'changed_by').filter(
-        player__club=club
-    )[:50]
-    return render(
-        request,
-        'portal/staff_eligibility.html',
-        {'form': form, 'roster': roster, 'history': history},
-    )
-
-
-@portal_role_required(Roles.SCHOOL_STAFF)
-def staff_disputes(request):
-    """List dispute threads raised by Coaches in the staff member's Club."""
-    disputes = staff_dispute_queryset(staff=request.user)
-    return render(
-        request,
-        'portal/staff_disputes.html',
-        {'disputes': disputes},
-    )
-
-
-@portal_role_required(Roles.SCHOOL_STAFF)
-def staff_dispute_detail(request, pk):
-    """Show and append to one same-Club dispute thread."""
-    dispute = get_object_or_404(
-        staff_dispute_queryset(staff=request.user),
-        pk=pk,
-    )
-    form = DisputeResponseForm(request.POST or None)
-    if request.method == 'POST' and form.is_valid():
-        respond_to_dispute(
-            staff=request.user,
-            dispute_id=dispute.pk,
-            body=form.cleaned_data['body'],
-            status_change_to=form.cleaned_data['status_change_to'],
-        )
-        messages.success(request, 'Your response was added to the dispute.')
-        return redirect('portal:staff-dispute-detail', pk=dispute.pk)
-
-    return render(
-        request,
-        'portal/staff_dispute_detail.html',
-        {'dispute': dispute, 'form': form},
-    )
 
 
 from .view_tournaments import (

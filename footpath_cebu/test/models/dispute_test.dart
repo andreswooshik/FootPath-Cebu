@@ -44,8 +44,8 @@ void main() {
       'responses': [
         {
           'id': '9',
-          'authorName': 'Staff Reyes',
-          'authorRole': 'SCHOOL_STAFF',
+          'authorName': 'Coordinator Reyes',
+          'authorRole': 'COORDINATOR',
           'body': 'Checking the sign-in sheet.',
           'statusChangeTo': 'UNDER_REVIEW',
           'createdAt': '2026-07-12T14:00:00Z',
@@ -60,7 +60,7 @@ void main() {
     expect(dispute.raisedByName, 'Coach Cruz');
     expect(dispute.responses, hasLength(1));
     final response = dispute.responses.single;
-    expect(response.authorRole, 'SCHOOL_STAFF');
+    expect(response.authorRole, 'COORDINATOR');
     expect(response.statusChangeTo, DisputeStatus.underReview);
   });
 

@@ -1,8 +1,8 @@
-"""Tests for the coordinator & school-staff web portal.
+"""Tests for the Club Coordinator web portal.
 
 Covers signup + approval gating, session-auth role access control, club-scoped
-account creation (players/coaches/staff/guardians), tenant isolation, and the
-staff eligibility flow. Firebase is mocked wherever an app user (player / coach
+account creation (players/coaches/guardians) and tenant isolation. Firebase is
+mocked wherever an app user (Coordinator / Coach
 / guardian) is provisioned, so the suite runs offline like the rest.
 """
 
@@ -19,17 +19,13 @@ from firebase_admin import auth as firebase_auth
 
 from academy.models import (
     AuditLog,
-    Dispute,
-    DisputeResponse,
-    DisputeStatus,
     Eligibility,
-    EligibilityHistory,
     PlayerPrivacyPin,
     PlayerProfile,
 )
 from accounts.admin import ClubAdmin, CustomUserAdmin
 from accounts.models import Club, GuardianLink, Roles, User
-from accounts.services import provision_club_coordinator, provision_web_user
+from accounts.services import provision_club_coordinator
 from test_uploads import jpeg_bytes, pdf_bytes
 
 _PASSWORD = 'Str0ng!passphrase9'
@@ -67,21 +63,22 @@ def _signup_data(**overrides):
 
 
 def make_coordinator(email='coord@club.test', club_name='Alpha FC', is_school_affiliated=True):
-    """An approved (active) coordinator owning a fresh club (school-affiliated
-    by default so the staff / eligibility surfaces are available)."""
+    """An approved Coordinator owning a fresh test club."""
     club = Club.objects.create(
         name=club_name,
         slug=slugify(club_name),
         is_school_affiliated=is_school_affiliated,
         school_name='Demo School' if is_school_affiliated else '',
     )
-    user, _password = provision_club_coordinator(
+    user = User.objects.create_user(
+        username=email,
+        email=email,
         first_name='Coord',
         last_name='One',
-        email=email,
-        club=club,
         password=_PASSWORD,
-        is_active=True,
+        role=Roles.COORDINATOR,
+        club=club,
+        firebase_uid=f'uid-{email}',
     )
     return user, club
 
@@ -104,6 +101,14 @@ def make_player(club, email):
 
 @override_settings(MEDIA_ROOT=_MEDIA_ROOT)
 class CoordinatorSignupTests(TestCase):
+    def setUp(self):
+        get_user = patch('accounts.services.firebase_auth.get_user_by_email').start()
+        create_user = patch('accounts.services.firebase_auth.create_user').start()
+        patch('accounts.services.ensure_initialized').start()
+        self.addCleanup(patch.stopall)
+        get_user.side_effect = firebase_auth.UserNotFoundError('not found')
+        create_user.side_effect = lambda **kwargs: Mock(uid=f"uid-{kwargs['email']}")
+
     def test_signup_creates_club_and_pending_coordinator(self):
         resp = self.client.post(
             reverse('portal:signup'),
@@ -112,6 +117,11 @@ class CoordinatorSignupTests(TestCase):
                 email='Jane@Club.Test',  # normalised
                 club_name='Cebu United',
             ),
+        )
+        self.assertEqual(
+            resp.status_code,
+            302,
+            resp.context and resp.context['form'].errors,
         )
         self.assertRedirects(resp, reverse('portal:signup-done'))
 
@@ -122,7 +132,7 @@ class CoordinatorSignupTests(TestCase):
         self.assertEqual(user.club, club)
         self.assertFalse(user.is_active)
         self.assertTrue(user.has_usable_password())
-        self.assertIsNone(user.firebase_uid)
+        self.assertEqual(user.firebase_uid, 'uid-jane@club.test')
         self.assertFalse(club.is_school_affiliated)
         self.assertEqual(club.head_coach_name, 'Coach Carter')
         self.assertEqual(club.cvfa_membership, 'CVFA-12345')
@@ -137,6 +147,11 @@ class CoordinatorSignupTests(TestCase):
                 is_school_affiliated='on',
                 school_name='Cebu High',
             ),
+        )
+        self.assertEqual(
+            resp.status_code,
+            302,
+            resp.context and resp.context['form'].errors,
         )
         self.assertRedirects(resp, reverse('portal:signup-done'))
         club = Club.objects.get(name='Academy FC')
@@ -220,12 +235,15 @@ class CoordinatorSignupTests(TestCase):
 
     def test_pending_coordinator_cannot_login_until_approved(self):
         club = Club.objects.create(name='Pending FC', slug='pending-fc')
-        provision_club_coordinator(
+        User.objects.create_user(
+            username='pending@club.test',
             first_name='P',
             last_name='Q',
             email='pending@club.test',
+            role=Roles.COORDINATOR,
             club=club,
             password=_PASSWORD,
+            firebase_uid='pending-uid',
             is_active=False,
         )
         # Inactive -> ModelBackend refuses the login (OWASP A01).
@@ -290,70 +308,6 @@ class SignupHardeningTests(TestCase):
         self.assertEqual(_client_ip(request), '198.51.100.9')
 
 
-class SchoolStaffGatingTests(TestCase):
-    """School staff exist only for school-affiliated clubs."""
-
-    def test_non_affiliated_club_hides_staff_tab(self):
-        coord, _club = make_coordinator(
-            email='na@club.test',
-            club_name='NoSchool FC',
-            is_school_affiliated=False,
-        )
-        self.client.force_login(coord)
-        resp = self.client.get(reverse('portal:create-account'))
-        self.assertNotContains(resp, 'value="staff"')
-
-    def test_non_affiliated_club_rejects_staff_post(self):
-        coord, _club = make_coordinator(
-            email='na2@club.test',
-            club_name='NoSchool2 FC',
-            is_school_affiliated=False,
-        )
-        self.client.force_login(coord)
-        resp = self.client.post(
-            reverse('portal:create-account'),
-            {
-                'account_type': 'staff',
-                'first_name': 'S',
-                'last_name': 'T',
-                'email': 'blocked@club.test',
-            },
-        )
-        self.assertEqual(resp.status_code, 302)  # error redirect, not created
-        self.assertFalse(User.objects.filter(email='blocked@club.test').exists())
-
-    def test_service_refuses_staff_for_non_affiliated_club(self):
-        from django.core.exceptions import PermissionDenied
-
-        from .services import create_club_account
-
-        coord, _club = make_coordinator(
-            email='na3@club.test',
-            club_name='NoSchool3 FC',
-            is_school_affiliated=False,
-        )
-        with self.assertRaises(PermissionDenied):
-            create_club_account(
-                account_type='staff',
-                coordinator=coord,
-                data={
-                    'first_name': 'S',
-                    'last_name': 'T',
-                    'email': 'x@club.test',
-                },
-            )
-
-    def test_affiliated_club_shows_staff_tab(self):
-        coord, _club = make_coordinator(
-            email='aff@club.test',
-            club_name='Aff FC',
-            is_school_affiliated=True,
-        )
-        self.client.force_login(coord)
-        resp = self.client.get(reverse('portal:create-account'))
-        self.assertContains(resp, 'value="staff"')
-
-
 class IndependentClubRosterTests(TestCase):
     def test_players_omit_academic_eligibility_controls(self):
         coordinator, club = make_coordinator(
@@ -392,21 +346,6 @@ class AccessControlTests(TestCase):
         resp = self.client.get(reverse('portal:create-account'))
         self.assertEqual(resp.status_code, 302)
         self.assertIn('/portal/login/', resp['Location'])
-
-    def test_staff_cannot_reach_create_account(self):
-        staff, _ = provision_web_user(
-            email='staff@club.test',
-            first_name='S',
-            last_name='T',
-            role=Roles.SCHOOL_STAFF,
-            club=self.club,
-        )
-        self.client.force_login(staff)
-        self.assertEqual(self.client.get(reverse('portal:create-account')).status_code, 403)
-
-    def test_coordinator_cannot_reach_staff_eligibility(self):
-        self.client.force_login(self.coord)
-        self.assertEqual(self.client.get(reverse('portal:staff-eligibility')).status_code, 403)
 
     def test_portal_pages_carry_csp_header(self):
         resp = self.client.get(reverse('portal:login'))
@@ -584,23 +523,6 @@ class CreateAccountTests(TestCase):
         self.assertEqual(user.firebase_uid, 'coach-uid')
         self.assertEqual(user.middle_initial, '')
 
-    def test_create_staff_is_web_user(self):
-        self.client.post(
-            reverse('portal:create-account'),
-            {
-                'account_type': 'staff',
-                'first_name': 'Sam',
-                'last_name': 'Staff',
-                'email': 'sam@club.test',
-            },
-        )
-        user = User.objects.get(email='sam@club.test')
-        self.assertEqual(user.role, Roles.SCHOOL_STAFF)
-        self.assertEqual(user.club, self.club)
-        self.assertTrue(user.is_active)
-        self.assertTrue(user.has_usable_password())  # portal session login
-        self.assertIsNone(user.firebase_uid)  # never touches Firebase
-
     @_fb_patches
     def test_create_guardian_links_to_club_player(self, mock_get, mock_create, _init):
         mock_get.side_effect = firebase_auth.UserNotFoundError('nf')
@@ -621,11 +543,14 @@ class CreateAccountTests(TestCase):
         self.assertEqual(guardian.middle_initial, '')
         self.assertTrue(GuardianLink.objects.filter(guardian=guardian, player=player).exists())
 
-    def test_email_field_is_lowercased(self):
+    @_fb_patches
+    def test_email_field_is_lowercased(self, mock_get, mock_create, _init):
+        mock_get.side_effect = firebase_auth.UserNotFoundError('nf')
+        mock_create.return_value = Mock(uid='mixed-case-guardian-uid')
         self.client.post(
             reverse('portal:create-account'),
             {
-                'account_type': 'staff',
+                'account_type': 'guardian',
                 'first_name': 'Up',
                 'last_name': 'Per',
                 'email': 'MixedCase@Club.Test',
@@ -684,291 +609,6 @@ class DashboardUxTests(TestCase):
         self.assertContains(response, 'Club overview')
         self.assertContains(response, 'Players without guardian')
         self.assertContains(response, 'Roster items needing attention')
-
-    def test_staff_dashboard_prioritizes_eligibility_and_disputes(self):
-        _coordinator, club = make_coordinator()
-        staff, _password = provision_web_user(
-            email='dashboard-staff@club.test',
-            first_name='School',
-            last_name='Reviewer',
-            role=Roles.SCHOOL_STAFF,
-            club=club,
-        )
-        coach = User.objects.create(
-            username='dashboard-dispute-coach@club.test',
-            email='dashboard-dispute-coach@club.test',
-            role=Roles.COACH,
-            club=club,
-            firebase_uid='dashboard-dispute-coach-uid',
-        )
-        player_one, profile_one = make_player(club, 'dashboard-warning@club.test')
-        _player_two, profile_two = make_player(club, 'dashboard-ineligible@club.test')
-        profile_one.eligibility = Eligibility.ACADEMIC_WARNING
-        profile_one._changed_by = staff
-        profile_one.save(update_fields=['eligibility'])
-        profile_two.eligibility = Eligibility.NOT_ELIGIBLE
-        profile_two._changed_by = staff
-        profile_two.save(update_fields=['eligibility'])
-        Dispute.objects.create(
-            raised_by=coach,
-            subject_player=player_one,
-            category='ELIGIBILITY',
-            summary='Dashboard review requested',
-        )
-        self.client.force_login(staff)
-
-        response = self.client.get(reverse('portal:dashboard'))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.context['dashboard_stats'],
-            {
-                'players': 2,
-                'warnings': 1,
-                'not_eligible': 1,
-                'active_disputes': 1,
-            },
-        )
-        self.assertContains(response, 'School overview')
-        self.assertContains(response, 'Recent eligibility changes')
-        self.assertContains(response, 'dashboard-warning@club.test')
-
-
-class StaffEligibilityTests(TestCase):
-    def setUp(self):
-        self.coord, self.club = make_coordinator()
-        self.staff, _ = provision_web_user(
-            email='staff@club.test',
-            first_name='St',
-            last_name='Aff',
-            role=Roles.SCHOOL_STAFF,
-            club=self.club,
-        )
-        self.player, self.profile = make_player(self.club, 'player@club.test')
-
-    def test_staff_updates_eligibility_and_writes_history(self):
-        self.client.force_login(self.staff)
-        resp = self.client.post(
-            reverse('portal:staff-eligibility'),
-            {
-                'player': self.profile.pk,
-                'eligibility': Eligibility.ELIGIBLE,
-            },
-        )
-        self.assertRedirects(resp, reverse('portal:staff-eligibility'))
-        self.profile.refresh_from_db()
-        self.assertEqual(self.profile.eligibility, Eligibility.ELIGIBLE)
-
-        history = EligibilityHistory.objects.filter(player=self.player).latest('changed_at')
-        self.assertEqual(history.new_status, Eligibility.ELIGIBLE)
-        self.assertEqual(history.old_status, Eligibility.PENDING)
-        self.assertEqual(history.changed_by, self.staff)  # attributed to staff
-
-    def test_staff_sees_club_history_but_not_other_clubs(self):
-        """The page's Status History section is the staff-facing history view
-        (spec: view eligibility status history of linked players), scoped to
-        the staff member's club like everything else."""
-        self.profile.eligibility = Eligibility.ACADEMIC_WARNING
-        self.profile._changed_by = self.staff
-        self.profile.save(update_fields=['eligibility'])
-
-        other_club = Club.objects.create(name='Hist FC', slug='hist-fc')
-        _u, other_profile = make_player(other_club, 'hist@club.test')
-        other_profile.eligibility = Eligibility.NOT_ELIGIBLE
-        other_profile.save(update_fields=['eligibility'])
-
-        self.client.force_login(self.staff)
-        resp = self.client.get(reverse('portal:staff-eligibility'))
-        self.assertContains(resp, 'Status History')
-        self.assertContains(resp, 'Academic Warning')
-        self.assertNotContains(resp, 'hist@club.test')
-
-    def test_staff_cannot_set_eligibility_for_other_club_player(self):
-        other_club = Club.objects.create(name='Other FC', slug='other-fc')
-        _other_user, other_profile = make_player(other_club, 'other@club.test')
-
-        self.client.force_login(self.staff)
-        resp = self.client.post(
-            reverse('portal:staff-eligibility'),
-            {
-                'player': other_profile.pk,
-                'eligibility': Eligibility.ELIGIBLE,
-            },
-        )
-        # The player is not in the club-scoped choices -> form rejects it.
-        self.assertEqual(resp.status_code, 200)
-        other_profile.refresh_from_db()
-        self.assertEqual(other_profile.eligibility, Eligibility.PENDING)
-
-
-class StaffDisputeTests(TestCase):
-    def setUp(self):
-        self.coord, self.club = make_coordinator()
-        self.staff, _ = provision_web_user(
-            email='disputes@club.test',
-            first_name='School',
-            last_name='Staff',
-            role=Roles.SCHOOL_STAFF,
-            club=self.club,
-        )
-        self.coach = User.objects.create(
-            username='coach-disputes@club.test',
-            email='coach-disputes@club.test',
-            first_name='Casey',
-            last_name='Coach',
-            role=Roles.COACH,
-            club=self.club,
-            firebase_uid='coach-disputes-uid',
-        )
-        self.player, _profile = make_player(self.club, 'subject@club.test')
-        self.dispute = Dispute.objects.create(
-            raised_by=self.coach,
-            subject_player=self.player,
-            category='ELIGIBILITY',
-            summary='Eligibility review requested',
-            detail='Please confirm the current status.',
-        )
-        self.client.force_login(self.staff)
-
-    def test_staff_list_is_scoped_to_own_club(self):
-        other_club = Club.objects.create(name='Other Disputes FC', slug='other-disputes')
-        other_coach = User.objects.create(
-            username='other-coach@club.test',
-            email='other-coach@club.test',
-            role=Roles.COACH,
-            club=other_club,
-            firebase_uid='other-coach-uid',
-        )
-        Dispute.objects.create(
-            raised_by=other_coach,
-            category='OTHER',
-            summary='Private other-club concern',
-        )
-
-        response = self.client.get(reverse('portal:staff-disputes'))
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, self.dispute.summary)
-        self.assertNotContains(response, 'Private other-club concern')
-        self.assertContains(
-            response, reverse('portal:staff-dispute-detail', args=[self.dispute.pk])
-        )
-
-    def test_staff_can_read_thread_and_submit_response_with_status(self):
-        DisputeResponse.objects.create(
-            dispute=self.dispute,
-            author=self.coach,
-            body='Coach supplied supporting information.',
-        )
-        detail_url = reverse('portal:staff-dispute-detail', args=[self.dispute.pk])
-
-        response = self.client.get(detail_url)
-        self.assertContains(response, 'Coach supplied supporting information.')
-        self.assertContains(response, self.player.get_full_name())
-
-        response = self.client.post(
-            detail_url,
-            {
-                'body': 'School records confirm the status-only decision.',
-                'status_change_to': DisputeStatus.UNDER_REVIEW,
-            },
-        )
-
-        self.assertRedirects(response, detail_url)
-        self.dispute.refresh_from_db()
-        self.assertEqual(self.dispute.status, DisputeStatus.UNDER_REVIEW)
-        staff_response = self.dispute.responses.get(author=self.staff)
-        self.assertEqual(
-            staff_response.body,
-            'School records confirm the status-only decision.',
-        )
-        self.assertEqual(staff_response.status_change_to, DisputeStatus.UNDER_REVIEW)
-        self.assertTrue(
-            AuditLog.objects.filter(
-                actor=self.staff,
-                action='dispute.responded',
-                target__contains=f'Dispute #{self.dispute.pk}',
-            ).exists()
-        )
-
-    def test_response_without_status_change_still_updates_activity_time(self):
-        original_updated_at = self.dispute.updated_at
-        detail_url = reverse('portal:staff-dispute-detail', args=[self.dispute.pk])
-
-        response = self.client.post(
-            detail_url,
-            {
-                'body': 'Acknowledged; no status change yet.',
-                'status_change_to': '',
-            },
-        )
-
-        self.assertRedirects(response, detail_url)
-        self.dispute.refresh_from_db()
-        self.assertEqual(self.dispute.status, DisputeStatus.OPEN)
-        self.assertGreater(self.dispute.updated_at, original_updated_at)
-
-    def test_invalid_response_does_not_write_or_change_status(self):
-        detail_url = reverse('portal:staff-dispute-detail', args=[self.dispute.pk])
-        response = self.client.post(
-            detail_url,
-            {
-                'body': '   ',
-                'status_change_to': 'NOT_A_STATUS',
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'This field is required.')
-        self.assertContains(response, 'Select a valid choice.')
-        self.assertFalse(self.dispute.responses.exists())
-        self.dispute.refresh_from_db()
-        self.assertEqual(self.dispute.status, DisputeStatus.OPEN)
-
-    def test_other_club_dispute_is_not_disclosed(self):
-        other_club = Club.objects.create(name='Hidden FC', slug='hidden-fc')
-        other_coach = User.objects.create(
-            username='hidden-coach@club.test',
-            email='hidden-coach@club.test',
-            role=Roles.COACH,
-            club=other_club,
-            firebase_uid='hidden-coach-uid',
-        )
-        hidden = Dispute.objects.create(
-            raised_by=other_coach,
-            category='OTHER',
-            summary='Hidden concern',
-        )
-
-        response = self.client.get(reverse('portal:staff-dispute-detail', args=[hidden.pk]))
-
-        self.assertEqual(response.status_code, 404)
-
-    def test_non_staff_role_is_forbidden(self):
-        self.client.force_login(self.coord)
-
-        list_response = self.client.get(reverse('portal:staff-disputes'))
-        detail_response = self.client.post(
-            reverse('portal:staff-dispute-detail', args=[self.dispute.pk]),
-            {'body': 'Coordinator must not participate.'},
-        )
-
-        self.assertEqual(list_response.status_code, 403)
-        self.assertEqual(detail_response.status_code, 403)
-        self.assertFalse(self.dispute.responses.exists())
-
-    def test_response_text_is_escaped_when_rendered(self):
-        DisputeResponse.objects.create(
-            dispute=self.dispute,
-            author=self.staff,
-            body='<script>alert("unsafe")</script>',
-        )
-
-        response = self.client.get(reverse('portal:staff-dispute-detail', args=[self.dispute.pk]))
-
-        self.assertNotContains(response, '<script>alert("unsafe")</script>')
-        self.assertContains(response, '&lt;script&gt;alert(&quot;unsafe&quot;)&lt;/script&gt;')
-
 
 class GuardianLinkManagementTests(TestCase):
     """Coordinators add/remove guardian↔player links after creation."""
@@ -1124,30 +764,7 @@ class PlayerPhotoUploadTests(TestCase):
 
 
 class PasswordChangeTests(TestCase):
-    """Portal users (session auth) can rotate their own password — School
-    Staff otherwise keep their relayed one-time password forever."""
-
-    def test_staff_changes_their_password(self):
-        _coord, club = make_coordinator()
-        staff, old_password = provision_web_user(
-            email='rotate@club.test',
-            first_name='Ro',
-            last_name='Tate',
-            role=Roles.SCHOOL_STAFF,
-            club=club,
-        )
-        self.client.force_login(staff)
-        resp = self.client.post(
-            reverse('portal:password-change'),
-            {
-                'old_password': old_password,
-                'new_password1': 'N3w-Portal-Pass!',
-                'new_password2': 'N3w-Portal-Pass!',
-            },
-        )
-        self.assertRedirects(resp, reverse('portal:dashboard'))
-        staff.refresh_from_db()
-        self.assertTrue(staff.check_password('N3w-Portal-Pass!'))
+    """Portal users can rotate their own password."""
 
     def test_anonymous_is_redirected_to_login(self):
         resp = self.client.get(reverse('portal:password-change'))
@@ -1158,18 +775,23 @@ class PasswordChangeTests(TestCase):
 class ApprovalActionTests(TestCase):
     def test_action_activates_only_pending_coordinators(self):
         club = Club.objects.create(name='Approve FC', slug='approve-fc')
-        user, _password = provision_club_coordinator(
+        user = User.objects.create_user(
+            username='approve@club.test',
             first_name='P',
             last_name='Q',
             email='approve@club.test',
             club=club,
             password=_PASSWORD,
+            role=Roles.COORDINATOR,
+            firebase_uid='approve-uid',
             is_active=False,
         )
         self.assertFalse(user.is_active)
 
         admin = CustomUserAdmin(User, site)
-        with patch.object(CustomUserAdmin, 'message_user'):
+        with patch.object(CustomUserAdmin, 'message_user'), patch(
+            'accounts.admin.set_coordinator_firebase_disabled', return_value=True
+        ):
             admin.approve_coordinators(Mock(), User.objects.filter(pk=user.pk))
 
         user.refresh_from_db()
@@ -1177,19 +799,24 @@ class ApprovalActionTests(TestCase):
 
     def test_club_registration_actions_approve_and_disapprove(self):
         club = Club.objects.create(name='Club Action FC', slug='club-action-fc')
-        user, _password = provision_club_coordinator(
+        user = User.objects.create_user(
+            username='club-action@club.test',
             first_name='C',
             last_name='A',
             email='club-action@club.test',
             club=club,
             password=_PASSWORD,
+            role=Roles.COORDINATOR,
+            firebase_uid='club-action-uid',
             is_active=False,
         )
         admin = ClubAdmin(Club, site)
 
         club.is_active = False
         club.save(update_fields=['is_active'])
-        with patch.object(ClubAdmin, 'message_user'):
+        with patch.object(ClubAdmin, 'message_user'), patch(
+            'accounts.admin.set_coordinator_firebase_disabled', return_value=True
+        ):
             admin.approve_registrations(Mock(), Club.objects.filter(pk=club.pk))
 
         user.refresh_from_db()
@@ -1197,7 +824,9 @@ class ApprovalActionTests(TestCase):
         self.assertTrue(user.is_active)
         self.assertTrue(club.is_active)
 
-        with patch.object(ClubAdmin, 'message_user'):
+        with patch.object(ClubAdmin, 'message_user'), patch(
+            'accounts.admin.set_coordinator_firebase_disabled', return_value=True
+        ):
             admin.disapprove_registrations(Mock(), Club.objects.filter(pk=club.pk))
 
         user.refresh_from_db()

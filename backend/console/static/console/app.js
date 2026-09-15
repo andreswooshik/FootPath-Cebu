@@ -191,11 +191,10 @@ async function loadClubs() {
 }
 
 // Role switcher + activate/deactivate for one user row. Role changes are
-// limited to Coach / School Staff / Guardian — the server enforces the same
+// limited to Coach / Guardian — the server enforces the same
 // rule (players and coordinators are structurally tied to their role).
 const SWITCHABLE_ROLES = [
   ['COACH', 'Coach'],
-  ['SCHOOL_STAFF', 'School Staff'],
   ['GUARDIAN', 'Guardian'],
 ];
 

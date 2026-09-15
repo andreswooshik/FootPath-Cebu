@@ -22,9 +22,9 @@ from .models import (
 )
 from .schedule_conflicts import fixture_conflict_payload
 
-# Roles that participate in the dispute process: the coach flags, while club
-# staff and Admin review/respond. Players and guardians have no access.
-DISPUTE_ROLES = (Roles.COACH, Roles.SCHOOL_STAFF, Roles.COORDINATOR, Roles.ADMIN)
+# Roles that participate in the dispute process: the Coach flags, while the
+# Coordinator and Admin review/respond. Players and Guardians have no access.
+DISPUTE_ROLES = (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN)
 
 
 def _confirmed(request, field='confirmTrainingCancellations'):
@@ -92,14 +92,12 @@ def _may_read_match_statistics(user, player_id):
 def _may_read_eligibility(user, player_id):
     """True if `user` may read a player's eligibility history.
 
-    Deliberately narrower than [_guardian_may_read]: the coach is excluded —
-    academic eligibility is the School Staff's domain, not the coach's. Allowed:
-    the player themselves, their linked guardian(s), any School Staff (in the
-    same club), any Coordinator (same club), and Admin.
+    Deliberately narrower than [_guardian_may_read]: the coach is excluded.
+    Allowed: the player, linked guardians, the same-club Coordinator, and Admin.
     """
     if user.role == Roles.ADMIN:
         return True
-    if user.role in (Roles.SCHOOL_STAFF, Roles.COORDINATOR):
+    if user.role == Roles.COORDINATOR:
         return _in_same_club(user, player_id)
     if user.role == Roles.PLAYER:
         return str(user.id) == str(player_id)

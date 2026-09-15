@@ -11,8 +11,6 @@ from django.contrib.auth.password_validation import validate_password
 
 from academy.models import (
     AgeTier,
-    DisputeStatus,
-    Eligibility,
     FixtureStatus,
     PlayerProfile,
     TournamentAgeBracket,
@@ -168,10 +166,6 @@ class CreateCoachForm(_BaseCreateAccountForm):
     )
 
 
-class CreateStaffForm(_BaseCreateAccountForm):
-    """School staff = a web-portal (Django session) account."""
-
-
 class CreatePlayerForm(_BaseCreateAccountForm):
     email = None
     middle_initial = forms.CharField(max_length=5, required=False)
@@ -220,36 +214,6 @@ class CreateGuardianForm(_BaseCreateAccountForm):
                 role=Roles.PLAYER, club=self.club
             ).order_by('last_name', 'first_name')
         self.fields['player'].label_from_instance = _user_label
-
-
-class EligibilityUpdateForm(forms.Form):
-    """School-staff eligibility change, scoped to the staff member's club."""
-
-    player = forms.ModelChoiceField(queryset=PlayerProfile.objects.none())
-    eligibility = forms.ChoiceField(choices=Eligibility.choices)
-
-    def __init__(self, *args, club=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        qs = PlayerProfile.objects.select_related('user')
-        if club is not None:
-            qs = qs.filter(user__club=club)
-        self.fields['player'].queryset = qs.order_by('user__last_name', 'user__first_name')
-        self.fields['player'].label_from_instance = lambda p: _user_label(p.user)
-
-
-class DisputeResponseForm(forms.Form):
-    """Append a School Staff response and optionally move the dispute."""
-
-    body = forms.CharField(
-        max_length=2000,
-        label='Response',
-        widget=forms.Textarea(attrs={'rows': 5}),
-    )
-    status_change_to = forms.ChoiceField(
-        required=False,
-        label='Update status',
-        choices=[('', 'Keep current status'), *DisputeStatus.choices],
-    )
 
 
 class GuardianLinkForm(forms.Form):
@@ -572,12 +536,6 @@ class TournamentFixtureResultForm(forms.Form):
         return cleaned
 
 
-class CoordinatorMobileAccessForm(forms.Form):
-    current_password = forms.CharField(
-        label='Current portal password',
-        widget=forms.PasswordInput(attrs={'autocomplete': 'current-password'}),
-        help_text='This same password will be used for the mobile app.',
-    )
 
 
 def _user_label(user):

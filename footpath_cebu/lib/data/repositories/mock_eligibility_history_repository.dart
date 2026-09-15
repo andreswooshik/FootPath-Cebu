@@ -20,21 +20,21 @@ class MockEligibilityHistoryRepository implements EligibilityHistoryRepository {
       oldStatus: EligibilityStatus.pending,
       newStatus: EligibilityStatus.eligible,
       changedAt: DateTime(2026, 5, 20, 14, 5),
-      changedBy: 'School Staff',
+      changedBy: 'Club Coordinator',
     ),
     EligibilityChange(
       id: 'e3',
       oldStatus: EligibilityStatus.eligible,
       newStatus: EligibilityStatus.academicWarning,
       changedAt: DateTime(2026, 6, 28, 11, 45),
-      changedBy: 'School Staff',
+      changedBy: 'Club Coordinator',
     ),
     EligibilityChange(
       id: 'e4',
       oldStatus: EligibilityStatus.academicWarning,
       newStatus: EligibilityStatus.eligible,
       changedAt: DateTime(2026, 7, 12, 10, 15),
-      changedBy: 'School Staff',
+      changedBy: 'Club Coordinator',
     ),
   ];
 

@@ -83,27 +83,11 @@
            class="portal-nav-link {% if request.resolver_match.url_name == 'tournaments' or request.resolver_match.url_name == 'tournament-detail' or request.resolver_match.url_name == 'tournament-fixture-edit' or request.resolver_match.url_name == 'tournament-fixture-result' %}portal-nav-link-active{% endif %}">
           Tournaments
         </a>
-      {% elif user.role == 'SCHOOL_STAFF' %}
-        {% if request.user.club.is_school_affiliated %}
-          <a href="{% url 'portal:staff-eligibility' %}"
-             {% if request.resolver_match.url_name == 'staff-eligibility' %}aria-current="page"{% endif %}
-             class="portal-nav-link {% if request.resolver_match.url_name == 'staff-eligibility' %}portal-nav-link-active{% endif %}">
-            Academic Eligibility
-          </a>
-        {% endif %}
-        <a href="{% url 'portal:staff-disputes' %}"
-           {% if request.resolver_match.url_name == 'staff-disputes' or request.resolver_match.url_name == 'staff-dispute-detail' %}aria-current="page"{% endif %}
-           class="portal-nav-link {% if request.resolver_match.url_name == 'staff-disputes' or request.resolver_match.url_name == 'staff-dispute-detail' %}portal-nav-link-active{% endif %}">
-          Disputes
-        </a>
       {% endif %}
     </nav>
 
     <div class="border-t border-white/20 p-4">
       <div class="mb-3 truncate text-xs text-white/80">{{ request.user.email }}</div>
-      {% if user.role == 'COORDINATOR' %}
-        <a href="{% url 'portal:mobile-access' %}" class="portal-account-link">Mobile access</a>
-      {% endif %}
       <a href="{% url 'portal:password-change' %}" class="portal-account-link">Change password</a>
       <form method="post" action="{% url 'portal:logout' %}">
         {% csrf_token %}

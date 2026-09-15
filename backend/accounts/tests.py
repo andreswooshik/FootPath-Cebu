@@ -19,7 +19,6 @@ ALL_ROLES = [
     Roles.COORDINATOR,
     Roles.COACH,
     Roles.PLAYER,
-    Roles.SCHOOL_STAFF,
     Roles.GUARDIAN,
 ]
 
@@ -57,7 +56,6 @@ class RolePermissionTests(APITestCase):
             Roles.COORDINATOR,
             Roles.COACH,
             Roles.PLAYER,
-            Roles.SCHOOL_STAFF,
             Roles.GUARDIAN,
         ]:
             self.client.force_authenticate(self.users[role])
@@ -129,24 +127,25 @@ class AdminUserLifecycleTests(APITestCase):
         resp = self.client.get(reverse('auth-me'))
         self.assertIn(resp.status_code, (401, 403))
 
-    def test_coach_becomes_school_staff_with_a_portal_password(self):
-        resp = self.client.patch(self._url(self.coach), {'role': Roles.SCHOOL_STAFF}, format='json')
+    def test_coach_becomes_guardian_without_changing_credentials(self):
+        resp = self.client.patch(self._url(self.coach), {'role': Roles.GUARDIAN}, format='json')
         self.assertEqual(resp.status_code, 200)
         self.coach.refresh_from_db()
-        self.assertEqual(self.coach.role, Roles.SCHOOL_STAFF)
-        # A web role needs a Django session password, issued and relayed once.
-        temp = resp.data['temporary_password']
-        self.assertTrue(temp)
-        self.assertTrue(self.coach.check_password(temp))
+        self.assertEqual(self.coach.role, Roles.GUARDIAN)
+        self.assertIsNone(resp.data['temporary_password'])
 
-    @patch('accounts.services.link_or_create_firebase_user', return_value=None)
-    def test_school_staff_becomes_coach_via_firebase(self, mock_link):
-        staff = make_user(Roles.SCHOOL_STAFF)
+    def test_guardian_becomes_coach_with_existing_firebase_identity(self):
+        staff = User.objects.create(
+            username='guardian-switch@footpathcebu.test',
+            email='guardian-switch@footpathcebu.test',
+            role=Roles.GUARDIAN,
+            firebase_uid='uid-guardian-switch',
+            club=self.coach.club,
+        )
         resp = self.client.patch(self._url(staff), {'role': Roles.COACH}, format='json')
         self.assertEqual(resp.status_code, 200)
         staff.refresh_from_db()
         self.assertEqual(staff.role, Roles.COACH)
-        mock_link.assert_called_once()
 
     def test_player_role_is_locked(self):
         player = make_user(Roles.PLAYER)
@@ -167,7 +166,7 @@ class AdminUserLifecycleTests(APITestCase):
     def test_lifecycle_changes_are_audited(self):
         from academy.models import AuditLog
 
-        self.client.patch(self._url(self.coach), {'role': Roles.SCHOOL_STAFF}, format='json')
+        self.client.patch(self._url(self.coach), {'role': Roles.GUARDIAN}, format='json')
         self.client.patch(self._url(self.coach), {'is_active': False}, format='json')
         self.assertTrue(
             AuditLog.objects.filter(

@@ -68,10 +68,6 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
             raise exceptions.AuthenticationFailed(
                 'This club is inactive. Contact the platform administrator.'
             )
-        if user.role == Roles.SCHOOL_STAFF and not user.club.allows_school_staff:
-            raise exceptions.AuthenticationFailed(
-                'School Staff access is unavailable for an Independent club.'
-            )
         return (user, decoded)
 
     def authenticate_header(self, request):

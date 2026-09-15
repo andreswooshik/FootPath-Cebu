@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.test import TestCase
 from django.urls import reverse
 
@@ -27,7 +29,13 @@ class ClubApplicationReviewAdminTests(TestCase):
             role=Roles.COORDINATOR,
             club=self.club,
             is_active=False,
+            firebase_uid='submitted-coordinator-uid',
         )
+        self.firebase_state = patch(
+            'accounts.admin.set_coordinator_firebase_disabled',
+            return_value=True,
+        ).start()
+        self.addCleanup(patch.stopall)
         self.client.force_login(self.super_admin)
         self.url = reverse('admin:accounts_club_change', args=[self.club.pk])
 
@@ -62,6 +70,17 @@ class ClubApplicationReviewAdminTests(TestCase):
         self.assertEqual(self.club.name, 'Submitted School FC')
         self.assertTrue(self.club.is_school_affiliated)
         self.assertEqual(self.club.school_name, 'Submitted National School')
+
+    def test_failed_firebase_enable_keeps_application_pending(self):
+        self.firebase_state.side_effect = RuntimeError('Firebase unavailable')
+
+        response = self.client.post(self.url, {'_approve_application': '1'})
+
+        self.assertRedirects(response, self.url)
+        self.club.refresh_from_db()
+        self.coordinator.refresh_from_db()
+        self.assertTrue(self.club.is_active)
+        self.assertFalse(self.coordinator.is_active)
 
     def test_not_approve_deactivates_application_without_changing_details(self):
         response = self.client.post(

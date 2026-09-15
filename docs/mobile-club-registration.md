@@ -4,7 +4,7 @@
 
 FootPath does not use Supabase Auth. Mobile identities are managed by Firebase Auth, Django owns users, roles, clubs, validation, and approval, and Supabase is used as private object storage (and may host PostgreSQL). The Flutter client never receives a Supabase service key.
 
-The web portal already submits `CoordinatorSignupForm` to `register_coordinator()`. That service creates one `Club` and one Django `User` with role `COORDINATOR`, `is_active=False`, and no `firebase_uid`. The admin's existing Club review actions activate or reject the records. The mobile endpoint calls this same form and service.
+The web portal already submits `CoordinatorSignupForm` to `register_coordinator()`. That service creates one `Club`, one Django `User` with role `COORDINATOR`, and a disabled Firebase identity linked by `firebase_uid`. The Django user remains inactive until review. The admin's existing Club review actions activate or reject the records, and the mobile endpoint calls this same form and service.
 
 ## Registration flow
 
@@ -15,11 +15,11 @@ The web portal already submits `CoordinatorSignupForm` to `register_coordinator(
 5. Django repeats authoritative validation, sanitizes the document, uploads it through the existing private storage adapter, and calls `register_coordinator()`.
 6. The response is `PENDING`; the app shows the success screen and can return to login.
 7. The existing admin Club review screen approves or rejects the same `Club` and coordinator records used by web applications.
-8. Approval enables the Django portal account. Under the current architecture, an approved coordinator enables mobile access from the portal, which provisions or links their Firebase identity. Registration itself never creates Firebase access.
+8. Approval enables the linked Firebase identity and the Django coordinator in one review action. The same credentials then work in both the portal and mobile app; there is no separate mobile-access switch.
 
 ## Database and status
 
-No new table or migration was added. The existing `accounts_club` columns are used: `name`, `slug`, `is_active`, `is_school_affiliated`, `school_name`, `head_coach_name`, `coach_license`, `cvfa_membership`, and `created_at`. The existing `accounts_user` row stores the coordinator name, normalized email, hashed Django password, `role=COORDINATOR`, `club_id`, `is_active`, and nullable `firebase_uid`.
+No registration-specific table was added. The existing `accounts_club` columns are used: `name`, `slug`, `is_active`, `is_school_affiliated`, `school_name`, `head_coach_name`, `coach_license`, `cvfa_membership`, and `created_at`. The existing `accounts_user` row stores the coordinator name, normalized email, hashed Django password, `role=COORDINATOR`, `club_id`, `is_active`, and the linked `firebase_uid`.
 
 There is no separate application-status column. The existing admin derives status from the current records: active club plus inactive coordinator is `PENDING`; active club plus active coordinator is `APPROVED`; inactive club is `NOT_APPROVED`.
 
@@ -35,7 +35,7 @@ Deployment must configure the existing Supabase bucket's own file-size limit to 
 
 The public endpoint is intentionally anonymous because applicants do not yet have an identity. It is restricted to one operation, throttled to five requests per hour per client IP, validates every submitted value server-side, and never accepts a role or status from Flutter.
 
-`register_coordinator()` alone assigns the existing `Roles.COORDINATOR` value and always creates this applicant inactive. Admin approval remains the authorization boundary. Normal mobile API access still requires a verified Firebase token mapped to an active Django user in an active club.
+`register_coordinator()` alone assigns the existing `Roles.COORDINATOR` value. It creates both identities disabled/inactive, so registration does not grant application access. Admin approval remains the authorization boundary and enables both identities. Normal mobile API access still requires a verified Firebase token mapped to an active Django user in an active club.
 
 Supabase Storage stays private. Flutter does not call Supabase, so no public Storage RLS insert policy or service-role key is required in the app. Django's server-held service key performs the upload and authorized admin reads use short-lived signed URLs. Database tenancy and role checks remain in Django; no RLS rule was disabled or bypassed.
 

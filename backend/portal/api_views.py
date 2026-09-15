@@ -66,7 +66,10 @@ class MobileClubRegistrationView(APIView):
                 'status': 'PENDING',
                 'club_id': club.pk,
                 'coordinator_email': coordinator.email,
-                'message': 'Your club registration application was submitted for review.',
+                'message': (
+                    'Your club registration application was submitted for review. '
+                    'Portal and mobile access will be enabled together after approval.'
+                ),
             },
             status=status.HTTP_201_CREATED,
         )

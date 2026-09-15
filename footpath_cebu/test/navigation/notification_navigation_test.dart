@@ -36,15 +36,6 @@ const _coach = UserProfile(
   roleDisplay: 'Coach',
 );
 
-const _schoolStaff = UserProfile(
-  id: '41',
-  email: 'staff@example.com',
-  firstName: 'Staff',
-  lastName: 'One',
-  role: 'SCHOOL_STAFF',
-  roleDisplay: 'School Staff',
-);
-
 void main() {
   test(
     'outbox retries share an event key even with different FCM message IDs',
@@ -128,8 +119,8 @@ void main() {
         _guardian,
         const NotificationOpenRequest(type: 'eligibility_changed'),
       );
-      final staffDestination = resolveNotificationDestination(
-        _schoolStaff,
+      final coachDestination = resolveNotificationDestination(
+        _coach,
         const NotificationOpenRequest(
           type: 'eligibility_changed',
           playerId: '11',
@@ -138,7 +129,7 @@ void main() {
 
       expect(playerDestination.playerId, _player.id);
       expect(guardianDestination.kind, NotificationDestinationKind.eligibility);
-      expect(staffDestination.kind, NotificationDestinationKind.inbox);
+      expect(coachDestination.kind, NotificationDestinationKind.inbox);
     });
 
     test('unknown event stays in the focused inbox', () {

@@ -79,18 +79,6 @@ class CoordinatorAccountScreen extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          Text('Access', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          const Card(
-            child: ListTile(
-              leading: Icon(Icons.admin_panel_settings_outlined),
-              title: Text('Mobile access'),
-              subtitle: Text(
-                'Club role and mobile-access permissions are managed in the web portal.',
-              ),
-            ),
-          ),
           const SizedBox(height: 20),
           OutlinedButton.icon(
             onPressed: () => _signOut(context, ref),

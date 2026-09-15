@@ -1,7 +1,10 @@
+from unittest.mock import Mock, patch
+
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
+from firebase_admin import auth as firebase_auth
 
 from accounts.models import Club, Roles, User
 from accounts.validators import (
@@ -36,6 +39,12 @@ def _application_data(**overrides):
 class MobileClubRegistrationApiTests(TestCase):
     def setUp(self):
         cache.clear()
+        get_user = patch('accounts.services.firebase_auth.get_user_by_email').start()
+        create_user = patch('accounts.services.firebase_auth.create_user').start()
+        patch('accounts.services.ensure_initialized').start()
+        self.addCleanup(patch.stopall)
+        get_user.side_effect = firebase_auth.UserNotFoundError('not found')
+        create_user.side_effect = lambda **kwargs: Mock(uid=f"uid-{kwargs['email']}")
 
     def test_submission_uses_existing_pending_club_workflow(self):
         response = self.client.post(
@@ -49,7 +58,7 @@ class MobileClubRegistrationApiTests(TestCase):
         coordinator = club.coordinator
         self.assertEqual(coordinator.role, Roles.COORDINATOR)
         self.assertFalse(coordinator.is_active)
-        self.assertIsNone(coordinator.firebase_uid)
+        self.assertEqual(coordinator.firebase_uid, 'uid-jamie@mobile.test')
         self.assertEqual(coordinator.email, 'jamie@mobile.test')
         self.assertTrue(club.coach_license.name.startswith('coach-licenses/'))
 

@@ -10,7 +10,7 @@ abstract class EligibilityHistoryRepository {
     String? unlockToken,
   });
 
-  /// Records a Coordinator or School Staff eligibility decision. The backend
+  /// Records a Coordinator eligibility decision. The backend
   /// owns role, school-affiliation, club-scope, history, and notifications.
   Future<EligibilityStatus> updateEligibility(
     String playerId,

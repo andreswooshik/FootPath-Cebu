@@ -454,8 +454,8 @@ class EligibilityHistory(models.Model):
     """Append-only audit trail of a player's academic eligibility transitions.
 
     One row per change, written by the PlayerProfile save-cycle signal (see
-    signals.py) so *every* write path — Django admin, console, a future
-    School Staff API — is captured with no per-view wiring. Never updated or
+    signals.py) so *every* write path — Django admin, console, and Coordinator
+    API — is captured with no per-view wiring. Never updated or
     deleted: the trail is the record.
 
     Only the status enum is stored, never a grade — same status-flags-only rule

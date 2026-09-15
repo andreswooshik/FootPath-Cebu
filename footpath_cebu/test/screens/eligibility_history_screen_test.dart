@@ -72,8 +72,8 @@ void main() {
     // Four transitions; "Eligible" appears as old or new status across them.
     expect(find.byType(Card), findsNWidgets(4));
     expect(find.text('Academic Warning'), findsNWidgets(2));
-    // Who made each change is the role, never a staff member's name.
-    expect(find.textContaining('by School Staff'), findsNWidgets(3));
+    // Who made each change is the role, never a Coordinator's name.
+    expect(find.textContaining('by Club Coordinator'), findsNWidgets(3));
     expect(find.textContaining('by System'), findsOneWidget);
     expect(find.byTooltip('Update eligibility'), findsNothing);
   });

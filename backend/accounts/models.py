@@ -16,7 +16,6 @@ class Roles(models.TextChoices):
     COORDINATOR = 'COORDINATOR', 'Club Coordinator'
     COACH = 'COACH', 'Coach'
     PLAYER = 'PLAYER', 'Player'
-    SCHOOL_STAFF = 'SCHOOL_STAFF', 'School Staff'
     GUARDIAN = 'GUARDIAN', 'Guardian'
 
 
@@ -44,8 +43,8 @@ def coach_license_upload_to(instance, filename):
 class Club(models.Model):
     """A football club/academy — the tenancy boundary.
 
-    Each Club Coordinator owns exactly one club; every player, coach, school
-    staff and guardian they provision belongs to it. Isolation is single-sourced
+    Each Club Coordinator owns exactly one club; every player, coach, and
+    guardian they provision belongs to it. Isolation is single-sourced
     on `User.club`: a member's club is `user.club`, and a player's club is
     `player.user.club`. ADMIN / Django superusers have no club and are the only
     accounts that see across every club.
@@ -58,8 +57,8 @@ class Club(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # Club details maintained by Super Admin. School staff / academic
-    # eligibility exist only for school clubs.
+    # Club details maintained by Super Admin. Academic eligibility applies only
+    # to school-affiliated clubs and is managed by the Club Coordinator.
     is_school_affiliated = models.BooleanField(default=False)
     school_name = models.CharField(max_length=150, blank=True)
     head_coach_name = models.CharField(max_length=150, blank=True)
@@ -82,12 +81,6 @@ class Club(models.Model):
     def coordinator(self):
         """The owning coordinator (a club has exactly one), or None."""
         return self.members.filter(role=Roles.COORDINATOR).first()
-
-    @property
-    def allows_school_staff(self):
-        """School-staff accounts and academic eligibility exist only for
-        school-affiliated clubs."""
-        return self.is_school_affiliated
 
     @property
     def allows_academic_eligibility(self):

@@ -9,7 +9,7 @@ Youth Sports Academy Portal — Capstone Project.
 ## Project layout
 
 ```
-footpath_cebu/   Flutter mobile app (Coach, Player, Guardian) — Clean Architecture + MVVM
+footpath_cebu/   Flutter mobile app (Coordinator, Coach, Player, Guardian) — Clean Architecture + MVVM
 backend/         Django REST API + admin console (account provisioning, RBAC)
 docs/            Requirements, setup, and detailed execution notes
 ```
@@ -52,7 +52,8 @@ Tests live in `footpath_cebu/test/` (entity round-trips, provider filtering/erro
 ## 1. Comprehensive Workflow Architecture
 
 ### A. Account Provisioning & Linking
-There is no public registration. The approved hierarchy is:
+Club applications are public, but access remains disabled until Super Admin
+approval. The approved hierarchy is:
 
 ```
 SUPER ADMIN
@@ -61,7 +62,7 @@ CLUB (SCHOOL or INDEPENDENT)
     ↓ receives one
 CLUB COORDINATOR
     ↓ provisions only inside that club
-COACH / PLAYER / GUARDIAN / SCHOOL STAFF
+COACH / PLAYER / GUARDIAN
 ```
 
 - Super Admin creates/manages Clubs and provisions each Club's Coordinator.
@@ -70,8 +71,8 @@ COACH / PLAYER / GUARDIAN / SCHOOL STAFF
   `club_id` input.
 - Player creation atomically creates the `PLAYER` user, non-null Club,
   `PlayerProfile`, and optional same-Club Guardian link.
-- Only School Clubs allow School Staff and status-only academic eligibility.
-  Independent Clubs show eligibility as Not Applicable.
+- School Clubs allow their Coordinator to manage status-only academic
+  eligibility. Independent Clubs show eligibility as Not Applicable.
 - FootPath Cebu never stores raw student grades, GPA, report cards,
   transcripts, or grade uploads.
 
@@ -93,7 +94,7 @@ masked as offline success. Replays are scoped to the signed-in Firebase UID and
 processed oldest first, so the latest complete session batch wins.
 
 ### C. Academic Eligibility Gating
-School Staff set an eligibility **status enum only** — never grades, GPA, or report cards:
+Club Coordinators set an eligibility **status enum only** for their School Club — never grades, GPA, or report cards:
 
 ```
   PlayerProfile.eligibility = ELIGIBLE | NOT_ELIGIBLE | PENDING | ACADEMIC_WARNING
@@ -121,7 +122,7 @@ timestamp attribution.
 | **2** | Super Admin Club/Coordinator APIs and Guardian linking | Admin/Coordinator web workflows | Player and Guardian profiles |
 | **3** | Attendance API and user-scoped SQLite outbox | Attendance capture and sync state | Attendance history |
 | **4** | Performance profile API | Coach assessment workflow | Player performance display |
-| **5** | School-only eligibility status/history | Coordinator roster | School Staff eligibility portal |
+| **5** | School-only eligibility status/history | Coordinator roster and eligibility controls | Player/Guardian eligibility views |
 | **6** | Schedule and persistent notification inbox | Schedule CRUD and notification bell | Schedule/RSVP and notification inbox |
 | **7** | Disputes, responses, and authorization | Coach dispute workflow | Authorized review workflow |
 | **8** | Audit logs, privacy PINs, photo storage gateway | Photo upload and privacy UI | Guardian privacy gates |
@@ -173,7 +174,7 @@ class AttendanceLogController extends Notifier<AttendanceLogState> {
 ## 4. Deployment & Secure-Coding Audit Checklist
 
 **Authentication**
-- [x] No public registration enabled
+- [x] Public Club applications remain inactive until Super Admin approval
 - [x] Super Admin creates Clubs and their Coordinators
 - [x] Club Coordinators create normal accounts in their own Club
 - [x] Player creation atomically creates its profile and non-null Club link
@@ -191,7 +192,7 @@ class AttendanceLogController extends Notifier<AttendanceLogState> {
 - [x] Linked Guardians view player match trends through the privacy-PIN gate
 - [x] Guardians require a same-Club link and privacy unlock
 - [x] Coaches are limited to their Club
-- [x] School Staff eligibility exists only for School Clubs
+- [x] Coordinator-managed eligibility exists only for School Clubs
 - [x] Super Admin-only Club and Coordinator operations are server-enforced
 
 **Data Minimization**

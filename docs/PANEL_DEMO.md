@@ -41,7 +41,6 @@ All accounts use the password `FootPath!2026`.
 | Coach | `coach@footpathcebu.test` | Flutter app |
 | Player | `player@footpathcebu.test` | Flutter app |
 | Guardian | `guardian@footpathcebu.test` | Flutter app |
-| School Staff | `staff@footpathcebu.test` | `http://127.0.0.1:8000/portal/login/` |
 
 The demo Player privacy PIN is `2468`.
 
@@ -64,14 +63,14 @@ The demo Player privacy PIN is `2468`.
    notifications, eligibility, and injury history.
 7. Sign in as the Guardian and use PIN `2468` to show the linked Player's
    protected records and pending injury review.
-8. Sign in as School Staff to demonstrate academic eligibility and responding
+8. Return to the Coordinator to demonstrate academic eligibility and responding
    to the open dispute.
 9. Finish in Super Admin to show club/account management, role separation,
    audit records, and Firebase-backed password management.
 
 ## Seeded scenario
 
-- Active school-affiliated demo club with all six roles
+- Active school-affiliated demo club with all five roles
 - Seven-player roster across Foundation, Development, and Pathway tiers
 - Published Rising Star Cup U14 schedule, bracket, squad, and five fixtures
 - One completed group fixture with objective statistics awaiting Coach ratings

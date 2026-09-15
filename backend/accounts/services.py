@@ -5,7 +5,7 @@ from django.utils.crypto import get_random_string
 from firebase_admin import auth as firebase_auth
 
 from .firebase import ensure_initialized
-from .models import Club, GuardianLink, Roles, User
+from .models import Club, FirebaseProvisioningCleanup, GuardianLink, Roles, User
 
 # Excludes visually-ambiguous characters (0/O, 1/l/I) for readability when an
 # admin has to relay this password to someone by hand.
@@ -22,8 +22,6 @@ def _require_active_club(club, *, role):
         raise ProvisioningError(f'{role} accounts must be assigned to a club.')
     if not club.is_active:
         raise ProvisioningError('Accounts cannot be created for an inactive club.')
-    if role == Roles.SCHOOL_STAFF and not club.allows_school_staff:
-        raise ProvisioningError('School Staff accounts are available only to School clubs.')
     return club
 
 
@@ -79,20 +77,15 @@ def set_firebase_password(user, *, password):
     user.save(update_fields=['password'])
 
 
-def enable_coordinator_mobile_access(user, *, password):
-    """Link a Coordinator to Firebase without changing their Django password.
+def provision_coordinator_firebase_identity(user, *, password, disabled):
+    """Create and link the Firebase identity used by a Coordinator in mobile.
 
-    The Coordinator proves the current portal password before this service is
-    called. Firebase receives that same password so web and mobile credentials
-    remain aligned. Existing Firebase identities are adopted only when their
-    UID is not linked to another local account.
+    A public application provisions this identity disabled. Approval enables
+    the exact stored UID, so authentication never falls back to matching an
+    untrusted Firebase account by email.
     """
-    if user.role != Roles.COORDINATOR or not user.is_active:
-        raise ProvisioningError('Only an active Coordinator can enable mobile access.')
-    if user.club_id is None or not user.club.is_active:
-        raise ProvisioningError('The Coordinator must belong to an active club.')
-    if not user.check_password(password):
-        raise ProvisioningError('The current password is incorrect.')
+    if user.role != Roles.COORDINATOR or not user.email:
+        raise ProvisioningError('A Coordinator with an email is required.')
 
     ensure_initialized()
     created = False
@@ -102,25 +95,43 @@ def enable_coordinator_mobile_access(user, *, password):
         firebase_user = firebase_auth.create_user(
             email=user.email,
             password=password,
-            disabled=False,
+            disabled=disabled,
         )
         created = True
     else:
-        if User.objects.exclude(pk=user.pk).filter(firebase_uid=firebase_user.uid).exists():
-            raise ProvisioningError('That mobile identity is already linked to another account.')
+        if not user.firebase_uid or user.firebase_uid != firebase_user.uid:
+            raise ProvisioningError(
+                'A Firebase identity already exists for this email and is not '
+                'linked to this Coordinator.'
+            )
         firebase_user = firebase_auth.update_user(
             firebase_user.uid,
             password=password,
-            disabled=False,
+            disabled=disabled,
         )
 
+    if User.objects.exclude(pk=user.pk).filter(firebase_uid=firebase_user.uid).exists():
+        if created:
+            firebase_auth.delete_user(firebase_user.uid)
+        raise ProvisioningError('That Firebase identity is linked to another account.')
+
     user.firebase_uid = firebase_user.uid
-    user.save(update_fields=['firebase_uid'])
+    try:
+        user.save(update_fields=['firebase_uid'])
+    except Exception:
+        if created:
+            try:
+                firebase_auth.delete_user(firebase_user.uid)
+            except Exception:
+                FirebaseProvisioningCleanup.objects.get_or_create(
+                    firebase_uid=firebase_user.uid
+                )
+        raise
     return created
 
 
-def sync_coordinator_mobile_password(user, *, password):
-    """Keep an already-linked Coordinator's Firebase password in sync."""
+def sync_coordinator_firebase_password(user, *, password):
+    """Keep a Coordinator's portal and Firebase passwords in sync."""
     if user.role != Roles.COORDINATOR or not user.firebase_uid:
         return False
     ensure_initialized()
@@ -128,10 +139,16 @@ def sync_coordinator_mobile_password(user, *, password):
     return True
 
 
-def set_coordinator_mobile_disabled(user, *, disabled):
-    """Disable/re-enable a linked mobile identity with the club lifecycle."""
-    if user.role != Roles.COORDINATOR or not user.firebase_uid:
+def set_coordinator_firebase_disabled(user, *, disabled):
+    """Disable or enable a Coordinator identity with the club lifecycle."""
+    if user.role != Roles.COORDINATOR:
         return False
+    if not user.firebase_uid:
+        if disabled:
+            return False
+        raise ProvisioningError(
+            'This Coordinator has no Firebase identity. Keep the application pending.'
+        )
     ensure_initialized()
     firebase_auth.update_user(user.firebase_uid, disabled=disabled)
     if disabled:
@@ -265,17 +282,11 @@ def provision_player(
 # (a player is created together with their profile by a dedicated flow, and
 # the profile depends on the role) and COORDINATOR is excluded (a coordinator
 # owns their club).
-SWITCHABLE_ROLES = (Roles.COACH, Roles.SCHOOL_STAFF, Roles.GUARDIAN)
+SWITCHABLE_ROLES = (Roles.COACH, Roles.GUARDIAN)
 
 
 def change_role(user, new_role):
-    """Switch `user` to `new_role`, handling the auth-mode change.
-
-    School Staff sign in with a Django password on the web portal; coaches and
-    guardians with Firebase in the app. Crossing that line issues the
-    credential the new surface needs. Returns (temp_password_or_None, note) —
-    the temp password, when present, is relayed once by the admin.
-    """
+    """Switch an existing Firebase account between Coach and Guardian."""
     if user.is_superuser or user.role == Roles.ADMIN:
         raise ProvisioningError('Admin accounts cannot be changed here.')
     if user.role == Roles.PLAYER or hasattr(user, 'player_profile'):
@@ -290,45 +301,19 @@ def change_role(user, new_role):
     if user.role == Roles.GUARDIAN and new_role != Roles.GUARDIAN and user.guardian_links.exists():
         raise ProvisioningError("Remove this guardian's player links before changing their role.")
 
-    temp_password = None
-    note = ''
-    if new_role == Roles.SCHOOL_STAFF and user.role != Roles.SCHOOL_STAFF:
-        # Firebase app user → web user: issue a Django session password.
-        temp_password = get_random_string(12, allowed_chars=_PASSWORD_CHARS)
-        user.set_password(temp_password)
-        note = 'School Staff sign in on the web portal with this password.'
-    elif user.role == Roles.SCHOOL_STAFF and new_role != Roles.SCHOOL_STAFF:
-        # Web user → Firebase app user: ensure a Firebase identity exists
-        # (marks the Django password unusable).
-        temp_password = link_or_create_firebase_user(user)
-        note = (
-            'They sign in to the app with this new password.'
-            if temp_password
-            else 'Their existing app (Firebase) password still works.'
-        )
-
     user.role = new_role
     user.save()
-    return temp_password, note
+    return None, 'Their existing app password is unchanged.'
 
 
 def provision_web_user(*, email, first_name, last_name, role, club, password=None, is_active=True):
-    """Create a web-portal user (Coordinator / School Staff) with a usable
-    Django session password and NO Firebase identity.
-
-    These accounts authenticate against the Django session on the web portal
-    only — they never use the Firebase-authenticated mobile app, so no Firebase
-    account is created and no `firebase_uid` is stamped. `is_active=False` holds
-    a coordinator signup pending superadmin approval (Django's ModelBackend
-    refuses inactive logins).
+    """Create a Coordinator with a usable Django portal password.
 
     Returns (user, password) — the caller relays `password` to the person
     (the one supplied, or a generated temporary one).
     """
-    if role not in (Roles.COORDINATOR, Roles.SCHOOL_STAFF):
-        raise ProvisioningError(
-            'This provisioning path supports Club Coordinator and School Staff only.'
-        )
+    if role != Roles.COORDINATOR:
+        raise ProvisioningError('This provisioning path supports Club Coordinators only.')
     club = _require_active_club(club, role=role)
     email = email.strip().lower()
     if User.objects.filter(email__iexact=email).exists():
@@ -353,11 +338,11 @@ def provision_web_user(*, email, first_name, last_name, role, club, password=Non
 def provision_club_coordinator(
     *, email, first_name, last_name, club, password=None, is_active=True
 ):
-    """Super Admin flow for a club's single coordinator account."""
+    """Create a dual-login Coordinator, disabled everywhere while pending."""
     club = _require_active_club(club, role=Roles.COORDINATOR)
     if User.objects.filter(club=club, role=Roles.COORDINATOR).exists():
         raise ProvisioningError('This club already has a coordinator.')
-    return provision_web_user(
+    user, generated = provision_web_user(
         email=email,
         first_name=first_name,
         last_name=last_name,
@@ -366,3 +351,9 @@ def provision_club_coordinator(
         password=password,
         is_active=is_active,
     )
+    provision_coordinator_firebase_identity(
+        user,
+        password=generated,
+        disabled=not is_active,
+    )
+    return user, generated

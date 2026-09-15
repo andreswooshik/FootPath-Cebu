@@ -108,7 +108,7 @@ class SquadEndpointTests(APITestCase):
         self.assertEqual(len(response.data), 1)
 
     def test_non_coach_roles_are_denied(self):
-        for role in (Roles.PLAYER, Roles.GUARDIAN, Roles.SCHOOL_STAFF):
+        for role in (Roles.PLAYER, Roles.GUARDIAN):
             self.client.force_authenticate(make_user(role, f'{role}@x.test'))
             self.assertEqual(
                 self.client.get(reverse('players-list')).status_code,
@@ -433,7 +433,7 @@ class SessionAttendanceTests(APITestCase):
         self.assertEqual(response['X-Attendance-Revision'], '0')
 
     def test_non_coach_post_denied(self):
-        for role in (Roles.PLAYER, Roles.GUARDIAN, Roles.SCHOOL_STAFF, Roles.ADMIN):
+        for role in (Roles.PLAYER, Roles.GUARDIAN, Roles.ADMIN):
             self.client.force_authenticate(make_user(role, f'{role}@x.test'))
             resp = self.client.post(self._url(), self._payload(), format='json')
             self.assertEqual(
@@ -445,7 +445,7 @@ class SessionAttendanceTests(APITestCase):
     def test_admin_can_get_but_others_cannot(self):
         self.client.force_authenticate(make_user(Roles.ADMIN))
         self.assertEqual(self.client.get(self._url()).status_code, 200)
-        for role in (Roles.PLAYER, Roles.GUARDIAN, Roles.SCHOOL_STAFF):
+        for role in (Roles.PLAYER, Roles.GUARDIAN):
             self.client.force_authenticate(make_user(role, f'{role}@g.test'))
             self.assertEqual(self.client.get(self._url()).status_code, 403)
 
@@ -1271,13 +1271,13 @@ class TrainingSessionTests(APITestCase):
 
 
 class DisputeTests(APITestCase):
-    """The dispute foundation — coach flags, School Staff/Admin participate,
+    """The dispute foundation — Coach flags, Coordinator/Admin participate,
     players/guardians have no access, and the response thread is the
     append-only audit trail."""
 
     def setUp(self):
         self.coach = make_user(Roles.COACH)
-        self.staff = make_user(Roles.SCHOOL_STAFF)
+        self.coordinator = make_user(Roles.COORDINATOR)
         self.admin = make_user(Roles.ADMIN)
         self.player = make_player('p1@footpathcebu.test')
         self.dispute = Dispute.objects.create(
@@ -1337,8 +1337,8 @@ class DisputeTests(APITestCase):
                 403,
             )
 
-    def test_staff_and_admin_list_but_cannot_create(self):
-        for user in (self.staff, self.admin):
+    def test_coordinator_and_admin_list_but_cannot_create(self):
+        for user in (self.coordinator, self.admin):
             self.client.force_authenticate(user)
             resp = self.client.get(reverse('disputes'))
             self.assertEqual(resp.status_code, 200)
@@ -1350,7 +1350,7 @@ class DisputeTests(APITestCase):
             )
 
     def test_response_with_status_change_moves_the_dispute(self):
-        self.client.force_authenticate(self.staff)
+        self.client.force_authenticate(self.coordinator)
         resp = self.client.post(
             reverse('dispute-responses', args=[self.dispute.id]),
             {
@@ -1364,7 +1364,7 @@ class DisputeTests(APITestCase):
         self.dispute.refresh_from_db()
         self.assertEqual(self.dispute.status, DisputeStatus.RESOLVED)
         response = self.dispute.responses.get()
-        self.assertEqual(response.author, self.staff)
+        self.assertEqual(response.author, self.coordinator)
         self.assertEqual(response.status_change_to, DisputeStatus.RESOLVED)
 
     def test_response_without_status_change_leaves_status(self):
@@ -1397,7 +1397,7 @@ class DisputeTests(APITestCase):
     def test_dispute_json_matches_flutter_contract(self):
         DisputeResponse.objects.create(
             dispute=self.dispute,
-            author=self.staff,
+            author=self.coordinator,
             body='Looking into it.',
             status_change_to=DisputeStatus.UNDER_REVIEW,
         )
@@ -1751,12 +1751,12 @@ class EligibilityHistorySignalTests(APITestCase):
         # make_player provisions the profile at ELIGIBLE (a create, not a
         # transition — so it records no history).
         self.player = make_player('hist@footpathcebu.test')
-        self.staff = make_user(Roles.SCHOOL_STAFF)
+        self.coordinator = make_user(Roles.COORDINATOR)
 
     def test_change_records_a_history_row(self):
         self.assertFalse(EligibilityHistory.objects.exists())  # created ≠ change
         profile = self.player.player_profile
-        profile._changed_by = self.staff
+        profile._changed_by = self.coordinator
         profile.eligibility = Eligibility.ACADEMIC_WARNING
         profile.save()
 
@@ -1765,7 +1765,7 @@ class EligibilityHistorySignalTests(APITestCase):
         row = rows.get()
         self.assertEqual(row.old_status, Eligibility.ELIGIBLE)
         self.assertEqual(row.new_status, Eligibility.ACADEMIC_WARNING)
-        self.assertEqual(row.changed_by, self.staff)
+        self.assertEqual(row.changed_by, self.coordinator)
 
     def test_unchanged_save_records_no_history(self):
         profile = self.player.player_profile
@@ -1794,13 +1794,13 @@ class EligibilityHistoryEndpointTests(APITestCase):
         self.other_player = make_player('elig-other@footpathcebu.test')
         self.guardian = make_user(Roles.GUARDIAN)
         GuardianLink.objects.create(guardian=self.guardian, player=self.player)
-        self.staff = make_user(Roles.SCHOOL_STAFF)
-        self.staff.first_name, self.staff.last_name = 'Maria', 'Santos'
-        self.staff.save()
+        self.coordinator = make_user(Roles.COORDINATOR)
+        self.coordinator.first_name, self.coordinator.last_name = 'Maria', 'Santos'
+        self.coordinator.save()
 
         # One attributed transition + one system (actor unknown) transition.
         profile = self.player.player_profile
-        profile._changed_by = self.staff
+        profile._changed_by = self.coordinator
         profile.eligibility = Eligibility.ACADEMIC_WARNING
         profile.save()
         profile._changed_by = None
@@ -1822,20 +1822,15 @@ class EligibilityHistoryEndpointTests(APITestCase):
             {'id', 'oldStatus', 'newStatus', 'changedAt', 'changedBy'},
         )
 
-    def test_changed_by_is_role_only_for_families_full_name_for_staff(self):
-        # Player (and guardian) see the role, never the staff member's name.
+    def test_changed_by_is_role_only_for_families_full_name_for_coordinator(self):
+        # Player (and guardian) see the role, never the coordinator's name.
         self.client.force_authenticate(self.player)
         rows = self.client.get(self._url()).data
-        self.assertEqual(rows[1]['changedBy'], 'School Staff')
+        self.assertEqual(rows[1]['changedBy'], 'Club Coordinator')
         self.assertEqual(rows[0]['changedBy'], 'System')
 
-        # School Staff see who actually made the change.
-        self.client.force_authenticate(self.staff)
-        rows = self.client.get(self._url()).data
-        self.assertEqual(rows[1]['changedBy'], 'Maria Santos')
-
-        # The player's same-club Coordinator has the same operational audit view.
-        self.client.force_authenticate(make_user(Roles.COORDINATOR))
+        # Coordinators see who actually made the change.
+        self.client.force_authenticate(self.coordinator)
         rows = self.client.get(self._url()).data
         self.assertEqual(rows[1]['changedBy'], 'Maria Santos')
 
@@ -1859,8 +1854,7 @@ class EligibilityHistoryEndpointTests(APITestCase):
 
     def test_reviewers_read_own_club_history_coach_denied(self):
         for user, expected in (
-            (self.staff, 200),
-            (make_user(Roles.COORDINATOR), 200),
+            (self.coordinator, 200),
             (make_user(Roles.ADMIN), 200),
             (make_user(Roles.COACH), 403),
         ):
@@ -1872,7 +1866,7 @@ class EligibilityHistoryEndpointTests(APITestCase):
             )
 
     def test_unknown_player_404(self):
-        self.client.force_authenticate(self.staff)
+        self.client.force_authenticate(self.coordinator)
         self.assertEqual(self.client.get(self._url(999999)).status_code, 404)
 
 
@@ -2260,7 +2254,7 @@ class SessionConfirmationTests(APITestCase):
 
     def test_only_players_can_confirm(self):
         body = {'sessionId': str(self.session.id), 'status': 'CONFIRMED'}
-        for role in (Roles.COACH, Roles.GUARDIAN, Roles.SCHOOL_STAFF):
+        for role in (Roles.COACH, Roles.GUARDIAN):
             self.client.force_authenticate(make_user(role, f'{role}@rsvp.test'))
             resp = self.client.post(self._url(), body, format='json')
             self.assertEqual(resp.status_code, 403, role)

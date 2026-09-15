@@ -10,7 +10,7 @@ CLUB (SCHOOL or INDEPENDENT)
     ↓ owns exactly one
 CLUB COORDINATOR
     ↓ provisions only inside that club
-COACH / PLAYER / GUARDIAN / SCHOOL STAFF
+COACH / PLAYER / GUARDIAN
 ```
 
 `ADMIN` is the backward-compatible database/wire value for the product role
@@ -29,8 +29,8 @@ provisioning operation always creates:
 - exactly one `PlayerProfile`; and
 - an optional same-Club `GuardianLink`.
 
-Coach, Player, Guardian, and School Staff roles have no account-provisioning
-permission. A Coordinator cannot create another Coordinator or manage Clubs.
+Coach, Player, and Guardian roles have no account-provisioning permission. A
+Coordinator cannot create another Coordinator or manage Clubs.
 
 ## Club types
 
@@ -41,10 +41,8 @@ column was introduced.
 ```text
 CLUB
 ├── SCHOOL
-│   ├── School Staff accounts allowed
-│   └── academic eligibility status enabled
+│   └── Coordinator-managed academic eligibility status enabled
 └── INDEPENDENT
-    ├── School Staff creation rejected
     └── academic eligibility = Not Applicable
 ```
 
@@ -63,6 +61,10 @@ data is limited to these four status values and their status-change history:
 
 Not Applicable is an applicability response for an Independent Club; it is not
 a fifth stored eligibility status.
+
+The Club Coordinator manages these statuses for players in their own School
+Club. Super Admin retains platform oversight. Coach and Guardian permissions
+are unchanged.
 
 ## Enforcement points
 

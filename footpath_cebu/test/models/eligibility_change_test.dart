@@ -10,14 +10,14 @@ void main() {
         'oldStatus': 'ELIGIBLE',
         'newStatus': 'ACADEMIC_WARNING',
         'changedAt': '2026-06-28T11:45:00+08:00',
-        'changedBy': 'School Staff',
+        'changedBy': 'Club Coordinator',
       });
 
       expect(change.id, '7');
       expect(change.oldStatus, EligibilityStatus.eligible);
       expect(change.newStatus, EligibilityStatus.academicWarning);
       expect(change.changedAt.year, 2026);
-      expect(change.changedBy, 'School Staff');
+      expect(change.changedBy, 'Club Coordinator');
     });
 
     test('an empty oldStatus means no prior value, not a default', () {
@@ -51,7 +51,7 @@ void main() {
       oldStatus: EligibilityStatus.academicWarning,
       newStatus: EligibilityStatus.eligible,
       changedAt: DateTime(2026, 7, 12, 10, 15),
-      changedBy: 'School Staff',
+      changedBy: 'Club Coordinator',
     );
 
     final restored = EligibilityChange.fromJson(original.toJson());

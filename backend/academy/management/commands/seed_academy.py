@@ -2,7 +2,7 @@
 and a guardian link — so a fresh database (SQLite or Supabase) demos the coach,
 player, and guardian dashboards immediately.
 
-Idempotent: safe to rerun. Assumes `seed_users` has already created the six
+Idempotent: safe to rerun. Assumes `seed_users` has already created the
 role login accounts. The extra roster players created here are local-only (no
 Firebase login) — they exist to fill the coach's roster; the login demos use
 the seed_users accounts.
@@ -131,7 +131,6 @@ LOGIN_EMAILS = (
     'coordinator@footpathcebu.test',
     'coach@footpathcebu.test',
     'player@footpathcebu.test',
-    'staff@footpathcebu.test',
     'guardian@footpathcebu.test',
 )
 ROSTER_EMAILS = tuple(row[0] for row in ROSTER)
@@ -305,23 +304,17 @@ class Command(BaseCommand):
                 club=club,
                 squad_players=[login_player, *players[:3]],
             )
-            school_staff = User.objects.filter(
-                email='staff@footpathcebu.test',
-                role=Roles.SCHOOL_STAFF,
-            ).first()
             self._seed_panel_workflows(
                 coordinator=coordinator,
                 coach=coach,
                 guardian=guardian,
                 player=login_player,
                 roster_players=players,
-                school_staff=school_staff,
                 sessions=sessions,
             )
             self._seed_audit_entries(
                 coordinator=coordinator,
                 coach=coach,
-                school_staff=school_staff,
                 player=login_player,
             )
 
@@ -751,7 +744,6 @@ class Command(BaseCommand):
         guardian,
         player,
         roster_players,
-        school_staff,
         sessions,
     ):
         """Seed visible records for every role-specific demo workflow."""
@@ -849,8 +841,7 @@ class Command(BaseCommand):
                 'category': DisputeCategory.ATTENDANCE,
                 'status': DisputeStatus.OPEN,
                 'detail': (
-                    'The Coach flagged this demo record so School Staff can '
-                    'show the review and response workflow.'
+                    'The Coach flagged this demo record for Coordinator review.'
                 ),
             },
         )
@@ -866,7 +857,7 @@ class Command(BaseCommand):
         )
         DisputeResponse.objects.get_or_create(
             dispute=resolved_dispute,
-            author=school_staff,
+            author=coordinator,
             body='School records were checked and the eligibility flag was corrected.',
             defaults={'status_change_to': DisputeStatus.UNDER_REVIEW},
         )
@@ -877,8 +868,8 @@ class Command(BaseCommand):
             defaults={'status_change_to': DisputeStatus.RESOLVED},
         )
 
-        self._seed_eligibility_history(player, school_staff)
-        self._seed_roster_eligibility_history(roster_players, school_staff)
+        self._seed_eligibility_history(player, coordinator)
+        self._seed_roster_eligibility_history(roster_players, coordinator)
         self._seed_notifications(coordinator, coach, player, guardian)
 
     @staticmethod
@@ -1039,7 +1030,7 @@ class Command(BaseCommand):
                 )
 
     @staticmethod
-    def _seed_eligibility_history(player, school_staff):
+    def _seed_eligibility_history(player, coordinator):
         now = timezone.now()
         transitions = (
             (Eligibility.PENDING, Eligibility.ACADEMIC_WARNING, 30),
@@ -1050,7 +1041,7 @@ class Command(BaseCommand):
                 player=player,
                 old_status=old_status,
                 new_status=new_status,
-                defaults={'changed_by': school_staff},
+                defaults={'changed_by': coordinator},
             )
             if created:
                 EligibilityHistory.objects.filter(pk=history.pk).update(
@@ -1058,7 +1049,7 @@ class Command(BaseCommand):
                 )
 
     @staticmethod
-    def _seed_roster_eligibility_history(players, school_staff):
+    def _seed_roster_eligibility_history(players, coordinator):
         now = timezone.now()
         for index, player in enumerate(players):
             status = player.player_profile.eligibility
@@ -1068,7 +1059,7 @@ class Command(BaseCommand):
                 old_status='' if is_initial_pending else Eligibility.PENDING,
                 new_status=status,
                 defaults={
-                    'changed_by': None if is_initial_pending else school_staff,
+                    'changed_by': None if is_initial_pending else coordinator,
                 },
             )
             if created:
@@ -1152,14 +1143,14 @@ class Command(BaseCommand):
             )
 
     @staticmethod
-    def _seed_audit_entries(*, coordinator, coach, school_staff, player):
+    def _seed_audit_entries(*, coordinator, coach, player):
         entries = (
             (coordinator, 'demo.club_ready', DEMO_CLUB_SLUG, 'School club configured'),
-            (coordinator, 'demo.accounts_ready', DEMO_CLUB_SLUG, 'Six login roles available'),
+            (coordinator, 'demo.accounts_ready', DEMO_CLUB_SLUG, 'Supported login roles available'),
             (coach, 'demo.sessions_ready', DEMO_CLUB_SLUG, 'Training and attendance ready'),
             (coordinator, 'demo.tournament_ready', TOURNAMENT_TITLE, 'Published U14 workflow'),
             (coach, 'demo.care_ready', player.email, 'Injury review scenarios ready'),
-            (school_staff, 'demo.academic_ready', player.email, 'Eligibility and disputes ready'),
+            (coordinator, 'demo.academic_ready', player.email, 'Eligibility and disputes ready'),
         )
         for actor, action, target, detail in entries:
             if not AuditLog.objects.filter(

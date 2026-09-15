@@ -48,7 +48,7 @@ void main() {
 
     expect(find.widgetWithText(AppBar, 'Profile'), findsOneWidget);
     expect(find.text('Change password'), findsOneWidget);
-    expect(find.text('Mobile access'), findsOneWidget);
+    expect(find.text('Mobile access'), findsNothing);
     expect(find.text('Log out'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

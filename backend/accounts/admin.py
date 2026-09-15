@@ -27,8 +27,9 @@ from django.utils.html import escape, format_html
 from .models import Club, GuardianLink, Roles, User
 from .services import (
     link_or_create_firebase_user,
+    provision_coordinator_firebase_identity,
     provision_club_coordinator,
-    set_coordinator_mobile_disabled,
+    set_coordinator_firebase_disabled,
     set_firebase_password,
 )
 
@@ -44,7 +45,6 @@ _ROLE_COLORS = {
     Roles.COORDINATOR: '#DB2777',  # rose
     Roles.COACH: '#EA580C',  # orange
     Roles.PLAYER: '#2563EB',  # blue
-    Roles.SCHOOL_STAFF: '#0D9488',  # teal
     Roles.GUARDIAN: '#059669',  # emerald
 }
 
@@ -59,7 +59,7 @@ def uses_firebase_only_password(user):
     return bool(user.firebase_uid) and (
         not user.is_staff
         and not user.is_superuser
-        and user.role not in (Roles.COORDINATOR, Roles.SCHOOL_STAFF)
+        and user.role != Roles.COORDINATOR
     )
 
 
@@ -88,8 +88,6 @@ class FootPathUserValidationMixin:
             )
         if role != Roles.ADMIN and club is None:
             self.add_error('club', 'Every club-member account needs a club.')
-        if role == Roles.SCHOOL_STAFF and club and not club.allows_school_staff:
-            self.add_error('club', 'School Staff can be assigned only to a School club.')
         if role == Roles.COORDINATOR and club:
             existing = User.objects.filter(club=club, role=Roles.COORDINATOR)
             if self.instance.pk:
@@ -352,23 +350,29 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
     def approve_coordinators(self, request, queryset):
         """Super Admin activation gate for coordinator accounts.
 
-        A coordinator signs up via the web portal with is_active=False; until a
-        developer runs this action they cannot log in (Django's ModelBackend
-        rejects inactive users). Only pending COORDINATOR rows are touched.
+        A coordinator signs up with both credentials disabled. Firebase is
+        enabled before the database account, so a failed remote update leaves
+        the application safely pending.
         """
         pending = list(queryset.filter(role=Roles.COORDINATOR, is_active=False))
-        approved = len(pending)
+        approved = 0
         for coordinator in pending:
-            coordinator.is_active = True
-            coordinator.save(update_fields=['is_active'])
             try:
-                set_coordinator_mobile_disabled(coordinator, disabled=False)
+                set_coordinator_firebase_disabled(coordinator, disabled=False)
             except Exception as exc:
                 self.message_user(
                     request,
                     f'{coordinator.email}: mobile identity could not be enabled: {exc}',
-                    level=messages.WARNING,
+                    level=messages.ERROR,
                 )
+                continue
+            with transaction.atomic():
+                if coordinator.club_id and not coordinator.club.is_active:
+                    coordinator.club.is_active = True
+                    coordinator.club.save(update_fields=['is_active'])
+                coordinator.is_active = True
+                coordinator.save(update_fields=['is_active'])
+            approved += 1
         if approved:
             self.message_user(
                 request,
@@ -399,13 +403,10 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
             raise forms.ValidationError('Every club-member account needs a club.')
         super().save_model(request, obj, form, change)
 
-        # Only newly-created mobile app accounts. Coordinator and School Staff
-        # use Django session passwords in the web portal.
+        # Only newly-created app accounts. Coordinators keep both their Django
+        # portal password and a Firebase mobile identity.
         if change or obj.firebase_uid or obj.is_staff or obj.is_superuser:
             return
-        if obj.role in (Roles.COORDINATOR, Roles.SCHOOL_STAFF):
-            return
-
         if not obj.email:
             self.message_user(
                 request,
@@ -416,10 +417,19 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
             return
 
         try:
-            temp_password = link_or_create_firebase_user(
-                obj, password=form.cleaned_data.get('password1')
-            )
-            obj.save(update_fields=['firebase_uid', 'password'])
+            if obj.role == Roles.COORDINATOR:
+                temp_password = None
+                firebase_created = provision_coordinator_firebase_identity(
+                    obj,
+                    password=form.cleaned_data.get('password1'),
+                    disabled=not obj.is_active,
+                )
+            else:
+                firebase_created = False
+                temp_password = link_or_create_firebase_user(
+                    obj, password=form.cleaned_data.get('password1')
+                )
+                obj.save(update_fields=['firebase_uid', 'password'])
         except Exception as exc:  # keep the admin resilient to Firebase errors
             self.message_user(
                 request,
@@ -429,7 +439,7 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
             )
             return
 
-        if temp_password is not None:
+        if firebase_created or temp_password is not None:
             self.message_user(
                 request,
                 f'Synced to Firebase. App login → {obj.email} / the password you set.',
@@ -700,31 +710,29 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     def approve_registrations(self, request, queryset):
         """Approve clubs and activate their pending coordinator logins."""
         approved = 0
-        with transaction.atomic():
-            for club in queryset:
-                coordinator = club.coordinator
-                if coordinator is None:
-                    continue
-                changed = False
-                if not club.is_active:
-                    club.is_active = True
-                    club.save(update_fields=['is_active'])
-                    changed = True
-                if not coordinator.is_active:
-                    coordinator.is_active = True
-                    coordinator.save(update_fields=['is_active'])
-                    changed = True
-                if changed:
-                    try:
-                        set_coordinator_mobile_disabled(coordinator, disabled=False)
-                    except Exception as exc:
-                        self.message_user(
-                            request,
-                            f'{coordinator.email}: mobile identity could not be enabled: {exc}',
-                            level=messages.WARNING,
-                        )
-                if changed:
-                    approved += 1
+        for club in queryset:
+            coordinator = club.coordinator
+            if coordinator is None:
+                continue
+            changed = not club.is_active or not coordinator.is_active
+            if not changed:
+                continue
+            try:
+                set_coordinator_firebase_disabled(coordinator, disabled=False)
+            except Exception as exc:
+                self.message_user(
+                    request,
+                    f'{coordinator.email}: approval failed because the mobile identity '
+                    f'could not be enabled: {exc}',
+                    level=messages.ERROR,
+                )
+                continue
+            with transaction.atomic():
+                club.is_active = True
+                club.save(update_fields=['is_active'])
+                coordinator.is_active = True
+                coordinator.save(update_fields=['is_active'])
+            approved += 1
         self.message_user(
             request,
             f'Approved and activated {approved} club application(s).',
@@ -746,7 +754,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                 coordinator.is_active = False
                 coordinator.save(update_fields=['is_active'])
                 try:
-                    set_coordinator_mobile_disabled(coordinator, disabled=True)
+                    set_coordinator_firebase_disabled(coordinator, disabled=True)
                 except Exception as exc:
                     self.message_user(
                         request,

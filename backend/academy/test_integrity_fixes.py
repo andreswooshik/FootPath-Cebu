@@ -106,7 +106,7 @@ class SeedCommandPlayerInvariantTests(TestCase):
 
     @patch('accounts.management.commands.seed_users.ensure_initialized')
     @patch('accounts.management.commands.seed_users.firebase_auth.create_user')
-    def test_panel_seed_creates_six_roles_and_tournament_handoff(
+    def test_panel_seed_creates_supported_roles_and_tournament_handoff(
         self,
         create_firebase_user,
         _ensure_initialized,
@@ -128,7 +128,6 @@ class SeedCommandPlayerInvariantTests(TestCase):
         for email in (
             'admin@footpathcebu.test',
             'coordinator@footpathcebu.test',
-            'staff@footpathcebu.test',
         ):
             self.assertTrue(User.objects.get(email=email).has_usable_password())
         for email in (
