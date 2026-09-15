@@ -202,6 +202,7 @@ Future<void> _pump(
   WidgetTester tester,
   Player player, {
   VoidCallback? onTap,
+  VoidCallback? onAssess,
   double width = 300,
 }) async {
   await tester.pumpWidget(
@@ -211,7 +212,7 @@ Future<void> _pump(
           child: SizedBox(
             width: width,
             height: width * 850 / 600,
-            child: PlayerCard(player: player, onTap: onTap),
+            child: PlayerCard(player: player, onTap: onTap, onAssess: onAssess),
           ),
         ),
       ),
@@ -284,6 +285,26 @@ void main() {
       expect(action, findsOneWidget);
       expect(tester.getSize(action).height, greaterThanOrEqualTo(48));
       expect(tester.getSize(action).width, greaterThanOrEqualTo(48));
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('exposes a coach assessment action on the card back', (
+      tester,
+    ) async {
+      var assessed = false;
+      await _pump(
+        tester,
+        _outfield(),
+        onTap: () {},
+        onAssess: () => assessed = true,
+      );
+
+      await tester.tap(find.byType(PlayerCard));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('assess-player-p1')));
+
+      expect(assessed, isTrue);
+      expect(find.byKey(const ValueKey('view-profile-p1')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

@@ -26,6 +26,43 @@ class _ValuePlayerStatsRepository implements PlayerStatsRepository {
   ) => throw UnimplementedError();
 }
 
+class _RecordingPlayerStatsRepository implements PlayerStatsRepository {
+  _RecordingPlayerStatsRepository(this.value, {this.fail = false});
+
+  final PlayerStats value;
+  final bool fail;
+  PlayerStatsDraft? savedDraft;
+
+  @override
+  Future<PlayerStats> fetchStats(
+    String playerId, {
+    bool forceRefresh = false,
+  }) async => value;
+
+  @override
+  Future<PlayerStatsSaveResult> saveAssessment(
+    String playerId,
+    PlayerStatsDraft draft,
+  ) async {
+    savedDraft = draft;
+    if (fail) throw StateError('Network unavailable');
+    return PlayerStatsSaveResult(
+      assessment: PlayerStatsAssessment(
+        id: 'saved',
+        position: value.catalog.position,
+        roleGroup: value.catalog.roleGroup,
+        catalogVersion: value.catalog.version,
+        scores: draft.scores,
+        overall: (draft.scores.values.reduce((a, b) => a + b) / 6).round(),
+        reason: draft.reason,
+        coachNotes: draft.coachNotes,
+        createdAt: DateTime(2026, 9, 16),
+      ),
+      comparison: const PlayerStatsComparison(baseline: false),
+    );
+  }
+}
+
 PlayerStats _emptyStats() => PlayerStats.fromJson({
   'catalog': {
     'version': 1,
@@ -173,6 +210,44 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
+Future<void> _pumpAssessment(
+  WidgetTester tester,
+  PlayerStats stats, {
+  PlayerStatsRepository? repository,
+}) async {
+  await tester.binding.setSurfaceSize(const Size(600, 1400));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        if (repository != null)
+          playerStatsRepositoryProvider.overrideWithValue(repository),
+      ],
+      child: MaterialApp(
+        home: PlayerStatsAssessmentScreen(
+          playerId: 'p1',
+          playerName: 'Alex Santos',
+          stats: stats,
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _completeContext(WidgetTester tester) async {
+  await tester.tap(find.byType(DropdownButtonFormField<String>));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Monthly review').last);
+  await tester.pumpAndSettle();
+  await tester.enterText(
+    find.byKey(const Key('stats-coach-notes')),
+    'Reviewed with the player.',
+  );
+  await tester.tap(find.byKey(const Key('stats-continue')));
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('renders the catalog attributes and current overall', (
     tester,
@@ -219,62 +294,112 @@ void main() {
     expect(find.textContaining('Imported legacy record.'), findsOneWidget);
   });
 
-  testWidgets('assessment form starts with blank scores, reason, and notes', (
+  testWidgets('assessment form prefills current scores but not context', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(600, 1400));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          home: PlayerStatsAssessmentScreen(
-            playerId: 'p1',
-            playerName: 'Alex Santos',
-            stats: _historyStats(),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _pumpAssessment(tester, _historyStats());
 
     final fields = tester.widgetList<TextFormField>(find.byType(TextFormField));
-    expect(
-      fields.take(6).every((field) => field.controller!.text.isEmpty),
-      isTrue,
-    );
-    expect(fields.last.controller!.text, isEmpty);
+    expect(fields.take(6).map((field) => field.controller!.text), [
+      '90',
+      '81',
+      '82',
+      '83',
+      '84',
+      '85',
+    ]);
+    expect(find.text('Adjust only what changed'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('stats-continue')));
+    await tester.pumpAndSettle();
+
     final reason = tester.widget<DropdownButtonFormField<String>>(
       find.byType(DropdownButtonFormField<String>),
     );
     expect(reason.initialValue, isNull);
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const Key('stats-coach-notes')))
+          .controller!
+          .text,
+      isEmpty,
+    );
   });
 
   testWidgets('requires a reason before review', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(600, 1400));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(
-      ProviderScope(
-        child: MaterialApp(
-          home: PlayerStatsAssessmentScreen(
-            playerId: 'p1',
-            playerName: 'Alex Santos',
-            stats: _emptyStats(),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await _pumpAssessment(tester, _emptyStats());
 
     final fields = find.byType(TextFormField);
     for (var index = 0; index < 6; index++) {
       await tester.enterText(fields.at(index), '80');
     }
-    await tester.enterText(fields.last, 'Fresh notes');
-    await tester.tap(find.text('Review and Save'));
+    await tester.tap(find.byKey(const Key('stats-continue')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('stats-coach-notes')),
+      'Fresh notes',
+    );
+    await tester.tap(find.byKey(const Key('stats-continue')));
     await tester.pump();
 
     expect(find.text('Assessment reason is required.'), findsOneWidget);
-    expect(find.text('Confirm Player Stats'), findsNothing);
+    expect(find.text('Review before saving'), findsNothing);
+  });
+
+  testWidgets('disables immutable snapshot save when no score changed', (
+    tester,
+  ) async {
+    await _pumpAssessment(tester, _historyStats());
+
+    await tester.tap(find.byKey(const Key('stats-continue')));
+    await tester.pumpAndSettle();
+    await _completeContext(tester);
+
+    expect(find.text('No attribute changes'), findsOneWidget);
+    final save = tester.widget<FilledButton>(
+      find.byKey(const Key('stats-save')),
+    );
+    expect(save.onPressed, isNull);
+  });
+
+  testWidgets('saves a full snapshot after changing one prefilled score', (
+    tester,
+  ) async {
+    final repository = _RecordingPlayerStatsRepository(_historyStats());
+    await _pumpAssessment(tester, _historyStats(), repository: repository);
+
+    await tester.enterText(find.byKey(const Key('stats-score-pace')), '91');
+    await tester.tap(find.byKey(const Key('stats-continue')));
+    await tester.pumpAndSettle();
+    await _completeContext(tester);
+    expect(find.textContaining('90 → 91'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('stats-save')));
+    await tester.pumpAndSettle();
+
+    expect(repository.savedDraft?.scores.length, 6);
+    expect(repository.savedDraft?.scores['pace'], 91);
+    expect(repository.savedDraft?.scores['physical'], 85);
+    expect(repository.savedDraft?.reason, 'MONTHLY_REVIEW');
+  });
+
+  testWidgets('keeps review data visible after a save error', (tester) async {
+    final repository = _RecordingPlayerStatsRepository(
+      _historyStats(),
+      fail: true,
+    );
+    await _pumpAssessment(tester, _historyStats(), repository: repository);
+
+    await tester.enterText(find.byKey(const Key('stats-score-pace')), '91');
+    await tester.tap(find.byKey(const Key('stats-continue')));
+    await tester.pumpAndSettle();
+    await _completeContext(tester);
+    await tester.tap(find.byKey(const Key('stats-save')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Assessment was not saved'), findsOneWidget);
+    expect(find.text('Review before saving'), findsOneWidget);
+    expect(find.textContaining('90 → 91'), findsOneWidget);
   });
 
   test('parses server comparison and legacy assessment responses', () {

@@ -93,7 +93,7 @@ void main() {
       expect(find.text('AWAITING ASSESSMENT'), findsOneWidget);
       expect(find.text('Development feedback'), findsOneWidget);
       expect(find.byKey(const Key('upload-player-photo')), findsOneWidget);
-      expect(find.text('Create Development Assessment'), findsOneWidget);
+      expect(find.text('Assess Player'), findsOneWidget);
     });
 
     testWidgets('shows the five domains, strength, target, and notes', (

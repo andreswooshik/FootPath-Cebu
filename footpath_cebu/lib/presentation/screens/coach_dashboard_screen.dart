@@ -14,6 +14,7 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 import 'package:footpath_cebu/presentation/providers/training_schedule_providers.dart';
 import 'package:footpath_cebu/presentation/screens/log_attendance_screen.dart';
+import 'package:footpath_cebu/presentation/screens/coach_assessment_hub_screen.dart';
 import 'package:footpath_cebu/presentation/screens/player_profile_screen.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/notification_bell.dart';
@@ -50,6 +51,16 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
             PlayerProfileScreen(player: player, profile: widget.profile),
       ),
     );
+  }
+
+  Future<void> _openAssessment(Player player) async {
+    await Navigator.of(context).push<Player>(
+      MaterialPageRoute(
+        builder: (_) =>
+            CoachAssessmentHubScreen(player: player, profile: widget.profile),
+      ),
+    );
+    if (mounted) ref.invalidate(squadProvider);
   }
 
   /// Quick attendance from the roster routes the coach to a session whose
@@ -139,6 +150,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
                 compact: _compact,
                 onOpenProfile: _openProfile,
                 onMarkAttendance: _markAttendance,
+                onAssess: _openAssessment,
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
             ],
@@ -174,11 +186,13 @@ class _RosterSliver extends ConsumerWidget {
     required this.compact,
     required this.onOpenProfile,
     required this.onMarkAttendance,
+    required this.onAssess,
   });
 
   final bool compact;
   final ValueChanged<Player> onOpenProfile;
   final ValueChanged<Player> onMarkAttendance;
+  final ValueChanged<Player> onAssess;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -223,6 +237,7 @@ class _RosterSliver extends ConsumerWidget {
                         player: players[i],
                         onTap: () => onOpenProfile(players[i]),
                         onMarkAttendance: () => onMarkAttendance(players[i]),
+                        onAssess: () => onAssess(players[i]),
                       ).animateListItem(
                         key: ValueKey('mini-${players[i].id}'),
                         index: i,
@@ -244,6 +259,7 @@ class _RosterSliver extends ConsumerWidget {
                     PlayerCard(
                       player: players[i],
                       onTap: () => onOpenProfile(players[i]),
+                      onAssess: () => onAssess(players[i]),
                     ).animateListItem(
                       key: ValueKey('card-${players[i].id}'),
                       index: i,

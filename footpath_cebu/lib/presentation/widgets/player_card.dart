@@ -12,13 +12,21 @@ import 'package:footpath_cebu/domain/entities/player_stats.dart';
 /// FUT-style player identity card using the five independent development
 /// domains and the position-specific Player Stats attributes.
 class PlayerCard extends StatefulWidget {
-  const PlayerCard({super.key, required this.player, this.onTap});
+  const PlayerCard({
+    super.key,
+    required this.player,
+    this.onTap,
+    this.onAssess,
+  });
 
   final Player player;
 
   /// Opens the full player profile from the action on the Player Stats side.
   /// Tapping the card itself flips between the two faces.
   final VoidCallback? onTap;
+
+  /// Opens the coach assessment hub. Null for non-coach contexts.
+  final VoidCallback? onAssess;
 
   static const double _canvasW = 600;
   static const double _canvasH = 850;
@@ -89,12 +97,14 @@ class _PlayerCardState extends State<PlayerCard>
         hint: _showingPlayerStats
             ? 'Tap to show assessment domains'
             : 'Tap to show Player Stats',
-        customSemanticsActions: widget.onTap == null
-            ? null
-            : {
-                const CustomSemanticsAction(label: 'View player profile'):
-                    widget.onTap!,
-              },
+        customSemanticsActions: {
+          if (widget.onTap != null)
+            const CustomSemanticsAction(label: 'View player profile'):
+                widget.onTap!,
+          if (widget.onAssess != null)
+            const CustomSemanticsAction(label: 'Assess player'):
+                widget.onAssess!,
+        },
         excludeSemantics: true,
         child: Material(
           type: MaterialType.transparency,
@@ -116,6 +126,7 @@ class _PlayerCardState extends State<PlayerCard>
                               player: player,
                               scale: scale,
                               onViewProfile: widget.onTap,
+                              onAssess: widget.onAssess,
                             )
                           : _AssessmentFace(player: player, scale: scale);
                       if (showingBack) {
@@ -243,11 +254,13 @@ class _PlayerStatsFace extends StatelessWidget {
     required this.player,
     required this.scale,
     required this.onViewProfile,
+    required this.onAssess,
   });
 
   final Player player;
   final double scale;
   final VoidCallback? onViewProfile;
+  final VoidCallback? onAssess;
 
   @override
   Widget build(BuildContext context) {
@@ -295,7 +308,7 @@ class _PlayerStatsFace extends StatelessWidget {
                 )
               : _PlayerStatsAttributePanel(stats: latest, scale: scale),
         ),
-        if (onViewProfile == null)
+        if (onViewProfile == null && onAssess == null)
           _place(
             scale,
             x: 112,
@@ -315,44 +328,86 @@ class _PlayerStatsFace extends StatelessWidget {
               ),
             ),
           ),
+        if (onAssess != null)
+          _placeInteractive(
+            scale,
+            x: onViewProfile == null ? 160 : 76,
+            y: 696,
+            w: onViewProfile == null ? 280 : 216,
+            h: 44,
+            child: _PlayerCardAction(
+              key: ValueKey('assess-player-${player.id}'),
+              label: 'ASSESS',
+              icon: Icons.tune,
+              onPressed: onAssess!,
+              scale: scale,
+            ),
+          ),
         if (onViewProfile != null)
           _placeInteractive(
             scale,
-            x: 160,
+            x: onAssess == null ? 160 : 308,
             y: 696,
-            w: 280,
+            w: onAssess == null ? 280 : 216,
             h: 44,
-            child: TextButton(
+            child: _PlayerCardAction(
               key: ValueKey('view-profile-${player.id}'),
-              onPressed: onViewProfile,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(48, 48),
-                tapTargetSize: MaterialTapTargetSize.padded,
-                padding: EdgeInsets.symmetric(horizontal: 12 * scale),
-                backgroundColor: PlayerCard._gold.withValues(alpha: 0.16),
-                side: BorderSide(
-                  color: PlayerCard._gold.withValues(alpha: 0.7),
-                  width: 1.2 * scale,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(22 * scale),
-                ),
-              ),
-              child: Text(
-                'VIEW PROFILE',
-                style: TextStyle(
-                  color: PlayerCard._gold,
-                  fontWeight: FontWeight.w800,
-                  fontSize: _cardFont(scale, 15, minimum: 11),
-                  letterSpacing: math.max(0.8 * scale, 0.4),
-                  height: 1,
-                ),
-              ),
+              onPressed: onViewProfile!,
+              label: onAssess == null ? 'VIEW PROFILE' : 'PROFILE',
+              icon: Icons.person_outline,
+              scale: scale,
             ),
           ),
       ],
     );
   }
+}
+
+class _PlayerCardAction extends StatelessWidget {
+  const _PlayerCardAction({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    required this.scale,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+    onPressed: onPressed,
+    style: TextButton.styleFrom(
+      minimumSize: const Size(48, 48),
+      tapTargetSize: MaterialTapTargetSize.padded,
+      padding: EdgeInsets.symmetric(horizontal: 8 * scale),
+      backgroundColor: PlayerCard._gold.withValues(alpha: 0.16),
+      side: BorderSide(
+        color: PlayerCard._gold.withValues(alpha: 0.7),
+        width: 1.2 * scale,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22 * scale),
+      ),
+    ),
+    icon: Icon(icon, color: PlayerCard._gold, size: 18),
+    label: FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: PlayerCard._gold,
+          fontWeight: FontWeight.w800,
+          fontSize: _cardFont(scale, 14, minimum: 10),
+          letterSpacing: math.max(0.6 * scale, 0.3),
+          height: 1,
+        ),
+      ),
+    ),
+  );
 }
 
 class _CardFrame extends StatelessWidget {

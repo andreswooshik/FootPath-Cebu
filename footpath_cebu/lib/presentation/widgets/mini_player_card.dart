@@ -12,11 +12,13 @@ class MiniPlayerCard extends StatelessWidget {
     required this.player,
     this.onTap,
     this.onMarkAttendance,
+    this.onAssess,
   });
 
   final Player player;
   final VoidCallback? onTap;
   final VoidCallback? onMarkAttendance;
+  final VoidCallback? onAssess;
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +106,14 @@ class MiniPlayerCard extends StatelessWidget {
                     icon: const Icon(Icons.how_to_reg_outlined),
                     color: theme.colorScheme.primary,
                     onPressed: onMarkAttendance,
+                  ),
+                if (onAssess != null)
+                  IconButton(
+                    key: ValueKey('mini-assess-${player.id}'),
+                    tooltip: 'Assess player',
+                    icon: const Icon(Icons.tune),
+                    color: theme.colorScheme.primary,
+                    onPressed: onAssess,
                   ),
                 Icon(Icons.chevron_right, color: theme.colorScheme.outline),
               ],

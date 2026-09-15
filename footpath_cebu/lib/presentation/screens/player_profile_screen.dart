@@ -13,7 +13,8 @@ import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/player_photo_controller.dart';
 import 'package:footpath_cebu/presentation/providers/player_position_controller.dart';
 import 'package:footpath_cebu/presentation/providers/player_stats_providers.dart';
-import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
+import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
+import 'package:footpath_cebu/presentation/screens/coach_assessment_hub_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_person_details_screen.dart';
 import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
 import 'package:footpath_cebu/presentation/screens/flag_dispute_screen.dart';
@@ -134,18 +135,16 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     return null;
   }
 
-  Future<void> _openEditor() async {
-    // The editor returns the whole saved Player, not just the ratings: the
-    // assessment also writes the coach's note, and popping ratings alone would
-    // leave this screen showing a stale one.
+  Future<void> _openAssessmentHub() async {
     final updated = await Navigator.of(context).push<Player>(
       MaterialPageRoute(
         builder: (_) =>
-            EditPerformanceDataScreen(player: _player, profile: widget.profile),
+            CoachAssessmentHubScreen(player: _player, profile: widget.profile),
       ),
     );
     if (updated == null) return;
     setState(() => _player = updated);
+    ref.invalidate(squadProvider);
   }
 
   /// Pick a position, confirm it, then persist it.
@@ -217,7 +216,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     final cardPlayer = stats?.latest == null
         ? _player
         : _player.copyWith(
-            currentPlayerStats: CurrentPlayerStats.fromPlayerStats(stats!),
+            latestPlayerStats: LatestPlayerStats(
+              catalog: stats!.catalog,
+              assessment: stats.latest!,
+            ),
           );
     return Scaffold(
       appBar: AppBar(
@@ -256,7 +258,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 300),
-              child: PlayerCard(player: cardPlayer),
+              child: PlayerCard(
+                player: cardPlayer,
+                onAssess: widget.profile.isCoach ? _openAssessmentHub : null,
+              ),
             ),
           ),
           if (widget.profile.isCoach) ...[
@@ -330,7 +335,6 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
                 builder: (_) => PlayerStatsScreen(
                   playerId: _player.id,
                   playerName: _player.name,
-                  canAssess: widget.profile.isCoach,
                 ),
               ),
             ),
@@ -384,9 +388,10 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           if (widget.profile.isCoach) ...[
             const SizedBox(height: 12),
             FilledButton.icon(
-              onPressed: _openEditor,
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Create Development Assessment'),
+              key: const Key('open-assessment-hub'),
+              onPressed: _openAssessmentHub,
+              icon: const Icon(Icons.tune),
+              label: const Text('Assess Player'),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),

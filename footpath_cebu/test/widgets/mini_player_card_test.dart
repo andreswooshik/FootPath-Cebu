@@ -36,12 +36,18 @@ Player _assessedPlayer() => _player(eligibilityApplies: true).copyWith(
   ),
 );
 
-Future<void> _pump(WidgetTester tester, Player player) async {
+Future<void> _pump(
+  WidgetTester tester,
+  Player player, {
+  VoidCallback? onAssess,
+}) async {
   await tester.binding.setSurfaceSize(const Size(360, 640));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     MaterialApp(
-      home: Scaffold(body: MiniPlayerCard(player: player)),
+      home: Scaffold(
+        body: MiniPlayerCard(player: player, onAssess: onAssess),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -72,5 +78,20 @@ void main() {
 
     expect(find.textContaining('5 domains assessed'), findsOneWidget);
     expect(find.textContaining('overall'), findsNothing);
+  });
+
+  testWidgets('shows the coach assessment shortcut only when provided', (
+    tester,
+  ) async {
+    var opened = false;
+    await _pump(
+      tester,
+      _player(eligibilityApplies: true),
+      onAssess: () => opened = true,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('mini-assess-p1')));
+
+    expect(opened, isTrue);
   });
 }
