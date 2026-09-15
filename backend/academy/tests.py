@@ -254,6 +254,11 @@ class AttendanceAuthorizationTests(APITestCase):
         resp = self.client.get(self._url(self.my_child.id))
         self.assertEqual(resp.status_code, 200)
 
+    def test_coordinator_can_read_player_in_their_club(self):
+        self.client.force_authenticate(make_user(Roles.COORDINATOR))
+        resp = self.client.get(self._url(self.my_child.id))
+        self.assertEqual(resp.status_code, 200)
+
     def test_attendance_json_matches_flutter_contract(self):
         self.client.force_authenticate(make_user(Roles.COACH))
         row = self.client.get(self._url(self.my_child.id)).data[0]
@@ -276,7 +281,7 @@ class AttendanceAuthorizationTests(APITestCase):
 
 
 class SessionAttendanceTests(APITestCase):
-    """The coach roll-call endpoint: GET coach/admin, POST coach-only with
+    """The roll-call endpoint: GET club staff/admin, POST coach-only with
     replace-this-session upsert semantics."""
 
     def setUp(self):
@@ -326,6 +331,18 @@ class SessionAttendanceTests(APITestCase):
         self.assertEqual(p2_row['status'], 'ABSENT')
         self.assertIsNone(p2_row['effort'])
         self.assertIsNone(p2_row['note'])
+
+    def test_coordinator_can_read_but_cannot_replace_attendance(self):
+        self.client.force_authenticate(self.coach)
+        self.client.post(self._url(), self._payload(), format='json')
+        coordinator = make_user(Roles.COORDINATOR)
+        self.client.force_authenticate(coordinator)
+
+        self.assertEqual(self.client.get(self._url()).status_code, 200)
+        self.assertEqual(
+            self.client.post(self._url(), self._payload(), format='json').status_code,
+            403,
+        )
 
     def test_resubmit_replaces_not_duplicates(self):
         self.client.force_authenticate(self.coach)
@@ -1814,6 +1831,11 @@ class EligibilityHistoryEndpointTests(APITestCase):
 
         # School Staff see who actually made the change.
         self.client.force_authenticate(self.staff)
+        rows = self.client.get(self._url()).data
+        self.assertEqual(rows[1]['changedBy'], 'Maria Santos')
+
+        # The player's same-club Coordinator has the same operational audit view.
+        self.client.force_authenticate(make_user(Roles.COORDINATOR))
         rows = self.client.get(self._url()).data
         self.assertEqual(rows[1]['changedBy'], 'Maria Santos')
 

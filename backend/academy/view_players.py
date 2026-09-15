@@ -338,7 +338,17 @@ class PlayerAssessmentView(APIView):
         return profile
 
     def get(self, request, player_id):
-        profile = self._profile_for_coach(request.user, player_id)
+        profile = get_object_or_404(
+            PlayerProfile.objects.select_related('user'),
+            user_id=player_id,
+        )
+        if request.user.role == Roles.ADMIN:
+            pass
+        elif request.user.role in (Roles.COACH, Roles.COORDINATOR):
+            if request.user.club_id is None or profile.user.club_id != request.user.club_id:
+                raise PermissionDenied('That player is not in your club.')
+        else:
+            raise PermissionDenied('Only club staff can view the assessment framework.')
         latest = (
             PlayerDevelopmentAssessment.objects.select_related('player', 'assessed_by')
             .filter(player_id=player_id)

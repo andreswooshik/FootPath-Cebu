@@ -87,9 +87,6 @@ class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         request = self.context.get('request')
         role = getattr(getattr(request, 'user', None), 'role', None)
-        if role == Roles.COORDINATOR:
-            data.pop('coachRating', None)
-            data.pop('notes', None)
         if role not in (Roles.COORDINATOR, Roles.ADMIN):
             data.pop('squadOverrideReason', None)
             data.pop('squadOverrideAt', None)

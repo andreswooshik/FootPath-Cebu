@@ -51,7 +51,7 @@ def _dispute_in_user_scope(user, dispute):
 class DisputeListCreateView(APIView):
     """GET/POST /api/disputes/.
 
-    GET: disputes visible to the caller (own club for coach/staff, all for
+    GET: disputes visible to the caller (own club for club staff, all for
     Admin). POST: coach only — the coach flags, staff/admin respond via the
     thread endpoint.
     """
@@ -68,7 +68,7 @@ class DisputeListCreateView(APIView):
                 to_attr='list_responses',
             )
         )
-        # Tenancy: coach/staff see only their own club's disputes; Admin all.
+        # Tenancy: club staff see only their own club's disputes; Admin all.
         if request.user.role != Roles.ADMIN:
             if request.user.club_id is None:
                 disputes = disputes.none()

@@ -152,6 +152,8 @@ void main() {
     expect(find.text('Pending'), findsNothing);
     await tester.tap(find.text('Academic Warning'));
     await tester.pump();
+    expect(repository.savedStatus, isNull);
+    await tester.tap(find.text('Save status'));
     await tester.pump(const Duration(milliseconds: 500));
   }
 

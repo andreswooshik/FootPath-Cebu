@@ -304,17 +304,19 @@ class SquadProgressView(APIView):
     """GET /api/progress/squad/ — per-player attendance and effort aggregates
     for the requester's club: the data behind the coach's Progress tab.
 
-    Coach sees only their own club; Super Admin sees every club. One aggregate
-    query, not one per player.
+    Coach and Coordinator see only their own club; Super Admin sees every
+    club. One aggregate query, not one per player.
     """
 
     def get(self, request):
-        if request.user.role not in (Roles.COACH, Roles.ADMIN):
-            raise PermissionDenied('Only Coaches and the Super Admin can view squad progress.')
+        if request.user.role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN):
+            raise PermissionDenied(
+                'Only Coaches, Coordinators, and the Super Admin can view squad progress.'
+            )
 
         profiles = PlayerProfile.objects.select_related('user')
         attendance = Attendance.objects.all()
-        if request.user.role == Roles.COACH:
+        if request.user.role in (Roles.COACH, Roles.COORDINATOR):
             if request.user.club_id is None:
                 profiles = profiles.none()
                 attendance = attendance.none()

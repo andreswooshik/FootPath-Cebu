@@ -191,6 +191,11 @@ class TournamentRosterApiTests(APITestCase):
         read = self.client.get(reverse('tournament-squad-detail', args=[self.u8.id]))
         self.assertEqual(read.status_code, 200)
         self.assertEqual(read.data['status'], TournamentSquadStatus.DRAFT)
+        candidates = self.client.get(
+            reverse('tournament-squad-candidates', args=[self.u8.id])
+        )
+        self.assertEqual(candidates.status_code, 200)
+        self.assertIn(str(self.eligible.id), {row['playerId'] for row in candidates.data})
         write = self._save([], user=self.coordinator)
         self.assertEqual(write.status_code, 403)
 

@@ -175,6 +175,11 @@ class SquadProgressScopeTests(APITestCase):
             Roles.COACH,
             self.club_a,
         )
+        self.coordinator = _user(
+            'progress-coordinator@test.test',
+            Roles.COORDINATOR,
+            self.club_a,
+        )
         self.player_a = _player('progress-a@test.test', self.club_a)
         self.player_b = _player('progress-b@test.test', self.club_b)
         session_a = TrainingSession.objects.create(
@@ -217,6 +222,14 @@ class SquadProgressScopeTests(APITestCase):
 
     def test_coach_remains_scoped_to_own_club(self):
         self.client.force_authenticate(self.coach)
+
+        response = self.client.get(reverse('progress-squad'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({row['id'] for row in response.data}, {str(self.player_a.id)})
+
+    def test_coordinator_sees_only_own_club_progress(self):
+        self.client.force_authenticate(self.coordinator)
 
         response = self.client.get(reverse('progress-squad'))
 

@@ -76,7 +76,7 @@ class AttendanceListView(APIView):
 class SessionAttendanceView(APIView):
     """GET/POST /api/attendance/session/<session_id>/ — one session's roll call.
 
-    GET (coach/admin) returns every record for the session. POST (coach only)
+    GET (coach/coordinator/admin) returns every record for the session. POST (coach only)
     replaces the session's attendance wholesale: rows are upserted per player
     and rows for players absent from the payload are pruned, so re-finalising a
     session corrects it rather than duplicating it (matching the client's
@@ -84,8 +84,8 @@ class SessionAttendanceView(APIView):
     """
 
     def get(self, request, session_id):
-        if request.user.role not in (Roles.COACH, Roles.ADMIN):
-            raise PermissionDenied('Only coaches can view session attendance.')
+        if request.user.role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN):
+            raise PermissionDenied('Only club staff can view session attendance.')
         session = get_object_or_404(TrainingSession, pk=session_id)
         if not _session_in_user_scope(request.user, session):
             raise PermissionDenied('That session is not in your club.')

@@ -335,11 +335,11 @@ class TournamentSquadDetailView(APIView):
 
 
 class TournamentSquadCandidatesView(APIView):
-    """Coach-only player choices with privacy-safe eligibility outcomes."""
+    """Club-scoped player choices with privacy-safe eligibility outcomes."""
 
     def get(self, request, bracket_id):
-        if request.user.role != Roles.COACH:
-            raise PermissionDenied('Only Coaches can select roster members.')
+        if request.user.role not in (Roles.COACH, Roles.COORDINATOR):
+            raise PermissionDenied('Only Coaches and Coordinators can view roster candidates.')
         bracket = _mobile_tournament_bracket(request.user, bracket_id)
         try:
             squad = bracket.squad

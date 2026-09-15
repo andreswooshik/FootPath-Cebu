@@ -283,6 +283,33 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
             isSaving: ref.watch(playerPositionControllerProvider).isLoading,
           ),
           const SizedBox(height: 16),
+          _AcademicStandingCard(
+            status: _player.eligibility,
+            applicable: _player.academicEligibilityApplicable,
+            onTap:
+                _player.academicEligibilityApplicable &&
+                    widget.profile.isCoordinator
+                ? () async {
+                    final updated = await Navigator.of(context)
+                        .push<EligibilityStatus>(
+                          MaterialPageRoute(
+                            builder: (_) => EligibilityHistoryScreen(
+                              playerId: _player.id,
+                              playerName: _player.name,
+                              canUpdate: true,
+                              currentStatus: _player.eligibility,
+                            ),
+                          ),
+                        );
+                    if (updated != null && mounted) {
+                      setState(
+                        () => _player = _player.copyWith(eligibility: updated),
+                      );
+                    }
+                  }
+                : null,
+          ),
+          const SizedBox(height: 16),
           _DevelopmentFeedbackCard(
             assessment: _player.developmentAssessment,
             coachNotes: _player.coachNotes,
@@ -299,33 +326,6 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
-          _AcademicStandingCard(
-            status: _player.eligibility,
-            applicable: _player.academicEligibilityApplicable,
-            onTap:
-                _player.academicEligibilityApplicable &&
-                    widget.profile.isCoordinator
-                ? () async {
-                    final updated = await Navigator.of(context)
-                        .push<EligibilityStatus>(
-                          MaterialPageRoute(
-                            builder: (_) => EligibilityHistoryScreen(
-                              playerId: _player.id,
-                              playerName: _player.name,
-                              canUpdate: widget.profile.isCoordinator,
-                              currentStatus: _player.eligibility,
-                            ),
-                          ),
-                        );
-                    if (updated != null && mounted) {
-                      setState(
-                        () => _player = _player.copyWith(eligibility: updated),
-                      );
-                    }
-                  }
-                : null,
           ),
           const SizedBox(height: 16),
           // Private care-team context. Coaches may report injuries and request
@@ -657,7 +657,17 @@ class _AcademicStandingCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (onTap != null) const Icon(Icons.chevron_right),
+            if (onTap != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                'Manage',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Icon(Icons.chevron_right, color: color),
+            ],
           ],
         ),
       ),

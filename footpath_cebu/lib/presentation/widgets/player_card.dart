@@ -193,7 +193,7 @@ class _AssessmentFace extends StatelessWidget {
         _place(
           scale,
           x: 112,
-          y: 692,
+          y: 680,
           w: 376,
           h: 30,
           child: Center(
@@ -219,7 +219,7 @@ class _AssessmentFace extends StatelessWidget {
           _place(
             scale,
             x: 120,
-            y: 728,
+            y: 716,
             w: 360,
             h: 44,
             child: Center(

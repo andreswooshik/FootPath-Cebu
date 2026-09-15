@@ -49,6 +49,22 @@ python manage.py createsuperuser
 
 ## Management Commands
 
+### Build the Complete Demo Dataset
+
+Use the unified command for local development and panel demonstrations:
+
+```bash
+cd backend
+python manage.py migrate
+python manage.py seeded --password "FootPath!2026"
+```
+
+This creates six login accounts (one per role), six additional roster-only
+players, and the complete user-facing academy fixture. Rerunning it refreshes
+only canonical demo records and preserves unrelated data. It requires Firebase
+Admin credentials and refuses production settings unless the environment is an
+intentional demo and `--allow-production` is supplied.
+
 ### Seed Initial Users
 
 Populate the database with test users (coaches, players, guardians):
@@ -65,7 +81,7 @@ python manage.py seed_users
 - Returns credentials for testing
 
 **Requirements:**
-- Firebase service account JSON in `backend/secrets/serviceAccountKey.json`
+- Firebase service account JSON at the configured `FIREBASE_CREDENTIALS` path
 - Firebase project configured in settings
 
 ### Seed Academy Data
@@ -78,11 +94,11 @@ python manage.py seed_academy
 ```
 
 **What it does:**
-- Creates 10 player profiles with ratings and eligibility status
-- Creates 3 training sessions with age-tier targeting
-- Creates attendance records linking players to sessions
-- Creates completed matches and player performance history for the demo player
-- Creates guardian links (guardian → players)
+- Creates seven player profiles with ratings and eligibility status
+- Creates scheduled, completed, and cancelled training sessions
+- Creates complete attendance and confirmation examples
+- Creates matches, tournaments, assessments, and player history
+- Creates guardian, injury, dispute, notification, and eligibility workflows
 
 **Prerequisite:** Run `seed_users` first (creates the players and coaches)
 
@@ -91,16 +107,13 @@ python manage.py seed_academy
 ```bash
 cd backend
 
-# 1. Create superuser for admin access
-python manage.py createsuperuser
+# 1. Apply every schema migration
+python manage.py migrate
 
-# 2. Populate users
-python manage.py seed_users
+# 2. Refresh the complete demo fixture, including the Super Admin
+python manage.py seeded
 
-# 3. Populate academy data
-python manage.py seed_academy
-
-# 4. Start the server
+# 3. Start the server
 python manage.py runserver
 ```
 

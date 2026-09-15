@@ -10,6 +10,16 @@ from accounts.models import Club, Roles, User
 
 DEMO_CLUB_NAME = 'FootPath Cebu Demo Club'
 DEMO_CLUB_SLUG = 'footpath-cebu-demo'
+DEMO_PASSWORD = 'FootPath!2026'
+
+
+def birth_date_for_age(age):
+    """Return a date whose age remains exact whenever the seed is run."""
+    today = date.today()
+    try:
+        return today.replace(year=today.year - age)
+    except ValueError:  # February 29 in a non-leap birth year.
+        return today.replace(year=today.year - age, day=28)
 
 
 class Command(BaseCommand):
@@ -20,31 +30,64 @@ class Command(BaseCommand):
     )
 
     SEEDS = [
-        # email, role, first name, last name, Firebase login, Django login
-        ('admin@footpathcebu.test', Roles.ADMIN, 'Demo', 'Admin', False, True),
+        # email, role, first, last, initial, mobile, Firebase login, Django login
+        (
+            'admin@footpathcebu.test',
+            Roles.ADMIN,
+            'Alicia',
+            'Santos',
+            'D',
+            '+639171000001',
+            False,
+            True,
+        ),
         (
             'coordinator@footpathcebu.test',
             Roles.COORDINATOR,
-            'Demo',
-            'Coordinator',
+            'Carlo',
+            'Mendoza',
+            'R',
+            '+639171000002',
             True,
             True,
         ),
-        ('coach@footpathcebu.test', Roles.COACH, 'Demo', 'Coach', True, False),
-        ('player@footpathcebu.test', Roles.PLAYER, 'Demo', 'Player', True, False),
+        (
+            'coach@footpathcebu.test',
+            Roles.COACH,
+            'Marco',
+            'Villanueva',
+            'L',
+            '+639171000003',
+            True,
+            False,
+        ),
+        (
+            'player@footpathcebu.test',
+            Roles.PLAYER,
+            'Nico',
+            'Garcia',
+            'T',
+            '+639171000004',
+            True,
+            False,
+        ),
         (
             'staff@footpathcebu.test',
             Roles.SCHOOL_STAFF,
-            'Demo',
-            'School Staff',
+            'Sofia',
+            'Ramos',
+            'M',
+            '+639171000005',
             False,
             True,
         ),
         (
             'guardian@footpathcebu.test',
             Roles.GUARDIAN,
-            'Demo',
-            'Guardian',
+            'Elena',
+            'Garcia',
+            'P',
+            '+639171000006',
             True,
             False,
         ),
@@ -53,7 +96,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             '--password',
-            default='FootPath!2026',
+            default=DEMO_PASSWORD,
             help='Shared demo password for all seeded accounts.',
         )
 
@@ -74,6 +117,12 @@ class Command(BaseCommand):
         if demo_club.school_name != DEMO_CLUB_NAME:
             demo_club.school_name = DEMO_CLUB_NAME
             club_changes.append('school_name')
+        if demo_club.head_coach_name != 'Marco L. Villanueva':
+            demo_club.head_coach_name = 'Marco L. Villanueva'
+            club_changes.append('head_coach_name')
+        if demo_club.cvfa_membership != 'CVFA-DEMO-2026':
+            demo_club.cvfa_membership = 'CVFA-DEMO-2026'
+            club_changes.append('cvfa_membership')
         if club_changes:
             demo_club.save(update_fields=club_changes)
 
@@ -83,6 +132,8 @@ class Command(BaseCommand):
             role,
             first_name,
             last_name,
+            middle_initial,
+            mobile_number,
             firebase_login,
             django_login,
         ) in self.SEEDS:
@@ -116,6 +167,8 @@ class Command(BaseCommand):
             user.email = email
             user.first_name = first_name
             user.last_name = last_name
+            user.middle_initial = middle_initial
+            user.mobile_number = mobile_number
             user.role = role
             user.club = None if role == Roles.ADMIN else demo_club
             user.firebase_uid = firebase_uid
@@ -128,11 +181,12 @@ class Command(BaseCommand):
                 user.set_unusable_password()
             user.save()
             if role == Roles.PLAYER:
-                birth_date = date(date.today().year - 14, 1, 1)
+                birth_date = birth_date_for_age(14)
                 age, tier = AgeTierSetting.profile_defaults_for(birth_date)
-                PlayerProfile.objects.get_or_create(
+                PlayerProfile.objects.update_or_create(
                     user=user,
                     defaults={
+                        'middle_initial': middle_initial,
                         'date_of_birth': birth_date,
                         'age': age,
                         'age_tier': tier,

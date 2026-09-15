@@ -85,6 +85,16 @@ class PlayerStatsApiTests(APITestCase):
         self.assertTrue(one.data['comparison']['baseline'])
         self.assertIsNone(one.data['comparison']['overallDelta'])
 
+    def test_coordinator_can_read_same_club_player_stats(self):
+        coordinator = make_user(Roles.COORDINATOR, 'stats-coordinator@footpathcebu.test')
+        self._assessment(self.scores)
+        self.client.force_authenticate(coordinator)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['latestCompatibleStats']['overall'], 83)
+
     def test_get_compares_latest_to_immediately_previous_compatible_record(self):
         self._assessment(self.scores)
         newer = {**self.scores, 'pace': 90, 'physical': 75}

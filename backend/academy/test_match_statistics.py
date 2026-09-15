@@ -188,7 +188,7 @@ class MatchPerformanceApiTests(APITestCase):
         first = self.client.put(self._performance_url(), self._performance_payload(), format='json')
         self.assertEqual(first.status_code, 201)
         self.assertEqual(first.data['ratingStatus'], 'AWAITING_RATING')
-        self.assertNotIn('coachRating', first.data)
+        self.assertIsNone(first.data['coachRating'])
 
         second = self.client.put(
             self._performance_url(),
@@ -308,7 +308,7 @@ class MatchPerformanceApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 404)
 
-    def test_coordinator_roster_never_exposes_rating_or_notes(self):
+    def test_coordinator_roster_exposes_complete_same_club_performance(self):
         PlayerMatchPerformance.objects.create(
             match=self.match_a,
             player=self.player_a,
@@ -326,8 +326,11 @@ class MatchPerformanceApiTests(APITestCase):
         self.client.force_authenticate(self.coordinator_a)
         coordinator_row = self.client.get(url).data[0]
         self.assertEqual(coordinator_row['ratingStatus'], 'RATED')
-        self.assertNotIn('coachRating', coordinator_row['performance'])
-        self.assertNotIn('notes', coordinator_row['performance'])
+        self.assertEqual(coordinator_row['performance']['coachRating'], 8.5)
+        self.assertEqual(
+            coordinator_row['performance']['notes'],
+            'Private Coach evaluation.',
+        )
 
         self.client.force_authenticate(self.coach_a)
         coach_row = self.client.get(url).data[0]
@@ -386,6 +389,13 @@ class MatchPerformanceApiTests(APITestCase):
         self.client.force_authenticate(self.coach_a)
         self.assertEqual(self.client.get(url).status_code, 200)
         self.client.force_authenticate(self.coach_b)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_coordinator_statistics_read_is_club_scoped(self):
+        url = reverse('player-match-statistics', args=[self.player_a.id])
+        self.client.force_authenticate(self.coordinator_a)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.client.force_authenticate(self.coordinator_b)
         self.assertEqual(self.client.get(url).status_code, 403)
 
     def test_linked_guardian_reads_statistics_when_no_pin_exists(self):

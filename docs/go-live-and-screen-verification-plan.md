@@ -119,13 +119,13 @@ This is the one piece of new code required for full screen coverage. Two parts:
 > screen 9 in the checklist and come back. But "all screens" needs Phase 3 done.
 
 ### Phase 4 — Seed real data
-1. `python manage.py seed_users` — creates Firebase Auth accounts (via Admin SDK) +
-   matching Django users for each role. Default accounts are `*@footpathcebu.test` with a
-   known dev password (see [`DJANGO_ADMIN_GUIDE.md`](DJANGO_ADMIN_GUIDE.md); rotate/remove
-   before any real deployment).
-2. `python manage.py seed_academy` — player profiles, a training schedule, attendance
-   history, and a guardian↔player link. **Run after `seed_users`.**
-3. `python manage.py createsuperuser` if you want `/admin/` access.
+1. `python manage.py migrate` — applies every required database schema change.
+2. `python manage.py seeded` — creates Firebase Auth accounts plus matching Django users
+   for all six roles, including the Super Admin, and refreshes the complete academy demo
+   fixture. Default accounts are `*@footpathcebu.test` with a known dev password (see
+   [`DJANGO_ADMIN_GUIDE.md`](DJANGO_ADMIN_GUIDE.md)). The command preserves non-demo data
+   and refuses production settings unless `--allow-production` is explicitly supplied for
+   a dedicated demo environment.
 
 ### Phase 5 — Run live and verify every screen
 Start the backend, then launch Flutter pointed at it with mocks off.

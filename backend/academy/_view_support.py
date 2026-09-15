@@ -22,9 +22,9 @@ from .models import (
 )
 from .schedule_conflicts import fixture_conflict_payload
 
-# Roles that participate in the dispute process: the coach flags, School
-# Staff and Admin review/respond. Players and guardians have no access.
-DISPUTE_ROLES = (Roles.COACH, Roles.SCHOOL_STAFF, Roles.ADMIN)
+# Roles that participate in the dispute process: the coach flags, while club
+# staff and Admin review/respond. Players and guardians have no access.
+DISPUTE_ROLES = (Roles.COACH, Roles.SCHOOL_STAFF, Roles.COORDINATOR, Roles.ADMIN)
 
 
 def _confirmed(request, field='confirmTrainingCancellations'):
@@ -66,8 +66,8 @@ def _guardian_may_read(user, player_id):
     """True if `user` is allowed to read the given player's data."""
     if user.role == Roles.ADMIN:
         return True
-    if user.role == Roles.COACH:
-        # Coaches are club-scoped: only players in their own club (tenancy).
+    if user.role in (Roles.COACH, Roles.COORDINATOR):
+        # Club staff are tenant-scoped: only players in their own club.
         return _in_same_club(user, player_id)
     if user.role == Roles.PLAYER:
         return str(user.id) == str(player_id)
@@ -80,7 +80,7 @@ def _may_read_match_statistics(user, player_id):
     """Authorize the player and the adults responsible for their development."""
     if user.role == Roles.ADMIN:
         return True
-    if user.role == Roles.COACH:
+    if user.role in (Roles.COACH, Roles.COORDINATOR):
         return _in_same_club(user, player_id)
     if user.role == Roles.PLAYER:
         return str(user.id) == str(player_id)

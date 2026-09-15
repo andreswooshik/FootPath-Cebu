@@ -93,35 +93,111 @@ class EligibilityHistoryScreen extends ConsumerWidget {
           onRetry: () => ref.invalidate(eligibilityHistoryProvider(playerId)),
         ),
         data: (changes) {
-          if (changes.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'No status changes yet. The timeline fills in when an '
-                  'authorized club representative updates eligibility.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
-          }
+          final displayedStatus =
+              currentStatus ??
+              (changes.isNotEmpty ? changes.first.newStatus : null);
           return RefreshIndicator(
             onRefresh: () =>
                 ref.refresh(eligibilityHistoryProvider(playerId).future),
-            child: ListView.separated(
+            child: ListView(
               padding: const EdgeInsets.all(16),
-              itemCount: changes.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (context, index) =>
-                  _ChangeCard(change: changes[index]).animateListItem(
-                    key: ValueKey('$playerId-$index'),
-                    index: index,
+              children: [
+                _CurrentEligibility(
+                  status: displayedStatus,
+                  canUpdate: canUpdate,
+                  isSaving: isSaving,
+                  onUpdate: () => _chooseStatus(context, ref),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Status history',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
+                ),
+                const SizedBox(height: 8),
+                if (changes.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Text(
+                      'No status changes yet. The timeline fills in when an '
+                      'authorized club representative updates eligibility.',
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else
+                  for (var index = 0; index < changes.length; index++) ...[
+                    if (index > 0) const SizedBox(height: 8),
+                    _ChangeCard(change: changes[index]).animateListItem(
+                      key: ValueKey('$playerId-$index'),
+                      index: index,
+                    ),
+                  ],
+              ],
             ),
           );
         },
       ),
     ).animateScreenEntrance();
+  }
+}
+
+class _CurrentEligibility extends StatelessWidget {
+  const _CurrentEligibility({
+    required this.status,
+    required this.canUpdate,
+    required this.isSaving,
+    required this.onUpdate,
+  });
+
+  final EligibilityStatus? status;
+  final bool canUpdate;
+  final bool isSaving;
+  final VoidCallback onUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Current academic eligibility',
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(height: 8),
+          if (status == null)
+            const Text('No current status is available.')
+          else ...[
+            EligibilityBadge(status: status!),
+            const SizedBox(height: 8),
+            Text(eligibilityStatusMessage(status!)),
+          ],
+          if (canUpdate) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: isSaving ? null : onUpdate,
+                icon: isSaving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.edit_outlined),
+                label: Text(isSaving ? 'Saving...' : 'Update eligibility'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -172,10 +248,23 @@ class _ChangeCard extends StatelessWidget {
   }
 }
 
-class _EligibilityPicker extends StatelessWidget {
+class _EligibilityPicker extends StatefulWidget {
   const _EligibilityPicker({this.current});
 
   final EligibilityStatus? current;
+
+  @override
+  State<_EligibilityPicker> createState() => _EligibilityPickerState();
+}
+
+class _EligibilityPickerState extends State<_EligibilityPicker> {
+  EligibilityStatus? selected;
+
+  @override
+  void initState() {
+    super.initState();
+    selected = widget.current;
+  }
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -196,8 +285,8 @@ class _EligibilityPicker extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           RadioGroup<EligibilityStatus>(
-            groupValue: current,
-            onChanged: (value) => Navigator.of(context).pop(value),
+            groupValue: selected,
+            onChanged: (value) => setState(() => selected = value),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -213,6 +302,23 @@ class _EligibilityPicker extends StatelessWidget {
                   ),
               ],
             ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: selected == null || selected == widget.current
+                    ? null
+                    : () => Navigator.of(context).pop(selected),
+                child: const Text('Save status'),
+              ),
+            ],
           ),
         ],
       ),

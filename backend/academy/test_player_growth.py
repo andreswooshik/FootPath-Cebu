@@ -395,6 +395,20 @@ class MatchCategoryAndGrowthApiTests(APITestCase):
             200,
         )
 
+    def test_coordinator_growth_read_is_club_scoped(self):
+        url = reverse('player-growth', args=[self.player.id])
+        self.client.force_authenticate(self.coordinator)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+        other_club = _club('Other Coordinator Growth Club')
+        other_coordinator = _user(
+            'other-coordinator@match-growth.test',
+            Roles.COORDINATOR,
+            other_club,
+        )
+        self.client.force_authenticate(other_coordinator)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
     def test_all_summary_is_not_truncated_by_history_cap(self):
         for day in range(105):
             self._performance(self._match(day), goals=1)

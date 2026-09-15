@@ -20,9 +20,15 @@ Rebuild the deterministic demo at any time:
 
 ```powershell
 cd backend
-python manage.py seed_users --password "FootPath!2026"
-python manage.py seed_academy
+python manage.py migrate
+python manage.py seeded --password "FootPath!2026"
 ```
+
+`seeded` refreshes only the canonical `@footpathcebu.test` fixture and the
+records it owns. Other clubs and users are preserved. It requires configured
+Firebase Admin credentials and refuses to run with production settings unless
+`--allow-production` is supplied explicitly for an intentionally dedicated
+demo environment.
 
 ## Demo credentials
 
@@ -70,10 +76,14 @@ The demo Player privacy PIN is `2468`.
 - Published Rising Star Cup U14 schedule, bracket, squad, and five fixtures
 - One completed group fixture with objective statistics awaiting Coach ratings
 - Two playable group fixtures plus TBD semifinal and championship fixtures
-- Upcoming and past training sessions, attendance, and player confirmation
-- Five-domain development assessment and historical match performance
+- Three upcoming, two completed, and one cancelled training session
+- Complete attendance with Present, Absent, and Excused examples plus metrics
+- Confirmed, Declined, and action-ready training confirmation states
+- Current and historical development, growth, Player Stats, and match records
 - Guardian link and known privacy PIN
-- Pending injury report, open dispute, eligibility states, and inbox records
+- Pending and confirmed injury workflows, including a recovery update review
+- Open and resolved disputes with a historical response thread
+- Eligibility history, read/unread inbox records, and valid audit-chain entries
 
 Push delivery still depends on an FCM-capable physical device and its registered
 device token. The persistent in-app notification inbox is seeded and can be

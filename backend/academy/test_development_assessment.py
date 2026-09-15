@@ -106,6 +106,11 @@ class DevelopmentAssessmentApiTests(APITestCase):
         self.club = _club('Development API Club')
         self.other_club = _club('Other Development API Club')
         self.coach = _user('coach@development.test', Roles.COACH, self.club)
+        self.coordinator = _user(
+            'coordinator@development.test',
+            Roles.COORDINATOR,
+            self.club,
+        )
         self.other_coach = _user('other@development.test', Roles.COACH, self.other_club)
         self.player = _user('player@development.test', Roles.PLAYER, self.club)
         self.profile = PlayerProfile.objects.create(
@@ -147,7 +152,12 @@ class DevelopmentAssessmentApiTests(APITestCase):
         self.assertEqual(technical['minimumObserved'], 3)
         self.assertIsNone(response.data['latestAssessment'])
 
-    def test_framework_is_coach_only_and_same_club(self):
+    def test_framework_read_is_available_to_same_club_coordinator(self):
+        self.client.force_authenticate(self.coordinator)
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+        self.assertEqual(self.client.put(self.url, self._payload(), format='json').status_code, 403)
+
+    def test_framework_read_is_club_scoped(self):
         self.client.force_authenticate(self.other_coach)
         self.assertEqual(self.client.get(self.url).status_code, 403)
         self.client.force_authenticate(self.player)
