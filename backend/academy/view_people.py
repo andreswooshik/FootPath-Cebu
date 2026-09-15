@@ -120,7 +120,10 @@ class CoordinatorPersonDetailView(APIView):
         if expected_role == Roles.PLAYER:
             queryset = queryset.filter(player_profile__isnull=False)
         if for_update:
-            queryset = queryset.select_for_update()
+            # The related club and player profile joins can be nullable. PostgreSQL
+            # rejects FOR UPDATE when it also targets the nullable side of an outer
+            # join, while this workflow only needs to serialize changes to the user.
+            queryset = queryset.select_for_update(of=('self',))
         return get_object_or_404(
             queryset,
             pk=person_id,
