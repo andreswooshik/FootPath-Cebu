@@ -44,11 +44,12 @@ class CoordinatorDashboardScreen extends ConsumerWidget {
     final missingResults = schedules
         .expand((schedule) => schedule.fixtures)
         .where(
-          (item) =>
-              !item.hasResult && !item.kickoffAt.isAfter(DateTime.now()),
+          (item) => !item.hasResult && !item.kickoffAt.isAfter(DateTime.now()),
         )
         .length;
-    final unassigned = players.where((player) => player.position == null).length;
+    final unassigned = players
+        .where((player) => player.position == null)
+        .length;
 
     return Scaffold(
       appBar: AppBar(
@@ -251,9 +252,16 @@ class _RecordSurface extends StatelessWidget {
           padding: const EdgeInsets.all(18),
           child: Row(
             children: [
-              Expanded(child: _MiniStat(value: summary.record, label: 'Match record')),
+              Expanded(
+                child: _MiniStat(value: summary.record, label: 'Match record'),
+              ),
               const SizedBox(height: 38, child: VerticalDivider(width: 1)),
-              Expanded(child: _MiniStat(value: '${summary.winRate}%', label: 'Win rate')),
+              Expanded(
+                child: _MiniStat(
+                  value: '${summary.winRate}%',
+                  label: 'Win rate',
+                ),
+              ),
             ],
           ),
         ),
@@ -269,11 +277,14 @@ class _MiniStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 12),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(value, style: Theme.of(context).textTheme.titleMedium),
-      const SizedBox(height: 2),
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
-    ]),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(value, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 2),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    ),
   );
 }
 
@@ -286,20 +297,46 @@ class _FixtureSurface extends StatelessWidget {
   Widget build(BuildContext context) => _Surface(
     child: Padding(
       padding: const EdgeInsets.all(18),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Text(fixture.schedule.title, style: Theme.of(context).textTheme.bodySmall)),
-          _Tag(label: fixture.schedule.lifecycleStatus.label),
-        ]),
-        const SizedBox(height: 10),
-        Text('FootPath FC vs ${fixture.fixture.opponent}', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 10),
-        _DetailLine(icon: Icons.calendar_today_outlined, text: '${formatShortDate(fixture.fixture.kickoffAt)}  |  ${_formatTime(fixture.fixture.kickoffAt)}'),
-        const SizedBox(height: 6),
-        _DetailLine(icon: Icons.location_on_outlined, text: fixture.fixture.location),
-        const SizedBox(height: 16),
-        SizedBox(width: double.infinity, child: FilledButton(onPressed: onOpen, child: const Text('Open fixture'))),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  fixture.schedule.title,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              _Tag(label: fixture.schedule.lifecycleStatus.label),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'FootPath FC vs ${fixture.fixture.opponent}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 10),
+          _DetailLine(
+            icon: Icons.calendar_today_outlined,
+            text:
+                '${formatShortDate(fixture.fixture.kickoffAt)}  |  ${_formatTime(fixture.fixture.kickoffAt)}',
+          ),
+          const SizedBox(height: 6),
+          _DetailLine(
+            icon: Icons.location_on_outlined,
+            text: fixture.fixture.location,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: onOpen,
+              child: const Text('Open fixture'),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -312,27 +349,42 @@ class _TournamentRows extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (schedules.isEmpty) {
-      return _EmptySurface(icon: Icons.emoji_events_outlined, title: 'No tournaments yet', message: 'Create a schedule to begin tracking your season.', action: 'Create tournament', onAction: onOpen);
+      return _EmptySurface(
+        icon: Icons.emoji_events_outlined,
+        title: 'No tournaments yet',
+        message: 'Create a schedule to begin tracking your season.',
+        action: 'Create tournament',
+        onAction: onOpen,
+      );
     }
     final entries = schedules.take(3).toList(growable: false);
     return _Surface(
-      child: Column(children: [
-        for (var index = 0; index < entries.length; index++) ...[
-          ListTile(
-            title: Row(children: [Expanded(child: Text(entries[index].title)), const SizedBox(width: 8), _Tag(label: entries[index].lifecycleStatus.label)]),
-            subtitle: Text(_subtitle(entries[index])),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: onOpen,
-          ),
-          if (index < entries.length - 1) const Divider(height: 1),
+      child: Column(
+        children: [
+          for (var index = 0; index < entries.length; index++) ...[
+            ListTile(
+              title: Row(
+                children: [
+                  Expanded(child: Text(entries[index].title)),
+                  const SizedBox(width: 8),
+                  _Tag(label: entries[index].lifecycleStatus.label),
+                ],
+              ),
+              subtitle: Text(_subtitle(entries[index])),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: onOpen,
+            ),
+            if (index < entries.length - 1) const Divider(height: 1),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
   String _subtitle(TournamentSchedule schedule) {
-    final next = schedule.fixtures.where((fixture) => !fixture.hasResult).toList()
-      ..sort((a, b) => a.kickoffAt.compareTo(b.kickoffAt));
+    final next =
+        schedule.fixtures.where((fixture) => !fixture.hasResult).toList()
+          ..sort((a, b) => a.kickoffAt.compareTo(b.kickoffAt));
     return next.isEmpty
         ? '${schedule.fixtures.length} fixtures'
         : 'Next fixture: ${formatShortDate(next.first.kickoffAt)}';
@@ -355,18 +407,48 @@ class _AttentionRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _Surface(
-    child: Column(children: [
-      _AttentionRow(icon: Icons.health_and_safety_outlined, title: injuryReviews == 0 ? 'No injury reviews waiting' : '$injuryReviews injury ${injuryReviews == 1 ? 'report' : 'reports'} awaiting review', subtitle: 'Medical', urgent: injuryReviews > 0, onTap: onOpenOperations),
-      const Divider(height: 1),
-      _AttentionRow(icon: Icons.description_outlined, title: missingResults == 0 ? 'All past fixtures have results' : '$missingResults fixtures without recorded results', subtitle: 'Match operations', onTap: onOpenOperations),
-      const Divider(height: 1),
-      _AttentionRow(icon: Icons.people_outline, title: unassignedPlayers == 0 ? 'All players have a position' : '$unassignedPlayers players without a position', subtitle: 'Roster readiness', onTap: onOpenPeople),
-    ]),
+    child: Column(
+      children: [
+        _AttentionRow(
+          icon: Icons.health_and_safety_outlined,
+          title: injuryReviews == 0
+              ? 'No injury reviews waiting'
+              : '$injuryReviews injury ${injuryReviews == 1 ? 'report' : 'reports'} awaiting review',
+          subtitle: 'Medical',
+          urgent: injuryReviews > 0,
+          onTap: onOpenOperations,
+        ),
+        const Divider(height: 1),
+        _AttentionRow(
+          icon: Icons.description_outlined,
+          title: missingResults == 0
+              ? 'All past fixtures have results'
+              : '$missingResults fixtures without recorded results',
+          subtitle: 'Match operations',
+          onTap: onOpenOperations,
+        ),
+        const Divider(height: 1),
+        _AttentionRow(
+          icon: Icons.people_outline,
+          title: unassignedPlayers == 0
+              ? 'All players have a position'
+              : '$unassignedPlayers players without a position',
+          subtitle: 'Roster readiness',
+          onTap: onOpenPeople,
+        ),
+      ],
+    ),
   );
 }
 
 class _AttentionRow extends StatelessWidget {
-  const _AttentionRow({required this.icon, required this.title, required this.subtitle, required this.onTap, this.urgent = false});
+  const _AttentionRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.urgent = false,
+  });
   final IconData icon;
   final String title;
   final String subtitle;
@@ -375,7 +457,12 @@ class _AttentionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListTile(
     leading: Icon(icon, color: urgent ? AppColors.coral : null),
-    title: Text(title, style: urgent ? const TextStyle(color: AppColors.coral, fontWeight: FontWeight.w600) : null),
+    title: Text(
+      title,
+      style: urgent
+          ? const TextStyle(color: AppColors.coral, fontWeight: FontWeight.w600)
+          : null,
+    ),
     subtitle: Text(subtitle),
     trailing: const Icon(Icons.chevron_right),
     onTap: onTap,
@@ -387,10 +474,17 @@ class _DetailLine extends StatelessWidget {
   final IconData icon;
   final String text;
   @override
-  Widget build(BuildContext context) => Row(children: [
-    Icon(icon, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
-    const SizedBox(width: 8), Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
-  ]);
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(
+        icon,
+        size: 16,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+      const SizedBox(width: 8),
+      Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
+    ],
+  );
 }
 
 class _Tag extends StatelessWidget {
@@ -399,7 +493,10 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-    decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, borderRadius: BorderRadius.circular(8)),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+    ),
     child: Text(label, style: Theme.of(context).textTheme.labelSmall),
   );
 }
@@ -420,7 +517,13 @@ class _Surface extends StatelessWidget {
 }
 
 class _EmptySurface extends StatelessWidget {
-  const _EmptySurface({required this.icon, required this.title, required this.message, required this.action, required this.onAction});
+  const _EmptySurface({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.action,
+    required this.onAction,
+  });
   final IconData icon;
   final String title;
   final String message;
@@ -430,9 +533,18 @@ class _EmptySurface extends StatelessWidget {
   Widget build(BuildContext context) => _Surface(
     child: Padding(
       padding: const EdgeInsets.all(18),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon), const SizedBox(height: 10), Text(title, style: Theme.of(context).textTheme.titleMedium), const SizedBox(height: 4), Text(message, style: Theme.of(context).textTheme.bodySmall), const SizedBox(height: 10), TextButton(onPressed: onAction, child: Text(action)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon),
+          const SizedBox(height: 10),
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text(message, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 10),
+          TextButton(onPressed: onAction, child: Text(action)),
+        ],
+      ),
     ),
   );
 }

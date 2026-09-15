@@ -19,7 +19,10 @@ class CoordinatorOperationsScreen extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
         children: [
-          Text('Club workflows', style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            'Club workflows',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
           const SizedBox(height: 4),
           Text(
             'Complete reviews and record the information that keeps your club moving.',
@@ -29,28 +32,39 @@ class CoordinatorOperationsScreen extends StatelessWidget {
           _OperationCard(
             icon: Icons.healing_outlined,
             title: 'Injury reviews',
-            subtitle: 'Confirm reports and recovery updates from the care team.',
+            subtitle:
+                'Confirm reports and recovery updates from the care team.',
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CoordinatorInjuriesScreen()),
+              MaterialPageRoute(
+                builder: (_) => const CoordinatorInjuriesScreen(),
+              ),
             ),
           ),
           _OperationCard(
             icon: Icons.sports_score_outlined,
             title: 'Match statistics',
-            subtitle: 'Record matches, select rosters, and enter performance data.',
+            subtitle:
+                'Record matches, select rosters, and enter performance data.',
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CoordinatorMatchesScreen()),
+              MaterialPageRoute(
+                builder: (_) => const CoordinatorMatchesScreen(),
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          Text('Member administration', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Member administration',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 8),
           const Card(
             margin: EdgeInsets.zero,
             child: ListTile(
               leading: Icon(Icons.manage_accounts_outlined),
               title: Text('Accounts and guardian links'),
-              subtitle: Text('Managed through the coordinator web portal while mobile management APIs are added.'),
+              subtitle: Text(
+                'Managed through the coordinator web portal while mobile management APIs are added.',
+              ),
             ),
           ),
         ],
