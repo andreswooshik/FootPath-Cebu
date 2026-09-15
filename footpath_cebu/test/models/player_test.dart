@@ -192,6 +192,52 @@ void main() {
       expect(player.toJson()['academicEligibilityApplicable'], isFalse);
     });
 
+    test('parses the latest compatible Player Stats embedded in a player', () {
+      final player = Player.fromJson({
+        'id': 9,
+        'name': 'Current Stats Player',
+        'position': 'CM',
+        'latestPlayerStats': {
+          'catalog': {
+            'version': 1,
+            'position': 'CM',
+            'roleGroup': 'MIDFIELDER',
+            'attributes': [
+              'Pace',
+              'Passing',
+              'Dribbling',
+              'Vision',
+              'Defending',
+              'Physical',
+            ],
+          },
+          'assessment': {
+            'id': 41,
+            'position': 'CM',
+            'roleGroup': 'MIDFIELDER',
+            'catalogVersion': 1,
+            'scores': {
+              'pace': 81,
+              'passing': 82,
+              'dribbling': 83,
+              'vision': 84,
+              'defending': 85,
+              'physical': 86,
+            },
+            'overall': 84,
+            'reason': 'MONTHLY_REVIEW',
+            'coachNotes': 'Current values.',
+            'createdAt': '2026-09-01T10:00:00Z',
+          },
+        },
+      });
+
+      expect(player.latestPlayerStats?.catalog.roleGroup, 'MIDFIELDER');
+      expect(player.latestPlayerStats?.assessment.id, '41');
+      expect(player.latestPlayerStats?.assessment.scores['vision'], 84);
+      expect(player.toJson()['latestPlayerStats'], isNotNull);
+    });
+
     test('a goalkeeper\'s GK six round-trips through JSON', () {
       const player = Player(
         id: 'gk1',

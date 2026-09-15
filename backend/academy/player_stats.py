@@ -1,6 +1,7 @@
 """Versioned, game-style Player Stats catalogs (kept separate from development)."""
 
 from django.core.exceptions import ValidationError
+from django.db.models import Case, CharField, OuterRef, Subquery, Value, When
 
 CATALOG_VERSION = 1
 CATALOGS = {
@@ -21,6 +22,46 @@ POSITION_GROUPS = {
     'RW': 'ATTACKER',
     'ST': 'ATTACKER',
 }
+
+
+def with_latest_player_stats(queryset):
+    """Annotate profiles with their latest current-catalog compatible stats.
+
+    The correlated subqueries keep roster serialization bounded to one query
+    without loading every historical assessment for every player.
+    """
+    from .model_players import PlayerStatsAssessment
+
+    group_positions = {
+        group: [
+            position for position, mapped_group in POSITION_GROUPS.items() if mapped_group == group
+        ]
+        for group in CATALOGS
+    }
+    role_group = Case(
+        *[
+            When(position__in=positions, then=Value(group))
+            for group, positions in group_positions.items()
+        ],
+        default=Value(''),
+        output_field=CharField(),
+    )
+    latest = PlayerStatsAssessment.objects.filter(
+        player_id=OuterRef('user_id'),
+        role_group=OuterRef('_latest_player_stats_role_group'),
+        catalog_version=CATALOG_VERSION,
+    ).order_by('-created_at', '-id')
+    return queryset.annotate(
+        _latest_player_stats_role_group=role_group,
+        _latest_player_stats_id=Subquery(latest.values('id')[:1]),
+        _latest_player_stats_position=Subquery(latest.values('position')[:1]),
+        _latest_player_stats_catalog_version=Subquery(latest.values('catalog_version')[:1]),
+        _latest_player_stats_scores=Subquery(latest.values('scores')[:1]),
+        _latest_player_stats_overall=Subquery(latest.values('overall')[:1]),
+        _latest_player_stats_reason=Subquery(latest.values('reason')[:1]),
+        _latest_player_stats_coach_notes=Subquery(latest.values('coach_notes')[:1]),
+        _latest_player_stats_created_at=Subquery(latest.values('created_at')[:1]),
+    )
 
 
 def role_group_for(position):

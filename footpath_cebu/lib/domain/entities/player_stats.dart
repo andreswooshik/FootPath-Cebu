@@ -19,6 +19,13 @@ class PlayerStatsCatalog {
             .map((v) => v.toString())
             .toList(growable: false),
       );
+
+  Map<String, dynamic> toJson() => {
+    'version': version,
+    'position': position,
+    'roleGroup': roleGroup,
+    'attributes': attributes,
+  };
 }
 
 class CurrentPlayerStats {
@@ -125,6 +132,66 @@ class PlayerStatsAssessment {
             DateTime.fromMillisecondsSinceEpoch(0),
         assessedBy: json['assessedBy'] as String?,
       );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'position': position,
+    'roleGroup': roleGroup,
+    'catalogVersion': catalogVersion,
+    'scores': scores,
+    'overall': overall,
+    'reason': reason,
+    'coachNotes': coachNotes,
+    'createdAt': createdAt.toIso8601String(),
+    'assessedBy': assessedBy,
+  };
+}
+
+/// The latest assessment that is compatible with the player's current
+/// position group. Kept on roster payloads so cards never fall back to stale
+/// legacy profile ratings.
+class LatestPlayerStats {
+  const LatestPlayerStats({required this.catalog, required this.assessment});
+
+  final PlayerStatsCatalog catalog;
+  final PlayerStatsAssessment assessment;
+
+  factory LatestPlayerStats.fromJson(Map<String, dynamic> json) =>
+      LatestPlayerStats(
+        catalog: PlayerStatsCatalog.fromJson(
+          Map<String, dynamic>.from(json['catalog'] as Map),
+        ),
+        assessment: PlayerStatsAssessment.fromJson(
+          Map<String, dynamic>.from(json['assessment'] as Map),
+        ),
+      );
+
+  Map<String, dynamic> toJson() => {
+    'catalog': catalog.toJson(),
+    'assessment': assessment.toJson(),
+  };
+}
+
+extension CurrentPlayerStatsCompatibility on CurrentPlayerStats {
+  LatestPlayerStats get asLatestPlayerStats => LatestPlayerStats(
+    catalog: PlayerStatsCatalog(
+      version: catalogVersion,
+      position: position,
+      roleGroup: roleGroup,
+      attributes: attributes,
+    ),
+    assessment: PlayerStatsAssessment(
+      id: 'current',
+      position: position,
+      roleGroup: roleGroup,
+      catalogVersion: catalogVersion,
+      scores: scores,
+      overall: overall,
+      reason: '',
+      coachNotes: '',
+      createdAt: assessedAt,
+    ),
+  );
 }
 
 class LegacyPlayerStatsAssessment {

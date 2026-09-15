@@ -16,7 +16,7 @@ class PlayerCard extends StatefulWidget {
 
   final Player player;
 
-  /// Opens the full player profile from the action on the legacy side.
+  /// Opens the full player profile from the action on the Player Stats side.
   /// Tapping the card itself flips between the two faces.
   final VoidCallback? onTap;
 
@@ -39,14 +39,14 @@ class _PlayerCardState extends State<PlayerCard>
     parent: _flipController,
     curve: Curves.easeInOutCubic,
   );
-  bool _showingLegacy = false;
+  bool _showingPlayerStats = false;
 
   @override
   void didUpdateWidget(covariant PlayerCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.player.id == widget.player.id) return;
     _flipController.value = 0;
-    _showingLegacy = false;
+    _showingPlayerStats = false;
   }
 
   @override
@@ -56,12 +56,12 @@ class _PlayerCardState extends State<PlayerCard>
   }
 
   void _toggleFace() {
-    setState(() => _showingLegacy = !_showingLegacy);
+    setState(() => _showingPlayerStats = !_showingPlayerStats);
     if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) {
-      _flipController.value = _showingLegacy ? 1 : 0;
+      _flipController.value = _showingPlayerStats ? 1 : 0;
       return;
     }
-    if (_showingLegacy) {
+    if (_showingPlayerStats) {
       _flipController.forward();
     } else {
       _flipController.reverse();
@@ -72,12 +72,12 @@ class _PlayerCardState extends State<PlayerCard>
   Widget build(BuildContext context) {
     final player = widget.player;
     final assessment = player.developmentAssessment;
+    final playerStats = player.effectivePlayerStats;
     final position = player.position?.labelWithCode ?? 'Position not assigned';
-    final statsOverall = player.currentPlayerStats?.overall;
-    final side = _showingLegacy
-        ? (player.position?.group == PositionGroup.goalkeeper
-              ? 'goalkeeper attributes shown, overall ${statsOverall ?? player.ratings.gkOverall}'
-              : 'outfield attributes shown, overall ${statsOverall ?? player.ratings.overall}')
+    final side = _showingPlayerStats
+        ? (playerStats == null
+              ? 'Player Stats not assessed'
+              : '${playerStats.catalog.roleGroup.toLowerCase()} Player Stats shown, overall ${playerStats.assessment.overall}')
         : (assessment == null
               ? 'assessment side, not assessed yet'
               : 'assessment side, five domains rated');
@@ -86,9 +86,9 @@ class _PlayerCardState extends State<PlayerCard>
         container: true,
         button: true,
         label: [player.name, position, side].join(', '),
-        hint: _showingLegacy
+        hint: _showingPlayerStats
             ? 'Tap to show assessment domains'
-            : 'Tap to show legacy attributes',
+            : 'Tap to show Player Stats',
         customSemanticsActions: widget.onTap == null
             ? null
             : {
@@ -112,7 +112,7 @@ class _PlayerCardState extends State<PlayerCard>
                       final angle = _flip.value * math.pi;
                       final showingBack = angle > math.pi / 2;
                       Widget face = showingBack
-                          ? _LegacyAttributesFace(
+                          ? _PlayerStatsFace(
                               player: player,
                               scale: scale,
                               onViewProfile: widget.onTap,
@@ -238,8 +238,8 @@ class _AssessmentFace extends StatelessWidget {
   }
 }
 
-class _LegacyAttributesFace extends StatelessWidget {
-  const _LegacyAttributesFace({
+class _PlayerStatsFace extends StatelessWidget {
+  const _PlayerStatsFace({
     required this.player,
     required this.scale,
     required this.onViewProfile,
@@ -251,19 +251,11 @@ class _LegacyAttributesFace extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final goalkeeper = player.position?.group == PositionGroup.goalkeeper;
-    final currentStats = player.currentPlayerStats;
-    final groupLabel = currentStats == null
-        ? goalkeeper
-              ? 'GOALKEEPER'
-              : 'OUTFIELD'
-        : _roleGroupLabel(currentStats.roleGroup);
+    final latest = player.effectivePlayerStats;
     return _CardFrame(
       player: player,
       scale: scale,
-      attributeOverall:
-          currentStats?.overall ??
-          (goalkeeper ? player.ratings.gkOverall : player.ratings.overall),
+      attributeOverall: latest?.assessment.overall,
       children: [
         _place(
           scale,
@@ -275,7 +267,9 @@ class _LegacyAttributesFace extends StatelessWidget {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
-                '$groupLabel ATTRIBUTES · 0–99',
+                latest == null
+                    ? 'PLAYER STATS · 0–99'
+                    : 'PLAYER STATS · OVR ${latest.assessment.overall}',
                 maxLines: 1,
                 style: TextStyle(
                   color: PlayerCard._gold,
@@ -294,12 +288,12 @@ class _LegacyAttributesFace extends StatelessWidget {
           y: 526,
           w: 432,
           h: 162,
-          child: _LegacyAttributePanel(
-            ratings: player.ratings,
-            goalkeeper: goalkeeper,
-            currentStats: currentStats,
-            scale: scale,
-          ),
+          child: latest == null
+              ? _PlayerStatsEmptyState(
+                  hasPosition: player.position != null,
+                  scale: scale,
+                )
+              : _PlayerStatsAttributePanel(stats: latest, scale: scale),
         ),
         if (onViewProfile == null)
           _place(
@@ -626,59 +620,55 @@ class _DomainColumn extends StatelessWidget {
   );
 }
 
-class _LegacyAttributePanel extends StatelessWidget {
-  const _LegacyAttributePanel({
-    required this.ratings,
-    required this.goalkeeper,
-    required this.currentStats,
+class _PlayerStatsEmptyState extends StatelessWidget {
+  const _PlayerStatsEmptyState({
+    required this.hasPosition,
     required this.scale,
   });
 
-  final PlayerRatings ratings;
-  final bool goalkeeper;
-  final CurrentPlayerStats? currentStats;
+  final bool hasPosition;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: EdgeInsets.symmetric(horizontal: 24 * scale),
+      child: Text(
+        hasPosition ? 'NO PLAYER STATS ASSESSMENT' : 'ASSIGN POSITION TO BEGIN',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: Colors.white70,
+          fontWeight: FontWeight.w800,
+          fontSize: _cardFont(scale, 18, minimum: 12),
+          letterSpacing: math.max(0.8 * scale, 0.4),
+        ),
+      ),
+    ),
+  );
+}
+
+class _PlayerStatsAttributePanel extends StatelessWidget {
+  const _PlayerStatsAttributePanel({required this.stats, required this.scale});
+
+  final LatestPlayerStats stats;
   final double scale;
 
   @override
   Widget build(BuildContext context) {
-    final legacyLeft = goalkeeper
-        ? [
-            ('DIV', ratings.diving),
-            ('HAN', ratings.handling),
-            ('KIC', ratings.kicking),
-          ]
-        : [
-            ('PAC', ratings.pace),
-            ('SHO', ratings.shooting),
-            ('PAS', ratings.passing),
-          ];
-    final legacyRight = goalkeeper
-        ? [
-            ('REF', ratings.reflexes),
-            ('SPD', ratings.speed),
-            ('POS', ratings.positioning),
-          ]
-        : [
-            ('DRI', ratings.dribbling),
-            ('DEF', ratings.defending),
-            ('PHY', ratings.physical),
-          ];
-    final assessed = currentStats == null
-        ? null
-        : [
-            for (final attribute in currentStats!.attributes)
-              (
-                _attributeCode(attribute),
-                currentStats!.scores[_scoreKey(attribute)] ?? 0,
-              ),
-          ];
-    final left = assessed?.take(3).toList(growable: false) ?? legacyLeft;
-    final right =
-        assessed?.skip(3).take(3).toList(growable: false) ?? legacyRight;
+    final values = stats.catalog.attributes
+        .map(
+          (attribute) => (
+            _playerStatsAbbreviation(attribute),
+            stats.assessment.scores[_playerStatsKey(attribute)] ?? 0,
+          ),
+        )
+        .toList(growable: false);
+    final left = values.take(3).toList(growable: false);
+    final right = values.skip(3).toList(growable: false);
     return Row(
       children: [
         Expanded(
-          child: _LegacyAttributeColumn(values: left, scale: scale),
+          child: _PlayerStatsAttributeColumn(values: left, scale: scale),
         ),
         Container(
           width: 2 * scale,
@@ -686,50 +676,18 @@ class _LegacyAttributePanel extends StatelessWidget {
           color: PlayerCard._gold.withValues(alpha: 0.4),
         ),
         Expanded(
-          child: _LegacyAttributeColumn(values: right, scale: scale),
+          child: _PlayerStatsAttributeColumn(values: right, scale: scale),
         ),
       ],
     );
   }
 }
 
-String _scoreKey(String attribute) =>
-    attribute.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
-
-String _attributeCode(String attribute) => switch (attribute) {
-  'Diving' => 'DIV',
-  'Handling' => 'HAN',
-  'Kicking' => 'KIC',
-  'Reflexes' => 'REF',
-  'Speed' => 'SPD',
-  'Positioning' => 'POS',
-  'Pace' => 'PAC',
-  'Tackling' => 'TKL',
-  'Marking' => 'MAR',
-  'Passing' => 'PAS',
-  'Physical' => 'PHY',
-  'Dribbling' => 'DRI',
-  'Vision' => 'VIS',
-  'Shooting' => 'SHO',
-  'Off-ball Movement' => 'OBM',
-  _ =>
-    attribute
-        .replaceAll(RegExp(r'[^A-Za-z]'), '')
-        .toUpperCase()
-        .padRight(3)
-        .substring(0, 3),
-};
-
-String _roleGroupLabel(String roleGroup) => switch (roleGroup) {
-  'GOALKEEPER' => 'GOALKEEPER',
-  'DEFENDER' => 'DEFENDER',
-  'MIDFIELDER' => 'MIDFIELDER',
-  'ATTACKER' => 'ATTACKER',
-  _ => 'PLAYER',
-};
-
-class _LegacyAttributeColumn extends StatelessWidget {
-  const _LegacyAttributeColumn({required this.values, required this.scale});
+class _PlayerStatsAttributeColumn extends StatelessWidget {
+  const _PlayerStatsAttributeColumn({
+    required this.values,
+    required this.scale,
+  });
 
   final List<(String, int)> values;
   final double scale;
@@ -769,6 +727,29 @@ class _LegacyAttributeColumn extends StatelessWidget {
     ],
   );
 }
+
+String _playerStatsKey(String attribute) =>
+    attribute.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
+
+String _playerStatsAbbreviation(String attribute) => switch (attribute) {
+  'Diving' => 'DIV',
+  'Handling' => 'HAN',
+  'Kicking' => 'KIC',
+  'Reflexes' => 'REF',
+  'Speed' => 'SPD',
+  'Positioning' => 'POS',
+  'Pace' => 'PAC',
+  'Tackling' => 'TAC',
+  'Marking' => 'MAR',
+  'Passing' => 'PAS',
+  'Physical' => 'PHY',
+  'Dribbling' => 'DRI',
+  'Vision' => 'VIS',
+  'Defending' => 'DEF',
+  'Shooting' => 'SHO',
+  'Off-ball Movement' => 'OFF',
+  _ => attribute.substring(0, math.min(3, attribute.length)).toUpperCase(),
+};
 
 class _EligibilityBadge extends StatelessWidget {
   const _EligibilityBadge({required this.status, required this.scale});

@@ -78,6 +78,75 @@ Player _statsAssessedGoalkeeper() => _goalkeeper().copyWith(
   ),
 );
 
+Player _withLatestStats(
+  Player player, {
+  required String roleGroup,
+  required List<String> attributes,
+  required Map<String, int> scores,
+}) => player.copyWith(
+  latestPlayerStats: LatestPlayerStats(
+    catalog: PlayerStatsCatalog(
+      version: 1,
+      position: player.position!.wire,
+      roleGroup: roleGroup,
+      attributes: attributes,
+    ),
+    assessment: PlayerStatsAssessment(
+      id: 'stats-${player.id}',
+      position: player.position!.wire,
+      roleGroup: roleGroup,
+      catalogVersion: 1,
+      scores: scores,
+      overall: (scores.values.reduce((a, b) => a + b) / 6).round(),
+      reason: 'MONTHLY_REVIEW',
+      coachNotes: 'Current assessment.',
+      createdAt: DateTime(2026, 9, 1),
+    ),
+  ),
+);
+
+Player _outfieldWithStats() => _withLatestStats(
+  _outfield(),
+  roleGroup: 'ATTACKER',
+  attributes: const [
+    'Pace',
+    'Shooting',
+    'Dribbling',
+    'Off-ball Movement',
+    'Passing',
+    'Physical',
+  ],
+  scores: const {
+    'pace': 88,
+    'shooting': 84,
+    'dribbling': 81,
+    'off_ball_movement': 79,
+    'passing': 76,
+    'physical': 74,
+  },
+);
+
+Player _goalkeeperWithStats() => _withLatestStats(
+  _goalkeeper(),
+  roleGroup: 'GOALKEEPER',
+  attributes: const [
+    'Diving',
+    'Handling',
+    'Kicking',
+    'Reflexes',
+    'Speed',
+    'Positioning',
+  ],
+  scores: const {
+    'diving': 89,
+    'handling': 86,
+    'kicking': 72,
+    'reflexes': 93,
+    'speed': 64,
+    'positioning': 87,
+  },
+);
+
 Player _independentClubPlayer() => const Player(
   id: 'p9',
   name: 'Club Player',
@@ -169,10 +238,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tapped, isFalse);
-      expect(find.text('OUTFIELD ATTRIBUTES · 0–99'), findsOneWidget);
+      expect(find.text('PLAYER STATS · 0–99'), findsOneWidget);
       expect(
         find.bySemanticsLabel(
-          'Test Striker, Striker (ST), outfield attributes shown, overall 69',
+          'Test Striker, Striker (ST), Player Stats not assessed',
         ),
         findsOneWidget,
       );
@@ -260,50 +329,69 @@ void main() {
       }
     });
 
-    testWidgets('flips to all six outfield legacy attributes', (tester) async {
+    testWidgets('does not fall back to stale legacy profile ratings', (
+      tester,
+    ) async {
       await _pump(tester, _outfield());
 
       await tester.tap(find.byType(PlayerCard));
       await tester.pumpAndSettle();
 
-      expect(find.text('OUTFIELD ATTRIBUTES · 0–99'), findsOneWidget);
-      for (final code in ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']) {
-        expect(find.text(code), findsOneWidget);
-      }
+      expect(find.text('PLAYER STATS · 0–99'), findsOneWidget);
+      expect(find.text('NO PLAYER STATS ASSESSMENT'), findsOneWidget);
       for (final value in ['91', '82', '73', '64', '55', '46']) {
-        expect(find.text(value), findsOneWidget);
+        expect(find.text(value), findsNothing);
       }
       expect(
         find.byKey(const ValueKey('player-attribute-overall')),
-        findsOneWidget,
+        findsNothing,
       );
-      expect(find.text('${_outfield().overall}'), findsOneWidget);
       expect(find.text('Pathway'), findsNothing);
     });
 
-    testWidgets('uses the goalkeeper-specific six on the legacy side', (
+    testWidgets('shows the latest position-aware outfield assessment', (
       tester,
     ) async {
-      await _pump(tester, _goalkeeper());
+      await _pump(tester, _outfieldWithStats());
 
       await tester.tap(find.byType(PlayerCard));
       await tester.pumpAndSettle();
 
-      expect(find.text('GOALKEEPER ATTRIBUTES · 0–99'), findsOneWidget);
+      expect(find.text('PLAYER STATS · OVR 80'), findsOneWidget);
+      for (final code in ['PAC', 'SHO', 'DRI', 'OFF', 'PAS', 'PHY']) {
+        expect(find.text(code), findsOneWidget);
+      }
+      for (final value in ['88', '84', '81', '79', '76', '74']) {
+        expect(find.text(value), findsOneWidget);
+      }
+      final overall = tester.widget<Text>(
+        find.byKey(const ValueKey('player-attribute-overall')),
+      );
+      expect(overall.data, '80');
+    });
+
+    testWidgets('uses the latest goalkeeper Player Stats catalog', (
+      tester,
+    ) async {
+      await _pump(tester, _goalkeeperWithStats());
+
+      await tester.tap(find.byType(PlayerCard));
+      await tester.pumpAndSettle();
+
+      expect(find.text('PLAYER STATS · OVR 82'), findsOneWidget);
       for (final code in ['DIV', 'HAN', 'KIC', 'REF', 'SPD', 'POS']) {
         expect(find.text(code), findsOneWidget);
       }
-      for (final value in ['88', '85', '70', '92', '62', '86']) {
+      for (final value in ['89', '86', '72', '93', '64', '87']) {
         expect(find.text(value), findsOneWidget);
       }
       for (final code in ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']) {
         expect(find.text(code), findsNothing);
       }
-      expect(
+      final overall = tester.widget<Text>(
         find.byKey(const ValueKey('player-attribute-overall')),
-        findsOneWidget,
       );
-      expect(find.text('${_goalkeeper().overall}'), findsOneWidget);
+      expect(overall.data, '82');
     });
 
     testWidgets(

@@ -41,6 +41,7 @@ from academy.player_stats import (
     catalog_for,
     overall,
     role_group_for,
+    with_latest_player_stats,
 )
 from academy.player_unlock import (
     issue_player_unlock,
@@ -75,7 +76,9 @@ class SquadListView(APIView):
     def get(self, request):
         if request.user.role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN):
             raise PermissionDenied('Only coaches and coordinators can view the squad.')
-        profiles = PlayerProfile.objects.select_related('user').filter(user__is_active=True)
+        profiles = with_latest_player_stats(
+            PlayerProfile.objects.select_related('user', 'user__club').filter(user__is_active=True)
+        )
         # Club staff see only their own roster; Admin sees every club.
         if request.user.role in (Roles.COACH, Roles.COORDINATOR):
             if request.user.club_id is None:

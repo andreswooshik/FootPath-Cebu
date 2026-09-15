@@ -95,20 +95,54 @@ class PlayerStatsApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['latestCompatibleStats']['overall'], 83)
 
-    def test_player_payload_exposes_latest_compatible_stats_for_the_card(self):
+    def test_squad_embeds_latest_compatible_stats(self):
+        older = {**self.scores, 'pace': 70}
+        self._assessment(older)
+        latest = self._assessment(self.scores)
+        self.client.force_authenticate(self.coach)
+
+        with self.assertNumQueries(1):
+            response = self.client.get(reverse('players-list'))
+
+        self.assertEqual(response.status_code, 200)
+        embedded = response.data[0]['latestPlayerStats']
+        self.assertEqual(embedded['catalog']['roleGroup'], 'MIDFIELDER')
+        self.assertEqual(embedded['catalog']['attributes'][3], 'Vision')
+        self.assertEqual(embedded['assessment']['id'], str(latest.id))
+        self.assertEqual(embedded['assessment']['scores'], self.scores)
+        self.assertEqual(embedded['assessment']['overall'], 83)
+        compatibility = response.data[0]['currentPlayerStats']
+        self.assertEqual(compatibility['roleGroup'], 'MIDFIELDER')
+        self.assertEqual(compatibility['attributes'][3], 'Vision')
+        self.assertEqual(compatibility['scores'], self.scores)
+        self.assertEqual(compatibility['overall'], 83)
+
+    def test_squad_ignores_stats_from_an_incompatible_position_group(self):
         self._assessment(self.scores)
+        profile = self.player.player_profile
+        profile.position = 'ST'
+        profile.save(update_fields=['position'])
         self.client.force_authenticate(self.coach)
 
         response = self.client.get(reverse('players-list'))
 
-        current = response.data[0]['currentPlayerStats']
-        self.assertEqual(current['roleGroup'], 'MIDFIELDER')
-        self.assertEqual(
-            current['attributes'],
-            ['Pace', 'Passing', 'Dribbling', 'Vision', 'Defending', 'Physical'],
-        )
-        self.assertEqual(current['scores'], self.scores)
-        self.assertEqual(current['overall'], 83)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data[0]['latestPlayerStats'])
+        self.assertIsNone(response.data[0]['currentPlayerStats'])
+
+    def test_squad_keeps_stats_when_position_changes_within_the_same_group(self):
+        latest = self._assessment(self.scores)
+        profile = self.player.player_profile
+        profile.position = 'CAM'
+        profile.save(update_fields=['position'])
+        self.client.force_authenticate(self.coach)
+
+        response = self.client.get(reverse('players-list'))
+
+        embedded = response.data[0]['latestPlayerStats']
+        self.assertEqual(embedded['catalog']['position'], 'CAM')
+        self.assertEqual(embedded['catalog']['roleGroup'], 'MIDFIELDER')
+        self.assertEqual(embedded['assessment']['id'], str(latest.id))
 
     def test_get_compares_latest_to_immediately_previous_compatible_record(self):
         self._assessment(self.scores)

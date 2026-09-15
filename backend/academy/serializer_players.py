@@ -19,7 +19,7 @@ from .models import (
     PlayerProfile,
     PlayerStatsAssessment,
 )
-from .player_stats import CATALOG_VERSION, catalog_for, normalized_scores
+from .player_stats import CATALOG_VERSION, catalog_for, normalized_scores, role_group_for
 from .storage import signed_photo_url
 
 
@@ -47,6 +47,7 @@ class PlayerSerializer(serializers.ModelSerializer):
     academicEligibilityApplicable = serializers.SerializerMethodField()
     developmentAssessment = serializers.SerializerMethodField()
     currentPlayerStats = serializers.SerializerMethodField()
+    latestPlayerStats = serializers.SerializerMethodField()
 
     class Meta:
         model = PlayerProfile
@@ -64,6 +65,7 @@ class PlayerSerializer(serializers.ModelSerializer):
             'coachNotes',
             'developmentAssessment',
             'currentPlayerStats',
+            'latestPlayerStats',
         ]
 
     def get_name(self, obj):
@@ -108,31 +110,67 @@ class PlayerSerializer(serializers.ModelSerializer):
         }
 
     def get_currentPlayerStats(self, obj):
-        try:
-            group, attributes = catalog_for(obj.position)
-        except DjangoValidationError:
-            return None
-        latest = (
-            PlayerStatsAssessment.objects.filter(
-                player_id=obj.user_id,
-                role_group=group,
-                catalog_version=CATALOG_VERSION,
-            )
-            .order_by('-created_at', '-id')
-            .first()
-        )
+        latest = self.get_latestPlayerStats(obj)
         if latest is None:
             return None
+        catalog = latest['catalog']
+        assessment = latest['assessment']
         return {
-            'catalogVersion': latest.catalog_version,
-            'position': latest.position,
-            'roleGroup': latest.role_group,
-            'attributes': attributes,
-            'scores': latest.scores,
-            'overall': latest.overall,
-            'assessedAt': serializers.DateTimeField().to_representation(
-                latest.created_at
-            ),
+            'catalogVersion': assessment['catalogVersion'],
+            'position': catalog['position'],
+            'roleGroup': catalog['roleGroup'],
+            'attributes': catalog['attributes'],
+            'scores': assessment['scores'],
+            'overall': assessment['overall'],
+            'assessedAt': assessment['createdAt'],
+        }
+
+    def get_latestPlayerStats(self, obj):
+        try:
+            group, attributes = catalog_for(obj.position, CATALOG_VERSION)
+        except DjangoValidationError:
+            return None
+
+        if hasattr(obj, '_latest_player_stats_id'):
+            if obj._latest_player_stats_id is None:
+                return None
+            assessment = {
+                'id': str(obj._latest_player_stats_id),
+                'playerId': str(obj.user_id),
+                'assessedBy': None,
+                'position': obj._latest_player_stats_position,
+                'roleGroup': obj._latest_player_stats_role_group,
+                'catalogVersion': obj._latest_player_stats_catalog_version,
+                'scores': obj._latest_player_stats_scores,
+                'overall': obj._latest_player_stats_overall,
+                'reason': obj._latest_player_stats_reason,
+                'coachNotes': obj._latest_player_stats_coach_notes,
+                'createdAt': serializers.DateTimeField().to_representation(
+                    obj._latest_player_stats_created_at
+                ),
+            }
+        else:
+            latest = (
+                PlayerStatsAssessment.objects.select_related('assessed_by')
+                .filter(
+                    player_id=obj.user_id,
+                    role_group=role_group_for(obj.position),
+                    catalog_version=CATALOG_VERSION,
+                )
+                .first()
+            )
+            if latest is None:
+                return None
+            assessment = PlayerStatsAssessmentSerializer(latest).data
+
+        return {
+            'catalog': {
+                'version': CATALOG_VERSION,
+                'position': obj.position,
+                'roleGroup': group,
+                'attributes': attributes,
+            },
+            'assessment': assessment,
         }
 
 

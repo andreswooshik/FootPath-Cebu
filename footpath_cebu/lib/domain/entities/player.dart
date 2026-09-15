@@ -156,6 +156,7 @@ class Player {
     this.coachNotes = '',
     this.developmentAssessment,
     this.currentPlayerStats,
+    this.latestPlayerStats,
   });
 
   final String id;
@@ -197,8 +198,17 @@ class Player {
   final CurrentDevelopmentAssessment? developmentAssessment;
 
   /// Latest position-compatible 0-99 Player Stats assessment shown on the
-  /// Attributes face of the player card.
+  /// Attributes face by clients using the original compact wire shape.
   final CurrentPlayerStats? currentPlayerStats;
+
+  /// Latest position-compatible 0-99 card attributes. Null means the player
+  /// needs a baseline assessment for their current position group.
+  final LatestPlayerStats? latestPlayerStats;
+
+  /// Prefer the richer nested contract while remaining compatible with the
+  /// compact field already released on main.
+  LatestPlayerStats? get effectivePlayerStats =>
+      latestPlayerStats ?? currentPlayerStats?.asLatestPlayerStats;
 
   /// The position-aware overall retained for read-only legacy history.
   ///
@@ -224,6 +234,7 @@ class Player {
     String? coachNotes,
     CurrentDevelopmentAssessment? developmentAssessment,
     CurrentPlayerStats? currentPlayerStats,
+    LatestPlayerStats? latestPlayerStats,
   }) {
     return Player(
       id: id,
@@ -240,6 +251,7 @@ class Player {
       developmentAssessment:
           developmentAssessment ?? this.developmentAssessment,
       currentPlayerStats: currentPlayerStats ?? this.currentPlayerStats,
+      latestPlayerStats: latestPlayerStats ?? this.latestPlayerStats,
     );
   }
 
@@ -269,7 +281,12 @@ class Player {
           : null,
       currentPlayerStats: json['currentPlayerStats'] is Map<String, dynamic>
           ? CurrentPlayerStats.fromJson(
-              json['currentPlayerStats'] as Map<String, dynamic>,
+              Map<String, dynamic>.from(json['currentPlayerStats'] as Map),
+            )
+          : null,
+      latestPlayerStats: json['latestPlayerStats'] is Map
+          ? LatestPlayerStats.fromJson(
+              Map<String, dynamic>.from(json['latestPlayerStats'] as Map),
             )
           : null,
     );
@@ -298,5 +315,6 @@ class Player {
             'assessedAt': developmentAssessment!.assessedAt?.toIso8601String(),
           },
     'currentPlayerStats': currentPlayerStats?.toJson(),
+    'latestPlayerStats': latestPlayerStats?.toJson(),
   };
 }
