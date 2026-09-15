@@ -188,6 +188,20 @@ class InjuryStatus(models.TextChoices):
     RECOVERED = 'RECOVERED', 'Recovered'
 
 
+class InjuryType(models.TextChoices):
+    MUSCLE = 'MUSCLE', 'Muscle'
+    JOINT_LIGAMENT = 'JOINT_LIGAMENT', 'Joint / ligament'
+    BONE = 'BONE', 'Bone'
+    HEAD_FACE = 'HEAD_FACE', 'Head / face'
+    OTHER = 'OTHER', 'Other'
+
+
+class InjurySeverity(models.TextChoices):
+    MINOR = 'MINOR', 'Minor'
+    MODERATE = 'MODERATE', 'Moderate'
+    SEVERE = 'SEVERE', 'Severe'
+
+
 class InjuryReportStatus(models.TextChoices):
     PENDING = 'PENDING', 'Pending confirmation'
     CONFIRMED = 'CONFIRMED', 'Confirmed'
@@ -216,6 +230,12 @@ class InjuryRecord(models.Model):
         limit_choices_to={'role': Roles.PLAYER},
     )
     description = models.CharField(max_length=200)
+    injury_type = models.CharField(
+        max_length=20, choices=InjuryType.choices, default=InjuryType.OTHER
+    )
+    severity = models.CharField(
+        max_length=20, choices=InjurySeverity.choices, default=InjurySeverity.MODERATE
+    )
     body_part = models.CharField(max_length=80, blank=True)
     status = models.CharField(
         max_length=20, choices=InjuryStatus.choices, default=InjuryStatus.ACTIVE

@@ -59,11 +59,22 @@ void main() {
     await tester.tap(find.text('Report Injury'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Type'), findsOneWidget);
+    expect(find.text('Severity'), findsOneWidget);
+    expect(find.text('Notes'), findsOneWidget);
+    expect(find.text('Submit'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Description *'),
+      find.widgetWithText(TextField, 'What happened? *'),
       'Hamstring strain',
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Submit Report'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Review and submit'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Submit report'));
     await tester.pumpAndSettle();
 
     expect(
@@ -79,12 +90,19 @@ void main() {
 
     await tester.tap(find.text('Report Injury'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Submit Report'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
     await tester.pumpAndSettle();
 
-    expect(find.text('A description is required.'), findsOneWidget);
+    expect(
+      find.text('Describe what happened before continuing.'),
+      findsOneWidget,
+    );
     // The sheet stayed open — nothing was saved.
-    expect(find.widgetWithText(FilledButton, 'Submit Report'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Continue'), findsOneWidget);
   });
 
   testWidgets('confirmed injuries use the recovery approval workflow', (

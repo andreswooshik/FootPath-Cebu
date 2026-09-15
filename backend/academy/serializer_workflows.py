@@ -101,6 +101,15 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
     # before assigning the subject player from the authenticated role.
     playerId = serializers.CharField(source='player.id', read_only=True)
     playerName = serializers.SerializerMethodField()
+    injuryType = serializers.ChoiceField(
+        source='injury_type',
+        choices=InjuryRecord._meta.get_field('injury_type').choices,
+        required=False,
+    )
+    severity = serializers.ChoiceField(
+        choices=InjuryRecord._meta.get_field('severity').choices,
+        required=False,
+    )
     bodyPart = serializers.CharField(
         source='body_part',
         required=False,
@@ -147,6 +156,8 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
             'playerId',
             'playerName',
             'description',
+            'injuryType',
+            'severity',
             'bodyPart',
             'status',
             'occurredOn',

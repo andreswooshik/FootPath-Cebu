@@ -21,6 +21,8 @@ void main() {
         'id': '7',
         'playerId': '12',
         'description': 'Sprained ankle',
+        'injuryType': 'JOINT_LIGAMENT',
+        'severity': 'SEVERE',
         'bodyPart': 'Left ankle',
         'status': 'RECOVERING',
         'occurredOn': '2026-07-01',
@@ -48,6 +50,8 @@ void main() {
       expect(record.id, '7');
       expect(record.playerId, '12');
       expect(record.description, 'Sprained ankle');
+      expect(record.injuryType, InjuryType.jointLigament);
+      expect(record.severity, InjurySeverity.severe);
       expect(record.bodyPart, 'Left ankle');
       expect(record.status, InjuryStatus.recovering);
       expect(record.occurredOn, DateTime(2026, 7, 1));
@@ -83,6 +87,8 @@ void main() {
         id: '7',
         playerId: '12',
         description: 'Sprained ankle',
+        injuryType: InjuryType.muscle,
+        severity: InjurySeverity.minor,
         status: InjuryStatus.active,
         occurredOn: DateTime(2026, 7, 1),
         resolvedOn: DateTime(2026, 7, 15),
@@ -92,6 +98,8 @@ void main() {
       expect(json['occurredOn'], '2026-07-01');
       expect(json['resolvedOn'], '2026-07-15');
       expect(json['status'], 'ACTIVE');
+      expect(json['injuryType'], 'MUSCLE');
+      expect(json['severity'], 'MINOR');
       expect(json['bodyPart'], '');
       expect(json['notes'], '');
       expect(json.containsKey('id'), isFalse);

@@ -2,9 +2,60 @@
 /// strings and invalid states are unrepresentable.
 enum InjuryStatus { active, recovering, recovered }
 
+enum InjuryType { muscle, jointLigament, bone, headFace, other }
+
+enum InjurySeverity { minor, moderate, severe }
+
 enum InjuryReportStatus { pending, confirmed, rejected, archived }
 
 enum InjuryUpdateReviewStatus { pending, approved, rejected }
+
+extension InjuryTypeWire on InjuryType {
+  String get wire => switch (this) {
+    InjuryType.jointLigament => 'JOINT_LIGAMENT',
+    InjuryType.headFace => 'HEAD_FACE',
+    _ => name.toUpperCase(),
+  };
+
+  String get label => switch (this) {
+    InjuryType.muscle => 'Muscle',
+    InjuryType.jointLigament => 'Joint / ligament',
+    InjuryType.bone => 'Bone',
+    InjuryType.headFace => 'Head / face',
+    InjuryType.other => 'Other',
+  };
+
+  static InjuryType fromWire(String? value) => switch (value?.toUpperCase()) {
+    'MUSCLE' => InjuryType.muscle,
+    'JOINT_LIGAMENT' => InjuryType.jointLigament,
+    'BONE' => InjuryType.bone,
+    'HEAD_FACE' => InjuryType.headFace,
+    _ => InjuryType.other,
+  };
+}
+
+extension InjurySeverityWire on InjurySeverity {
+  String get wire => name.toUpperCase();
+
+  String get label => switch (this) {
+    InjurySeverity.minor => 'Minor',
+    InjurySeverity.moderate => 'Moderate',
+    InjurySeverity.severe => 'Severe',
+  };
+
+  String get guidance => switch (this) {
+    InjurySeverity.minor => 'Discomfort with little impact on normal movement',
+    InjurySeverity.moderate => 'Limits training or requires modified activity',
+    InjurySeverity.severe => 'Unable to continue or needs urgent assessment',
+  };
+
+  static InjurySeverity fromWire(String? value) =>
+      switch (value?.toUpperCase()) {
+        'MINOR' => InjurySeverity.minor,
+        'SEVERE' => InjurySeverity.severe,
+        _ => InjurySeverity.moderate,
+      };
+}
 
 extension InjuryStatusWire on InjuryStatus {
   /// Uppercase wire format used by the backend (ACTIVE/RECOVERING/RECOVERED).
@@ -156,6 +207,8 @@ class InjuryRecord {
     required this.description,
     required this.status,
     required this.occurredOn,
+    this.injuryType = InjuryType.other,
+    this.severity = InjurySeverity.moderate,
     this.bodyPart,
     this.resolvedOn,
     this.notes,
@@ -183,6 +236,8 @@ class InjuryRecord {
 
   /// What happened, e.g. "Sprained ankle".
   final String description;
+  final InjuryType injuryType;
+  final InjurySeverity severity;
   final InjuryStatus status;
 
   /// The day of the injury (date-only on the wire: yyyy-MM-dd).
@@ -213,6 +268,8 @@ class InjuryRecord {
 
   InjuryRecord copyWith({
     String? description,
+    InjuryType? injuryType,
+    InjurySeverity? severity,
     InjuryStatus? status,
     DateTime? occurredOn,
     String? bodyPart,
@@ -226,6 +283,8 @@ class InjuryRecord {
       id: id,
       playerId: playerId,
       description: description ?? this.description,
+      injuryType: injuryType ?? this.injuryType,
+      severity: severity ?? this.severity,
       status: status ?? this.status,
       occurredOn: occurredOn ?? this.occurredOn,
       bodyPart: clearBodyPart ? null : (bodyPart ?? this.bodyPart),
@@ -255,6 +314,8 @@ class InjuryRecord {
       playerId: json['playerId'] as String,
       playerName: json['playerName'] as String? ?? '',
       description: json['description'] as String,
+      injuryType: InjuryTypeWire.fromWire(json['injuryType'] as String?),
+      severity: InjurySeverityWire.fromWire(json['severity'] as String?),
       status: InjuryStatusWire.fromWire(json['status'] as String),
       occurredOn: DateTime.parse(json['occurredOn'] as String),
       bodyPart: _blankAsNull(json['bodyPart'] as String?),
@@ -298,6 +359,8 @@ class InjuryRecord {
   Map<String, dynamic> toJson() => {
     'playerId': playerId,
     'description': description,
+    'injuryType': injuryType.wire,
+    'severity': severity.wire,
     'status': status.wire,
     'occurredOn': _dateOnly(occurredOn),
     'bodyPart': bodyPart ?? '',

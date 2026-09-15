@@ -1464,6 +1464,8 @@ class InjuryRecordTests(APITestCase):
     def _payload(self):
         return {
             'description': 'Hamstring strain',
+            'injuryType': 'MUSCLE',
+            'severity': 'MODERATE',
             'bodyPart': 'Right hamstring',
             'status': 'ACTIVE',
             'occurredOn': '2026-07-10',
@@ -1475,6 +1477,8 @@ class InjuryRecordTests(APITestCase):
         resp = self.client.post(reverse('injuries'), self._payload(), format='json')
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data['playerId'], str(self.player.id))
+        self.assertEqual(resp.data['injuryType'], 'MUSCLE')
+        self.assertEqual(resp.data['severity'], 'MODERATE')
         self.assertEqual(InjuryRecord.objects.filter(player=self.player).count(), 2)
 
     def test_player_lists_own_records_only(self):
@@ -1580,6 +1584,8 @@ class InjuryRecordTests(APITestCase):
                 'playerId',
                 'playerName',
                 'description',
+                'injuryType',
+                'severity',
                 'bodyPart',
                 'status',
                 'occurredOn',
