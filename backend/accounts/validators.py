@@ -12,6 +12,7 @@ from config.upload_security import (
 )
 
 COACH_LICENSE_MAX_BYTES = MAX_UPLOAD_BYTES
+MOBILE_COACH_LICENSE_MAX_BYTES = 50 * 1024 * 1024
 COACH_LICENSE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.pdf'}
 COACH_LICENSE_CONTENT_TYPES = {
     'image/jpeg',
@@ -20,8 +21,8 @@ COACH_LICENSE_CONTENT_TYPES = {
 }
 
 
-def validate_coach_license_upload(upload):
-    """Accept only fully parsed JPG, PNG, or passive PDF files up to 5 MB.
+def validate_coach_license_upload(upload, *, max_bytes=COACH_LICENSE_MAX_BYTES):
+    """Accept a fully parsed JPG, PNG, or passive PDF under the given cap.
 
     Extension and browser-provided MIME type are not sufficient security
     checks, so the full document is decoded and inspected. Existing committed
@@ -39,10 +40,11 @@ def validate_coach_license_upload(upload):
         raise ValidationError('Unsupported file type. Use JPG, PNG or PDF.')
 
     try:
-        content = read_limited_upload(upload)
+        content = read_limited_upload(upload, max_bytes=max_bytes)
         sanitize_document(
             content,
             content_type or _content_type_from_extension(extension),
+            max_bytes=max_bytes,
         )
     except ValueError as exc:
         raise ValidationError(str(exc)) from exc
@@ -57,12 +59,16 @@ def _content_type_from_extension(extension):
     }[extension]
 
 
-def sanitized_coach_license(upload):
+def sanitized_coach_license(upload, *, max_bytes=COACH_LICENSE_MAX_BYTES):
     """Return a metadata-free upload after the field validator has accepted it."""
     extension = os.path.splitext(getattr(upload, 'name', ''))[1].lower()
     content_type = getattr(upload, 'content_type', None) or _content_type_from_extension(extension)
     try:
-        content = sanitize_document(read_limited_upload(upload), content_type)
+        content = sanitize_document(
+            read_limited_upload(upload, max_bytes=max_bytes),
+            content_type,
+            max_bytes=max_bytes,
+        )
     except ValueError as exc:
         raise ValidationError(str(exc)) from exc
     return SimpleUploadedFile(

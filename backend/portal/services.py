@@ -34,6 +34,12 @@ def _unique_club_slug(name):
     return slug
 
 
+def split_coordinator_name(full_name):
+    """Map the portal's single coordinator-name value onto the User fields."""
+    parts = full_name.strip().split(None, 1)
+    return parts[0], (parts[1] if len(parts) > 1 else '')
+
+
 @transaction.atomic
 def register_coordinator(
     *,

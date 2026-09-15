@@ -53,6 +53,7 @@ from .services import (
     register_coordinator,
     respond_to_dispute,
     set_player_eligibility,
+    split_coordinator_name,
     staff_dispute_queryset,
     unlink_guardian,
 )
@@ -63,12 +64,6 @@ _ACCOUNT_FORMS = {
     'staff': CreateStaffForm,
     'guardian': CreateGuardianForm,
 }
-
-
-def _split_name(full_name):
-    """Split a full name into the User model's first and last name fields."""
-    parts = full_name.strip().split(None, 1)
-    return parts[0], (parts[1] if len(parts) > 1 else '')
 
 
 def signup(request):
@@ -91,7 +86,7 @@ def signup(request):
         form = CoordinatorSignupForm(request.POST, request.FILES)
         if form.is_valid():
             data = form.cleaned_data
-            first_name, last_name = _split_name(data['coordinator_name'])
+            first_name, last_name = split_coordinator_name(data['coordinator_name'])
             register_coordinator(
                 first_name=first_name,
                 last_name=last_name,

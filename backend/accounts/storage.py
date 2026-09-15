@@ -1,6 +1,6 @@
 """Private Supabase Storage backend for club coach-license documents.
 
-The browser submits the document to Django. Django alone holds the Supabase
+The portal or mobile client submits the document to Django. Django alone holds the Supabase
 secret key, stores the object in a private bucket, and exposes short-lived
 signed URLs to authorized admin users through Django's FileField integration.
 """
@@ -35,10 +35,12 @@ class SupabaseCoachLicenseStorage(Storage):
         bucket_env='SUPABASE_LICENSE_BUCKET',
         default_bucket='coach-licenses',
         timeout=15.0,
+        upload_timeout=120.0,
     ):
         self.bucket_env = bucket_env
         self.default_bucket = default_bucket
         self.timeout = timeout
+        self.upload_timeout = upload_timeout
 
     def _config(self):
         return (
@@ -88,7 +90,7 @@ class SupabaseCoachLicenseStorage(Storage):
                 endpoint,
                 content=payload,
                 headers=headers,
-                timeout=self.timeout,
+                timeout=self.upload_timeout,
             )
             response.raise_for_status()
         except httpx.HTTPError as exc:

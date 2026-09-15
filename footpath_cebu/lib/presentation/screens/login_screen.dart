@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/presentation/providers/auth_controllers.dart';
+import 'package:footpath_cebu/presentation/screens/club_registration_screen.dart';
 import 'package:footpath_cebu/presentation/screens/home_screen.dart';
 
 /// UI-only view for login. All business logic is in [LoginController]; the
@@ -61,6 +62,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         SnackBar(content: Text('Password reset email sent to $email.')),
       );
     }
+  }
+
+  void _openClubRegistration() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const ClubRegistrationScreen()),
+    );
   }
 
   @override
@@ -172,9 +179,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             )
                           : const Text('Sign In'),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 28),
+                    Divider(color: Theme.of(context).dividerColor),
+                    const SizedBox(height: 8),
+                    const Text('New club?', textAlign: TextAlign.center),
+                    Center(
+                      child: TextButton.icon(
+                        key: const Key('register-club-link'),
+                        onPressed: state.isLoading
+                            ? null
+                            : _openClubRegistration,
+                        icon: const Icon(Icons.add_business_outlined),
+                        label: const Text('Register your club'),
+                      ),
+                    ),
                     Text(
-                      'Accounts are issued by the academy administrator.',
+                      'For new club coordinators only.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),

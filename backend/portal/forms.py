@@ -23,6 +23,7 @@ from academy.serializers import TournamentFixtureResultWriteSerializer
 from academy.storage import validate_tournament_document
 from accounts.models import Club, Roles, User
 from accounts.validators import (
+    COACH_LICENSE_MAX_BYTES,
     sanitized_coach_license,
     validate_coach_license_upload,
 )
@@ -76,8 +77,22 @@ class CoordinatorSignupForm(forms.Form):
     password1 = forms.CharField(widget=forms.PasswordInput, label='Password')
     password2 = forms.CharField(widget=forms.PasswordInput, label='Confirm password')
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        *args,
+        coach_license_max_bytes=COACH_LICENSE_MAX_BYTES,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
+        self.coach_license_max_bytes = coach_license_max_bytes
+        max_mb = coach_license_max_bytes // (1024 * 1024)
+        self.fields['coach_license'].help_text = f'JPG, PNG or PDF, max {max_mb} MB.'
+        self.fields['coach_license'].validators = [
+            lambda upload: validate_coach_license_upload(
+                upload,
+                max_bytes=coach_license_max_bytes,
+            )
+        ]
         self.fields['email'].widget.attrs['autocomplete'] = 'email'
         self.fields['coordinator_name'].widget.attrs['autocomplete'] = 'name'
         self.fields['password1'].widget.attrs['autocomplete'] = 'new-password'
@@ -92,7 +107,10 @@ class CoordinatorSignupForm(forms.Form):
         return email
 
     def clean_coach_license(self):
-        return sanitized_coach_license(self.cleaned_data['coach_license'])
+        return sanitized_coach_license(
+            self.cleaned_data['coach_license'],
+            max_bytes=self.coach_license_max_bytes,
+        )
 
     def clean_club_name(self):
         name = self.cleaned_data['club_name'].strip()

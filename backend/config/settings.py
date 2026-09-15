@@ -254,10 +254,11 @@ STORAGES = {
 
 # Uploaded files (coach licenses submitted at club registration). Kept out of
 # git (see .gitignore); in DEBUG they are served by config/urls.py. A hard size
-# cap is enforced in the signup form; this is a request-body backstop.
+# cap is enforced by each signup surface; this is a request-body backstop for
+# the mobile form's 50 MB coach-license allowance. The portal remains at 5 MB.
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
-DATA_UPLOAD_MAX_MEMORY_SIZE = 6 * 1024 * 1024  # 6 MB request-body backstop
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52 * 1024 * 1024
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -303,6 +304,7 @@ REST_FRAMEWORK = {
         'user': os.environ.get('API_USER_RATE', '1200/hour'),
         'pin': os.environ.get('API_PIN_RATE', '30/hour'),
         'uploads': os.environ.get('API_UPLOAD_RATE', '20/hour'),
+        'club_registration': os.environ.get('API_CLUB_REGISTRATION_RATE', '5/hour'),
         'account_admin': os.environ.get('API_ACCOUNT_ADMIN_RATE', '120/hour'),
     },
 }

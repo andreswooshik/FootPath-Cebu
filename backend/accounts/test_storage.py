@@ -43,6 +43,7 @@ class SupabaseCoachLicenseStorageTests(SimpleTestCase):
             post.call_args.kwargs['headers']['Content-Type'],
             'application/pdf',
         )
+        self.assertEqual(post.call_args.kwargs['timeout'], 120.0)
 
     @patch('accounts.storage.httpx.post')
     def test_url_is_a_short_lived_signed_link(self, post):

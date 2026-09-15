@@ -25,10 +25,15 @@ _DANGEROUS_PDF_MARKERS = (
 )
 
 
+def _upload_size_label(max_bytes):
+    megabytes = max_bytes / (1024 * 1024)
+    return f'{megabytes:g} MB'
+
+
 def read_limited_upload(upload, *, max_bytes=MAX_UPLOAD_BYTES):
     """Read an upload without trusting its caller-controlled size metadata."""
     if getattr(upload, 'size', 0) > max_bytes:
-        raise ValueError('The file must be 5 MB or smaller.')
+        raise ValueError(f'The file must be {_upload_size_label(max_bytes)} or smaller.')
     try:
         upload.seek(0)
         content = upload.read(max_bytes + 1)
@@ -36,13 +41,13 @@ def read_limited_upload(upload, *, max_bytes=MAX_UPLOAD_BYTES):
     except (AttributeError, OSError) as exc:
         raise ValueError('The uploaded file could not be read.') from exc
     if len(content) > max_bytes:
-        raise ValueError('The file must be 5 MB or smaller.')
+        raise ValueError(f'The file must be {_upload_size_label(max_bytes)} or smaller.')
     if not content:
         raise ValueError('The uploaded file is empty.')
     return content
 
 
-def sanitize_image(content, content_type):
+def sanitize_image(content, content_type, *, max_bytes=MAX_UPLOAD_BYTES):
     """Fully decode and re-encode one still image, stripping metadata/trailing data."""
     expected_format, output_format = _IMAGE_FORMATS.get(content_type, (None, None))
     if expected_format is None:
@@ -70,12 +75,14 @@ def sanitize_image(content, content_type):
     except (UnidentifiedImageError, OSError, SyntaxError) as exc:
         raise ValueError('The uploaded image is corrupt or unsafe.') from exc
     sanitized = output.getvalue()
-    if len(sanitized) > MAX_UPLOAD_BYTES:
-        raise ValueError('The processed image is larger than 5 MB.')
+    if len(sanitized) > max_bytes:
+        raise ValueError(
+            f'The processed image is larger than {_upload_size_label(max_bytes)}.'
+        )
     return sanitized
 
 
-def sanitize_pdf(content):
+def sanitize_pdf(content, *, max_bytes=MAX_UPLOAD_BYTES):
     """Parse and rewrite a passive PDF, rejecting scripts and embedded content."""
     if not content.startswith(b'%PDF-'):
         raise ValueError('The uploaded file does not match its PDF type.')
@@ -102,12 +109,14 @@ def sanitize_pdf(content):
     sanitized = output.getvalue()
     if not sanitized.startswith(b'%PDF-') or not reader.pages:
         raise ValueError('The uploaded PDF must contain at least one page.')
-    if len(sanitized) > MAX_UPLOAD_BYTES:
-        raise ValueError('The processed PDF is larger than 5 MB.')
+    if len(sanitized) > max_bytes:
+        raise ValueError(
+            f'The processed PDF is larger than {_upload_size_label(max_bytes)}.'
+        )
     return sanitized
 
 
-def sanitize_document(content, content_type):
+def sanitize_document(content, content_type, *, max_bytes=MAX_UPLOAD_BYTES):
     if content_type == 'application/pdf':
-        return sanitize_pdf(content)
-    return sanitize_image(content, content_type)
+        return sanitize_pdf(content, max_bytes=max_bytes)
+    return sanitize_image(content, content_type, max_bytes=max_bytes)
