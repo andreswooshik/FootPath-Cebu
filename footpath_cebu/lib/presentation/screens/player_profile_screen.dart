@@ -7,10 +7,12 @@ import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/coordinator_person.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/domain/entities/player_stats.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/player_photo_controller.dart';
 import 'package:footpath_cebu/presentation/providers/player_position_controller.dart';
+import 'package:footpath_cebu/presentation/providers/player_stats_providers.dart';
 import 'package:footpath_cebu/presentation/screens/edit_performance_data_screen.dart';
 import 'package:footpath_cebu/presentation/screens/coordinator_person_details_screen.dart';
 import 'package:footpath_cebu/presentation/screens/eligibility_history_screen.dart';
@@ -211,6 +213,12 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final stats = ref.watch(playerStatsProvider(_player.id)).value;
+    final cardPlayer = stats?.latest == null
+        ? _player
+        : _player.copyWith(
+            currentPlayerStats: CurrentPlayerStats.fromPlayerStats(stats!),
+          );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Player Profile'),
@@ -248,7 +256,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 300),
-              child: PlayerCard(player: _player),
+              child: PlayerCard(player: cardPlayer),
             ),
           ),
           if (widget.profile.isCoach) ...[

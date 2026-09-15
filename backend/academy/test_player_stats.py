@@ -95,6 +95,21 @@ class PlayerStatsApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['latestCompatibleStats']['overall'], 83)
 
+    def test_player_payload_exposes_latest_compatible_stats_for_the_card(self):
+        self._assessment(self.scores)
+        self.client.force_authenticate(self.coach)
+
+        response = self.client.get(reverse('players-list'))
+
+        current = response.data[0]['currentPlayerStats']
+        self.assertEqual(current['roleGroup'], 'MIDFIELDER')
+        self.assertEqual(
+            current['attributes'],
+            ['Pace', 'Passing', 'Dribbling', 'Vision', 'Defending', 'Physical'],
+        )
+        self.assertEqual(current['scores'], self.scores)
+        self.assertEqual(current['overall'], 83)
+
     def test_get_compares_latest_to_immediately_previous_compatible_record(self):
         self._assessment(self.scores)
         newer = {**self.scores, 'pace': 90, 'physical': 75}

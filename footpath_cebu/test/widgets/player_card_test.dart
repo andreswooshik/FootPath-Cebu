@@ -6,6 +6,7 @@ import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/domain/entities/player_stats.dart';
 import 'package:footpath_cebu/presentation/widgets/player_card.dart';
 
 Player _outfield() => const Player(
@@ -48,6 +49,32 @@ Player _goalkeeper() => const Player(
     reflexes: 92,
     speed: 62,
     positioning: 86,
+  ),
+);
+
+Player _statsAssessedGoalkeeper() => _goalkeeper().copyWith(
+  currentPlayerStats: CurrentPlayerStats(
+    catalogVersion: 1,
+    position: 'GK',
+    roleGroup: 'GOALKEEPER',
+    attributes: const [
+      'Diving',
+      'Handling',
+      'Kicking',
+      'Reflexes',
+      'Speed',
+      'Positioning',
+    ],
+    scores: const {
+      'diving': 79,
+      'handling': 76,
+      'kicking': 74,
+      'reflexes': 91,
+      'speed': 69,
+      'positioning': 84,
+    },
+    overall: 79,
+    assessedAt: DateTime(2026, 9, 16),
   ),
 );
 
@@ -270,6 +297,22 @@ void main() {
       }
       expect(find.text('${_goalkeeper().overall}'), findsNothing);
     });
+
+    testWidgets(
+      'uses the latest Player Stats assessment on the attributes side',
+      (tester) async {
+        await _pump(tester, _statsAssessedGoalkeeper());
+
+        await tester.tap(find.byType(PlayerCard));
+        await tester.pumpAndSettle();
+
+        for (final value in ['79', '76', '74', '91', '69', '84']) {
+          expect(find.text(value), findsOneWidget);
+        }
+        expect(find.text('88'), findsNothing);
+        expect(find.text('85'), findsNothing);
+      },
+    );
 
     testWidgets('shows five independent development domains without overall', (
       tester,

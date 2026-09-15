@@ -21,6 +21,66 @@ class PlayerStatsCatalog {
       );
 }
 
+class CurrentPlayerStats {
+  const CurrentPlayerStats({
+    required this.catalogVersion,
+    required this.position,
+    required this.roleGroup,
+    required this.attributes,
+    required this.scores,
+    required this.overall,
+    required this.assessedAt,
+  });
+
+  final int catalogVersion;
+  final String position;
+  final String roleGroup;
+  final List<String> attributes;
+  final Map<String, int> scores;
+  final int overall;
+  final DateTime assessedAt;
+
+  factory CurrentPlayerStats.fromJson(Map<String, dynamic> json) =>
+      CurrentPlayerStats(
+        catalogVersion: json['catalogVersion'] as int? ?? 1,
+        position: json['position'] as String? ?? '',
+        roleGroup: json['roleGroup'] as String? ?? '',
+        attributes: (json['attributes'] as List? ?? const [])
+            .map((value) => value.toString())
+            .toList(growable: false),
+        scores: (json['scores'] as Map<String, dynamic>? ?? const {}).map(
+          (key, value) => MapEntry(key, (value as num).toInt()),
+        ),
+        overall: (json['overall'] as num?)?.toInt() ?? 0,
+        assessedAt:
+            DateTime.tryParse(json['assessedAt'] as String? ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+      );
+
+  factory CurrentPlayerStats.fromPlayerStats(PlayerStats stats) {
+    final latest = stats.latest!;
+    return CurrentPlayerStats(
+      catalogVersion: latest.catalogVersion,
+      position: latest.position,
+      roleGroup: latest.roleGroup,
+      attributes: stats.catalog.attributes,
+      scores: latest.scores,
+      overall: latest.overall,
+      assessedAt: latest.createdAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'catalogVersion': catalogVersion,
+    'position': position,
+    'roleGroup': roleGroup,
+    'attributes': attributes,
+    'scores': scores,
+    'overall': overall,
+    'assessedAt': assessedAt.toIso8601String(),
+  };
+}
+
 class PlayerStatsAssessment {
   const PlayerStatsAssessment({
     required this.id,

@@ -19,7 +19,7 @@ from .models import (
     PlayerProfile,
     PlayerStatsAssessment,
 )
-from .player_stats import catalog_for, normalized_scores
+from .player_stats import CATALOG_VERSION, catalog_for, normalized_scores
 from .storage import signed_photo_url
 
 
@@ -46,6 +46,7 @@ class PlayerSerializer(serializers.ModelSerializer):
     coachNotes = serializers.CharField(source='coach_notes', read_only=True)
     academicEligibilityApplicable = serializers.SerializerMethodField()
     developmentAssessment = serializers.SerializerMethodField()
+    currentPlayerStats = serializers.SerializerMethodField()
 
     class Meta:
         model = PlayerProfile
@@ -62,6 +63,7 @@ class PlayerSerializer(serializers.ModelSerializer):
             'photoUrl',
             'coachNotes',
             'developmentAssessment',
+            'currentPlayerStats',
         ]
 
     def get_name(self, obj):
@@ -102,6 +104,34 @@ class PlayerSerializer(serializers.ModelSerializer):
             'developmentTargets': obj.development_targets,
             'assessedAt': serializers.DateTimeField().to_representation(
                 obj.development_assessed_at
+            ),
+        }
+
+    def get_currentPlayerStats(self, obj):
+        try:
+            group, attributes = catalog_for(obj.position)
+        except DjangoValidationError:
+            return None
+        latest = (
+            PlayerStatsAssessment.objects.filter(
+                player_id=obj.user_id,
+                role_group=group,
+                catalog_version=CATALOG_VERSION,
+            )
+            .order_by('-created_at', '-id')
+            .first()
+        )
+        if latest is None:
+            return None
+        return {
+            'catalogVersion': latest.catalog_version,
+            'position': latest.position,
+            'roleGroup': latest.role_group,
+            'attributes': attributes,
+            'scores': latest.scores,
+            'overall': latest.overall,
+            'assessedAt': serializers.DateTimeField().to_representation(
+                latest.created_at
             ),
         }
 

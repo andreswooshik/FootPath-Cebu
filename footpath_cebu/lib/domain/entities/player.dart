@@ -1,6 +1,7 @@
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/domain/entities/player_stats.dart';
 
 /// Academic eligibility, mirroring the backend enum. Never stores grades —
 /// only the gating status set by the Club Coordinator.
@@ -154,6 +155,7 @@ class Player {
     this.photoUrl,
     this.coachNotes = '',
     this.developmentAssessment,
+    this.currentPlayerStats,
   });
 
   final String id;
@@ -194,6 +196,10 @@ class Player {
   /// legacy 0-99 ratings are intentionally not converted into this value.
   final CurrentDevelopmentAssessment? developmentAssessment;
 
+  /// Latest position-compatible 0-99 Player Stats assessment shown on the
+  /// Attributes face of the player card.
+  final CurrentPlayerStats? currentPlayerStats;
+
   /// The position-aware overall retained for read-only legacy history.
   ///
   /// Goalkeepers are judged on the GK six (diving/handling/kicking/reflexes/
@@ -217,6 +223,7 @@ class Player {
     String? photoUrl,
     String? coachNotes,
     CurrentDevelopmentAssessment? developmentAssessment,
+    CurrentPlayerStats? currentPlayerStats,
   }) {
     return Player(
       id: id,
@@ -232,6 +239,7 @@ class Player {
       coachNotes: coachNotes ?? this.coachNotes,
       developmentAssessment:
           developmentAssessment ?? this.developmentAssessment,
+      currentPlayerStats: currentPlayerStats ?? this.currentPlayerStats,
     );
   }
 
@@ -259,6 +267,11 @@ class Player {
               json['developmentAssessment'] as Map<String, dynamic>,
             )
           : null,
+      currentPlayerStats: json['currentPlayerStats'] is Map<String, dynamic>
+          ? CurrentPlayerStats.fromJson(
+              json['currentPlayerStats'] as Map<String, dynamic>,
+            )
+          : null,
     );
   }
 
@@ -284,5 +297,6 @@ class Player {
             'developmentTargets': developmentAssessment!.developmentTargets,
             'assessedAt': developmentAssessment!.assessedAt?.toIso8601String(),
           },
+    'currentPlayerStats': currentPlayerStats?.toJson(),
   };
 }

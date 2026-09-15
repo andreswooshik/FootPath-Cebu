@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/domain/entities/player_stats.dart';
 
 void main() {
   group('PlayerRatings', () {
@@ -227,6 +228,44 @@ void main() {
       expect(restored.ratings.speed, player.ratings.speed);
       expect(restored.ratings.positioning, player.ratings.positioning);
       expect(restored.overall, player.overall);
+    });
+
+    test('current Player Stats round-trip for the card attributes face', () {
+      final player = Player(
+        id: 'stats-player',
+        name: 'Stats Player',
+        age: 16,
+        classYear: 'Class of 2026',
+        ageTier: AgeTier.pathway,
+        position: PlayerPosition.goalkeeper,
+        eligibility: EligibilityStatus.eligible,
+        ratings: const PlayerRatings(
+          pace: 0,
+          shooting: 0,
+          passing: 0,
+          dribbling: 0,
+          defending: 0,
+          physical: 0,
+        ),
+        currentPlayerStats: CurrentPlayerStats(
+          catalogVersion: 1,
+          position: 'GK',
+          roleGroup: 'GOALKEEPER',
+          attributes: const ['Diving', 'Handling'],
+          scores: const {'diving': 82, 'handling': 79},
+          overall: 81,
+          assessedAt: DateTime.utc(2026, 9, 16),
+        ),
+      );
+
+      final restored = Player.fromJson(player.toJson());
+
+      expect(restored.currentPlayerStats?.scores['diving'], 82);
+      expect(restored.currentPlayerStats?.roleGroup, 'GOALKEEPER');
+      expect(
+        restored.currentPlayerStats?.assessedAt,
+        DateTime.utc(2026, 9, 16),
+      );
     });
   });
 }

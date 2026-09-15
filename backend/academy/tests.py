@@ -135,6 +135,7 @@ class SquadEndpointTests(APITestCase):
                 'photoUrl',
                 'coachNotes',
                 'developmentAssessment',
+                'currentPlayerStats',
             },
         )
         self.assertEqual(
@@ -159,6 +160,7 @@ class SquadEndpointTests(APITestCase):
         self.assertIsInstance(row['id'], str)
         self.assertEqual(row['ageTier'], 'DEVELOPMENT')  # uppercase wire value
         self.assertIsNone(row['developmentAssessment'])
+        self.assertIsNone(row['currentPlayerStats'])
 
 
 class MyProfileTests(APITestCase):

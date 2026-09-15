@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:footpath_cebu/core/theme/app_motion.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
+import 'package:footpath_cebu/domain/entities/player_stats.dart';
 
 /// FUT-style player identity card using the five independent development
 /// domains. The frame is decorative; no combined overall score is calculated
@@ -251,6 +252,12 @@ class _LegacyAttributesFace extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final goalkeeper = player.position?.group == PositionGroup.goalkeeper;
+    final currentStats = player.currentPlayerStats;
+    final groupLabel = currentStats == null
+        ? goalkeeper
+              ? 'GOALKEEPER'
+              : 'OUTFIELD'
+        : _roleGroupLabel(currentStats.roleGroup);
     return _CardFrame(
       player: player,
       scale: scale,
@@ -265,9 +272,7 @@ class _LegacyAttributesFace extends StatelessWidget {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
-                goalkeeper
-                    ? 'GOALKEEPER ATTRIBUTES · 0–99'
-                    : 'OUTFIELD ATTRIBUTES · 0–99',
+                '$groupLabel ATTRIBUTES · 0–99',
                 maxLines: 1,
                 style: TextStyle(
                   color: PlayerCard._gold,
@@ -289,6 +294,7 @@ class _LegacyAttributesFace extends StatelessWidget {
           child: _LegacyAttributePanel(
             ratings: player.ratings,
             goalkeeper: goalkeeper,
+            currentStats: currentStats,
             scale: scale,
           ),
         ),
@@ -595,16 +601,18 @@ class _LegacyAttributePanel extends StatelessWidget {
   const _LegacyAttributePanel({
     required this.ratings,
     required this.goalkeeper,
+    required this.currentStats,
     required this.scale,
   });
 
   final PlayerRatings ratings;
   final bool goalkeeper;
+  final CurrentPlayerStats? currentStats;
   final double scale;
 
   @override
   Widget build(BuildContext context) {
-    final left = goalkeeper
+    final legacyLeft = goalkeeper
         ? [
             ('DIV', ratings.diving),
             ('HAN', ratings.handling),
@@ -615,7 +623,7 @@ class _LegacyAttributePanel extends StatelessWidget {
             ('SHO', ratings.shooting),
             ('PAS', ratings.passing),
           ];
-    final right = goalkeeper
+    final legacyRight = goalkeeper
         ? [
             ('REF', ratings.reflexes),
             ('SPD', ratings.speed),
@@ -626,6 +634,18 @@ class _LegacyAttributePanel extends StatelessWidget {
             ('DEF', ratings.defending),
             ('PHY', ratings.physical),
           ];
+    final assessed = currentStats == null
+        ? null
+        : [
+            for (final attribute in currentStats!.attributes)
+              (
+                _attributeCode(attribute),
+                currentStats!.scores[_scoreKey(attribute)] ?? 0,
+              ),
+          ];
+    final left = assessed?.take(3).toList(growable: false) ?? legacyLeft;
+    final right =
+        assessed?.skip(3).take(3).toList(growable: false) ?? legacyRight;
     return Row(
       children: [
         Expanded(
@@ -643,6 +663,41 @@ class _LegacyAttributePanel extends StatelessWidget {
     );
   }
 }
+
+String _scoreKey(String attribute) =>
+    attribute.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
+
+String _attributeCode(String attribute) => switch (attribute) {
+  'Diving' => 'DIV',
+  'Handling' => 'HAN',
+  'Kicking' => 'KIC',
+  'Reflexes' => 'REF',
+  'Speed' => 'SPD',
+  'Positioning' => 'POS',
+  'Pace' => 'PAC',
+  'Tackling' => 'TKL',
+  'Marking' => 'MAR',
+  'Passing' => 'PAS',
+  'Physical' => 'PHY',
+  'Dribbling' => 'DRI',
+  'Vision' => 'VIS',
+  'Shooting' => 'SHO',
+  'Off-ball Movement' => 'OBM',
+  _ =>
+    attribute
+        .replaceAll(RegExp(r'[^A-Za-z]'), '')
+        .toUpperCase()
+        .padRight(3)
+        .substring(0, 3),
+};
+
+String _roleGroupLabel(String roleGroup) => switch (roleGroup) {
+  'GOALKEEPER' => 'GOALKEEPER',
+  'DEFENDER' => 'DEFENDER',
+  'MIDFIELDER' => 'MIDFIELDER',
+  'ATTACKER' => 'ATTACKER',
+  _ => 'PLAYER',
+};
 
 class _LegacyAttributeColumn extends StatelessWidget {
   const _LegacyAttributeColumn({required this.values, required this.scale});
