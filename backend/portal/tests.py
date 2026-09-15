@@ -564,11 +564,15 @@ class ClubIsolationTests(TestCase):
         coord_a, club_a = make_coordinator(email='a@club.test', club_name='Club A')
         _coord_b, club_b = make_coordinator(email='b@club.test', club_name='Club B')
         make_player(club_a, 'in-a@club.test')
+        inactive, _profile = make_player(club_a, 'inactive@club.test')
+        inactive.is_active = False
+        inactive.save(update_fields=['is_active'])
         make_player(club_b, 'in-b@club.test')
 
         self.client.force_login(coord_a)
         resp = self.client.get(reverse('portal:players'))
         self.assertContains(resp, 'in-a@club.test')
+        self.assertNotContains(resp, 'inactive@club.test')
         self.assertNotContains(resp, 'in-b@club.test')
 
 
@@ -589,6 +593,21 @@ class DashboardUxTests(TestCase):
             role=Roles.GUARDIAN,
             club=club,
             firebase_uid='dashboard-guardian-uid',
+        )
+        inactive_player, _ = make_player(club, 'inactive-player@club.test')
+        inactive_player.is_active = False
+        inactive_player.save(update_fields=['is_active'])
+        User.objects.create(
+            username='inactive-coach@club.test',
+            role=Roles.COACH,
+            club=club,
+            is_active=False,
+        )
+        User.objects.create(
+            username='inactive-guardian@club.test',
+            role=Roles.GUARDIAN,
+            club=club,
+            is_active=False,
         )
         self.assertIsNone(profile.photo_path)
         self.client.force_login(coordinator)

@@ -864,6 +864,16 @@ class SquadProgressTests(APITestCase):
         row = next(r for r in resp.data if r['name'] == 'bench')
         self.assertEqual((row['present'], row['avgEffort']), (0, None))
 
+    def test_inactive_player_does_not_appear(self):
+        self.player.is_active = False
+        self.player.save(update_fields=['is_active'])
+        self.client.force_authenticate(self.coach)
+
+        resp = self.client.get(reverse('progress-squad'))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(str(self.player.id), [row['id'] for row in resp.data])
+
     def test_players_and_guardians_cannot_read(self):
         for role in (Roles.PLAYER, Roles.GUARDIAN):
             self.client.force_authenticate(make_user(role, f'{role}@x.test'))

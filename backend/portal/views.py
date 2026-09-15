@@ -117,8 +117,11 @@ def dashboard(request):
     club = request.user.club
 
     if request.user.role == Roles.COORDINATOR and club:
-        members = User.objects.filter(club=club)
-        profiles = PlayerProfile.objects.filter(user__club=club)
+        members = User.objects.filter(club=club, is_active=True)
+        profiles = PlayerProfile.objects.filter(
+            user__club=club,
+            user__is_active=True,
+        )
         context['dashboard_stats'] = {
             'players': members.filter(role=Roles.PLAYER).count(),
             'coaches': members.filter(role=Roles.COACH).count(),
@@ -234,7 +237,7 @@ def create_account(request):
 def players(request):
     roster = (
         PlayerProfile.objects.select_related('user')
-        .filter(user__club=request.user.club)
+        .filter(user__club=request.user.club, user__is_active=True)
         .order_by('user__last_name', 'user__first_name')
     )
     return render(request, 'portal/players.html', {'roster': roster})
@@ -248,6 +251,7 @@ def player_pin_reset(request, player_id):
         PlayerProfile.objects.select_related('user'),
         user_id=player_id,
         user__club=request.user.club,
+        user__is_active=True,
     )
     reset_pin(profile.user)
     AuditLog.record(
@@ -263,7 +267,11 @@ def player_pin_reset(request, player_id):
 @portal_role_required(Roles.COORDINATOR)
 def coaches(request):
     club = request.user.club
-    coach_list = User.objects.filter(club=club, role=Roles.COACH).order_by(
+    coach_list = User.objects.filter(
+        club=club,
+        role=Roles.COACH,
+        is_active=True,
+    ).order_by(
         'last_name', 'first_name'
     )
     # There is no per-coach roster assignment anywhere in the schema — club
@@ -272,7 +280,7 @@ def coaches(request):
     # subset; the template says so explicitly rather than implying otherwise.
     roster = (
         PlayerProfile.objects.select_related('user')
-        .filter(user__club=club)
+        .filter(user__club=club, user__is_active=True)
         .order_by('user__last_name', 'user__first_name')
     )
     return render(
@@ -308,7 +316,7 @@ def guardians(request):
         return redirect('portal:guardians')
 
     guardian_list = (
-        User.objects.filter(club=club, role=Roles.GUARDIAN)
+        User.objects.filter(club=club, role=Roles.GUARDIAN, is_active=True)
         .prefetch_related('guardian_links__player')
         .order_by('last_name', 'first_name')
     )
@@ -344,6 +352,7 @@ def player_photo(request, player_id):
         PlayerProfile.objects.select_related('user'),
         user_id=player_id,
         user__club=request.user.club,
+        user__is_active=True,
     )
     upload = request.FILES.get('photo')
     if upload is None:

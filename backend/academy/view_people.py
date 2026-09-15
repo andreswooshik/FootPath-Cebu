@@ -10,10 +10,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.firebase import ensure_initialized
-from accounts.models import FirebaseProvisioningCleanup, GuardianLink, Roles, User
+from accounts.models import FirebaseProvisioningCleanup, PlayerRegistration, Roles, User
 from accounts.permissions import IsCoordinator
 
 from academy.model_operations import AuditLog
+from academy.model_tournaments import TournamentSquadEntry
+from academy.storage import delete_photo, invalidate_signed_photo_url
 
 
 logger = logging.getLogger(__name__)
@@ -110,7 +112,7 @@ def _delete_firebase_identity(firebase_uid):
 
 
 class CoordinatorPersonDetailView(APIView):
-    """Read or safely retire one active person in the coordinator's club."""
+    """Read or delete one active person in the coordinator's club."""
 
     permission_classes = [IsCoordinator]
 
@@ -174,22 +176,34 @@ class CoordinatorPersonDetailView(APIView):
                         status=status.HTTP_409_CONFLICT,
                     )
 
-            # Player history is retained because registrations and tournament
-            # entries protect their user record. Removing only GuardianLink
-            # rows keeps the guardian and every sibling untouched.
-            if person.role == Roles.PLAYER:
-                GuardianLink.objects.filter(player=person).delete()
-
             firebase_uid = person.firebase_uid
-            person.is_active = False
-            person.firebase_uid = None
-            person.save(update_fields=['is_active', 'firebase_uid'])
+            person_id = str(person.pk)
+            person_role = person.role
+            profile = getattr(person, 'player_profile', None)
+            photo_path = profile.photo_path if profile is not None else None
+            if person.role == Roles.PLAYER:
+                # These two receipt/selection models intentionally use PROTECT.
+                # A Coordinator-requested permanent deletion removes them first;
+                # the User deletion then cascades through the player-owned
+                # profile, links, assessments, attendance, injuries, and stats.
+                PlayerRegistration.objects.filter(player=person).delete()
+                TournamentSquadEntry.objects.filter(player=person).delete()
+                person.delete()
+                detail = 'Player profile and all related records permanently deleted.'
+            else:
+                person.is_active = False
+                person.firebase_uid = None
+                person.save(update_fields=['is_active', 'firebase_uid'])
+                detail = 'Account access retired by club coordinator.'
             AuditLog.record(
                 request.user,
-                f'{person.role.lower()}.deleted',
-                target=str(person.pk),
-                detail='Account safely retired by club coordinator.',
+                f'{person_role.lower()}.deleted',
+                target=person_id,
+                detail=detail,
             )
 
         _delete_firebase_identity(firebase_uid)
+        if person_role == Roles.PLAYER and photo_path:
+            invalidate_signed_photo_url(photo_path)
+            delete_photo(photo_path)
         return Response(status=status.HTTP_204_NO_CONTENT)

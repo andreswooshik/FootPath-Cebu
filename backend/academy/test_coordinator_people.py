@@ -14,6 +14,12 @@ from accounts.models import (
     User,
 )
 from academy.models import AuditLog, PlayerProfile
+from academy.model_tournaments import (
+    TournamentAgeBracket,
+    TournamentSchedule,
+    TournamentSquad,
+    TournamentSquadEntry,
+)
 
 
 class CoordinatorPeopleTests(APITestCase):
@@ -123,7 +129,13 @@ class CoordinatorPeopleTests(APITestCase):
         self.assertEqual(self.client.get(self.url('players', self.player)).status_code, 403)
         self.assertEqual(self.client.delete(self.url('players', self.player)).status_code, 403)
 
-    def test_deleting_player_preserves_guardian_sibling_profile_and_receipt(self):
+    @patch('academy.view_people.delete_photo')
+    def test_deleting_player_removes_entire_profile_and_related_records(
+        self, delete_photo
+    ):
+        player_id = self.player.pk
+        self.player.player_profile.photo_path = 'player-photos/john.jpg'
+        self.player.player_profile.save(update_fields=['photo_path'])
         receipt = PlayerRegistration.objects.create(
             coordinator=self.coordinator,
             request_key=uuid4(),
@@ -132,24 +144,40 @@ class CoordinatorPeopleTests(APITestCase):
             guardian=self.guardian,
             guardian_created=False,
         )
+        schedule = TournamentSchedule.objects.create(
+            club=self.club,
+            title='Deletion Cup',
+        )
+        bracket = TournamentAgeBracket.objects.create(
+            schedule=schedule,
+            max_age=18,
+            academy_tiers=['DEVELOPMENT'],
+        )
+        squad = TournamentSquad.objects.create(bracket=bracket)
+        squad_entry = TournamentSquadEntry.objects.create(
+            squad=squad,
+            player=self.player,
+            added_by=self.coordinator,
+        )
         response = self.client.delete(self.url('players', self.player))
         self.assertEqual(response.status_code, 204, response.data)
 
-        self.player.refresh_from_db()
         self.guardian.refresh_from_db()
         self.sibling.refresh_from_db()
-        self.assertFalse(self.player.is_active)
+        self.assertFalse(User.objects.filter(pk=player_id).exists())
         self.assertTrue(self.guardian.is_active)
         self.assertTrue(self.sibling.is_active)
-        self.assertTrue(PlayerProfile.objects.filter(user=self.player).exists())
-        self.assertTrue(PlayerRegistration.objects.filter(pk=receipt.pk).exists())
-        self.assertFalse(GuardianLink.objects.filter(player=self.player).exists())
+        self.assertFalse(PlayerProfile.objects.filter(user_id=player_id).exists())
+        self.assertFalse(PlayerRegistration.objects.filter(pk=receipt.pk).exists())
+        self.assertFalse(TournamentSquadEntry.objects.filter(pk=squad_entry.pk).exists())
+        self.assertFalse(GuardianLink.objects.filter(player_id=player_id).exists())
+        delete_photo.assert_called_once_with('player-photos/john.jpg')
         self.assertTrue(
             GuardianLink.objects.filter(guardian=self.guardian, player=self.sibling).exists()
         )
         self.firebase_delete.assert_not_called()
         self.assertTrue(
-            AuditLog.objects.filter(action='player.deleted', target=str(self.player.pk)).exists()
+            AuditLog.objects.filter(action='player.deleted', target=str(player_id)).exists()
         )
 
     def test_deleting_last_player_does_not_delete_guardian(self):
