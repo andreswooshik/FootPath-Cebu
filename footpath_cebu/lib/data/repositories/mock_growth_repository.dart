@@ -6,12 +6,13 @@ class MockGrowthRepository implements GrowthRepository {
   Future<PlayerGrowth> fetchGrowth(GrowthQuery query) async {
     await Future<void>.delayed(const Duration(milliseconds: 250));
     final now = DateTime.now();
+    final player = _players[query.playerId] ?? _players['p1']!;
     return PlayerGrowth.fromJson({
       'playerId': query.playerId,
-      'playerName': 'Rhobert Ronaldo',
-      'position': 'ST',
+      'playerName': player.name,
+      'position': player.position,
       'assessments': {
-        'framework': _framework(),
+        'framework': _framework(player),
         'developmentSummary': {
           'sampleSize': 2,
           'latestAssessmentId': 'd2',
@@ -31,12 +32,21 @@ class MockGrowthRepository implements GrowthRepository {
           ],
         },
         'developmentHistory': [
-          _developmentAssessment('d2', now, 4, 'MONTHLY_REVIEW'),
+          _developmentAssessment(
+            'd2',
+            now,
+            4,
+            'MONTHLY_REVIEW',
+            query.playerId,
+            player,
+          ),
           _developmentAssessment(
             'd1',
             now.subtract(const Duration(days: 30)),
             3,
             'GENERAL_REVIEW',
+            query.playerId,
+            player,
           ),
         ],
         'summary': {
@@ -48,12 +58,14 @@ class MockGrowthRepository implements GrowthRepository {
           'classification': 'IMPROVING',
         },
         'history': [
-          _assessment('a2', now, 76, 'MONTHLY_REVIEW'),
+          _assessment('a2', now, 76, 'MONTHLY_REVIEW', query.playerId, player),
           _assessment(
             'a1',
             now.subtract(const Duration(days: 30)),
             72,
             'BASELINE',
+            query.playerId,
+            player,
           ),
         ],
       },
@@ -81,13 +93,69 @@ class MockGrowthRepository implements GrowthRepository {
             },
         ],
       },
-      'regularMatches': _regularMatches(now),
+      'regularMatches': _regularMatches(now, query.playerId, player),
       'tournaments': {
-        'groups': [_tournamentMatches(now)],
+        'groups': [_tournamentMatches(now, query.playerId, player)],
       },
     });
   }
 }
+
+typedef _MockGrowthPlayer = ({
+  String name,
+  String position,
+  String ageTier,
+  int age,
+});
+
+const _players = <String, _MockGrowthPlayer>{
+  'p1': (name: 'Rhobert Ronaldo', position: 'ST', ageTier: 'PATHWAY', age: 16),
+  'p2': (
+    name: 'Ralf Andre Messi',
+    position: 'CAM',
+    ageTier: 'DEVELOPMENT',
+    age: 15,
+  ),
+  'p3': (
+    name: 'Reiner Neymar',
+    position: 'LW',
+    ageTier: 'DEVELOPMENT',
+    age: 15,
+  ),
+  'p4': (name: 'Kevin De Bofill', position: 'CM', ageTier: 'PATHWAY', age: 17),
+  'p5': (
+    name: 'Virgil Van Cortez',
+    position: 'CB',
+    ageTier: 'PATHWAY',
+    age: 18,
+  ),
+  'p6': (
+    name: 'Trent Alexander Cruz',
+    position: 'RB',
+    ageTier: 'DEVELOPMENT',
+    age: 14,
+  ),
+  'p7': (
+    name: 'Gianluigi Dela Cruz',
+    position: 'GK',
+    ageTier: 'PATHWAY',
+    age: 16,
+  ),
+  'p8': (name: 'Jude Belino', position: 'CM', ageTier: 'DEVELOPMENT', age: 13),
+  'p9': (
+    name: 'Lamine Yamashita',
+    position: 'RW',
+    ageTier: 'FOUNDATION',
+    age: 11,
+  ),
+  'p10': (
+    name: 'Pedri Villanueva',
+    position: '',
+    ageTier: 'FOUNDATION',
+    age: 12,
+  ),
+  'p11': (name: 'Liam Tan', position: 'GK', ageTier: 'FOUNDATION', age: 11),
+};
 
 const _domainLabels = {
   'technical': 'Technical',
@@ -97,14 +165,14 @@ const _domainLabels = {
   'socialValues': 'Social / Values',
 };
 
-Map<String, dynamic> _framework() => {
+Map<String, dynamic> _framework(_MockGrowthPlayer player) => {
   'version': 1,
   'name': 'FootPath Development Framework',
   'methodology': 'Holistic player development.',
   'disclaimer': 'A FootPath framework.',
-  'ageTier': 'PATHWAY',
-  'position': 'ST',
-  'positionGroup': 'FORWARD',
+  'ageTier': player.ageTier,
+  'position': player.position,
+  'positionGroup': player.position == 'GK' ? 'GOALKEEPER' : 'OUTFIELD',
   'scale': const [],
   'domains': [
     for (final entry in _domainLabels.entries)
@@ -124,12 +192,14 @@ Map<String, dynamic> _developmentAssessment(
   DateTime date,
   int score,
   String reason,
+  String playerId,
+  _MockGrowthPlayer player,
 ) => {
   'id': id,
-  'playerId': 'p1',
-  'position': 'ST',
-  'ageTier': 'PATHWAY',
-  'ageAtAssessment': 16,
+  'playerId': playerId,
+  'position': player.position,
+  'ageTier': player.ageTier,
+  'ageAtAssessment': player.age,
   'frameworkVersion': 1,
   'ratings': {
     for (final key in _domainLabels.keys)
@@ -148,10 +218,12 @@ Map<String, dynamic> _assessment(
   DateTime date,
   int overall,
   String reason,
+  String playerId,
+  _MockGrowthPlayer player,
 ) => {
   'id': id,
-  'playerId': 'p1',
-  'position': 'ST',
+  'playerId': playerId,
+  'position': player.position,
   'ratings': {
     'pace': overall,
     'shooting': overall,
@@ -172,9 +244,15 @@ Map<String, dynamic> _assessment(
   'createdAt': date.toIso8601String(),
 };
 
-Map<String, dynamic> _regularMatches(DateTime now) {
+Map<String, dynamic> _regularMatches(
+  DateTime now,
+  String playerId,
+  _MockGrowthPlayer player,
+) {
   final latest = _matchPerformance(
-    id: 'perf-m1-p1',
+    id: 'perf-m1-$playerId',
+    playerId: playerId,
+    player: player,
     opponent: 'Cebu United',
     competition: 'Cebu Youth League',
     date: now.subtract(const Duration(days: 7)),
@@ -189,7 +267,9 @@ Map<String, dynamic> _regularMatches(DateTime now) {
     tackles: 1,
   );
   final previous = _matchPerformance(
-    id: 'perf-m2-p1',
+    id: 'perf-m2-$playerId',
+    playerId: playerId,
+    player: player,
     opponent: 'Mandaue FC',
     competition: 'Cebu Youth League',
     date: now.subtract(const Duration(days: 21)),
@@ -226,9 +306,15 @@ Map<String, dynamic> _regularMatches(DateTime now) {
   };
 }
 
-Map<String, dynamic> _tournamentMatches(DateTime now) {
+Map<String, dynamic> _tournamentMatches(
+  DateTime now,
+  String playerId,
+  _MockGrowthPlayer player,
+) {
   final performance = _matchPerformance(
-    id: 'perf-m3-p1',
+    id: 'perf-m3-$playerId',
+    playerId: playerId,
+    player: player,
     opponent: 'Lapu-Lapu Academy',
     competition: 'Cebu Youth Cup',
     date: now.subtract(const Duration(days: 35)),
@@ -255,7 +341,7 @@ Map<String, dynamic> _tournamentMatches(DateTime now) {
   return {
     'tournamentId': 'cup-1',
     'tournament': 'Cebu Youth Cup',
-    'ageBracketLabel': 'U18',
+    'ageBracketLabel': 'U14',
     'sampleSize': 1,
     'summary': summary,
     'teamRecord': {'wins': 0, 'draws': 0, 'losses': 1},
@@ -312,6 +398,8 @@ Map<String, dynamic> _matchSummary({
 
 Map<String, dynamic> _matchPerformance({
   required String id,
+  required String playerId,
+  required _MockGrowthPlayer player,
   required String opponent,
   required String competition,
   required DateTime date,
@@ -326,10 +414,10 @@ Map<String, dynamic> _matchPerformance({
   required int tackles,
 }) => {
   'id': id,
-  'playerId': 'p1',
-  'playerName': 'Rhobert Ronaldo',
+  'playerId': playerId,
+  'playerName': player.name,
   'match': {
-    'id': id.replaceFirst('perf-', '').replaceFirst('-p1', ''),
+    'id': id.replaceFirst('perf-', '').replaceFirst('-$playerId', ''),
     'opponent': opponent,
     'competition': competition,
     'playedOn': date.toIso8601String(),
@@ -337,9 +425,9 @@ Map<String, dynamic> _matchPerformance({
     'ourScore': ourScore,
     'opponentScore': opponentScore,
     'category': category,
-    if (category == 'TOURNAMENT') 'ageBracketLabel': 'U18',
+    if (category == 'TOURNAMENT') 'ageBracketLabel': 'U14',
   },
-  'position': 'ST',
+  'position': player.position,
   'starter': true,
   'minutesPlayed': 80,
   'goals': goals,

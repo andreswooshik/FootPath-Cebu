@@ -5,15 +5,34 @@ class MockTournamentRosterRepository implements TournamentRosterRepository {
   TournamentSquad _squad = const TournamentSquad(
     id: 'squad-1',
     bracketId: 'bracket-1',
-    status: TournamentSquadStatus.draft,
-    entries: [],
+    status: TournamentSquadStatus.published,
+    entries: [
+      TournamentSquadEntry(
+        id: 'entry-p11',
+        playerId: 'p11',
+        playerName: 'Liam Tan',
+        tournamentPosition: 'GK',
+      ),
+      TournamentSquadEntry(
+        id: 'entry-p9',
+        playerId: 'p9',
+        playerName: 'Lamine Yamashita',
+        tournamentPosition: 'RW',
+      ),
+      TournamentSquadEntry(
+        id: 'entry-p8',
+        playerId: 'p8',
+        playerName: 'Jude Belino',
+        tournamentPosition: 'CM',
+      ),
+    ],
   );
 
   final List<TournamentRosterCandidate> _candidates = const [
     TournamentRosterCandidate(
-      playerId: '1',
-      playerName: 'Alex Santos',
-      currentPosition: 'CM',
+      playerId: 'p11',
+      playerName: 'Liam Tan',
+      currentPosition: 'GK',
       eligibility: TournamentCandidateEligibility.eligible,
       eligibilityCode: 'ELIGIBLE',
       eligibilityReason: 'Eligible for this bracket.',
@@ -21,9 +40,9 @@ class MockTournamentRosterRepository implements TournamentRosterRepository {
       tournamentPosition: '',
     ),
     TournamentRosterCandidate(
-      playerId: '2',
-      playerName: 'Jamie Cruz',
-      currentPosition: 'ST',
+      playerId: 'p9',
+      playerName: 'Lamine Yamashita',
+      currentPosition: 'RW',
       eligibility: TournamentCandidateEligibility.warning,
       eligibilityCode: 'PENDING_INJURY',
       eligibilityReason: 'Pending injury report - review before selection.',
@@ -31,9 +50,9 @@ class MockTournamentRosterRepository implements TournamentRosterRepository {
       tournamentPosition: '',
     ),
     TournamentRosterCandidate(
-      playerId: '3',
-      playerName: 'Sam Reyes',
-      currentPosition: 'GK',
+      playerId: 'p8',
+      playerName: 'Jude Belino',
+      currentPosition: 'CM',
       eligibility: TournamentCandidateEligibility.blocked,
       eligibilityCode: 'OVERAGE',
       eligibilityReason: 'Overage for this bracket.',

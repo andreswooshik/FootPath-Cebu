@@ -32,9 +32,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Draft preparation is open'), findsOneWidget);
-    expect(find.text('Alex Santos'), findsOneWidget);
-    expect(find.text('Jamie Cruz'), findsOneWidget);
-    expect(find.text('Sam Reyes'), findsOneWidget);
+    expect(find.text('Liam Tan'), findsOneWidget);
+    expect(find.text('Lamine Yamashita'), findsOneWidget);
+    expect(find.text('Jude Belino'), findsOneWidget);
     expect(find.textContaining('Overage for this bracket'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -58,7 +58,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alex Santos'));
+    await tester.tap(find.text('Liam Tan'));
     await tester.pumpAndSettle();
 
     expect(find.text('1 selected'), findsOneWidget);

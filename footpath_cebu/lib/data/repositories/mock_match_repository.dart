@@ -2,6 +2,20 @@ import 'package:footpath_cebu/domain/entities/football_match.dart';
 import 'package:footpath_cebu/domain/entities/match_performance.dart';
 import 'package:footpath_cebu/domain/repositories/match_repository.dart';
 
+const _mockMatchPlayers = [
+  ('p1', 'Rhobert Ronaldo', 'ST'),
+  ('p2', 'Ralf Andre Messi', 'CAM'),
+  ('p3', 'Reiner Neymar', 'LW'),
+  ('p4', 'Kevin De Bofill', 'CM'),
+  ('p5', 'Virgil Van Cortez', 'CB'),
+  ('p6', 'Trent Alexander Cruz', 'RB'),
+  ('p7', 'Gianluigi Dela Cruz', 'GK'),
+  ('p8', 'Jude Belino', 'CM'),
+  ('p9', 'Lamine Yamashita', 'RW'),
+  ('p10', 'Pedri Villanueva', ''),
+  ('p11', 'Liam Tan', 'GK'),
+];
+
 /// Stateful in-memory match store for UI development and widget tests.
 class MockMatchRepository implements MatchRepository {
   final List<FootballMatch> _matches = [
@@ -61,22 +75,60 @@ class MockMatchRepository implements MatchRepository {
         tackles: 1,
       ),
     ]);
+    for (
+      var playerIndex = 1;
+      playerIndex < _mockMatchPlayers.length;
+      playerIndex++
+    ) {
+      final player = _mockMatchPlayers[playerIndex];
+      for (var matchIndex = 0; matchIndex < _matches.length; matchIndex++) {
+        final isGoalkeeper = player.$3 == 'GK';
+        final intentionallyUnrated = player.$1 == 'p11' && matchIndex == 2;
+        _performances.add(
+          _sample(
+            _matches[matchIndex],
+            playerId: player.$1,
+            playerName: player.$2,
+            position: player.$3,
+            rating: intentionallyUnrated
+                ? null
+                : 7.9 - playerIndex * 0.1 - matchIndex * 0.2,
+            goals: isGoalkeeper
+                ? 0
+                : (playerIndex + matchIndex) % 3 == 0
+                ? 1
+                : 0,
+            assists: isGoalkeeper
+                ? 0
+                : (playerIndex + matchIndex) % 4 == 0
+                ? 1
+                : 0,
+            passesAttempted: 22 + playerIndex + matchIndex,
+            passesCompleted: 17 + playerIndex,
+            tackles: isGoalkeeper ? 0 : 1 + playerIndex % 3,
+          ),
+        );
+      }
+    }
   }
 
   MatchPerformance _sample(
     FootballMatch match, {
-    required double rating,
+    required double? rating,
     required int goals,
     required int assists,
     int passesAttempted = 28,
     int passesCompleted = 22,
     int tackles = 1,
+    String playerId = 'p1',
+    String playerName = 'Rhobert Ronaldo',
+    String position = 'ST',
   }) => MatchPerformance(
-    id: 'perf-${match.id}-p1',
-    playerId: 'p1',
-    playerName: 'Rhobert Ronaldo',
+    id: 'perf-${match.id}-$playerId',
+    playerId: playerId,
+    playerName: playerName,
     match: match,
-    position: 'ST',
+    position: position,
     starter: true,
     minutesPlayed: 80,
     goals: goals,
@@ -89,12 +141,14 @@ class MockMatchRepository implements MatchRepository {
     interceptions: 0,
     yellowCards: 0,
     redCards: 0,
-    saves: 0,
-    goalsConceded: 0,
-    cleanSheet: false,
+    saves: position == 'GK' ? 4 : 0,
+    goalsConceded: position == 'GK' ? match.opponentScore : 0,
+    cleanSheet: position == 'GK' && match.opponentScore == 0,
     coachRating: rating,
     notes: 'Strong movement and decision-making.',
-    ratingStatus: MatchRatingStatus.rated,
+    ratingStatus: rating == null
+        ? MatchRatingStatus.awaitingRating
+        : MatchRatingStatus.rated,
   );
 
   @override
@@ -161,10 +215,7 @@ class MockMatchRepository implements MatchRepository {
     final rows = await fetchMatchPerformances(matchId);
     final byPlayer = {for (final row in rows) row.playerId: row};
     return [
-      for (final entry in const [
-        ('p1', 'Rhobert Ronaldo', 'ST'),
-        ('p2', 'Mika Santos', 'CM'),
-      ])
+      for (final entry in _mockMatchPlayers)
         MatchRosterPlayer(
           id: entry.$1,
           name: entry.$2,

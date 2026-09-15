@@ -38,6 +38,7 @@ from .models import (
     InjuryRecord,
     InjuryStatusUpdateRequest,
     InjuryUpdateReviewStatus,
+    MatchCategory,
     NotificationRecord,
     PlayerAssessmentSnapshot,
     PlayerDevelopmentAssessment,
@@ -200,6 +201,33 @@ class UnifiedSeedCommandTests(TestCase):
                 2,
             )
             self.assertTrue(demo_player.eligibility_history.exists())
+            self.assertEqual(
+                Attendance.objects.filter(player=demo_player).count(),
+                2,
+            )
+            self.assertEqual(
+                PlayerMatchPerformance.objects.filter(
+                    player=demo_player,
+                    match__category=MatchCategory.LEAGUE,
+                    coach_rating__isnull=False,
+                ).count(),
+                2,
+            )
+        liam = User.objects.get(email='liam.tan@footpathcebu.test')
+        self.assertTrue(
+            tournament.age_brackets.get().squad.entries.filter(player=liam).exists()
+        )
+        self.assertEqual(PlayerDevelopmentAssessment.objects.filter(player=liam).count(), 2)
+        self.assertEqual(PlayerAssessmentSnapshot.objects.filter(player=liam).count(), 2)
+        self.assertEqual(PlayerStatsAssessment.objects.filter(player=liam).count(), 2)
+        self.assertEqual(PlayerMatchPerformance.objects.filter(player=liam).count(), 3)
+        self.assertTrue(
+            PlayerMatchPerformance.objects.filter(
+                player=liam,
+                match__category=MatchCategory.TOURNAMENT,
+                coach_rating__isnull=True,
+            ).exists()
+        )
         self.assertEqual(login_player.eligibility_history.count(), 2)
         self.assertEqual(InjuryRecord.objects.filter(player=login_player).count(), 2)
         self.assertEqual(

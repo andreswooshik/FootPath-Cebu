@@ -70,9 +70,9 @@ void main() {
     await tester.pumpWidget(_app());
     await tester.pumpAndSettle();
 
-    // Counts come from the mock squad: 2 Foundation, 4 Development, 4 Pathway.
-    expect(find.widgetWithText(FilterChip, 'All (10)'), findsOneWidget);
-    expect(find.widgetWithText(FilterChip, 'Foundation (2)'), findsOneWidget);
+    // Counts come from the mock squad: 3 Foundation, 4 Development, 4 Pathway.
+    expect(find.widgetWithText(FilterChip, 'All (11)'), findsOneWidget);
+    expect(find.widgetWithText(FilterChip, 'Foundation (3)'), findsOneWidget);
     expect(find.widgetWithText(FilterChip, 'Development (4)'), findsOneWidget);
     expect(find.widgetWithText(FilterChip, 'Pathway (4)'), findsOneWidget);
   });
@@ -85,22 +85,23 @@ void main() {
     // The Team Overview sits above the filter row, so scroll the chip into
     // view before tapping it.
     await tester.ensureVisible(
-      find.widgetWithText(FilterChip, 'Foundation (2)'),
+      find.widgetWithText(FilterChip, 'Foundation (3)'),
     );
-    await tester.tap(find.widgetWithText(FilterChip, 'Foundation (2)'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Foundation (3)'));
     await tester.pumpAndSettle();
 
     // Foundation players only.
     expect(find.text('Lamine Yamashita'), findsOneWidget);
     expect(find.text('Pedri Villanueva'), findsOneWidget);
+    expect(find.text('Liam Tan'), findsOneWidget);
     // A Pathway player is now hidden.
     expect(find.text('Rhobert Ronaldo'), findsNothing);
 
     // Re-tapping the active chip clears the filter.
     await tester.ensureVisible(
-      find.widgetWithText(FilterChip, 'Foundation (2)'),
+      find.widgetWithText(FilterChip, 'Foundation (3)'),
     );
-    await tester.tap(find.widgetWithText(FilterChip, 'Foundation (2)'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Foundation (3)'));
     await tester.pumpAndSettle();
     expect(find.text('Rhobert Ronaldo'), findsOneWidget);
   });
@@ -111,9 +112,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.ensureVisible(
-      find.widgetWithText(FilterChip, 'Foundation (2)'),
+      find.widgetWithText(FilterChip, 'Foundation (3)'),
     );
-    await tester.tap(find.widgetWithText(FilterChip, 'Foundation (2)'));
+    await tester.tap(find.widgetWithText(FilterChip, 'Foundation (3)'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'zzzz');
     await tester.pumpAndSettle();

@@ -143,7 +143,7 @@ void main() {
     await tester.tap(find.widgetWithText(Tab, 'Published'));
     await tester.pumpAndSettle();
     expect(find.text('Cebu Youth Cup'), findsOneWidget);
-    expect(find.text('U12'), findsWidgets);
+    expect(find.text('U14'), findsWidgets);
     expect(find.byTooltip('Manage tournament'), findsOneWidget);
   });
 

@@ -85,6 +85,40 @@ class MockAttendanceRepository
           'Excellent footwork today. Focus on recovery breathing during '
           'high-intensity intervals.',
     ),
+    for (var playerNumber = 4; playerNumber <= 11; playerNumber++) ...[
+      Attendance(
+        playerId: 'p$playerNumber',
+        sessionId: 't4',
+        status: playerNumber % 4 == 0
+            ? AttendanceStatus.excused
+            : AttendanceStatus.present,
+        updatedAt: DateTime(2026, 9, 12, 17, 30),
+        sessionName: 'Set-Piece Review',
+        effort: playerNumber % 4 == 0 ? null : 72 + playerNumber,
+        performanceScore: playerNumber % 4 == 0
+            ? null
+            : 6.5 + playerNumber / 10,
+        note: playerNumber % 4 == 0
+            ? 'Approved school commitment.'
+            : 'Completed the session with a clear development target.',
+      ),
+      Attendance(
+        playerId: 'p$playerNumber',
+        sessionId: 't5',
+        status: playerNumber % 5 == 0
+            ? AttendanceStatus.absent
+            : AttendanceStatus.present,
+        updatedAt: DateTime(2026, 9, 7, 8),
+        sessionName: 'Recovery & Mobility',
+        effort: playerNumber % 5 == 0 ? null : 68 + playerNumber,
+        performanceScore: playerNumber % 5 == 0
+            ? null
+            : 6.2 + playerNumber / 10,
+        note: playerNumber % 5 == 0
+            ? 'Absent from the recovery session.'
+            : 'Good mobility habits and recovery focus.',
+      ),
+    ],
   ];
 
   @override

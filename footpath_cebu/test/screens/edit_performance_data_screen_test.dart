@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:footpath_cebu/core/di/providers.dart';
+import 'package:footpath_cebu/data/repositories/mock_development_assessment.dart';
 import 'package:footpath_cebu/data/repositories/mock_player_repository.dart';
 import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
@@ -28,19 +29,47 @@ Future<List<Player>> _players(WidgetTester tester, MockPlayerRepository repo) =>
 Future<void> _pump(
   WidgetTester tester,
   Player player,
-  MockPlayerRepository repo,
-) async {
+  MockPlayerRepository repo, {
+  DevelopmentAssessmentRepository? assessmentRepository,
+}) async {
   await tester.binding.setSurfaceSize(const Size(800, 1800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [playerRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        playerRepositoryProvider.overrideWithValue(repo),
+        if (assessmentRepository != null)
+          developmentAssessmentRepositoryProvider.overrideWithValue(
+            assessmentRepository,
+          ),
+      ],
       child: MaterialApp(
         home: EditPerformanceDataScreen(player: player, profile: _coach),
       ),
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class _BlankAssessmentRepository implements DevelopmentAssessmentRepository {
+  _BlankAssessmentRepository(this.delegate, this.player);
+
+  final MockPlayerRepository delegate;
+  final Player player;
+
+  @override
+  Future<DevelopmentAssessmentFormData> fetchDevelopmentAssessmentForm(
+    String playerId,
+  ) async => DevelopmentAssessmentFormData(
+    framework: mockDevelopmentFramework(player),
+    latestAssessment: null,
+  );
+
+  @override
+  Future<Player> saveDevelopmentAssessment(
+    String playerId,
+    DevelopmentAssessmentDraft draft,
+  ) => delegate.saveDevelopmentAssessment(playerId, draft);
 }
 
 Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
@@ -154,7 +183,12 @@ void main() {
       tester,
       repo,
     )).firstWhere((candidate) => candidate.id == 'p2');
-    await _pump(tester, player, repo);
+    await _pump(
+      tester,
+      player,
+      repo,
+      assessmentRepository: _BlankAssessmentRepository(repo, player),
+    );
 
     await _scrollTo(
       tester,

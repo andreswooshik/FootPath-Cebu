@@ -125,7 +125,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('Unmarked'), findsNothing);
-    expect(find.text('0 of 2 marked'), findsNothing);
+    expect(find.text('0 of 3 marked'), findsNothing);
     expect(find.text('Complete Training Session'), findsNothing);
 
     repository.sessionRecords.complete([
@@ -140,8 +140,8 @@ void main() {
     ]);
     await tester.pumpAndSettle();
 
-    expect(find.text('1 of 2 marked'), findsOneWidget);
-    expect(find.text('1 still unmarked'), findsOneWidget);
+    expect(find.text('1 of 3 marked'), findsOneWidget);
+    expect(find.text('2 still unmarked'), findsOneWidget);
     expect(find.text('Effort / Intensity'), findsOneWidget);
     expect(find.text('Update Changes'), findsOneWidget);
     expect(find.textContaining('Complete Training Session'), findsNothing);
@@ -175,6 +175,14 @@ void main() {
                   sessionId: 't1',
                   sessionName: 'Technical Drills',
                 ),
+                Attendance(
+                  playerId: 'p11',
+                  status: AttendanceStatus.present,
+                  updatedAt: now,
+                  sessionId: 't1',
+                  sessionName: 'Technical Drills',
+                  effort: 78,
+                ),
               ],
             ),
           ),
@@ -182,7 +190,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('2 of 2 marked'), findsOneWidget);
+      expect(find.text('3 of 3 marked'), findsOneWidget);
       expect(find.text('Update Changes'), findsOneWidget);
       expect(find.textContaining('Complete Training Session'), findsNothing);
     },
@@ -195,9 +203,9 @@ void main() {
     expect(find.text('June 28, 2026 · 06:00 AM - 08:00 AM'), findsOneWidget);
     expect(find.text('Dynamic Herb Sports Complex'), findsOneWidget);
     expect(find.text('Foundation'), findsOneWidget);
-    // The mock squad has exactly 2 Foundation players.
-    expect(find.text('2 players'), findsOneWidget);
-    expect(find.text('0 of 2 marked'), findsOneWidget);
+    // The mock squad has three Foundation players, including Liam Tan.
+    expect(find.text('3 players'), findsOneWidget);
+    expect(find.text('0 of 3 marked'), findsOneWidget);
   });
 
   testWidgets('lists only players in the session tier', (tester) async {
@@ -205,14 +213,15 @@ void main() {
 
     expect(find.text('Lamine Yamashita'), findsOneWidget);
     expect(find.text('Pedri Villanueva'), findsOneWidget);
+    expect(find.text('Liam Tan'), findsOneWidget);
     // A Pathway player must not be markable in a Foundation session.
     expect(find.text('Rhobert Ronaldo'), findsNothing);
   });
 
   testWidgets('players start unmarked', (tester) async {
     await pump(tester);
-    expect(find.text('Unmarked'), findsNWidgets(2));
-    expect(find.text('2 still unmarked'), findsOneWidget);
+    expect(find.text('Unmarked'), findsNWidgets(3));
+    expect(find.text('3 still unmarked'), findsOneWidget);
   });
 
   testWidgets('the evaluation appears only once a player is present', (
@@ -226,7 +235,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Effort / Intensity'), findsOneWidget);
     expect(find.text('Full assessment'), findsOneWidget);
-    expect(find.text('1 of 2 marked'), findsOneWidget);
+    expect(find.text('1 of 3 marked'), findsOneWidget);
   });
 
   testWidgets('records an optional performance score separately from effort', (
@@ -262,7 +271,7 @@ void main() {
     await tester.tap(find.text('Mark all present'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Training performance score'), findsNWidgets(2));
+    expect(find.text('Training performance score'), findsNWidgets(3));
     await tester.tap(find.text('Training performance score').first);
     await tester.pumpAndSettle();
     final performanceSlider = tester.widget<Slider>(find.byType(Slider).at(1));
@@ -284,7 +293,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Effort / Intensity'), findsNothing);
-    expect(find.text('1 of 2 marked'), findsOneWidget);
+    expect(find.text('1 of 3 marked'), findsOneWidget);
   });
 
   testWidgets('marking present then excused collapses the evaluation again', (
@@ -309,9 +318,9 @@ void main() {
     await tester.tap(find.text('Mark all present'));
     await tester.pumpAndSettle();
 
-    expect(find.text('2 of 2 marked'), findsOneWidget);
+    expect(find.text('3 of 3 marked'), findsOneWidget);
     expect(find.text('Unmarked'), findsNothing);
-    expect(find.text('Effort / Intensity'), findsNWidgets(2));
+    expect(find.text('Effort / Intensity'), findsNWidgets(3));
     // Nothing left to bulk-fill, so the shortcut retires itself.
     expect(find.text('Mark all present'), findsNothing);
   });
@@ -352,7 +361,7 @@ void main() {
       find.text('Locked (48h): this attendance record is now read-only.'),
       findsOneWidget,
     );
-    expect(find.text('0 of 2 marked'), findsOneWidget);
+    expect(find.text('0 of 3 marked'), findsOneWidget);
     expect(
       tester
           .widget<SegmentedButton<AttendanceStatus>>(
@@ -491,7 +500,7 @@ void main() {
   ) async {
     await pump(tester, tiers: {AgeTier.foundation, AgeTier.pathway});
 
-    expect(find.text('6 players'), findsOneWidget);
+    expect(find.text('7 players'), findsOneWidget);
     expect(find.text('Lamine Yamashita'), findsOneWidget); // Foundation
     expect(find.text('Rhobert Ronaldo'), findsOneWidget); // Pathway
     expect(find.text('Ralf Andre Messi'), findsNothing); // Development

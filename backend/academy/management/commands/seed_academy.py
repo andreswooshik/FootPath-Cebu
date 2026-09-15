@@ -33,8 +33,10 @@ from academy.models import (
     FootballMatch,
     InjuryRecord,
     InjuryReportStatus,
+    InjurySeverity,
     InjuryStatus,
     InjuryStatusUpdateRequest,
+    InjuryType,
     InjuryUpdateReviewStatus,
     MatchCategory,
     MatchVenue,
@@ -274,8 +276,8 @@ class Command(BaseCommand):
         all_players = [player for player in [login_player, *players] if player]
         self._seed_attendance(coach, sessions, all_players)
 
-        # 5. Completed matches and history for the login-player's Progress tab.
-        self._seed_matches(coach, club, login_player)
+        # 5. Completed league history for every demo player profile.
+        self._seed_matches(coach, club, all_players)
 
         # 6. Link the seeded guardian to the login-player for the guardian demo.
         guardian = User.objects.filter(email='guardian@footpathcebu.test').first()
@@ -561,7 +563,7 @@ class Command(BaseCommand):
             session.attendance_revision = 1
             session.save(update_fields=['attendance_revision'])
 
-    def _seed_matches(self, coach, club, login_player):
+    def _seed_matches(self, coach, club, players):
         specs = [
             ('Cebu United', 7, 'HOME', 3, 1, Decimal('8.7'), 2, 1),
             ('Mandaue FC', 21, 'AWAY', 1, 1, Decimal('7.4'), 0, 1),
@@ -580,24 +582,36 @@ class Command(BaseCommand):
                     'created_by': coach,
                 },
             )
-            if login_player is not None:
+            for index, player in enumerate(players):
+                profile = player.player_profile
+                player_rating = max(Decimal('6.5'), rating - Decimal(index) / Decimal('10'))
+                player_goals = goals if index == 0 else (1 if index == 1 and ours > 1 else 0)
+                player_assists = assists if index == 0 else (1 if index == 2 and ours > 1 else 0)
+                is_goalkeeper = profile.position == 'GK'
                 PlayerMatchPerformance.objects.update_or_create(
                     match=match,
-                    player=login_player,
+                    player=player,
                     defaults={
-                        'position': 'CAM',
+                        'position': profile.position or 'CM',
                         'starter': True,
                         'minutes_played': 80,
-                        'goals': goals,
-                        'assists': assists,
-                        'shots': 5,
-                        'shots_on_target': 3,
-                        'passes_attempted': 36,
-                        'passes_completed': 29,
-                        'tackles': 2,
-                        'interceptions': 1,
-                        'coach_rating': rating,
-                        'notes': 'Strong movement and decision-making.',
+                        'goals': player_goals,
+                        'assists': player_assists,
+                        'shots': 0 if is_goalkeeper else max(player_goals, 3 + (index % 3)),
+                        'shots_on_target': (
+                            0
+                            if is_goalkeeper
+                            else max(player_goals, 1 + (index % 2))
+                        ),
+                        'passes_attempted': 24 + index * 2,
+                        'passes_completed': 18 + index,
+                        'tackles': 0 if is_goalkeeper else 1 + (index % 3),
+                        'interceptions': 0 if is_goalkeeper else index % 2,
+                        'saves': 5 if is_goalkeeper else 0,
+                        'goals_conceded': theirs if is_goalkeeper else 0,
+                        'clean_sheet': is_goalkeeper and theirs == 0,
+                        'coach_rating': player_rating,
+                        'notes': 'Completed league performance for demo history.',
                         'recorded_by': coach,
                         'rated_by': coach,
                         'rated_at': timezone.now() - timedelta(days=days_ago - 1),
@@ -681,7 +695,7 @@ class Command(BaseCommand):
             },
         )
 
-        for index, player in enumerate(squad_players[:3]):
+        for index, player in enumerate(squad_players):
             position = player.player_profile.position or 'CM'
             is_goalkeeper = position == 'GK'
             PlayerMatchPerformance.objects.update_or_create(
@@ -789,6 +803,8 @@ class Command(BaseCommand):
             player=player,
             description='Mild ankle discomfort after group-stage match',
             defaults={
+                'injury_type': InjuryType.JOINT_LIGAMENT,
+                'severity': InjurySeverity.MINOR,
                 'body_part': 'Right ankle',
                 'status': InjuryStatus.RECOVERING,
                 'occurred_on': date.today() - timedelta(days=1),
@@ -806,6 +822,8 @@ class Command(BaseCommand):
             player=player,
             description='Recovering left hamstring strain',
             defaults={
+                'injury_type': InjuryType.MUSCLE,
+                'severity': InjurySeverity.MODERATE,
                 'body_part': 'Left hamstring',
                 'status': InjuryStatus.ACTIVE,
                 'occurred_on': date.today() - timedelta(days=14),
