@@ -10,8 +10,7 @@ import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/player_stats.dart';
 
 /// FUT-style player identity card using the five independent development
-/// domains. The frame is decorative; no combined overall score is calculated
-/// or displayed.
+/// domains and the position-specific Player Stats attributes.
 class PlayerCard extends StatefulWidget {
   const PlayerCard({super.key, required this.player, this.onTap});
 
@@ -74,10 +73,11 @@ class _PlayerCardState extends State<PlayerCard>
     final player = widget.player;
     final assessment = player.developmentAssessment;
     final position = player.position?.labelWithCode ?? 'Position not assigned';
+    final statsOverall = player.currentPlayerStats?.overall;
     final side = _showingLegacy
         ? (player.position?.group == PositionGroup.goalkeeper
-              ? 'goalkeeper attributes shown'
-              : 'outfield attributes shown')
+              ? 'goalkeeper attributes shown, overall ${statsOverall ?? player.ratings.gkOverall}'
+              : 'outfield attributes shown, overall ${statsOverall ?? player.ratings.overall}')
         : (assessment == null
               ? 'assessment side, not assessed yet'
               : 'assessment side, five domains rated');
@@ -261,6 +261,9 @@ class _LegacyAttributesFace extends StatelessWidget {
     return _CardFrame(
       player: player,
       scale: scale,
+      attributeOverall:
+          currentStats?.overall ??
+          (goalkeeper ? player.ratings.gkOverall : player.ratings.overall),
       children: [
         _place(
           scale,
@@ -363,11 +366,13 @@ class _CardFrame extends StatelessWidget {
     required this.player,
     required this.scale,
     required this.children,
+    this.attributeOverall,
   });
 
   final Player player;
   final double scale;
   final List<Widget> children;
+  final int? attributeOverall;
 
   @override
   Widget build(BuildContext context) => Stack(
@@ -385,6 +390,30 @@ class _CardFrame extends StatelessWidget {
         w: 260,
         h: 260,
         child: _Photo(photoUrl: player.photoUrl),
+      ),
+      _place(
+        scale,
+        x: 44,
+        y: 96,
+        w: 150,
+        h: 64,
+        child: attributeOverall == null
+            ? const SizedBox.shrink()
+            : Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    '$attributeOverall',
+                    key: const ValueKey('player-attribute-overall'),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: _cardFont(scale, 46, minimum: 22),
+                      height: 1,
+                    ),
+                  ),
+                ),
+              ),
       ),
       _place(
         scale,

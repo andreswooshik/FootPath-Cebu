@@ -172,7 +172,7 @@ void main() {
       expect(find.text('OUTFIELD ATTRIBUTES · 0–99'), findsOneWidget);
       expect(
         find.bySemanticsLabel(
-          'Test Striker, Striker (ST), outfield attributes shown',
+          'Test Striker, Striker (ST), outfield attributes shown, overall 69',
         ),
         findsOneWidget,
       );
@@ -273,7 +273,11 @@ void main() {
       for (final value in ['91', '82', '73', '64', '55', '46']) {
         expect(find.text(value), findsOneWidget);
       }
-      expect(find.text('${_outfield().overall}'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('player-attribute-overall')),
+        findsOneWidget,
+      );
+      expect(find.text('${_outfield().overall}'), findsOneWidget);
       expect(find.text('Pathway'), findsNothing);
     });
 
@@ -295,7 +299,11 @@ void main() {
       for (final code in ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']) {
         expect(find.text(code), findsNothing);
       }
-      expect(find.text('${_goalkeeper().overall}'), findsNothing);
+      expect(
+        find.byKey(const ValueKey('player-attribute-overall')),
+        findsOneWidget,
+      );
+      expect(find.text('${_goalkeeper().overall}'), findsOneWidget);
     });
 
     testWidgets(
@@ -306,9 +314,14 @@ void main() {
         await tester.tap(find.byType(PlayerCard));
         await tester.pumpAndSettle();
 
-        for (final value in ['79', '76', '74', '91', '69', '84']) {
+        for (final value in ['76', '74', '91', '69', '84']) {
           expect(find.text(value), findsOneWidget);
         }
+        expect(find.text('79'), findsNWidgets(2));
+        final overall = tester.widget<Text>(
+          find.byKey(const ValueKey('player-attribute-overall')),
+        );
+        expect(overall.data, '79');
         expect(find.text('88'), findsNothing);
         expect(find.text('85'), findsNothing);
       },
