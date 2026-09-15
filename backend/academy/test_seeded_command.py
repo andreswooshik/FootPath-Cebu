@@ -301,6 +301,12 @@ class UnifiedSeedCommandTests(TestCase):
         self.assertTrue(GuardianLink.objects.filter(pk=manual_link.pk).exists())
         self.assertTrue(FootballMatch.objects.filter(pk=manual_match.pk).exists())
         self.assertIn('Complete FootPath demo dataset is ready.', output.getvalue())
+        self.assertIn('Password for all 5 login accounts:', output.getvalue())
+        self.assertIn(
+            'Accounts: admin, coordinator, coach, player, guardian',
+            output.getvalue(),
+        )
+        self.assertNotIn('staff', output.getvalue())
 
     @staticmethod
     def _demo_counts(club):

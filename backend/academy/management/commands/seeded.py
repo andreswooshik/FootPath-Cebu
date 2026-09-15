@@ -6,7 +6,13 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connections, transaction
 from django.db.migrations.executor import MigrationExecutor
 
+from accounts.management.commands.seed_users import Command as SeedUsersCommand
 from accounts.management.commands.seed_users import DEMO_PASSWORD
+
+
+DEMO_ACCOUNT_NAMES = tuple(
+    email.partition('@')[0] for email, *_rest in SeedUsersCommand.SEEDS
+)
 
 
 class Command(BaseCommand):
@@ -19,7 +25,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--password',
             default=DEMO_PASSWORD,
-            help='Shared password for all six demo login accounts.',
+            help='Shared password for all demo login accounts.',
         )
         parser.add_argument(
             '--allow-production',
@@ -67,9 +73,11 @@ class Command(BaseCommand):
 
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS('Complete FootPath demo dataset is ready.'))
-        self.stdout.write(f'Password for all six login accounts: {password}')
+        self.stdout.write(
+            f'Password for all {len(DEMO_ACCOUNT_NAMES)} login accounts: {password}'
+        )
         self.stdout.write('Player privacy PIN: 2468')
-        self.stdout.write('Accounts: admin, coordinator, coach, player, staff, guardian')
+        self.stdout.write(f'Accounts: {", ".join(DEMO_ACCOUNT_NAMES)}')
         self.stdout.write('Email domain: @footpathcebu.test')
 
     @staticmethod
