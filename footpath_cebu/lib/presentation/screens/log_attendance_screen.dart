@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:footpath_cebu/presentation/widgets/attendance_sync_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -68,6 +70,29 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
 
   bool get _dirty => _dirtySince;
   bool _dirtySince = false;
+  Timer? _lockTimer;
+
+  bool get _readOnly => !widget.session.isAttendanceOpen;
+
+  @override
+  void initState() {
+    super.initState();
+    final untilLock = widget.session.attendanceLocksAt.difference(
+      DateTime.now(),
+    );
+    if (!untilLock.isNegative) {
+      _lockTimer = Timer(untilLock, () {
+        if (!mounted) return;
+        setState(() => _dirtySince = false);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _lockTimer?.cancel();
+    super.dispose();
+  }
 
   // -- derived counts, computed against the eligible roster ------------------
 
@@ -77,6 +102,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   // -- mark mutations --------------------------------------------------------
 
   void _mark(String playerId, AttendanceStatus? status) {
+    if (_readOnly) return;
     setState(() {
       _dirtySince = true;
       if (status == null) {
@@ -107,6 +133,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   }
 
   void _markAllPresent(List<Player> roster) {
+    if (_readOnly) return;
     setState(() {
       _dirtySince = true;
       for (final player in roster) {
@@ -129,6 +156,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   /// value while editing, and rebuilding the list on every keystroke or drag
   /// frame would fight the cursor and waste work.
   void _setEffort(String playerId, int effort) {
+    if (_readOnly) return;
     final draft = _marks[playerId];
     if (draft == null) return;
     _marks[playerId] = draft.copyWith(effort: effort);
@@ -136,6 +164,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   }
 
   void _setNote(String playerId, String note) {
+    if (_readOnly) return;
     final draft = _marks[playerId];
     if (draft == null) return;
     _marks[playerId] = draft.copyWith(note: note);
@@ -143,6 +172,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
   }
 
   void _setPerformanceScore(String playerId, double? score) {
+    if (_readOnly) return;
     final draft = _marks[playerId];
     if (draft == null) return;
     _marks[playerId] = draft.copyWith(
@@ -187,8 +217,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Attendance can only be logged on the session day or up to '
-            '2 days after.',
+            'Attendance is read-only 48 hours after the session ends.',
           ),
         ),
       );
@@ -318,7 +347,18 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Attendance'),
-          actions: const [AttendanceSyncButton()],
+          actions: [
+            if (widget.session.isAttendanceLocked)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Chip(
+                  avatar: Icon(Icons.lock_clock, size: 16),
+                  label: Text('Locked (48h)'),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            const AttendanceSyncButton(),
+          ],
         ),
         body: rosterAsync.when(
           loading: () => const DashboardLoadingState(),
@@ -348,6 +388,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
                 session: widget.session,
                 roster: roster,
                 state: this,
+                readOnly: _readOnly,
               );
             },
           ),
@@ -362,6 +403,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
                 unmarkedCount: roster.length - _marks.length,
                 isSaving: isSaving,
                 canLog: widget.session.isAttendanceOpen,
+                locked: widget.session.isAttendanceLocked,
                 hasSavedAttendance: _hasSavedAttendance,
                 onFinalize: () => _finalize(roster),
               );

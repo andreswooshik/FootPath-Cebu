@@ -540,14 +540,14 @@ class SessionAttendanceTests(APITestCase):
             )
 
     def test_attendance_closed_before_session_and_after_two_days(self):
-        # Closed: before the session, and more than two days after.
         self.client.force_authenticate(self.coach)
-        for when in (date.today() + timedelta(days=1), date.today() - timedelta(days=3)):
-            self.assertEqual(
-                self._post_to_session_dated(when).status_code,
-                400,
-                msg=str(when),
-            )
+        self.assertEqual(
+            self._post_to_session_dated(date.today() + timedelta(days=1)).status_code,
+            400,
+        )
+        response = self._post_to_session_dated(date.today() - timedelta(days=3))
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data['code'], 'ATTENDANCE_LOCKED_48H')
 
 
 class AssessmentTests(APITestCase):
@@ -1200,6 +1200,27 @@ class TrainingSessionTests(APITestCase):
         self.client.force_authenticate(make_user(Roles.PLAYER))
         self.assertEqual(self.client.put(url, {'title': 'H'}, format='json').status_code, 403)
         self.assertEqual(self.client.delete(url).status_code, 403)
+
+    def test_session_is_read_only_after_48_hour_window(self):
+        session = TrainingSession.objects.create(
+            title='Historical session',
+            date=date.today() - timedelta(days=3),
+            start_time='04:30 PM',
+            end_time='06:00 PM',
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
+        )
+        url = reverse('training-session-detail', args=[session.id])
+        self.client.force_authenticate(self.coach)
+
+        update = self.client.put(url, {'title': 'Changed'}, format='json')
+        cancel = self.client.delete(url)
+
+        self.assertEqual(update.status_code, 409)
+        self.assertEqual(update.data['code'], 'SESSION_LOCKED_48H')
+        self.assertEqual(cancel.status_code, 409)
+        self.assertEqual(cancel.data['code'], 'SESSION_LOCKED_48H')
 
     @patch('academy.view_training.notify_session_updated')
     def test_coach_cannot_touch_another_clubs_session(self, _mock):

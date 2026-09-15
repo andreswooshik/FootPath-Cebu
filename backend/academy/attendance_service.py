@@ -75,10 +75,13 @@ def replace_attendance(*, coach, session_id, records, request_key=None, expected
             'SESSION_CANCELLED',
             'Attendance is unavailable for a cancelled training session.',
         )
-    if not 0 <= (timezone.localdate() - session.date).days <= 2:
-        raise ValidationError(
-            'Attendance can only be logged on the session day or up to 2 days after.',
+    if session.attendance_is_locked():
+        raise WorkflowConflict(
+            'ATTENDANCE_LOCKED_48H',
+            'Attendance is read-only 48 hours after the training session ends.',
         )
+    if timezone.localdate() < session.date:
+        raise ValidationError('Attendance cannot be logged before the session day.')
     submitted_ids = [row['playerId'] for row in records]
     if len(submitted_ids) != len(set(submitted_ids)):
         raise ValidationError({'records': 'Each player may appear only once.'})

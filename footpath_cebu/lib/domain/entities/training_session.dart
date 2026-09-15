@@ -151,6 +151,26 @@ class TrainingSession {
         date.day == now.day;
   }
 
+  /// The precise instant after which both the session and its attendance are
+  /// historical. The normal anchor is the scheduled end; malformed legacy
+  /// times fall back to the end of the session day.
+  DateTime get attendanceLocksAt {
+    final anchor =
+        scheduledEndAt ??
+        DateTime(date.year, date.month, date.day, 23, 59, 59, 999);
+    return anchor.add(const Duration(hours: 48));
+  }
+
+  bool attendanceIsLockedAt(DateTime now) => !now.isBefore(attendanceLocksAt);
+
+  bool attendanceIsOpenAt(DateTime now) {
+    if (isCancelled) return false;
+    final sessionDay = DateTime(date.year, date.month, date.day);
+    return !now.isBefore(sessionDay) && !attendanceIsLockedAt(now);
+  }
+
+  bool get isAttendanceLocked => attendanceIsLockedAt(DateTime.now());
+
   /// [ageTiers] in canonical tier order, so display never depends on the order
   /// the coach happened to tap the chips in.
   List<AgeTier> get orderedTiers =>
@@ -164,14 +184,7 @@ class TrainingSession {
   /// to when it happened — never before the session, and not indefinitely late
   /// (a two-day grace covers a coach who couldn't finish the roll call on the
   /// day, then the window closes).
-  bool get isAttendanceOpen {
-    if (isCancelled) return false;
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(date.year, date.month, date.day);
-    final daysSince = today.difference(day).inDays;
-    return daysSince >= 0 && daysSince <= 2;
-  }
+  bool get isAttendanceOpen => attendanceIsOpenAt(DateTime.now());
 
   /// True when a player in [tier] is eligible for this session's attendance.
   bool includesTier(AgeTier tier) => ageTiers.contains(tier);

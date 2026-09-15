@@ -7,11 +7,13 @@ class _Body extends StatelessWidget {
     required this.session,
     required this.roster,
     required this.state,
+    required this.readOnly,
   });
 
   final TrainingSession session;
   final List<Player> roster;
   final _LogAttendanceScreenState state;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +25,10 @@ class _Body extends StatelessWidget {
           session: session,
           totalPlayers: roster.length,
           markedCount: state._marks.length,
-          onMarkAllPresent: () => state._markAllPresent(roster),
+          onMarkAllPresent: readOnly
+              ? null
+              : () => state._markAllPresent(roster),
+          readOnly: readOnly,
         ),
         Expanded(
           child: roster.isEmpty
@@ -56,6 +61,7 @@ class _Body extends StatelessWidget {
                           state._setPerformanceScore(player.id, v),
                       onNote: (v) => state._setNote(player.id, v),
                       onOpenAssessment: () => state._openAssessment(player),
+                      readOnly: readOnly,
                     );
                   },
                 ),
@@ -73,12 +79,14 @@ class _SessionHeader extends StatelessWidget {
     required this.totalPlayers,
     required this.markedCount,
     required this.onMarkAllPresent,
+    required this.readOnly,
   });
 
   final TrainingSession session;
   final int totalPlayers;
   final int markedCount;
-  final VoidCallback onMarkAllPresent;
+  final VoidCallback? onMarkAllPresent;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +139,8 @@ class _SessionHeader extends StatelessWidget {
                 icon: Icons.person_outline,
                 label: '$totalPlayers players',
               ),
+              if (readOnly)
+                const _MetaChip(icon: Icons.lock_clock, label: 'Locked (48h)'),
             ],
           ),
           const SizedBox(height: 12),
@@ -144,7 +154,7 @@ class _SessionHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              if (unmarked > 0)
+              if (unmarked > 0 && !readOnly)
                 TextButton.icon(
                   onPressed: onMarkAllPresent,
                   icon: const Icon(Icons.done_all, size: 16),
@@ -216,6 +226,7 @@ class _PlayerAttendanceCard extends StatelessWidget {
     required this.onPerformanceScore,
     required this.onNote,
     required this.onOpenAssessment,
+    required this.readOnly,
   });
 
   final Player player;
@@ -224,10 +235,11 @@ class _PlayerAttendanceCard extends StatelessWidget {
   final double? performanceScore;
   final String note;
   final ValueChanged<AttendanceStatus?> onMark;
-  final ValueChanged<int> onEffort;
-  final ValueChanged<double?> onPerformanceScore;
-  final ValueChanged<String> onNote;
-  final VoidCallback onOpenAssessment;
+  final ValueChanged<int>? onEffort;
+  final ValueChanged<double?>? onPerformanceScore;
+  final ValueChanged<String>? onNote;
+  final VoidCallback? onOpenAssessment;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -289,7 +301,10 @@ class _PlayerAttendanceCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            _AttendanceSelector(status: status, onChanged: onMark),
+            _AttendanceSelector(
+              status: status,
+              onChanged: readOnly ? null : onMark,
+            ),
             // Collapse rather than disable: an evaluation for someone who
             // wasn't there is noise, and the spec is "expand when present".
             AnimatedSize(
@@ -304,10 +319,10 @@ class _PlayerAttendanceCard extends StatelessWidget {
                       effort: effort,
                       performanceScore: performanceScore,
                       note: note,
-                      onEffort: onEffort,
-                      onPerformanceScore: onPerformanceScore,
-                      onNote: onNote,
-                      onOpenAssessment: onOpenAssessment,
+                      onEffort: readOnly ? null : onEffort,
+                      onPerformanceScore: readOnly ? null : onPerformanceScore,
+                      onNote: readOnly ? null : onNote,
+                      onOpenAssessment: readOnly ? null : onOpenAssessment,
                     )
                   : const SizedBox(width: double.infinity),
             ),
@@ -350,7 +365,7 @@ class _AttendanceSelector extends StatelessWidget {
   const _AttendanceSelector({required this.status, required this.onChanged});
 
   final AttendanceStatus? status;
-  final ValueChanged<AttendanceStatus?> onChanged;
+  final ValueChanged<AttendanceStatus?>? onChanged;
 
   static const _colors = {
     AttendanceStatus.present: Colors.green,
@@ -380,7 +395,9 @@ class _AttendanceSelector extends StatelessWidget {
       // Nothing selected is a real state, so the control must tolerate it.
       emptySelectionAllowed: true,
       showSelectedIcon: false,
-      onSelectionChanged: (set) => onChanged(set.isEmpty ? null : set.first),
+      onSelectionChanged: onChanged == null
+          ? null
+          : (set) => onChanged!(set.isEmpty ? null : set.first),
       style: SegmentedButton.styleFrom(
         selectedBackgroundColor: selected.withValues(alpha: 0.16),
         selectedForegroundColor: selected,
@@ -407,10 +424,10 @@ class _SessionEvaluation extends StatelessWidget {
   final int effort;
   final double? performanceScore;
   final String note;
-  final ValueChanged<int> onEffort;
-  final ValueChanged<double?> onPerformanceScore;
-  final ValueChanged<String> onNote;
-  final VoidCallback onOpenAssessment;
+  final ValueChanged<int>? onEffort;
+  final ValueChanged<double?>? onPerformanceScore;
+  final ValueChanged<String>? onNote;
+  final VoidCallback? onOpenAssessment;
 
   @override
   Widget build(BuildContext context) {
@@ -449,7 +466,7 @@ class _EffortSlider extends StatefulWidget {
   const _EffortSlider({required this.initialValue, required this.onChanged});
 
   final int initialValue;
-  final ValueChanged<int> onChanged;
+  final ValueChanged<int>? onChanged;
 
   @override
   State<_EffortSlider> createState() => _EffortSliderState();
@@ -495,10 +512,12 @@ class _EffortSliderState extends State<_EffortSlider> {
             max: 100,
             divisions: 20,
             label: '$_value%',
-            onChanged: (v) {
-              setState(() => _value = v.round());
-              widget.onChanged(_value);
-            },
+            onChanged: widget.onChanged == null
+                ? null
+                : (v) {
+                    setState(() => _value = v.round());
+                    widget.onChanged!(_value);
+                  },
           ),
         ),
       ],
@@ -515,7 +534,7 @@ class _PerformanceScoreInput extends StatefulWidget {
   });
 
   final double? initialValue;
-  final ValueChanged<double?> onChanged;
+  final ValueChanged<double?>? onChanged;
 
   @override
   State<_PerformanceScoreInput> createState() => _PerformanceScoreInputState();
@@ -538,10 +557,12 @@ class _PerformanceScoreInputState extends State<_PerformanceScoreInput> {
             'Optional execution quality, separate from effort',
           ),
           value: _enabled,
-          onChanged: (enabled) {
-            setState(() => _enabled = enabled);
-            widget.onChanged(enabled ? _value : null);
-          },
+          onChanged: widget.onChanged == null
+              ? null
+              : (enabled) {
+                  setState(() => _enabled = enabled);
+                  widget.onChanged!(enabled ? _value : null);
+                },
         ),
         if (_enabled)
           Row(
@@ -553,10 +574,14 @@ class _PerformanceScoreInputState extends State<_PerformanceScoreInput> {
                   max: 10,
                   divisions: 100,
                   label: _value.toStringAsFixed(1),
-                  onChanged: (value) {
-                    setState(() => _value = value);
-                    widget.onChanged(double.parse(value.toStringAsFixed(1)));
-                  },
+                  onChanged: widget.onChanged == null
+                      ? null
+                      : (value) {
+                          setState(() => _value = value);
+                          widget.onChanged!(
+                            double.parse(value.toStringAsFixed(1)),
+                          );
+                        },
                 ),
               ),
               SizedBox(
@@ -583,7 +608,7 @@ class _NoteField extends StatefulWidget {
   const _NoteField({required this.initialValue, required this.onChanged});
 
   final String initialValue;
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onChanged;
 
   @override
   State<_NoteField> createState() => _NoteFieldState();
@@ -603,6 +628,7 @@ class _NoteFieldState extends State<_NoteField> {
     return TextField(
       controller: _controller,
       onChanged: widget.onChanged,
+      readOnly: widget.onChanged == null,
       maxLines: 2,
       textCapitalization: TextCapitalization.sentences,
       style: const TextStyle(fontSize: 13),
@@ -624,6 +650,7 @@ class _FinalizeBar extends StatelessWidget {
     required this.unmarkedCount,
     required this.isSaving,
     required this.canLog,
+    required this.locked,
     required this.hasSavedAttendance,
     required this.onFinalize,
   });
@@ -635,6 +662,7 @@ class _FinalizeBar extends StatelessWidget {
 
   /// Whether attendance may be logged now — false unless it's the session day.
   final bool canLog;
+  final bool locked;
   final bool hasSavedAttendance;
   final VoidCallback onFinalize;
 
@@ -660,8 +688,9 @@ class _FinalizeBar extends StatelessWidget {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Attendance can only be logged on the session day or '
-                        'up to 2 days after.',
+                        locked
+                            ? 'Locked (48h): this attendance record is now read-only.'
+                            : 'Attendance becomes available on the session day.',
                         style: TextStyle(
                           fontSize: 12,
                           color: cs.onSurfaceVariant,
@@ -700,7 +729,9 @@ class _FinalizeBar extends StatelessWidget {
                 isSaving
                     ? 'Saving…'
                     : !canLog
-                    ? 'Available on the session day'
+                    ? locked
+                          ? 'Locked (48h)'
+                          : 'Available on the session day'
                     : hasSavedAttendance
                     ? 'Update Changes'
                     : 'Complete Training Session'

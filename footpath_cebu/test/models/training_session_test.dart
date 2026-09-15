@@ -78,6 +78,23 @@ void main() {
       expect(session.hasEndedAt(DateTime(2026, 9, 1, 22, 56)), isTrue);
     });
 
+    test('attendance becomes read-only exactly 48 hours after session end', () {
+      final session = _session({
+        AgeTier.foundation,
+      }, date: DateTime(2026, 9, 1));
+
+      expect(session.attendanceLocksAt, DateTime(2026, 9, 3, 18));
+      expect(
+        session.attendanceIsOpenAt(DateTime(2026, 9, 3, 17, 59, 59)),
+        isTrue,
+      );
+      expect(session.attendanceIsLockedAt(DateTime(2026, 9, 3, 18)), isTrue);
+      expect(
+        session.attendanceIsOpenAt(DateTime(2026, 8, 31, 23, 59)),
+        isFalse,
+      );
+    });
+
     test('completed and cancelled sessions are historical immediately', () {
       TrainingSession withStatus(TrainingSessionStatus status) =>
           TrainingSession(

@@ -1,7 +1,7 @@
 """Training-session model."""
 
 import re
-from datetime import datetime
+from datetime import datetime, time, timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -144,6 +144,19 @@ class TrainingSession(models.Model):
             return timezone.make_aware(combined, timezone.get_current_timezone())
 
         return combine(start), combine(end)
+
+    def attendance_locks_at(self):
+        """Return the exact server-side end of the 48-hour edit window."""
+        _start, end = self.interval()
+        if end is None:
+            end = timezone.make_aware(
+                datetime.combine(self.date, time.max),
+                timezone.get_current_timezone(),
+            )
+        return end + timedelta(hours=48)
+
+    def attendance_is_locked(self, at=None):
+        return (at or timezone.now()) >= self.attendance_locks_at()
 
     @property
     def is_cancelled(self):

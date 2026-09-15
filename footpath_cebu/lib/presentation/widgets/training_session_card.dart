@@ -125,7 +125,12 @@ class TrainingSessionCard extends StatelessWidget {
                                 ?.copyWith(fontWeight: FontWeight.bold),
                           ),
                         ),
-                        if (onEdit != null || onCancelSession != null)
+                        if (session.isAttendanceLocked) ...[
+                          const SizedBox(width: 8),
+                          _LockedBadge(colorScheme: cs),
+                        ],
+                        if (!session.isAttendanceLocked &&
+                            (onEdit != null || onCancelSession != null))
                           PopupMenuButton<String>(
                             tooltip: 'Manage session',
                             padding: EdgeInsets.zero,
@@ -259,6 +264,8 @@ class TrainingSessionCard extends StatelessWidget {
                                   ? 'Opening attendance...'
                                   : session.isAttendanceOpen
                                   ? 'Log Attendance'
+                                  : session.isAttendanceLocked
+                                  ? 'Locked (48h)'
                                   : 'Log on the day',
                             ),
                             label: isLoading
@@ -286,6 +293,36 @@ class TrainingSessionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LockedBadge extends StatelessWidget {
+  const _LockedBadge({required this.colorScheme});
+
+  final ColorScheme colorScheme;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(99),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.lock_clock, size: 13, color: colorScheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(
+          'Locked (48h)',
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Translucent pill naming the age tier, on the coloured header.

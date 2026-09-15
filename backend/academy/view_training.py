@@ -234,6 +234,11 @@ class TrainingSessionDetailView(APIView):
         with transaction.atomic():
             session = self._session_for(request, pk)
             session = TrainingSession.objects.select_for_update(of=('self',)).get(pk=session.pk)
+            if session.attendance_is_locked():
+                raise WorkflowConflict(
+                    'SESSION_LOCKED_48H',
+                    'This training session is read-only 48 hours after it ends.',
+                )
             if session.status != TrainingSessionStatus.SCHEDULED:
                 raise WorkflowConflict(
                     'SESSION_LOCKED',
@@ -300,6 +305,11 @@ class TrainingSessionDetailView(APIView):
         with transaction.atomic():
             scoped = self._session_for(request, pk)
             session = TrainingSession.objects.select_for_update(of=('self',)).get(pk=scoped.pk)
+            if session.attendance_is_locked():
+                raise WorkflowConflict(
+                    'SESSION_LOCKED_48H',
+                    'This training session is read-only 48 hours after it ends.',
+                )
             if session.status != TrainingSessionStatus.SCHEDULED:
                 raise WorkflowConflict(
                     'SESSION_LOCKED',

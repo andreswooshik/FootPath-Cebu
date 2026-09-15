@@ -345,26 +345,29 @@ void main() {
     await tester.tap(find.text('Present').first);
     await tester.pumpAndSettle();
 
-    final locked = find.widgetWithText(
-      FilledButton,
-      'Available on the session day',
-    );
+    final locked = find.widgetWithText(FilledButton, 'Locked (48h)');
     expect(locked, findsOneWidget);
     expect(tester.widget<FilledButton>(locked).onPressed, isNull);
     expect(
-      find.text(
-        'Attendance can only be logged on the session day or up to '
-        '2 days after.',
-      ),
+      find.text('Locked (48h): this attendance record is now read-only.'),
       findsOneWidget,
+    );
+    expect(find.text('0 of 2 marked'), findsOneWidget);
+    expect(
+      tester
+          .widget<SegmentedButton<AttendanceStatus>>(
+            find.byType(SegmentedButton<AttendanceStatus>).first,
+          )
+          .onSelectionChanged,
+      isNull,
     );
   });
 
-  testWidgets('attendance stays open up to two days after the session', (
+  testWidgets('attendance stays editable before the 48-hour deadline', (
     tester,
   ) async {
     // Two days after is still within the grace window — the roll call saves.
-    await pump(tester, date: DateTime.now().subtract(const Duration(days: 2)));
+    await pump(tester, date: DateTime.now().subtract(const Duration(days: 1)));
 
     await tester.tap(find.text('Present').first);
     await tester.pumpAndSettle();
