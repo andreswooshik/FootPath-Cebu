@@ -42,6 +42,4 @@
   <!-- Stats divider -->
   <line x1="300" y1="524" x2="300" y2="704" stroke="url(#gold)" stroke-width="2" opacity="0.55"/>
 
-  <!-- Footer brand -->
-  <text x="300" y="772" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="800" fill="#E7C86A" letter-spacing="3" opacity="0.85">FOOTPATH</text>
 </svg>
