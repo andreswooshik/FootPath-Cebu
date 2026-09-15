@@ -178,7 +178,7 @@ class _CoordinatorInjuriesScreenState
     final saving = ref.watch(injuryFormControllerProvider).isLoading;
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
+        leading: const BackButton(),
         title: const Text('Injuries'),
       ),
       floatingActionButton: FloatingActionButton.extended(

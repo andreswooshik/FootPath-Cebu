@@ -25,7 +25,7 @@ class CoordinatorMatchesScreen extends ConsumerWidget {
     final matches = ref.watch(footballMatchesProvider);
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
+        leading: const BackButton(),
         title: const Text('Match Statistics'),
       ),
       floatingActionButton: FloatingActionButton.extended(
