@@ -30,7 +30,7 @@ jobs:
         run: python -m ruff format --check .
       - name: Audit Python dependencies and backend source
         run: |
-          pip-audit --local
+          pip-audit -r requirements.lock
           bandit -r accounts academy config console portal scripts -x '*/migrations/*,*/tests.py' -ll -q
       - name: Run tests
         # The suite forces SQLite (see config.settings.TESTING) and mocks
