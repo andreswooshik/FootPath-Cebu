@@ -314,9 +314,7 @@ class SquadProgressView(APIView):
                 'Only Coaches, Coordinators, and the Super Admin can view squad progress.'
             )
 
-        profiles = PlayerProfile.objects.select_related('user').filter(
-            user__is_active=True
-        )
+        profiles = PlayerProfile.objects.select_related('user').filter(user__is_active=True)
         attendance = Attendance.objects.filter(player__is_active=True)
         if request.user.role in (Roles.COACH, Roles.COORDINATOR):
             if request.user.club_id is None:

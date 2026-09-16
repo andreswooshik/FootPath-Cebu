@@ -271,9 +271,7 @@ def coaches(request):
         club=club,
         role=Roles.COACH,
         is_active=True,
-    ).order_by(
-        'last_name', 'first_name'
-    )
+    ).order_by('last_name', 'first_name')
     # There is no per-coach roster assignment anywhere in the schema — club
     # is the only tenancy boundary, so every coach in a club can coach/assess
     # every player in it. This is the same roster for every coach, not a
