@@ -39,6 +39,7 @@ from academy.serializer_tournaments import (
 from academy.tournament_rosters import (
     invalid_squad_entries,
     roster_eligibility,
+    roster_eligibility_injury_prefetch,
 )
 from accounts.models import (
     Roles,
@@ -229,9 +230,14 @@ class TournamentSquadDetailView(APIView):
     def get(self, request, bracket_id):
         bracket = _mobile_tournament_bracket(request.user, bracket_id)
         try:
-            squad = TournamentSquad.objects.prefetch_related(
-                'entries__player__player_profile',
-            ).get(bracket=bracket)
+            squad = (
+                TournamentSquad.objects.select_related('bracket__schedule')
+                .prefetch_related(
+                    'entries__player__player_profile',
+                    roster_eligibility_injury_prefetch('entries__player__injury_records'),
+                )
+                .get(bracket=bracket)
+            )
         except TournamentSquad.DoesNotExist:
             if request.user.role not in (
                 Roles.COACH,
@@ -272,7 +278,9 @@ class TournamentSquadDetailView(APIView):
                 role=Roles.PLAYER,
                 club_id=request.user.club_id,
                 is_active=True,
-            ).select_related('player_profile')
+            )
+            .select_related('player_profile')
+            .prefetch_related(roster_eligibility_injury_prefetch())
         }
         missing = sorted(set(player_ids) - set(players))
         if missing:
@@ -328,9 +336,14 @@ class TournamentSquadDetailView(APIView):
                     f'positions={sorted(changed_positions)}'
                 ),
             )
-        squad = TournamentSquad.objects.prefetch_related(
-            'entries__player__player_profile',
-        ).get(pk=squad.pk)
+        squad = (
+            TournamentSquad.objects.select_related('bracket__schedule')
+            .prefetch_related(
+                'entries__player__player_profile',
+                roster_eligibility_injury_prefetch('entries__player__injury_records'),
+            )
+            .get(pk=squad.pk)
+        )
         return Response(_squad_data(squad, request))
 
 
@@ -353,6 +366,7 @@ class TournamentSquadCandidatesView(APIView):
                 is_active=True,
             )
             .select_related('player_profile')
+            .prefetch_related(roster_eligibility_injury_prefetch())
             .order_by(
                 'last_name',
                 'first_name',
@@ -394,8 +408,11 @@ class TournamentSquadPublishView(APIView):
             )
         with transaction.atomic():
             squad = get_object_or_404(
-                TournamentSquad.objects.select_for_update(of=('self',)).prefetch_related(
+                TournamentSquad.objects.select_for_update(of=('self',))
+                .select_related('bracket__schedule')
+                .prefetch_related(
                     'entries__player__player_profile',
+                    roster_eligibility_injury_prefetch('entries__player__injury_records'),
                 ),
                 bracket=bracket,
             )

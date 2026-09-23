@@ -153,7 +153,9 @@ class TournamentSchedule(models.Model):
         """
         if not self.is_published:
             return 'DRAFT'
-        fixture_states = list(self.fixtures.values_list('status', flat=True))
+        # ``all()`` reuses Django's prefetched relation cache; ``values_list``
+        # would construct a fresh queryset and issue another database query.
+        fixture_states = [fixture.status for fixture in self.fixtures.all()]
         has_completed = FixtureStatus.COMPLETED in fixture_states
         active_states = [value for value in fixture_states if value != FixtureStatus.CANCELLED]
         if active_states and all(value == FixtureStatus.COMPLETED for value in active_states):

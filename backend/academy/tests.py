@@ -12,11 +12,13 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.urls import reverse
 from django.utils import timezone
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
 from accounts.models import Club, GuardianLink, Roles, User
 from test_uploads import jpeg_bytes
 
+from .dispute_service import append_dispute_response
 from .models import (
     AgeTier,
     AgeTierSetting,
@@ -44,6 +46,7 @@ from .models import (
 )
 from .notifications import _recipients_for_session
 from .player_unlock import issue_player_unlock
+from .serializer_workflows import AttendanceBatchSerializer
 
 
 def default_test_club():
@@ -487,6 +490,12 @@ class SessionAttendanceTests(APITestCase):
         )
         self.assertEqual(resp.status_code, 400)
 
+    def test_batch_payload_validation_performs_no_player_queries(self):
+        serializer = AttendanceBatchSerializer(data=self._payload())
+
+        with self.assertNumQueries(0):
+            self.assertTrue(serializer.is_valid(), serializer.errors)
+
     def test_out_of_range_effort_rejected(self):
         self.client.force_authenticate(self.coach)
         resp = self.client.post(
@@ -578,6 +587,24 @@ class AssessmentTests(APITestCase):
         self.assertEqual(resp.data['ratings']['pace'], 90)
         self.player.player_profile.refresh_from_db()
         self.assertEqual(self.player.player_profile.shooting, 91)
+
+    def test_empty_assessment_and_position_updates_are_rejected(self):
+        self.client.force_authenticate(self.coach)
+
+        assessment = self.client.put(
+            reverse('player-assessment', args=[self.player.id]),
+            {},
+            format='json',
+        )
+        position = self.client.put(
+            reverse('player-position', args=[self.player.id]),
+            {},
+            format='json',
+        )
+
+        self.assertEqual(assessment.status_code, 400)
+        self.assertEqual(position.status_code, 400)
+        self.assertFalse(AuditLog.objects.filter(action='position.changed').exists())
 
     def test_coach_note_is_saved_alongside_ratings(self):
         """Regression guard: the note used to be dropped when the serializer
@@ -809,6 +836,18 @@ class AgeTierSettingsTests(APITestCase):
             format='json',
         )
         self.assertEqual(resp.status_code, 400)
+
+    def test_partial_update_is_checked_against_stored_bands(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.put(
+            self.url,
+            [{'tier': 'FOUNDATION', 'minAge': 10, 'maxAge': 13}],
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        foundation = AgeTierSetting.objects.get(tier=AgeTier.FOUNDATION)
+        self.assertEqual((foundation.min_age, foundation.max_age), (10, 12))
 
     def test_tier_for_age_clamps_out_of_band_ages(self):
         self.assertEqual(AgeTierSetting.tier_for_age(8), AgeTier.FOUNDATION)
@@ -1158,6 +1197,26 @@ class TrainingSessionTests(APITestCase):
         self.assertEqual(session.location, 'Annex Pitch')
         mock_notify.assert_called_once()
 
+    @patch('academy.view_training.notify_session_updated')
+    def test_empty_and_no_op_updates_create_no_audit_or_notification(self, mock_notify):
+        session = TrainingSession.objects.create(
+            title='No-op Training',
+            date=date.today() + timedelta(days=1),
+            age_tiers=['DEVELOPMENT'],
+            focus=SessionFocus.TECHNICAL,
+            club=self.coach.club,
+        )
+        url = reverse('training-session-detail', args=[session.id])
+        self.client.force_authenticate(self.coach)
+
+        empty = self.client.put(url, {}, format='json')
+        unchanged = self.client.put(url, {'title': session.title}, format='json')
+
+        self.assertEqual(empty.status_code, 400)
+        self.assertEqual(unchanged.status_code, 200)
+        self.assertFalse(AuditLog.objects.filter(action='session.updated').exists())
+        mock_notify.assert_not_called()
+
     @patch('academy.view_training.notify_session_cancelled')
     def test_coach_cancels_a_session_and_attendance_survives(self, mock_notify):
         player = make_player('att@footpathcebu.test')
@@ -1413,6 +1472,50 @@ class DisputeTests(APITestCase):
         self.dispute.refresh_from_db()
         self.assertEqual(self.dispute.status, DisputeStatus.OPEN)
 
+    def test_coach_cannot_change_status_when_replying(self):
+        self.client.force_authenticate(self.coach)
+        response = self.client.post(
+            reverse('dispute-responses', args=[self.dispute.id]),
+            {
+                'body': 'Closing my own dispute.',
+                'statusChangeTo': DisputeStatus.DISMISSED,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.dispute.refresh_from_db()
+        self.assertEqual(self.dispute.status, DisputeStatus.OPEN)
+        self.assertFalse(self.dispute.responses.exists())
+
+    def test_service_rejects_coach_status_change(self):
+        with self.assertRaises(PermissionDenied):
+            append_dispute_response(
+                actor=self.coach,
+                dispute_id=self.dispute.pk,
+                body='Attempting to bypass the API view.',
+                status_change_to=DisputeStatus.RESOLVED,
+            )
+
+        self.dispute.refresh_from_db()
+        self.assertEqual(self.dispute.status, DisputeStatus.OPEN)
+        self.assertFalse(self.dispute.responses.exists())
+
+    def test_admin_can_change_dispute_status(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            reverse('dispute-responses', args=[self.dispute.id]),
+            {
+                'body': 'Administrative review completed.',
+                'statusChangeTo': DisputeStatus.DISMISSED,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.dispute.refresh_from_db()
+        self.assertEqual(self.dispute.status, DisputeStatus.DISMISSED)
+
     def test_invalid_category_and_status_rejected(self):
         self.client.force_authenticate(self.coach)
         payload = self._payload() | {'category': 'VIBES'}
@@ -1420,6 +1523,7 @@ class DisputeTests(APITestCase):
             self.client.post(reverse('disputes'), payload, format='json').status_code,
             400,
         )
+        self.client.force_authenticate(self.coordinator)
         self.assertEqual(
             self.client.post(
                 reverse('dispute-responses', args=[self.dispute.id]),
@@ -2104,6 +2208,26 @@ class AdminCreatePlayerViewTests(APITestCase):
         self.assertIsNone(response.data['temporary_password'])
 
     @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
+    def test_middle_initial_is_normalized_and_future_birth_date_is_rejected(self, provision):
+        self.client.force_authenticate(self.admin)
+
+        normalized = self.client.post(
+            self.url,
+            self._payload(middle_initial=' q. '),
+            format='json',
+        )
+        future = self.client.post(
+            self.url,
+            self._payload(date_of_birth='2999-01-01'),
+            format='json',
+        )
+
+        self.assertEqual(normalized.status_code, 201, normalized.data)
+        self.assertEqual(PlayerProfile.objects.get(user__first_name='Juan').middle_initial, 'Q')
+        self.assertEqual(future.status_code, 400)
+        self.assertEqual(provision.call_count, 1)
+
+    @patch('academy.view_administration.provision_player', side_effect=_fake_provision_player)
     def test_age_and_tier_derived_from_dob(self, _mock):
         """New players are placed by the configured bands — not left on the
         model defaults (age 0 / DEVELOPMENT) as they were before audit F5.
@@ -2252,11 +2376,12 @@ class SessionConfirmationTests(APITestCase):
         body = {'sessionId': str(self.session.id), 'status': 'CONFIRMED'}
         self.client.post(self._url(), body, format='json')
         # Flip to declined — the same (player, session) row updates in place.
-        self.client.post(
+        updated = self.client.post(
             self._url(),
             {'sessionId': str(self.session.id), 'status': 'DECLINED'},
             format='json',
         )
+        self.assertEqual(updated.status_code, 200)
         self.assertEqual(SessionConfirmation.objects.count(), 1)
         row = SessionConfirmation.objects.get()
         self.assertEqual(row.status, ConfirmationStatus.DECLINED)

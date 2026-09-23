@@ -417,6 +417,32 @@ class TournamentScheduleApiTests(APITestCase):
         )
         self.assertEqual(response.data[0]['fixtures'][0]['opponent'], 'Rivals FC')
 
+    def test_schedule_list_is_paginated_without_changing_array_contract(self):
+        TournamentSchedule.objects.create(
+            club=self.club,
+            title='Second Published Tournament',
+            is_published=True,
+            published_at=timezone.now(),
+        )
+        self.client.force_authenticate(self.player)
+
+        first = self.client.get(reverse('tournament-schedules'), {'limit': 1})
+        second = self.client.get(
+            reverse('tournament-schedules'),
+            {'limit': 1, 'offset': 1},
+        )
+
+        self.assertIsInstance(first.data, list)
+        self.assertEqual(len(first.data), 1)
+        self.assertEqual(first['X-Next-Offset'], '1')
+        self.assertEqual(len(second.data), 1)
+
+    def test_lifecycle_status_reuses_prefetched_fixtures(self):
+        schedule = TournamentSchedule.objects.prefetch_related('fixtures').get(pk=self.schedule.pk)
+
+        with self.assertNumQueries(0):
+            self.assertEqual(schedule.lifecycle_status, 'IN_PROGRESS')
+
 
 class TournamentCoordinatorMobileApiTests(APITestCase):
     def setUp(self):

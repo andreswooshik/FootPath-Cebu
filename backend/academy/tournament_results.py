@@ -14,7 +14,10 @@ from .models import (
     TournamentSquad,
     TournamentSquadStatus,
 )
-from .tournament_rosters import roster_eligibility
+from .tournament_rosters import (
+    roster_eligibility,
+    roster_eligibility_injury_prefetch,
+)
 
 
 def complete_tournament_fixture(*, fixture, actor, payload):
@@ -62,7 +65,9 @@ def complete_tournament_fixture(*, fixture, actor, payload):
             role=Roles.PLAYER,
             club_id=actor.club_id,
             is_active=True,
-        ).select_related('player_profile')
+        )
+        .select_related('player_profile')
+        .prefetch_related(roster_eligibility_injury_prefetch())
     }
     if len(players) != len(set(player_ids)):
         raise ValidationError({'participants': 'A participant is not an active club player.'})

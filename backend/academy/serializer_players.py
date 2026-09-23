@@ -110,7 +110,7 @@ class PlayerSerializer(serializers.ModelSerializer):
         }
 
     def get_currentPlayerStats(self, obj):
-        latest = self.get_latestPlayerStats(obj)
+        latest = self._latest_player_stats(obj)
         if latest is None:
             return None
         catalog = latest['catalog']
@@ -126,6 +126,17 @@ class PlayerSerializer(serializers.ModelSerializer):
         }
 
     def get_latestPlayerStats(self, obj):
+        return self._latest_player_stats(obj)
+
+    def _latest_player_stats(self, obj):
+        cache = self.context.setdefault('_latest_player_stats', {})
+        cache_key = (obj.pk, obj.position)
+        if cache_key not in cache:
+            cache[cache_key] = self._build_latest_player_stats(obj)
+        return cache[cache_key]
+
+    @staticmethod
+    def _build_latest_player_stats(obj):
         try:
             group, attributes = catalog_for(obj.position, CATALOG_VERSION)
         except DjangoValidationError:
@@ -460,6 +471,8 @@ class PlayerPositionSerializer(serializers.ModelSerializer):
     """Write side for PUT /api/players/<id>/position/ — the coach assigns or
     changes a player's position. Matches the ten codes PlayerPositionInfo.wire
     emits on the client (GK/CB/LB/RB/CDM/CM/CAM/LW/RW/ST)."""
+
+    position = serializers.CharField(required=True, allow_blank=False)
 
     class Meta:
         model = PlayerProfile

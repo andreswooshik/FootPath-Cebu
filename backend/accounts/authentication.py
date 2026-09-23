@@ -55,7 +55,10 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
             raise exceptions.AuthenticationFailed('Invalid Firebase ID token.')
 
         try:
-            user = User.objects.get(firebase_uid=decoded['uid'], is_active=True)
+            user = User.objects.select_related('club').get(
+                firebase_uid=decoded['uid'],
+                is_active=True,
+            )
         except User.DoesNotExist:
             raise exceptions.AuthenticationFailed(
                 'No account for this login. Contact an administrator.'

@@ -9,6 +9,8 @@ runs in CI without real credentials.
 
 from unittest.mock import patch
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
@@ -201,9 +203,11 @@ class FirebaseAuthMappingTests(APITestCase):
         mock_verify.return_value = {'uid': 'uid-coach'}
 
         self.client.credentials(HTTP_AUTHORIZATION='Bearer fake-token')
-        response = self.client.get(reverse('auth-me'))
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(reverse('auth-me'))
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(queries), 1)
         self.assertEqual(response.data['firebase_uid'], 'uid-coach')
         self.assertEqual(response.data['role'], Roles.COACH)
 

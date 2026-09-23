@@ -4,7 +4,8 @@ from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from django.core.management import call_command
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from firebase_admin import auth as firebase_auth
 from rest_framework.test import APITestCase
@@ -175,6 +176,15 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         self.assertEqual(self.client.post(self.url, payload, format='json').status_code, 400)
         self.create.assert_not_called()
 
+    def test_player_middle_initial_is_normalized(self):
+        self.payload['player']['middleInitial'] = ' q. '
+
+        response = self.client.post(self.url, self.payload, format='json')
+
+        self.assertEqual(response.status_code, 201, response.data)
+        profile = PlayerProfile.objects.get(user_id=response.data['playerId'])
+        self.assertEqual(profile.middle_initial, 'Q')
+
     def test_retries_return_same_ids_without_duplicate_records_or_password_storage(self):
         payload = self.new_guardian_payload()
         first = self.client.post(self.url, payload, format='json')
@@ -265,3 +275,24 @@ class CoordinatorPlayerRegistrationTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['mobileNumber'], '+639171234567')
+
+    def test_directory_reuses_filtered_guardian_link_prefetch(self):
+        player = User.objects.create(
+            username='directory-player',
+            first_name='Linked',
+            last_name='Player',
+            role=Roles.PLAYER,
+            club=self.club,
+        )
+        PlayerProfile.objects.create(user=player)
+        GuardianLink.objects.create(guardian=self.guardian, player=player)
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.client.get(
+                reverse('club-member-directory'),
+                {'role': 'GUARDIAN', 'limit': 1},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]['linkedPlayerIds'], [str(player.id)])
+        self.assertEqual(len(queries), 2)

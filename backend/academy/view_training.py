@@ -94,7 +94,7 @@ class SessionAttendanceView(APIView):
                 'SESSION_CANCELLED',
                 'Attendance is unavailable for a cancelled training session.',
             )
-        records = Attendance.objects.select_related('session', 'recorded_by').filter(
+        records = Attendance.objects.select_related('session', 'recorded_by', 'player').filter(
             session_id=session_id
         )
         response = list_response(request, records, AttendanceSerializer)
@@ -123,7 +123,7 @@ class SessionAttendanceView(APIView):
             response = Response(replacement.submission.response_body)
             self._set_revision_headers(response, replacement.submission.committed_revision)
             return response
-        records = Attendance.objects.select_related('session', 'recorded_by').filter(
+        records = Attendance.objects.select_related('session', 'recorded_by', 'player').filter(
             session=replacement.session
         )
         response = list_response(request, records, AttendanceSerializer)
@@ -234,6 +234,8 @@ class TrainingSessionDetailView(APIView):
         with transaction.atomic():
             session = self._session_for(request, pk)
             session = TrainingSession.objects.select_for_update(of=('self',)).get(pk=session.pk)
+            if not request.data:
+                raise ValidationError('Provide at least one session field to update.')
             if session.attendance_is_locked():
                 raise WorkflowConflict(
                     'SESSION_LOCKED_48H',
@@ -247,6 +249,9 @@ class TrainingSessionDetailView(APIView):
             serializer = TrainingSessionSerializer(session, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             values = serializer.validated_data
+            changed = any(getattr(session, field) != value for field, value in values.items())
+            if not changed:
+                return Response(TrainingSessionSerializer(session).data)
             draft = TrainingSession(
                 title=values.get('title', session.title),
                 date=values.get('date', session.date),
@@ -364,7 +369,9 @@ class SessionConfirmationView(APIView):
             raise ValidationError('A player query parameter is required.')
         if not _guardian_may_read(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
-        records = SessionConfirmation.objects.select_related('session').filter(player_id=player_id)
+        records = SessionConfirmation.objects.select_related('session', 'player').filter(
+            player_id=player_id
+        )
         return list_response(request, records, SessionConfirmationSerializer)
 
     @club_write_transaction
@@ -385,12 +392,12 @@ class SessionConfirmationView(APIView):
             raise ValidationError('Players can only confirm a session on its scheduled day.')
         if session.status == TrainingSessionStatus.CANCELLED:
             raise WorkflowConflict('SESSION_CANCELLED', 'A cancelled session cannot be confirmed.')
-        confirmation, _ = SessionConfirmation.objects.update_or_create(
+        confirmation, created = SessionConfirmation.objects.update_or_create(
             player=request.user,
             session=session,
             defaults={'status': status_value},
         )
         return Response(
             SessionConfirmationSerializer(confirmation).data,
-            status=status.HTTP_201_CREATED,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )

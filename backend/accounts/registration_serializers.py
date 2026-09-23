@@ -61,6 +61,9 @@ class PlayerRegistrationSerializer(serializers.Serializer):
             raise serializers.ValidationError('Date of birth cannot be in the future.')
         return value
 
+    def validate_middleInitial(self, value):
+        return normalize_middle_initial(value)
+
 
 class RegistrationCommandSerializer(serializers.Serializer):
     requestId = serializers.UUIDField()

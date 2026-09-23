@@ -7,6 +7,7 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from academy import dispute_service
 from academy._view_support import (
     DISPUTE_ROLES,
     _may_read_eligibility,
@@ -122,8 +123,9 @@ class DisputeResponseCreateView(APIView):
     """POST /api/disputes/<pk>/responses/ — append to the thread.
 
     Append-only by design: no update/delete endpoints exist, so the thread is
-    the dispute's audit trail. A response may carry a status change, applied
-    to the parent atomically with the entry that documents it.
+    the dispute's audit trail. Coaches may add comments; only Coordinators and
+    Admins may include a status transition, which is applied to the parent
+    atomically with the entry that documents it.
     """
 
     def post(self, request, pk):
@@ -132,12 +134,18 @@ class DisputeResponseCreateView(APIView):
         dispute = get_object_or_404(Dispute.objects.select_related('raised_by'), pk=pk)
         if not _dispute_in_user_scope(request.user, dispute):
             raise PermissionDenied('You may not respond to this dispute.')
+        requested_status = request.data.get('statusChangeTo')
+        if (
+            requested_status is not None
+            and requested_status != ''
+            and not dispute_service.can_change_dispute_status(request.user)
+        ):
+            raise PermissionDenied('Only Coordinators and Admins may change dispute status.')
         serializer = DisputeResponseCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        from .dispute_service import append_dispute_response
 
-        response = append_dispute_response(
+        response = dispute_service.append_dispute_response(
             actor=request.user,
             dispute_id=dispute.pk,
             body=data['body'],

@@ -23,7 +23,7 @@ from firebase_admin import auth as firebase_auth
 from rest_framework.test import APITestCase
 
 from .admin import CustomUserAdmin
-from .models import Club, Roles, User
+from .models import Club, GuardianLink, Roles, User
 from .services import (
     ProvisioningError,
     link_or_create_firebase_user,
@@ -400,6 +400,34 @@ class ConsoleProvisioningApiTests(APITestCase):
             firebase_uid='coach-uid',
             club=self.club,
         )
+
+    def test_admin_lists_are_paginated_and_eager_load_nested_clubs(self):
+        guardian = User.objects.create(
+            username='linked-guardian@x.test',
+            email='linked-guardian@x.test',
+            role=Roles.GUARDIAN,
+            club=self.club,
+        )
+        player = User.objects.create(
+            username='linked-player@x.test',
+            email='linked-player@x.test',
+            role=Roles.PLAYER,
+            club=self.club,
+        )
+        GuardianLink.objects.create(guardian=guardian, player=player)
+        self.client.force_authenticate(self.admin)
+
+        with self.assertNumQueries(2):
+            users = self.client.get(reverse('admin-users'), {'limit': 2})
+        with self.assertNumQueries(2):
+            links = self.client.get(reverse('admin-guardian-links'), {'limit': 1})
+
+        self.assertEqual(users.status_code, 200)
+        self.assertEqual(len(users.data), 2)
+        self.assertEqual(users['X-Next-Offset'], '2')
+        self.assertEqual(links.status_code, 200)
+        self.assertEqual(links.data[0]['guardian']['club_name'], self.club.name)
+        self.assertEqual(links.data[0]['player']['club_name'], self.club.name)
 
     @patch('accounts.services.ensure_initialized')
     @patch('accounts.services.firebase_auth.create_user')

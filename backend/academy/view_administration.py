@@ -106,21 +106,46 @@ class AgeTierSettingsView(APIView):
         serializer = AgeTierSettingSerializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
         bands = serializer.validated_data
+        if not bands:
+            raise ValidationError('Provide at least one age tier.')
+        submitted_tiers = [band['tier'] for band in bands]
+        if len(submitted_tiers) != len(set(submitted_tiers)):
+            raise ValidationError('Each age tier may be submitted only once.')
 
         # Overlapping bands would make tier_for_age order-dependent — reject
         # them here rather than silently picking whichever band sorts first.
-        by_min = sorted(bands, key=lambda b: b['min_age'])
-        for prev, nxt in zip(by_min, by_min[1:]):
-            if nxt['min_age'] <= prev['max_age']:
-                raise ValidationError('Tier age ranges may not overlap.')
-
         with transaction.atomic():
+            stored = {
+                setting.tier: setting
+                for setting in AgeTierSetting.objects.select_for_update().order_by('tier')
+            }
+            unknown = sorted(set(submitted_tiers) - set(stored))
+            if unknown:
+                raise ValidationError(f'Unknown tier(s): {unknown}')
+
+            proposed = {
+                tier: {
+                    'tier': tier,
+                    'min_age': setting.min_age,
+                    'max_age': setting.max_age,
+                }
+                for tier, setting in stored.items()
+            }
             for band in bands:
-                updated = AgeTierSetting.objects.filter(tier=band['tier']).update(
-                    min_age=band['min_age'], max_age=band['max_age']
-                )
-                if not updated:
-                    raise ValidationError(f'Unknown tier: {band["tier"]}')
+                proposed[band['tier']] = band
+
+            by_min = sorted(proposed.values(), key=lambda band: band['min_age'])
+            for previous, current in zip(by_min, by_min[1:]):
+                if current['min_age'] <= previous['max_age']:
+                    raise ValidationError('Tier age ranges may not overlap.')
+
+            changed = []
+            for band in bands:
+                setting = stored[band['tier']]
+                setting.min_age = band['min_age']
+                setting.max_age = band['max_age']
+                changed.append(setting)
+            AgeTierSetting.objects.bulk_update(changed, ['min_age', 'max_age'])
         return self.get(request)
 
 

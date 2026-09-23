@@ -25,6 +25,7 @@ from accounts.models import (
     Roles,
     User,
 )
+from accounts.registration_serializers import normalize_middle_initial
 
 
 class InjuryStatusUpdateRequestSerializer(serializers.ModelSerializer):
@@ -398,7 +399,9 @@ class SessionAttendanceRecordSerializer(serializers.Serializer):
     """Write side of POST /api/attendance/session/<id>/ — one record in the
     `records` array the coach's roll-call screen submits."""
 
-    playerId = serializers.IntegerField()
+    # Existence, role, and club membership are validated for the complete
+    # batch by attendance_service.replace_attendance() in one database query.
+    playerId = serializers.IntegerField(min_value=1)
     status = serializers.CharField()
     effort = serializers.IntegerField(
         min_value=0,
@@ -419,11 +422,6 @@ class SessionAttendanceRecordSerializer(serializers.Serializer):
         required=False,
         allow_blank=True,
     )
-
-    def validate_playerId(self, value):
-        if not User.objects.filter(pk=value, role=Roles.PLAYER).exists():
-            raise serializers.ValidationError(f'Unknown player id: {value}')
-        return value
 
     def validate_status(self, value):
         v = str(value).upper()
@@ -469,6 +467,14 @@ class AdminCreatePlayerSerializer(serializers.Serializer):
         queryset=User.objects.filter(role=Roles.GUARDIAN),
         required=True,
     )
+
+    def validate_date_of_birth(self, value):
+        if value > timezone.localdate():
+            raise serializers.ValidationError('Date of birth cannot be in the future.')
+        return value
+
+    def validate_middle_initial(self, value):
+        return normalize_middle_initial(value)
 
     def to_internal_value(self, data):
         if 'email' in data:

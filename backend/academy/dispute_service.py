@@ -1,21 +1,56 @@
 """Shared, serialized dispute-response workflow for API and portal callers."""
 
-from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from accounts.models import Roles
+from accounts.models import Roles, User
 
 from .models import AuditLog, Dispute, DisputeResponse, DisputeStatus
 
-
-@transaction.atomic
-def append_dispute_response(*, actor, dispute_id, body, status_change_to=None):
-    if not actor.is_active or actor.role not in (
+DISPUTE_RESPONDER_ROLES = frozenset(
+    {
         Roles.ADMIN,
         Roles.COACH,
         Roles.COORDINATOR,
-    ):
+    }
+)
+DISPUTE_STATUS_MANAGER_ROLES = frozenset(
+    {
+        Roles.ADMIN,
+        Roles.COORDINATOR,
+    }
+)
+
+
+def can_change_dispute_status(user: User | None) -> bool:
+    """Return whether an active user may transition a dispute's lifecycle."""
+    return bool(user and user.is_active and user.role in DISPUTE_STATUS_MANAGER_ROLES)
+
+
+@transaction.atomic
+def append_dispute_response(
+    *,
+    actor: User,
+    dispute_id: int,
+    body: str,
+    status_change_to: str | None = None,
+) -> DisputeResponse:
+    """Append a reply and optionally perform an authorized status transition.
+
+    Coaches may participate in the discussion but cannot modify lifecycle
+    state. This check belongs in the service so non-HTTP callers cannot bypass
+    the API view's authorization.
+    """
+    if not actor.is_active or actor.role not in DISPUTE_RESPONDER_ROLES:
         raise PermissionDenied('You may not respond to disputes.')
+    new_status = status_change_to or None
+    if new_status is not None and not can_change_dispute_status(actor):
+        raise PermissionDenied('Only Coordinators and Admins may change dispute status.')
+    if new_status is not None and new_status not in DisputeStatus.values:
+        raise ValidationError('Unknown dispute status.')
+    if not isinstance(body, str) or not body.strip() or len(body) > 2000:
+        raise ValidationError('A response must contain 1 to 2000 characters.')
+
     dispute = (
         Dispute.objects.select_for_update(of=('self',))
         .select_related(
@@ -29,11 +64,6 @@ def append_dispute_response(*, actor, dispute_id, body, status_change_to=None):
         or dispute.raised_by.club_id != actor.club_id
     ):
         raise PermissionDenied('You may not respond to this dispute.')
-    new_status = status_change_to or None
-    if new_status is not None and new_status not in DisputeStatus.values:
-        raise ValidationError('Unknown dispute status.')
-    if not isinstance(body, str) or not body.strip() or len(body) > 2000:
-        raise ValidationError('A response must contain 1 to 2000 characters.')
     response = DisputeResponse.objects.create(
         dispute=dispute,
         author=actor,

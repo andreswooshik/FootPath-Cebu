@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -34,6 +35,23 @@ from .services import (
     provision_user,
     set_coordinator_firebase_disabled,
 )
+
+
+class ArrayLimitOffsetPagination(LimitOffsetPagination):
+    """Bound admin lists while preserving their existing JSON-array contract."""
+
+    default_limit = 200
+    max_limit = 500
+
+    def get_paginated_response(self, data):
+        response = Response(data)
+        response['X-Page-Limit'] = str(self.limit)
+        response['X-Page-Offset'] = str(self.offset)
+        next_link = self.get_next_link()
+        if next_link:
+            response['X-Next-Offset'] = str(self.offset + self.limit)
+            response['Link'] = f'<{next_link}>; rel="next"'
+        return response
 
 
 class MeView(APIView):
@@ -128,7 +146,8 @@ class AdminUserListCreateView(generics.ListCreateAPIView):
 
     permission_classes = [IsAdmin]
     throttle_scope = 'account_admin'
-    queryset = User.objects.exclude(role=Roles.ADMIN).order_by('email')
+    queryset = User.objects.select_related('club').exclude(role=Roles.ADMIN).order_by('email')
+    pagination_class = ArrayLimitOffsetPagination
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -292,8 +311,12 @@ class AdminUserDetailView(APIView):
 class AdminGuardianLinkListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdmin]
     throttle_scope = 'account_admin'
-    queryset = GuardianLink.objects.select_related('guardian', 'player').order_by('-created_at')
+    queryset = GuardianLink.objects.select_related(
+        'guardian__club',
+        'player__club',
+    ).order_by('-created_at')
     serializer_class = GuardianLinkSerializer
+    pagination_class = ArrayLimitOffsetPagination
 
     def perform_create(self, serializer):
         link = serializer.save()

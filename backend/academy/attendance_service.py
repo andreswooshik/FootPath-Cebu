@@ -93,7 +93,7 @@ def replace_attendance(*, coach, session_id, records, request_key=None, expected
         ).values_list('id', flat=True)
     )
     if in_club != set(submitted_ids):
-        raise PermissionDenied('One or more players are not in your club.')
+        raise ValidationError({'records': 'One or more player IDs are unknown or unavailable.'})
     for record in sorted(records, key=lambda row: row['playerId']):
         Attendance.objects.update_or_create(
             player_id=record['playerId'],

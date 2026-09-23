@@ -111,17 +111,20 @@ class PostgreSQLConcurrencyTests(TransactionTestCase):
     def test_concurrent_comment_cannot_reopen_resolved_dispute(self):
         dispute = Dispute.objects.create(raised_by=self.coach, summary='Concurrent review')
 
-        def reply(status):
+        def reply(actor_id, status):
             return lambda: (
                 append_dispute_response(
-                    actor=User.objects.get(pk=self.coach.pk),
+                    actor=User.objects.get(pk=actor_id),
                     dispute_id=dispute.pk,
                     body='Review response',
                     status_change_to=status,
                 ).pk
             )
 
-        self.parallel(reply(DisputeStatus.RESOLVED), reply(None))
+        self.parallel(
+            reply(self.coordinator.pk, DisputeStatus.RESOLVED),
+            reply(self.coach.pk, None),
+        )
         dispute.refresh_from_db()
         self.assertEqual(dispute.status, DisputeStatus.RESOLVED)
         self.assertEqual(dispute.responses.count(), 2)

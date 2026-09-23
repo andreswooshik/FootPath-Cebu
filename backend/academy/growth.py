@@ -15,6 +15,7 @@ IMPROVING = 'IMPROVING'
 STABLE = 'STABLE'
 NEEDS_ATTENTION = 'NEEDS_ATTENTION'
 INSUFFICIENT_DATA = 'INSUFFICIENT_DATA'
+MAX_HISTORY_ROWS = 100
 
 
 def resolve_growth_filter(params, *, today=None):
@@ -64,8 +65,9 @@ def resolve_growth_filter(params, *, today=None):
 
 
 def limited(rows, limit):
-    values = list(rows)
-    return values if limit is None else values[:limit]
+    """Evaluate at most the requested number of ordered queryset rows."""
+    database_limit = min(limit, MAX_HISTORY_ROWS) if limit is not None else MAX_HISTORY_ROWS
+    return list(rows[:database_limit])
 
 
 def rounded_average(values, digits=1):

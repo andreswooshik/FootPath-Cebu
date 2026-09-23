@@ -1,4 +1,6 @@
 from datetime import date
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.urls import reverse
 from rest_framework.test import APITestCase
@@ -17,7 +19,11 @@ from .models import (
     TournamentSquadEntry,
     TournamentSquadStatus,
 )
-from .tournament_rosters import roster_eligibility
+from .serializer_tournaments import TournamentSquadEntrySerializer
+from .tournament_rosters import (
+    roster_eligibility,
+    roster_eligibility_injury_prefetch,
+)
 
 
 def _club(name):
@@ -82,6 +88,62 @@ class TournamentRosterEligibilityTests(APITestCase):
         injury.resolved_on = date(2026, 8, 28)
         injury.save()
         self.assertEqual(roster_eligibility(player, self.u8).state, 'ELIGIBLE')
+
+    def test_prefetched_injuries_make_batch_eligibility_query_free(self):
+        pending = _player('pending@eligibility.test', self.club, date(2019, 1, 1))
+        blocked = _player('blocked@eligibility.test', self.club, date(2019, 1, 1))
+        InjuryRecord.objects.create(
+            player=pending,
+            description='Pending check',
+            occurred_on=date(2026, 8, 20),
+            review_status=InjuryReportStatus.PENDING,
+        )
+        InjuryRecord.objects.create(
+            player=blocked,
+            description='Confirmed injury',
+            occurred_on=date(2026, 8, 21),
+            review_status=InjuryReportStatus.CONFIRMED,
+            status=InjuryStatus.ACTIVE,
+        )
+        players = list(
+            User.objects.filter(pk__in=(pending.pk, blocked.pk))
+            .select_related('player_profile')
+            .prefetch_related(roster_eligibility_injury_prefetch())
+            .order_by('pk')
+        )
+
+        with self.assertNumQueries(0):
+            states = [roster_eligibility(player, self.u8).state for player in players]
+
+        self.assertCountEqual(states, ['WARNING', 'BLOCKED'])
+
+    def test_entry_serializer_calculates_eligibility_once_per_entry(self):
+        player = _player('serialized@eligibility.test', self.club, date(2019, 1, 1))
+        squad = TournamentSquad.objects.create(bracket=self.u8)
+        entry = TournamentSquadEntry.objects.create(squad=squad, player=player)
+        entry = (
+            TournamentSquadEntry.objects.select_related(
+                'player__player_profile',
+                'squad__bracket__schedule',
+            )
+            .prefetch_related(roster_eligibility_injury_prefetch('player__injury_records'))
+            .get(pk=entry.pk)
+        )
+        request = SimpleNamespace(user=_user('staff@eligibility.test', Roles.COACH, self.club))
+        serializer = TournamentSquadEntrySerializer(context={'request': request})
+
+        with patch(
+            'academy.serializer_tournaments.roster_eligibility',
+            wraps=roster_eligibility,
+        ) as eligibility:
+            with self.assertNumQueries(0):
+                self.assertEqual(serializer.get_availability(entry), 'ELIGIBLE')
+                self.assertEqual(
+                    serializer.get_availabilityReason(entry),
+                    'Eligible for this bracket.',
+                )
+
+        eligibility.assert_called_once_with(entry.player, entry.squad.bracket)
 
 
 class TournamentRosterApiTests(APITestCase):

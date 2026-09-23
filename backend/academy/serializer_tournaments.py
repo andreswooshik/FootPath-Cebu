@@ -199,7 +199,10 @@ class TournamentSquadEntrySerializer(serializers.ModelSerializer):
         return _display_name(obj.player)
 
     def _eligibility(self, obj):
-        return roster_eligibility(obj.player, obj.squad.bracket)
+        cache = self.context.setdefault('_tournament_roster_eligibility', {})
+        if obj.pk not in cache:
+            cache[obj.pk] = roster_eligibility(obj.player, obj.squad.bracket)
+        return cache[obj.pk]
 
     def get_availability(self, obj):
         return self._eligibility(obj).state

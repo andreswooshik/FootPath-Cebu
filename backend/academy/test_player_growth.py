@@ -18,6 +18,7 @@ from .growth import (
     INSUFFICIENT_DATA,
     build_match_growth,
     build_training_groups,
+    limited,
     per_90,
 )
 from .models import (
@@ -435,6 +436,18 @@ class MatchCategoryAndGrowthApiTests(APITestCase):
 
 
 class GrowthCalculationTests(APITestCase):
+    def test_limited_applies_database_slice_before_evaluation(self):
+        club = _club('Bounded History Club')
+        player = _player('bounded-history@match-growth.test', club)
+        queryset = PlayerAssessmentSnapshot.objects.filter(player=player)
+
+        with CaptureQueriesContext(connection) as queries:
+            rows = limited(queryset, 5)
+
+        self.assertEqual(rows, [])
+        self.assertEqual(len(queries), 1)
+        self.assertIn('LIMIT 5', queries[0]['sql'].upper())
+
     def test_per_90_never_divides_zero_minutes(self):
         self.assertIsNone(per_90(3, 0))
 

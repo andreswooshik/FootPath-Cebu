@@ -5,8 +5,9 @@ from rest_framework.test import APITestCase
 
 from accounts.models import Roles
 
-from .models import PlayerStatsAssessment
+from .models import PlayerProfile, PlayerStatsAssessment
 from .player_stats import catalog_for, normalized_scores, overall, role_group_for
+from .serializer_players import PlayerSerializer
 from .tests import make_player, make_user
 
 
@@ -85,6 +86,16 @@ class PlayerStatsApiTests(APITestCase):
         self.assertTrue(one.data['comparison']['baseline'])
         self.assertIsNone(one.data['comparison']['overallDelta'])
 
+    def test_player_serializer_shares_latest_stats_lookup_between_fields(self):
+        self._assessment(self.scores)
+        profile = PlayerProfile.objects.select_related('user', 'user__club').get(user=self.player)
+
+        with self.assertNumQueries(1):
+            data = PlayerSerializer(profile).data
+
+        self.assertEqual(data['currentPlayerStats']['overall'], 83)
+        self.assertEqual(data['latestPlayerStats']['assessment']['overall'], 83)
+
     def test_coordinator_can_read_same_club_player_stats(self):
         coordinator = make_user(Roles.COORDINATOR, 'stats-coordinator@footpathcebu.test')
         self._assessment(self.scores)
@@ -161,6 +172,23 @@ class PlayerStatsApiTests(APITestCase):
         self.assertEqual(90, comparison['attributes']['pace']['new'])
         self.assertEqual(10, comparison['attributes']['pace']['delta'])
         self.assertEqual(-10, comparison['attributes']['physical']['delta'])
+
+    def test_get_paginates_both_history_streams_at_database_level(self):
+        for pace in (70, 75, 80):
+            self._assessment({**self.scores, 'pace': pace})
+        self.client.force_authenticate(self.coach)
+
+        first = self.client.get(self.url, {'limit': 2})
+        second = self.client.get(self.url, {'limit': 2, 'offset': 2})
+
+        self.assertEqual(len(first.data['history']), 2)
+        self.assertEqual(first['X-Next-Offset'], '2')
+        self.assertEqual(len(second.data['history']), 1)
+        self.assertNotIn('X-Next-Offset', second)
+        self.assertEqual(
+            first.data['latestCompatibleStats']['id'],
+            first.data['history'][0]['id'],
+        )
 
     def test_incompatible_role_group_is_not_used_as_comparison_baseline(self):
         self._assessment(self.scores)

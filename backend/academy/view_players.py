@@ -1,6 +1,7 @@
 """Domain-focused API views extracted from the legacy view module."""
 
 from django.db import transaction
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -63,11 +64,16 @@ from accounts.guardian_access import (
     valid_guardian_links,
 )
 from accounts.models import (
+    GuardianLink,
     Roles,
     User,
 )
 
-from .pagination import list_response
+from .pagination import (
+    add_list_window_headers,
+    list_response,
+    list_window,
+)
 
 
 class SquadListView(APIView):
@@ -111,9 +117,22 @@ class ClubMemberDirectoryView(APIView):
             club_id=request.user.club_id,
             role=requested_role,
             is_active=True,
-        ).prefetch_related('guardian_links__player')
+        ).prefetch_related(
+            Prefetch(
+                'guardian_links',
+                queryset=GuardianLink.objects.select_related('player').filter(
+                    player__is_active=True
+                ),
+                to_attr='active_guardian_links',
+            )
+        )
+        limit, offset = list_window(request)
+        members = list(
+            members.order_by('last_name', 'first_name', 'id')[offset : offset + limit + 1]
+        )
+        more = len(members) > limit
         rows = []
-        for member in members.order_by('last_name', 'first_name', 'id'):
+        for member in members[:limit]:
             name = (
                 ' '.join(
                     part
@@ -129,9 +148,7 @@ class ClubMemberDirectoryView(APIView):
             linked_players = []
             linked_player_ids = []
             if member.role == Roles.GUARDIAN:
-                links = member.guardian_links.select_related('player').filter(
-                    player__is_active=True
-                )
+                links = member.active_guardian_links
                 linked_players = [
                     link.player.get_full_name().strip()
                     or (
@@ -154,7 +171,13 @@ class ClubMemberDirectoryView(APIView):
                     'linkedPlayerIds': linked_player_ids,
                 }
             )
-        return Response(rows)
+        return add_list_window_headers(
+            request,
+            Response(rows),
+            limit=limit,
+            offset=offset,
+            more=more,
+        )
 
 
 class MyProfileView(APIView):
@@ -380,6 +403,8 @@ class PlayerAssessmentView(APIView):
         # Tenancy: a coach may only assess players in their own club.
         if request.user.club_id is None or profile.user.club_id != request.user.club_id:
             raise PermissionDenied('That player is not in your club.')
+        if not request.data:
+            raise ValidationError('Provide at least one assessment field to update.')
         if 'developmentRatings' in request.data:
             return self._put_development(request, profile)
         with transaction.atomic():
@@ -503,7 +528,7 @@ class PlayerAssessmentHistoryView(APIView):
         rows = PlayerAssessmentSnapshot.objects.select_related('player', 'assessed_by').filter(
             player_id=player_id
         )
-        return Response(PlayerAssessmentSnapshotSerializer(rows, many=True).data)
+        return list_response(request, rows, PlayerAssessmentSnapshotSerializer)
 
 
 class PlayerStatsView(APIView):
@@ -512,25 +537,26 @@ class PlayerStatsView(APIView):
     def _profile(self, player_id):
         return get_object_or_404(PlayerProfile.objects.select_related('user'), user_id=player_id)
 
-    def _payload(self, profile):
+    def _payload(self, profile, *, limit, offset):
         group, attributes = catalog_for(profile.position)
-        compatible = list(
-            PlayerStatsAssessment.objects.select_related('assessed_by').filter(
-                player=profile.user,
-                role_group=group,
-                catalog_version=1,
-            )
+        compatible_query = PlayerStatsAssessment.objects.select_related('assessed_by').filter(
+            player=profile.user,
+            role_group=group,
+            catalog_version=1,
         )
-        latest = compatible[0] if compatible else None
+        compatible_page = list(compatible_query[offset : offset + limit + 1])
+        latest_pair = compatible_page[:2] if offset == 0 else list(compatible_query[:2])
+        latest = latest_pair[0] if latest_pair else None
         comparison = (
-            self._comparison(compatible[1], compatible[0].scores)
-            if len(compatible) >= 2
+            self._comparison(latest_pair[1], latest_pair[0].scores)
+            if len(latest_pair) >= 2
             else self._comparison(None, None)
         )
-        legacy = PlayerAssessmentSnapshot.objects.select_related('assessed_by').filter(
+        legacy_query = PlayerAssessmentSnapshot.objects.select_related('assessed_by').filter(
             player=profile.user
         )
-        return {
+        legacy_page = list(legacy_query[offset : offset + limit + 1])
+        payload = {
             'catalog': {
                 'version': 1,
                 'position': profile.position,
@@ -541,10 +567,13 @@ class PlayerStatsView(APIView):
             if latest
             else None,
             'comparison': comparison,
-            'history': PlayerStatsAssessmentSerializer(compatible, many=True).data,
-            'legacyStatsHistory': PlayerAssessmentSnapshotSerializer(legacy, many=True).data,
+            'history': PlayerStatsAssessmentSerializer(compatible_page[:limit], many=True).data,
+            'legacyStatsHistory': PlayerAssessmentSnapshotSerializer(
+                legacy_page[:limit], many=True
+            ).data,
             'isBaseline': latest is None,
         }
+        return payload, len(compatible_page) > limit or len(legacy_page) > limit
 
     @staticmethod
     def _comparison(previous, new_scores):
@@ -581,7 +610,19 @@ class PlayerStatsView(APIView):
         if not _may_read_match_statistics(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
         _require_unlock_when_pin_exists(request, player_id)
-        return Response(self._payload(self._profile(player_id)))
+        limit, offset = list_window(request)
+        payload, more = self._payload(
+            self._profile(player_id),
+            limit=limit,
+            offset=offset,
+        )
+        return add_list_window_headers(
+            request,
+            Response(payload),
+            limit=limit,
+            offset=offset,
+            more=more,
+        )
 
     def post(self, request, player_id):
         if request.user.role != Roles.COACH:
@@ -651,8 +692,10 @@ class PlayerPositionView(APIView):
         # check as PlayerAssessmentView.
         if request.user.club_id is None or profile.user.club_id != request.user.club_id:
             raise PermissionDenied('That player is not in your club.')
-        serializer = PlayerPositionSerializer(profile, data=request.data, partial=True)
+        serializer = PlayerPositionSerializer(profile, data=request.data)
         serializer.is_valid(raise_exception=True)
+        if serializer.validated_data['position'] == profile.position:
+            return Response(PlayerSerializer(profile).data)
         serializer.save()
         AuditLog.record(
             request.user,

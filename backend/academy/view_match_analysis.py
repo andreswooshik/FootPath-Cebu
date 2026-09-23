@@ -3,8 +3,11 @@
 from django.db.models import (
     Avg,
     Count,
+    F,
     Q,
+    Window,
 )
+from django.db.models.functions import RowNumber
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
 from rest_framework.exceptions import (
@@ -17,6 +20,7 @@ from rest_framework.views import APIView
 from academy._view_support import _may_read_match_statistics
 from academy.assessment_framework import framework_for
 from academy.growth import (
+    MAX_HISTORY_ROWS,
     build_assessment_growth,
     build_development_assessment_growth,
     build_match_growth,
@@ -25,7 +29,10 @@ from academy.growth import (
     limited,
     resolve_growth_filter,
 )
-from academy.match_statistics import build_performance_summary
+from academy.match_statistics import (
+    aggregate_performance_summary,
+    build_performance_summary,
+)
 from academy.model_match_performance import PlayerMatchPerformance
 from academy.model_operations import Attendance
 from academy.model_players import (
@@ -101,11 +108,13 @@ class PlayerMatchStatisticsView(APIView):
             if not 1 <= selected_limit <= self._MAX_ROWS:
                 raise ValidationError({'limit': f'Choose a value from 1 to {self._MAX_ROWS}.'})
 
-        # The summary uses the complete selected range. Only the history
-        # payload is capped, so an "All" total is never silently truncated by
-        # the response-size safeguard.
-        summary_records = list(rows[:selected_limit] if selected_limit is not None else rows)
-        records = summary_records[: self._MAX_ROWS]
+        if selected_limit is None:
+            # Keep "all" totals exact without materializing the full history.
+            summary = aggregate_performance_summary(rows)
+            records = list(rows[: self._MAX_ROWS])
+        else:
+            records = list(rows[:selected_limit])
+            summary = build_performance_summary(records)
         name = f'{player.first_name} {player.last_name}'.strip()
         return Response(
             {
@@ -113,7 +122,7 @@ class PlayerMatchStatisticsView(APIView):
                 'playerName': name or player.email.split('@')[0],
                 'range': selected_range
                 or (f'last{selected_limit}' if selected_limit is not None else 'all'),
-                'summary': build_performance_summary(summary_records),
+                'summary': summary,
                 'performances': PlayerMatchPerformanceSerializer(
                     records,
                     many=True,
@@ -182,17 +191,18 @@ class PlayerGrowthView(APIView):
                 attendance = attendance.filter(session__date__gte=from_date)
             if to_date:
                 attendance = attendance.filter(session__date__lte=to_date)
-            all_training = list(attendance.order_by('-session__date', '-id'))
-            if limit is None:
-                training_rows = all_training
-            else:
-                counts = {}
-                for row in all_training:
-                    focus = row.session.focus
-                    counts.setdefault(focus, 0)
-                    if counts[focus] < limit:
-                        training_rows.append(row)
-                        counts[focus] += 1
+            per_focus_limit = min(limit, MAX_HISTORY_ROWS) if limit else MAX_HISTORY_ROWS
+            training_rows = list(
+                attendance.annotate(
+                    _focus_rank=Window(
+                        expression=RowNumber(),
+                        partition_by=[F('session__focus')],
+                        order_by=[F('session__date').desc(), F('id').desc()],
+                    )
+                )
+                .filter(_focus_rank__lte=per_focus_limit)
+                .order_by('-session__date', '-id')
+            )
 
         match_base = PlayerMatchPerformance.objects.select_related(
             'player',

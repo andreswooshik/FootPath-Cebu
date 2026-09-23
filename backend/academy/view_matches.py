@@ -37,7 +37,10 @@ from academy.serializer_match_performance import (
     PlayerMatchStatisticsWriteSerializer,
 )
 from academy.serializer_tournaments import FootballMatchSerializer
-from academy.tournament_rosters import roster_eligibility
+from academy.tournament_rosters import (
+    roster_eligibility,
+    roster_eligibility_injury_prefetch,
+)
 from accounts.models import (
     Roles,
     User,
@@ -169,6 +172,7 @@ class MatchRosterView(APIView):
             raise PermissionDenied('Only Coordinators can review out-of-squad match candidates.')
         profiles = (
             PlayerProfile.objects.select_related('user')
+            .prefetch_related(roster_eligibility_injury_prefetch('user__injury_records'))
             .filter(
                 user__club_id=match.club_id,
                 user__role=Roles.PLAYER,

@@ -42,9 +42,13 @@ from academy.storage import (
     validate_tournament_document,
 )
 from academy.tournament_results import complete_tournament_fixture
-from academy.tournament_rosters import invalid_squad_entries
+from academy.tournament_rosters import (
+    invalid_squad_entries,
+    roster_eligibility_injury_prefetch,
+)
 from accounts.models import Roles
 
+from .pagination import list_response
 from .transactions import club_write_transaction
 
 
@@ -82,6 +86,9 @@ class TournamentScheduleListView(APIView):
                     ),
                 ),
                 'age_brackets__squad__entries__player__player_profile',
+                roster_eligibility_injury_prefetch(
+                    'age_brackets__squad__entries__player__injury_records'
+                ),
             )
         )
         if request.user.role == Roles.ADMIN:
@@ -92,7 +99,13 @@ class TournamentScheduleListView(APIView):
             schedules = schedules.filter(club_id=request.user.club_id)
             if request.user.role != Roles.COORDINATOR:
                 schedules = schedules.filter(is_published=True)
-        return Response(_tournament_schedule_data(schedules, request, many=True))
+        return list_response(
+            request,
+            schedules,
+            TournamentScheduleSerializer,
+            default_limit=20,
+            max_limit=100,
+        )
 
     @club_write_transaction
     def post(self, request):
@@ -162,6 +175,7 @@ def _coordinator_mobile_schedule(user, schedule_id, *, lock=False):
             ),
         ),
         'age_brackets__squad__entries__player__player_profile',
+        roster_eligibility_injury_prefetch('age_brackets__squad__entries__player__injury_records'),
     )
     if lock:
         queryset = queryset.select_for_update(of=('self',))
