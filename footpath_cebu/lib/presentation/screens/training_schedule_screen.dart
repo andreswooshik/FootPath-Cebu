@@ -29,6 +29,7 @@ class TrainingScheduleScreen extends ConsumerStatefulWidget {
   /// The signed-in coach, forwarded to the shared bottom navigation.
   final UserProfile profile;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<TrainingScheduleScreen> createState() =>
       _TrainingScheduleScreenState();
@@ -39,6 +40,7 @@ class _TrainingScheduleScreenState
   bool _showPast = false;
   final Set<String> _openingSessionIds = {};
 
+  /// Opens the form for a new training session.
   void _openScheduleForm() {
     final upcoming = ref
         .read(trainingSessionPageProvider(TrainingSessionPeriod.upcoming))
@@ -56,6 +58,7 @@ class _TrainingScheduleScreenState
     );
   }
 
+  /// Opens the schedule form with the selected session for editing.
   void _editSession(TrainingSession session) {
     Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -64,6 +67,7 @@ class _TrainingScheduleScreenState
     );
   }
 
+  /// Confirms and requests cancellation of the selected training session.
   Future<void> _cancelSession(TrainingSession session) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -106,6 +110,7 @@ class _TrainingScheduleScreenState
     );
   }
 
+  /// Opens attendance logging for the selected training session.
   Future<void> _logAttendance(TrainingSession session) async {
     if (_openingSessionIds.contains(session.id)) return;
     setState(() => _openingSessionIds.add(session.id));
@@ -142,6 +147,7 @@ class _TrainingScheduleScreenState
     );
   }
 
+  /// Builds the training schedule screen view.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -201,6 +207,7 @@ class _TrainingScheduleScreenState
     ).animateScreenEntrance();
   }
 
+  /// Builds the body section for this view.
   Widget _buildBody() {
     final period = _showPast
         ? TrainingSessionPeriod.past
@@ -278,6 +285,7 @@ class _LoadMoreSessions extends ConsumerWidget {
   final TrainingSessionPeriod period;
   final TrainingSessionPageState page;
 
+  /// Builds the load more sessions view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (page.isLoadingMore) {
@@ -317,6 +325,7 @@ class _ScheduleTabs extends StatelessWidget {
   final bool showPast;
   final ValueChanged<bool> onChanged;
 
+  /// Builds the schedule tabs view.
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -352,6 +361,7 @@ class _TabButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Builds the tab button view.
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

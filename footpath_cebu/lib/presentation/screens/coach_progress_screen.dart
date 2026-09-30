@@ -20,6 +20,7 @@ class CoachProgressScreen extends ConsumerWidget {
   /// The signed-in coach, forwarded to the shared bottom navigation.
   final UserProfile profile;
 
+  /// Builds the coach progress screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final progress = ref.watch(squadProgressProvider);
@@ -95,6 +96,7 @@ class _SquadSummary extends StatelessWidget {
 
   final List<PlayerProgress> players;
 
+  /// Builds the squad summary view.
   @override
   Widget build(BuildContext context) {
     final rates = players
@@ -148,6 +150,7 @@ class _PlayerProgressCard extends StatelessWidget {
   final PlayerProgress progress;
   final VoidCallback onTap;
 
+  /// Builds the player progress card view.
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

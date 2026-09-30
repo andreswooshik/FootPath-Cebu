@@ -13,6 +13,7 @@ final tournamentRosterCandidatesProvider = FutureProvider.autoDispose
     );
 
 class TournamentRosterManagementController extends MutationController {
+  /// Saves the selected players for a tournament age bracket.
   Future<TournamentSquad?> save(
     String bracketId,
     List<TournamentRosterSelection> entries,
@@ -23,16 +24,20 @@ class TournamentRosterManagementController extends MutationController {
         .saveSquad(bracketId, entries),
   );
 
+  /// Publishes the saved squad for the tournament age bracket.
   Future<TournamentSquad?> publish(String bracketId) => _run(
     bracketId,
     () => ref.read(tournamentRosterRepositoryProvider).publishSquad(bracketId),
   );
 
+  /// Fetches the latest squad and refreshes schedule and candidate data.
   Future<TournamentSquad?> refresh(String bracketId) => _run(
     bracketId,
     () => ref.read(tournamentRosterRepositoryProvider).fetchSquad(bracketId),
   );
 
+  /// Runs a squad action and refreshes the tournament schedule and bracket
+  /// candidates.
   Future<TournamentSquad?> _run(
     String bracketId,
     Future<TournamentSquad> Function() action,

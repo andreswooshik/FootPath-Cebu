@@ -22,6 +22,7 @@ class ClubRegistrationState {
   final Map<String, String> fieldErrors;
   final String? error;
 
+  /// Returns an updated state while preserving fields not explicitly changed.
   ClubRegistrationState copyWith({
     CoachLicenseUpload? license,
     bool clearLicense = false,
@@ -42,15 +43,20 @@ class ClubRegistrationState {
 }
 
 class ClubRegistrationController extends Notifier<ClubRegistrationState> {
+  /// Creates the initial state for this feature controller.
   @override
   ClubRegistrationState build() => const ClubRegistrationState();
 
+  /// Shows or hides the registration password.
   void togglePassword() =>
       state = state.copyWith(showPassword: !state.showPassword);
 
+  /// Shows or hides the password confirmation.
   void toggleConfirmation() =>
       state = state.copyWith(showConfirmation: !state.showConfirmation);
 
+  /// Validates the license file type, content, and size before keeping it for
+  /// upload.
   String? setLicense({
     required Uint8List bytes,
     required String filename,
@@ -103,6 +109,7 @@ class ClubRegistrationController extends Notifier<ClubRegistrationState> {
     return null;
   }
 
+  /// Attaches an unreadable-file error to the coach license field.
   void setFilePickerError() {
     const message = 'The selected file could not be read.';
     state = state.copyWith(
@@ -110,12 +117,15 @@ class ClubRegistrationController extends Notifier<ClubRegistrationState> {
     );
   }
 
+  /// Removes a corrected field error and clears the general submission error.
   void clearFieldError(String field) {
     if (!state.fieldErrors.containsKey(field)) return;
     final errors = {...state.fieldErrors}..remove(field);
     state = state.copyWith(fieldErrors: errors, clearError: true);
   }
 
+  /// Submits the club application with its required license and exposes server
+  /// validation errors.
   Future<ClubRegistrationResult?> submit({
     required String clubName,
     required String coordinatorName,

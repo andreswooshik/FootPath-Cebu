@@ -20,7 +20,7 @@ from .models import (
     TournamentFixture,
     TrainingSession,
 )
-from .schedule_conflicts import fixture_conflict_payload
+from .tournament_publication import training_cancellation_details
 
 # Roles that participate in the dispute process: the Coach flags, while the
 # Coordinator and Admin review/respond. Players and Guardians have no access.
@@ -28,25 +28,8 @@ DISPUTE_ROLES = (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN)
 
 
 def _confirmed(request, field='confirmTrainingCancellations'):
+    """Interprets an explicit confirmation field in the request payload."""
     return str(request.data.get(field, '')).lower() in ('true', '1', 'yes', 'on')
-
-
-def _training_cancellation_details(conflicts):
-    return {
-        'count': len(conflicts),
-        'sessions': [
-            {
-                'id': str(session.id),
-                'title': session.title,
-                'date': session.date.isoformat(),
-                'startTime': session.start_time,
-                'endTime': session.end_time,
-                'ageTiers': session.age_tiers,
-                'fixture': fixture_conflict_payload(fixture),
-            }
-            for session, fixture in conflicts
-        ],
-    }
 
 
 def _in_same_club(user, player_id):
@@ -166,3 +149,7 @@ def _match_age_bracket(match):
         return match.source_fixture.age_bracket
     except TournamentFixture.DoesNotExist:
         return None
+
+
+def _training_cancellation_details(conflicts):
+    return training_cancellation_details(conflicts)

@@ -59,6 +59,7 @@ class FootballMatch(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):
+        """Checks cross-field and relationship rules for the football match before accepting it."""
         super().clean()
         self.opponent = self.opponent.strip()
         self.competition = self.competition.strip()
@@ -70,6 +71,7 @@ class FootballMatch(models.Model):
             )
 
     def save(self, *args, **kwargs):
+        """Validates the football match before saving, including writes outside admin forms."""
         self.full_clean()
         return super().save(*args, **kwargs)
 
@@ -87,6 +89,7 @@ class FootballMatch(models.Model):
         ]
 
     def __str__(self):
+        """Returns a readable football match label for admin pages and diagnostics."""
         return f'{self.club.name} vs {self.opponent} ({self.played_on})'
 
 
@@ -121,6 +124,10 @@ class TournamentSchedule(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):
+        """Checks cross-field and relationship rules for the tournament schedule before accepting
+
+        it.
+        """
         super().clean()
         self.title = self.title.strip()
         self.venue = self.venue.strip()
@@ -128,6 +135,7 @@ class TournamentSchedule(models.Model):
             raise ValidationError({'title': 'Tournament title is required.'})
 
     def save(self, *args, **kwargs):
+        """Validates the tournament schedule before saving, including writes outside admin forms."""
         self.full_clean()
         return super().save(*args, **kwargs)
 
@@ -141,6 +149,7 @@ class TournamentSchedule(models.Model):
         ]
 
     def __str__(self):
+        """Returns a readable tournament schedule label for admin pages and diagnostics."""
         return f'{self.club.name} · {self.title}'
 
     @property
@@ -220,6 +229,7 @@ class TournamentAgeBracket(models.Model):
 
     @property
     def label(self):
+        """Returns the under-age label displayed for this tournament bracket."""
         return f'U{self.max_age}'
 
     class Meta:
@@ -238,6 +248,7 @@ class TournamentAgeBracket(models.Model):
         ]
 
     def __str__(self):
+        """Returns a readable tournament age bracket label for admin pages and diagnostics."""
         return f'{self.schedule.title} - {self.label}'
 
 
@@ -271,6 +282,7 @@ class TournamentSquad(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
+        """Returns a readable tournament squad label for admin pages and diagnostics."""
         return f'{self.bracket} - {self.get_status_display()}'
 
 
@@ -300,6 +312,10 @@ class TournamentSquadEntry(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):
+        """Checks cross-field and relationship rules for the tournament squad entry before
+
+        accepting it.
+        """
         super().clean()
         self.position = self.position.strip().upper()
         if self.position and self.position not in PLAYER_POSITION_CODES:
@@ -313,6 +329,10 @@ class TournamentSquadEntry(models.Model):
                 )
 
     def save(self, *args, **kwargs):
+        """Validates the tournament squad entry before saving, including writes outside admin
+
+        forms.
+        """
         self.full_clean()
         return super().save(*args, **kwargs)
 
@@ -332,6 +352,7 @@ class TournamentSquadEntry(models.Model):
         ]
 
     def __str__(self):
+        """Returns a readable tournament squad entry label for admin pages and diagnostics."""
         return f'{self.squad.bracket} - {self.player.email}'
 
 
@@ -376,6 +397,10 @@ class TournamentFixture(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):
+        """Checks cross-field and relationship rules for the tournament fixture before accepting
+
+        it.
+        """
         super().clean()
         self.stage = self.stage.strip()
         self.opponent = self.opponent.strip() or 'TBD'
@@ -396,6 +421,7 @@ class TournamentFixture(models.Model):
             self.status = FixtureStatus.COMPLETED
 
     def save(self, *args, **kwargs):
+        """Validates the tournament fixture before saving, including writes outside admin forms."""
         self.full_clean()
         return super().save(*args, **kwargs)
 
@@ -409,14 +435,20 @@ class TournamentFixture(models.Model):
         ]
 
     def __str__(self):
+        """Returns a readable tournament fixture label for admin pages and diagnostics."""
         return f'{self.schedule.title} · {self.opponent}'
 
     @property
     def effective_ends_at(self):
+        """Returns the explicit fixture end or a two-hour fallback after kickoff."""
         return self.ends_at or self.kickoff_at + timedelta(hours=2)
 
     @property
     def can_record_result(self):
+        """Checks publication, opponent, status, and date requirements for recording a fixture
+
+        result.
+        """
         if (
             self.completed_match_id
             or self.status != FixtureStatus.SCHEDULED

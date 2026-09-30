@@ -143,23 +143,6 @@ class AssessmentSnapshot {
   final AssessmentReason reason;
   final DateTime createdAt;
   final String? assessedByRole;
-
-  factory AssessmentSnapshot.fromJson(Map<String, dynamic> json) =>
-      AssessmentSnapshot(
-        id: json['id'].toString(),
-        playerId: json['playerId'].toString(),
-        position: json['position'] as String? ?? '',
-        ratings: PlayerRatings.fromJson(
-          json['ratings'] as Map<String, dynamic>? ?? const {},
-        ),
-        overall: _asInt(json['overall']),
-        coachNotes: json['coachNotes'] as String? ?? '',
-        reason: AssessmentReasonInfo.fromWire(
-          json['assessmentReason'] as String?,
-        ),
-        createdAt: DateTime.parse(json['createdAt'] as String),
-        assessedByRole: json['assessedByRole'] as String?,
-      );
 }
 
 class AssessmentGrowthSummary {
@@ -178,21 +161,6 @@ class AssessmentGrowthSummary {
   final int? overallDelta;
   final Map<String, int> attributeDeltas;
   final GrowthClassification classification;
-
-  factory AssessmentGrowthSummary.fromJson(Map<String, dynamic> json) =>
-      AssessmentGrowthSummary(
-        sampleSize: _asInt(json['sampleSize']),
-        latestOverall: _asNullableInt(json['latestOverall']),
-        previousOverall: _asNullableInt(json['previousOverall']),
-        overallDelta: _asNullableInt(json['overallDelta']),
-        attributeDeltas:
-            (json['attributeDeltas'] as Map<String, dynamic>? ?? const {}).map(
-              (key, value) => MapEntry(key, _asInt(value)),
-            ),
-        classification: GrowthClassificationInfo.fromWire(
-          json['classification'] as String?,
-        ),
-      );
 }
 
 class TrainingGrowthGroup {
@@ -225,30 +193,6 @@ class TrainingGrowthGroup {
   final double? performanceDelta;
   final double? effortDelta;
   final List<Attendance> history;
-
-  factory TrainingGrowthGroup.fromJson(Map<String, dynamic> json) {
-    final comparison = json['comparison'] as Map<String, dynamic>? ?? const {};
-    return TrainingGrowthGroup(
-      focus: json['focus'] as String? ?? '',
-      sampleSize: _asInt(json['sampleSize']),
-      presentCount: _asInt(json['presentCount']),
-      attendanceRate: _asDouble(json['attendanceRate']),
-      averageEffort: _asDouble(json['averageEffort']),
-      averagePerformanceScore: _asDouble(json['averagePerformanceScore']),
-      classification: GrowthClassificationInfo.fromWire(
-        comparison['classification'] as String?,
-      ),
-      comparisonMetric: comparison['metric'] as String? ?? 'PERFORMANCE_SCORE',
-      recentSampleSize: _asInt(comparison['recentSampleSize']),
-      previousSampleSize: _asInt(comparison['previousSampleSize']),
-      performanceDelta: _asDouble(comparison['performanceDelta']),
-      effortDelta: _asDouble(comparison['effortDelta']),
-      history: (json['history'] as List? ?? const [])
-          .cast<Map<String, dynamic>>()
-          .map(Attendance.fromJson)
-          .toList(growable: false),
-    );
-  }
 }
 
 class MatchGrowth {
@@ -263,23 +207,6 @@ class MatchGrowth {
   final MatchPerformanceSummary summary;
   final Map<String, MatchMetricGrowth> metrics;
   final List<MatchPerformance> history;
-
-  factory MatchGrowth.fromJson(Map<String, dynamic> json) => MatchGrowth(
-    sampleSize: _asInt(json['sampleSize']),
-    summary: MatchPerformanceSummary.fromJson(
-      json['summary'] as Map<String, dynamic>? ?? const {},
-    ),
-    metrics: (json['metrics'] as Map<String, dynamic>? ?? const {}).map(
-      (key, value) => MapEntry(
-        key,
-        MatchMetricGrowth.fromJson(value as Map<String, dynamic>),
-      ),
-    ),
-    history: (json['history'] as List? ?? const [])
-        .cast<Map<String, dynamic>>()
-        .map(MatchPerformance.fromJson)
-        .toList(growable: false),
-  );
 }
 
 class MatchMetricGrowth {
@@ -294,16 +221,6 @@ class MatchMetricGrowth {
   final double? previous;
   final double? delta;
   final GrowthClassification classification;
-
-  factory MatchMetricGrowth.fromJson(Map<String, dynamic> json) =>
-      MatchMetricGrowth(
-        recent: _asDouble(json['recent']),
-        previous: _asDouble(json['previous']),
-        delta: _asDouble(json['delta']),
-        classification: GrowthClassificationInfo.fromWire(
-          json['classification'] as String?,
-        ),
-      );
 }
 
 class TournamentGrowthGroup {
@@ -330,30 +247,6 @@ class TournamentGrowthGroup {
   final int losses;
   final MatchGrowth growth;
   final List<MatchPerformance> history;
-
-  factory TournamentGrowthGroup.fromJson(Map<String, dynamic> json) {
-    final team = json['teamRecord'] as Map<String, dynamic>? ?? const {};
-    final history = (json['history'] as List? ?? const [])
-        .cast<Map<String, dynamic>>()
-        .map(MatchPerformance.fromJson)
-        .toList(growable: false);
-    return TournamentGrowthGroup(
-      tournamentId: json['tournamentId'].toString(),
-      tournament: json['tournament'] as String? ?? '',
-      ageBracketLabel: json['ageBracketLabel'] as String?,
-      sampleSize: _asInt(json['sampleSize']),
-      summary: MatchPerformanceSummary.fromJson(
-        json['summary'] as Map<String, dynamic>? ?? const {},
-      ),
-      wins: _asInt(team['wins']),
-      draws: _asInt(team['draws']),
-      losses: _asInt(team['losses']),
-      growth: MatchGrowth.fromJson(
-        json['growth'] as Map<String, dynamic>? ?? const {},
-      ),
-      history: history,
-    );
-  }
 }
 
 class PlayerGrowth {
@@ -382,66 +275,4 @@ class PlayerGrowth {
   final AssessmentFramework? assessmentFramework;
   final DevelopmentGrowthSummary? developmentSummary;
   final List<DevelopmentAssessmentSnapshot> developmentAssessments;
-
-  factory PlayerGrowth.fromJson(Map<String, dynamic> json) {
-    final assessment = json['assessments'] as Map<String, dynamic>?;
-    final training = json['training'] as Map<String, dynamic>?;
-    final tournaments = json['tournaments'] as Map<String, dynamic>?;
-    return PlayerGrowth(
-      playerId: json['playerId'].toString(),
-      playerName: json['playerName'] as String? ?? '',
-      position: json['position'] as String? ?? '',
-      assessmentSummary: assessment == null
-          ? null
-          : AssessmentGrowthSummary.fromJson(
-              assessment['summary'] as Map<String, dynamic>? ?? const {},
-            ),
-      assessments: (assessment?['history'] as List? ?? const [])
-          .cast<Map<String, dynamic>>()
-          .map(AssessmentSnapshot.fromJson)
-          .toList(growable: false),
-      assessmentFramework: assessment?['framework'] is Map<String, dynamic>
-          ? AssessmentFramework.fromJson(
-              assessment!['framework'] as Map<String, dynamic>,
-            )
-          : null,
-      developmentSummary:
-          assessment?['developmentSummary'] is Map<String, dynamic>
-          ? DevelopmentGrowthSummary.fromJson(
-              assessment!['developmentSummary'] as Map<String, dynamic>,
-            )
-          : null,
-      developmentAssessments:
-          (assessment?['developmentHistory'] as List? ?? const [])
-              .cast<Map<String, dynamic>>()
-              .map(DevelopmentAssessmentSnapshot.fromJson)
-              .toList(growable: false),
-      training: (training?['groups'] as List? ?? const [])
-          .cast<Map<String, dynamic>>()
-          .map(TrainingGrowthGroup.fromJson)
-          .toList(growable: false),
-      regularMatches: json['regularMatches'] is Map<String, dynamic>
-          ? MatchGrowth.fromJson(json['regularMatches'] as Map<String, dynamic>)
-          : null,
-      tournaments: (tournaments?['groups'] as List? ?? const [])
-          .cast<Map<String, dynamic>>()
-          .map(TournamentGrowthGroup.fromJson)
-          .toList(growable: false),
-    );
-  }
 }
-
-int _asInt(dynamic value) => switch (value) {
-  int number => number,
-  num number => number.toInt(),
-  String text => int.tryParse(text) ?? 0,
-  _ => 0,
-};
-
-int? _asNullableInt(dynamic value) => value == null ? null : _asInt(value);
-
-double? _asDouble(dynamic value) => switch (value) {
-  num number => number.toDouble(),
-  String text => double.tryParse(text),
-  _ => null,
-};

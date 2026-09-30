@@ -19,6 +19,7 @@ class DisputeListState {
 
   bool get hasMore => nextOffset != null;
 
+  /// Returns an updated state while preserving fields not explicitly changed.
   DisputeListState copyWith({
     List<Dispute>? items,
     int? nextOffset,
@@ -39,9 +40,11 @@ class DisputeListState {
 class DisputeListController extends AsyncNotifier<DisputeListState> {
   static const pageSize = 50;
 
+  /// Loads the initial page for this feature when the provider starts.
   @override
   Future<DisputeListState> build() => _firstPage();
 
+  /// Loads the first page and its next offset for the feature list.
   Future<DisputeListState> _firstPage() async {
     final page = await ref
         .read(getDisputesProvider)
@@ -49,12 +52,14 @@ class DisputeListController extends AsyncNotifier<DisputeListState> {
     return DisputeListState(items: page.items, nextOffset: page.nextOffset);
   }
 
+  /// Reloads the first page and exposes loading or error state to the view.
   Future<void> refresh() async {
     state = const AsyncLoading();
     final result = await AsyncValue.guard(_firstPage);
     if (ref.mounted) state = result;
   }
 
+  /// Appends the next page; keeps existing rows visible if loading fails.
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || current.isLoadingMore || !current.hasMore) return;

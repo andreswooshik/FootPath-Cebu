@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/data/dto/player_dto.dart';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -33,7 +34,7 @@ class _RecordingWriter implements PlayerPhotoWriter {
     required String contentType,
   }) async {
     calls += 1;
-    return Player.fromJson(_playerJson());
+    return PlayerDto.fromJson(_playerJson());
   }
 }
 

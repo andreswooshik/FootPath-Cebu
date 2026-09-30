@@ -47,12 +47,15 @@ class AuditLogAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        """Disables direct creation in audit log admin to preserve the managed workflow."""
         return False
 
     def has_change_permission(self, request, obj=None):
+        """Disables direct editing in audit log admin to preserve the managed workflow."""
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in audit log admin to preserve the managed workflow."""
         return False
 
 
@@ -74,12 +77,21 @@ class NotificationRecordAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        """Disables direct creation in notification record admin to preserve the managed
+
+        workflow.
+        """
         return False
 
     def has_change_permission(self, request, obj=None):
+        """Disables direct editing in notification record admin to preserve the managed workflow."""
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in notification record admin to preserve the managed
+
+        workflow.
+        """
         return False
 
 
@@ -93,9 +105,11 @@ class AgeTierSettingAdmin(admin.ModelAdmin):
     list_editable = ('min_age', 'max_age')
 
     def has_add_permission(self, request):
+        """Disables direct creation in age tier setting admin to preserve the managed workflow."""
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in age tier setting admin to preserve the managed workflow."""
         return False
 
 
@@ -112,19 +126,31 @@ class PlayerEligibilityAdmin(admin.ModelAdmin):
     readonly_fields = ('user', 'date_of_birth', 'middle_initial')
 
     def has_add_permission(self, request):
+        """Disables direct creation in player eligibility admin to preserve the managed workflow."""
         return False
 
     def get_queryset(self, request):
+        """Limits records shown in player eligibility admin to its supported scope."""
         return super().get_queryset(request).filter(user__club__is_school_affiliated=True)
 
     def save_model(self, request, obj, form, change):
+        """Routes admin eligibility edits through the audited eligibility service."""
+        from django.core.exceptions import PermissionDenied, ValidationError
+
+        from config.application_errors import ForbiddenOperation, InvalidOperation
+
         from .eligibility_service import change_eligibility
 
-        change_eligibility(
-            actor=request.user,
-            player_id=obj.user_id,
-            new_status=obj.eligibility,
-        )
+        try:
+            change_eligibility(
+                actor=request.user,
+                player_id=obj.user_id,
+                new_status=obj.eligibility,
+            )
+        except ForbiddenOperation as exc:
+            raise PermissionDenied(str(exc)) from exc
+        except InvalidOperation as exc:
+            raise ValidationError(exc.detail) from exc
 
 
 @admin.register(EligibilityHistory)
@@ -143,12 +169,21 @@ class EligibilityHistoryAdmin(admin.ModelAdmin):
     search_fields = ('player__email', 'player__first_name', 'player__last_name')
 
     def has_add_permission(self, request):
+        """Disables direct creation in eligibility history admin to preserve the managed
+
+        workflow.
+        """
         return False
 
     def has_change_permission(self, request, obj=None):
+        """Disables direct editing in eligibility history admin to preserve the managed workflow."""
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in eligibility history admin to preserve the managed
+
+        workflow.
+        """
         return False
 
 
@@ -209,9 +244,11 @@ class InjuryRecordAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        """Disables direct creation in injury record admin to preserve the managed workflow."""
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in injury record admin to preserve the managed workflow."""
         return False
 
 
@@ -240,9 +277,17 @@ class InjuryStatusUpdateRequestAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        """Disables direct creation in injury status update request admin to preserve the managed
+
+        workflow.
+        """
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in injury status update request admin to preserve the managed
+
+        workflow.
+        """
         return False
 
 
@@ -265,12 +310,15 @@ class FootballMatchAdmin(admin.ModelAdmin):
     date_hierarchy = 'played_on'
 
     def has_add_permission(self, request):
+        """Disables direct creation in football match admin to preserve the managed workflow."""
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in football match admin to preserve the managed workflow."""
         return False
 
     def save_model(self, request, obj, form, change):
+        """Saves changes from football match admin and records the admin action."""
         super().save_model(request, obj, form, change)
         AuditLog.record(
             request.user,
@@ -298,6 +346,10 @@ class TournamentFixtureInline(admin.TabularInline):
     can_delete = False
 
     def has_add_permission(self, request, obj=None):
+        """Disables direct creation in tournament fixture inline to preserve the managed
+
+        workflow.
+        """
         return False
 
 
@@ -308,6 +360,10 @@ class TournamentAgeBracketInline(admin.TabularInline):
     can_delete = False
 
     def has_add_permission(self, request, obj=None):
+        """Disables direct creation in tournament age bracket inline to preserve the managed
+
+        workflow.
+        """
         return False
 
 
@@ -324,6 +380,10 @@ class TournamentSquadEntryInline(admin.TabularInline):
     can_delete = False
 
     def has_add_permission(self, request, obj=None):
+        """Disables direct creation in tournament squad entry inline to preserve the managed
+
+        workflow.
+        """
         return False
 
 
@@ -343,12 +403,15 @@ class TournamentSquadAdmin(admin.ModelAdmin):
     inlines = [TournamentSquadEntryInline]
 
     def has_add_permission(self, request):
+        """Disables direct creation in tournament squad admin to preserve the managed workflow."""
         return False
 
     def has_change_permission(self, request, obj=None):
+        """Disables direct editing in tournament squad admin to preserve the managed workflow."""
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in tournament squad admin to preserve the managed workflow."""
         return False
 
 
@@ -380,12 +443,21 @@ class TournamentScheduleAdmin(admin.ModelAdmin):
     inlines = [TournamentAgeBracketInline, TournamentFixtureInline]
 
     def has_add_permission(self, request):
+        """Disables direct creation in tournament schedule admin to preserve the managed
+
+        workflow.
+        """
         return False
 
     def has_change_permission(self, request, obj=None):
+        """Disables direct editing in tournament schedule admin to preserve the managed workflow."""
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in tournament schedule admin to preserve the managed
+
+        workflow.
+        """
         return False
 
 
@@ -424,12 +496,21 @@ class PlayerMatchPerformanceAdmin(admin.ModelAdmin):
     )
 
     def has_add_permission(self, request):
+        """Disables direct creation in player match performance admin to preserve the managed
+
+        workflow.
+        """
         return False
 
     def has_delete_permission(self, request, obj=None):
+        """Disables direct deletion in player match performance admin to preserve the managed
+
+        workflow.
+        """
         return False
 
     def save_model(self, request, obj, form, change):
+        """Saves changes from player match performance admin and records the admin action."""
         super().save_model(request, obj, form, change)
         AuditLog.record(
             request.user,

@@ -108,11 +108,13 @@ def signup(request):
 
 
 def signup_done(request):
+    """Renders the confirmation page after a club registration application."""
     return render(request, 'portal/signup_done.html')
 
 
 @login_required
 def dashboard(request):
+    """Renders the club dashboard with member counts and profile completeness indicators."""
     context = {}
     club = request.user.club
 
@@ -150,6 +152,10 @@ class PortalPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
     success_message = 'Your password has been changed.'
 
     def form_valid(self, form):
+        """Synchronizes the coordinator password with Firebase before completing the portal
+
+        password change.
+        """
         try:
             sync_coordinator_firebase_password(
                 self.request.user,
@@ -166,6 +172,7 @@ class PortalPasswordChangeView(SuccessMessageMixin, PasswordChangeView):
 
 @portal_role_required(Roles.COORDINATOR)
 def create_account(request):
+    """Validates the selected account form and provisions a member in the coordinator club."""
     club = request.user.club
     available = dict(_ACCOUNT_FORMS)
     forms = {key: cls(club=club, auto_id=f'id_{key}_%s') for key, cls in available.items()}
@@ -235,6 +242,7 @@ def create_account(request):
 
 @portal_role_required(Roles.COORDINATOR)
 def players(request):
+    """Renders the active player directory for the coordinator club."""
     roster = (
         PlayerProfile.objects.select_related('user')
         .filter(user__club=request.user.club, user__is_active=True)
@@ -245,6 +253,7 @@ def players(request):
 
 @portal_role_required(Roles.COORDINATOR)
 def player_pin_reset(request, player_id):
+    """Resets a club player privacy PIN and records the coordinator action."""
     if request.method != 'POST':
         return redirect('portal:players')
     profile = get_object_or_404(
@@ -266,6 +275,7 @@ def player_pin_reset(request, player_id):
 
 @portal_role_required(Roles.COORDINATOR)
 def coaches(request):
+    """Renders active club coaches and the player roster available to the coordinator."""
     club = request.user.club
     coach_list = User.objects.filter(
         club=club,
@@ -290,6 +300,7 @@ def coaches(request):
 
 @portal_role_required(Roles.COORDINATOR)
 def guardians(request):
+    """Renders club guardians and handles linking them to players."""
     club = request.user.club
     link_form = GuardianLinkForm(request.POST or None, club=club)
     if request.method == 'POST' and link_form.is_valid():
@@ -327,6 +338,7 @@ def guardians(request):
 
 @portal_role_required(Roles.COORDINATOR)
 def guardian_unlink(request, pk):
+    """Removes the selected guardian-player link and records the change."""
     if request.method != 'POST':
         return redirect('portal:guardians')
     link = get_object_or_404(GuardianLink.objects.select_related('guardian', 'player'), pk=pk)

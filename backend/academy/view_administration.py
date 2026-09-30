@@ -44,6 +44,7 @@ class PlayerPhotoUploadView(APIView):
     throttle_scope = 'uploads'
 
     def post(self, request, player_id):
+        """Validates and replaces a player photo, clears its URL cache, and records the upload."""
         profile = get_object_or_404(
             PlayerProfile.objects.select_related('user'),
             user_id=player_id,
@@ -96,11 +97,13 @@ class AgeTierSettingsView(APIView):
     """
 
     def get(self, request):
+        """Returns the configured age-tier bands."""
         return Response(
             AgeTierSettingSerializer(AgeTierSetting.objects.order_by('min_age'), many=True).data
         )
 
     def put(self, request):
+        """Validates and atomically updates the age-tier bands."""
         if request.user.role != Roles.ADMIN:
             raise PermissionDenied('Only an Admin can configure age tiers.')
         serializer = AgeTierSettingSerializer(data=request.data, many=True)
@@ -162,6 +165,7 @@ class AdminCreatePlayerView(APIView):
     permission_classes = [IsAdmin]
 
     def post(self, request):
+        """Provisions a player account and profile and records the admin action."""
         serializer = AdminCreatePlayerSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data

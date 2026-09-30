@@ -14,11 +14,16 @@ class MemberRegistrationState {
 }
 
 class MemberRegistrationController extends Notifier<MemberRegistrationState> {
+  /// Creates the initial state for this feature controller.
   @override
   MemberRegistrationState build() => const MemberRegistrationState();
 
+  /// Clears the previous account creation result and error for a new
+  /// registration.
   void reset() => state = const MemberRegistrationState();
 
+  /// Creates a coach or guardian account and refreshes the corresponding club
+  /// member list.
   Future<void> submit(
     MemberAccountRole role,
     MemberRegistrationData data,

@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/data/dto/player_stats_dto.dart';
 import 'package:footpath_cebu/domain/entities/player_stats.dart';
 import 'package:footpath_cebu/domain/repositories/player_stats_repository.dart';
 
@@ -6,7 +7,7 @@ class MockPlayerStatsRepository implements PlayerStatsRepository {
   Future<PlayerStats> fetchStats(
     String playerId, {
     bool forceRefresh = false,
-  }) async => PlayerStats.fromJson({
+  }) async => PlayerStatsDto.fromJson({
     'catalog': {
       'version': 1,
       'position': 'ST',

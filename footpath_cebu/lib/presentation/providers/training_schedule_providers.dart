@@ -52,6 +52,7 @@ class TrainingSessionPageState {
 
   bool get hasMore => nextOffset != null;
 
+  /// Returns an updated state while preserving fields not explicitly changed.
   TrainingSessionPageState copyWith({
     bool? isLoadingMore,
     Object? loadMoreError,
@@ -74,9 +75,11 @@ class TrainingSessionPageController
 
   final TrainingSessionPeriod period;
 
+  /// Loads the initial page for this feature when the provider starts.
   @override
   Future<TrainingSessionPageState> build() => _firstPage();
 
+  /// Loads the first page and its next offset for the feature list.
   Future<TrainingSessionPageState> _firstPage() async {
     final now = ref.watch(scheduleNowProvider);
     final page = await ref.watch(getTrainingSessionPageProvider)(
@@ -89,12 +92,14 @@ class TrainingSessionPageController
     return TrainingSessionPageState(items: items, nextOffset: page.nextOffset);
   }
 
+  /// Reloads the first page and exposes loading or error state to the view.
   Future<void> refresh() async {
     state = const AsyncLoading();
     final result = await AsyncValue.guard(_firstPage);
     if (ref.mounted) state = result;
   }
 
+  /// Appends the next page; keeps existing rows visible if loading fails.
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || current.isLoadingMore || !current.hasMore) return;
@@ -125,6 +130,8 @@ class TrainingSessionPageController
     }
   }
 
+  /// Filters sessions by whether they have ended and sorts them for the
+  /// selected period.
   List<TrainingSession> _classify(
     List<TrainingSession> sessions,
     DateTime now,
@@ -191,6 +198,8 @@ final playerPastSessionsProvider = Provider.autoDispose
           );
     });
 
+/// Schedules a clock refresh at the next session end so schedule tabs stay
+/// current.
 void _refreshAtNextSessionEnd(
   Ref ref,
   List<TrainingSession> sessions,
@@ -232,6 +241,8 @@ class ScheduleSessionController extends MutationController {
   Future<bool> cancel(String sessionId) =>
       _run(() => ref.read(cancelTrainingSessionProvider)(sessionId));
 
+  /// Runs a schedule change and refreshes both upcoming and past session lists
+  /// on success.
   Future<bool> _run(Future<Object?> Function() action) async {
     return await runMutation(
           () async {

@@ -6,6 +6,7 @@ import 'package:footpath_cebu/presentation/screens/coordinator_player_registrati
 class CoordinatorCreateAccountScreen extends StatefulWidget {
   const CoordinatorCreateAccountScreen({super.key});
 
+  /// Creates the mutable state used by this view.
   @override
   State<CoordinatorCreateAccountScreen> createState() =>
       _CoordinatorCreateAccountScreenState();
@@ -17,6 +18,7 @@ class _CoordinatorCreateAccountScreenState
   bool _creatingGuardianForPlayer = false;
   MemberRegistrationResult? _createdGuardian;
 
+  /// Switches which type of account the coordinator is creating.
   void _changeType(String type) {
     setState(() {
       _type = type;
@@ -25,6 +27,7 @@ class _CoordinatorCreateAccountScreenState
     });
   }
 
+  /// Starts guardian account creation before registering a linked player.
   void _startGuardianForPlayer() {
     setState(() {
       _type = 'Guardian';
@@ -33,6 +36,7 @@ class _CoordinatorCreateAccountScreenState
     });
   }
 
+  /// Returns to the choice of how to link a guardian.
   void _returnToGuardianQuestion() {
     setState(() {
       _type = 'Player';
@@ -41,6 +45,7 @@ class _CoordinatorCreateAccountScreenState
     });
   }
 
+  /// Continues player registration using the newly created guardian account.
   void _continueWithGuardian(MemberRegistrationResult result) {
     setState(() {
       _type = 'Player';
@@ -49,6 +54,7 @@ class _CoordinatorCreateAccountScreenState
     });
   }
 
+  /// Builds the coordinator create account screen view.
   @override
   Widget build(BuildContext context) {
     if (_type == 'Player') {

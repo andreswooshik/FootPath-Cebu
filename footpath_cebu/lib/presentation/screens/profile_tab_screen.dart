@@ -34,6 +34,7 @@ class ProfileTabScreen extends ConsumerWidget {
   final bool isGuardian;
   final bool showGuardianPlayerDetails;
 
+  /// Selects and uploads a photo for the signed-in account.
   Future<void> _pickAndUploadOwnPhoto(
     BuildContext context,
     WidgetRef ref,
@@ -88,6 +89,7 @@ class ProfileTabScreen extends ConsumerWidget {
     }
   }
 
+  /// Determines the image MIME type used when uploading the selected photo.
   String? _photoContentType(XFile file) {
     final declared = file.mimeType?.split(';').first.trim().toLowerCase();
     if (declared == 'image/jpeg' ||
@@ -102,6 +104,7 @@ class ProfileTabScreen extends ConsumerWidget {
     return null;
   }
 
+  /// Runs the sign-out flow and returns to login when it completes.
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     if (!await confirmSignOut(context) || !context.mounted) return;
     ref.read(privacyUnlockedPlayersProvider.notifier).clear();
@@ -114,6 +117,7 @@ class ProfileTabScreen extends ConsumerWidget {
     );
   }
 
+  /// Builds the guardian body section for this view.
   Widget _guardianBody(BuildContext context, WidgetRef ref) {
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -159,6 +163,7 @@ class ProfileTabScreen extends ConsumerWidget {
     );
   }
 
+  /// Builds the profile tab screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
@@ -340,6 +345,7 @@ class ProfileTabScreen extends ConsumerWidget {
     ).animateScreenEntrance();
   }
 
+  /// Builds the development row section for this view.
   Widget _developmentRow(String label, double? value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -374,6 +380,7 @@ class _PlayerAvatar extends StatelessWidget {
 
   final Player player;
 
+  /// Builds the player avatar view.
   @override
   Widget build(BuildContext context) {
     final url = player.photoUrl;
@@ -403,6 +410,7 @@ class _PrivacyPinCard extends ConsumerWidget {
   final Player player;
   final bool isGuardian;
 
+  /// Builds the privacy pin card view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MotionPress(

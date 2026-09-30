@@ -14,6 +14,7 @@
    it no longer lives inside, so bulk actions still post with the row checkboxes. */
 
 (function () {
+  // Runs the callback once the admin page DOM is available.
   function ready(fn) {
     if (document.readyState !== 'loading') {
       fn();
@@ -22,6 +23,7 @@
     }
   }
 
+  // Relabels and repositions admin controls while preserving form submission.
   function enhance() {
     try {
       var actionSelect = document.querySelector('select[name="action"]');
@@ -75,6 +77,7 @@
    applies Django's exact configured validators (including its common-password
    list and similarity algorithm). */
 (function () {
+  // Runs the callback once the admin page DOM is available.
   function ready(fn) {
     if (document.readyState !== 'loading') {
       fn();
@@ -83,6 +86,7 @@
     }
   }
 
+  // Connects club password fields to immediate and server-validated feedback.
   function initialiseCoordinatorPasswordFeedback() {
     var password = document.getElementById('id_coordinator_password1');
     var confirmation = document.getElementById('id_coordinator_password2');
@@ -101,6 +105,7 @@
       'qwerty123', 'admin123', 'letmein', 'football', 'iloveyou'
     ];
 
+    // Updates a password requirement indicator and animates a changed result.
     function setRule(ruleName, met) {
       var item = requirements.querySelector('[data-password-rule="' + ruleName + '"]');
       if (!item) {
@@ -120,10 +125,12 @@
       }, 280);
     }
 
+    // Removes punctuation and case differences for password similarity comparisons.
     function normalise(value) {
       return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
+    // Checks the password against name and email tokens before server validation.
     function fallbackSimilarity(value) {
       var candidate = normalise(value);
       var personalValues = [
@@ -144,6 +151,7 @@
       });
     }
 
+    // Displays whether the two coordinator password fields match.
     function updateConfirmation() {
       var first = password.value;
       var second = confirmation.value;
@@ -169,6 +177,7 @@
       }
     }
 
+    // Refreshes password requirement feedback using local checks.
     function updateImmediateRules() {
       var value = password.value;
       var lower = value.toLowerCase();
@@ -179,6 +188,7 @@
       updateConfirmation();
     }
 
+    // Requests Django password validation and ignores stale responses.
     function requestExactRules() {
       var checkUrl = password.getAttribute('data-password-check-url');
       var csrf = document.querySelector('input[name="csrfmiddlewaretoken"]');
@@ -216,6 +226,7 @@
       });
     }
 
+    // Refreshes local feedback and debounces the server validation request.
     function scheduleUpdate() {
       updateImmediateRules();
       window.clearTimeout(timer);

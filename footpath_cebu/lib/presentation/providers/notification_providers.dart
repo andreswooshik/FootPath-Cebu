@@ -23,6 +23,7 @@ class NotificationListState {
 
   bool get hasMore => nextOffset != null;
 
+  /// Returns an updated state while preserving fields not explicitly changed.
   NotificationListState copyWith({
     bool? isLoadingMore,
     Object? loadMoreError,
@@ -43,9 +44,11 @@ class NotificationListState {
 class NotificationListController extends AsyncNotifier<NotificationListState> {
   static const pageSize = 50;
 
+  /// Loads the initial page for this feature when the provider starts.
   @override
   Future<NotificationListState> build() => _firstPage();
 
+  /// Loads the first page and its next offset for the feature list.
   Future<NotificationListState> _firstPage() async {
     final page = await ref
         .read(notificationRepositoryProvider)
@@ -56,12 +59,14 @@ class NotificationListController extends AsyncNotifier<NotificationListState> {
     );
   }
 
+  /// Reloads the first page and exposes loading or error state to the view.
   Future<void> refresh() async {
     state = const AsyncLoading();
     final result = await AsyncValue.guard(_firstPage);
     if (ref.mounted) state = result;
   }
 
+  /// Appends the next page; keeps existing rows visible if loading fails.
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || current.isLoadingMore || !current.hasMore) return;
@@ -104,11 +109,13 @@ class NotificationActions {
   final NotificationRepository _repository;
   final void Function() _refresh;
 
+  /// Marks one notification read, then refreshes notification state.
   Future<void> markRead(String notificationId) async {
     await _repository.markRead(notificationId);
     _refresh();
   }
 
+  /// Marks the inbox read, then refreshes notification state.
   Future<void> markAllRead() async {
     await _repository.markAllRead();
     _refresh();
@@ -148,6 +155,7 @@ final notificationNavigationControllerProvider =
       );
     });
 
+/// Invalidates the inbox and unread badge so both fetch current values.
 void refreshNotificationState(WidgetRef ref) {
   ref.invalidate(notificationsProvider);
   ref.invalidate(notificationUnreadCountProvider);

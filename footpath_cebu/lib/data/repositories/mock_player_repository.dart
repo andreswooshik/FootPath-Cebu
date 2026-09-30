@@ -1,10 +1,10 @@
+import 'package:footpath_cebu/data/repositories/player_data_source.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
-import 'package:footpath_cebu/domain/repositories/development_assessment_repository.dart';
 import 'package:footpath_cebu/data/repositories/mock_development_assessment.dart';
 
 final _rhobertDevelopmentScores = DevelopmentScores({
@@ -109,10 +109,7 @@ DevelopmentAssessmentSnapshot _mockDevelopmentSnapshot(Player player) {
 /// In-memory squad roster for UI development without a backend.
 class MockPlayerRepository
     implements
-        PlayerRepository,
-        PlayerDetailsReader,
-        PlayerPhotoWriter,
-        DevelopmentAssessmentRepository {
+        PlayerDataSource {
   final Map<String, DevelopmentAssessmentSnapshot> _developmentHistory = {
     'p1': _rhobertDevelopmentSnapshot,
   };

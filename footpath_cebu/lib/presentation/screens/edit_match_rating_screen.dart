@@ -16,6 +16,7 @@ class EditMatchRatingScreen extends ConsumerStatefulWidget {
   final FootballMatch match;
   final MatchRosterPlayer player;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<EditMatchRatingScreen> createState() =>
       _EditMatchRatingScreenState();
@@ -30,6 +31,7 @@ class _EditMatchRatingScreenState extends ConsumerState<EditMatchRatingScreen> {
     text: widget.player.performance?.notes ?? '',
   );
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _rating.dispose();
@@ -37,6 +39,7 @@ class _EditMatchRatingScreenState extends ConsumerState<EditMatchRatingScreen> {
     super.dispose();
   }
 
+  /// Submits the player rating for this match.
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final saved = await ref
@@ -66,6 +69,7 @@ class _EditMatchRatingScreenState extends ConsumerState<EditMatchRatingScreen> {
     );
   }
 
+  /// Confirms and removes the player rating from this match.
   Future<void> _delete() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -100,6 +104,7 @@ class _EditMatchRatingScreenState extends ConsumerState<EditMatchRatingScreen> {
     );
   }
 
+  /// Builds the edit match rating screen view.
   @override
   Widget build(BuildContext context) {
     final saving = ref.watch(matchManagementControllerProvider).isLoading;

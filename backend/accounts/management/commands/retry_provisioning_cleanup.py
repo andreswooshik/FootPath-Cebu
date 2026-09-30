@@ -9,6 +9,7 @@ class Command(BaseCommand):
     help = 'Retry Firebase identity cleanup after a failed player registration.'
 
     def handle(self, *args, **options):
+        """Retries recorded Firebase identity cleanup failures."""
         ensure_initialized()
         completed = 0
         for row in FirebaseProvisioningCleanup.objects.all().iterator():

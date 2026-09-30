@@ -28,6 +28,7 @@ import 'package:footpath_cebu/presentation/widgets/stat_tile.dart';
 class GuardianDashboardScreen extends ConsumerWidget {
   const GuardianDashboardScreen({super.key});
 
+  /// Runs the sign-out flow and returns to login when it completes.
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     if (!await confirmSignOut(context) || !context.mounted) return;
     ref.read(privacyUnlockedPlayersProvider.notifier).clear();
@@ -39,6 +40,7 @@ class GuardianDashboardScreen extends ConsumerWidget {
     ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
+  /// Builds the guardian dashboard screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(selectedChildProvider);
@@ -130,6 +132,7 @@ class _GuardianUnlockedContent extends ConsumerWidget {
 
   final Player selector;
 
+  /// Builds the guardian unlocked content view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final details = ref.watch(selectedChildDetailsProvider(selector.id));
@@ -187,6 +190,7 @@ class _PlayerSelector extends StatelessWidget {
   final String? selectedId;
   final ValueChanged<String> onChanged;
 
+  /// Builds the player selector view.
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -216,6 +220,7 @@ class _StatRow extends ConsumerWidget {
 
   final Player child;
 
+  /// Builds the stat row view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attendance =
@@ -276,6 +281,7 @@ class _RecentAttendanceCard extends ConsumerWidget {
 
   final Player child;
 
+  /// Builds the recent attendance card view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attendance = ref.watch(childAttendanceProvider(child.id));
@@ -341,6 +347,7 @@ class _InjuryHistoryCard extends StatelessWidget {
 
   final Player child;
 
+  /// Builds the injury history card view.
   @override
   Widget build(BuildContext context) {
     return MotionPress(

@@ -21,6 +21,7 @@ class AttendanceHistoryScreen extends ConsumerWidget {
   final String playerId;
   final String playerName;
 
+  /// Builds the attendance history screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attendanceAsync = ref.watch(attendanceHistoryProvider(playerId));
@@ -82,6 +83,7 @@ class _LoadMoreAttendance extends ConsumerWidget {
   final String playerId;
   final AttendanceHistoryState history;
 
+  /// Builds the load more attendance view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (history.isLoadingMore) {

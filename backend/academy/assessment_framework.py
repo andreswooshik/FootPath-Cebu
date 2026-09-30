@@ -356,15 +356,18 @@ AGE_GUIDANCE = {
 
 class AssessmentFrameworkError(ValueError):
     def __init__(self, errors):
+        """Initializes assessment framework error details for the caller to report."""
         super().__init__('Invalid development assessment scores.')
         self.errors = errors
 
 
 def position_group(position):
+    """Maps a playing position to the development assessment position group."""
     return POSITION_GROUPS.get((position or '').upper())
 
 
 def framework_for(age_tier, position):
+    """Builds the assessment indicators appropriate to the player age tier and position."""
     tier = age_tier if age_tier in AGE_GUIDANCE else 'DEVELOPMENT'
     group = position_group(position)
     additions = POSITION_INDICATORS.get(group, {})
@@ -411,6 +414,7 @@ def framework_for(age_tier, position):
 
 
 def validate_scores(raw_scores, *, age_tier, position, version):
+    """Checks and normalizes scores for assessment framework."""
     if version != FRAMEWORK_VERSION:
         raise AssessmentFrameworkError(
             {
@@ -476,6 +480,7 @@ def validate_scores(raw_scores, *, age_tier, position, version):
 
 
 def rounded_mean(values, digits=1):
+    """Averages observed scores using decimal rounding, excluding unobserved values."""
     clean = [Decimal(str(value)) for value in values if value is not None]
     if not clean:
         return None
@@ -489,6 +494,7 @@ def rounded_mean(values, digits=1):
 
 
 def domain_scores(scores):
+    """Summarizes observed indicator scores for each development domain."""
     scores = scores if isinstance(scores, dict) else {}
     return {
         key: rounded_mean(list(domain.values()) if isinstance(domain, dict) else [])

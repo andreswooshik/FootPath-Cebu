@@ -80,6 +80,7 @@ class SquadListView(APIView):
     """GET /api/players/ — the roster. Coach (own club only) and Admin (all)."""
 
     def get(self, request):
+        """Lists active player profiles within the requesting staff member club scope."""
         if request.user.role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN):
             raise PermissionDenied('Only coaches and coordinators can view the squad.')
         profiles = with_latest_player_stats(
@@ -103,6 +104,7 @@ class ClubMemberDirectoryView(APIView):
     """
 
     def get(self, request):
+        """Lists active coaches or guardians for the coordinator People directory."""
         if request.user.role != Roles.COORDINATOR or request.user.club_id is None:
             raise PermissionDenied('Only club coordinators can view the member directory.')
         if not request.user.club.is_active:
@@ -184,6 +186,7 @@ class MyProfileView(APIView):
     """GET /api/players/me/ — the signed-in player's own profile."""
 
     def get(self, request):
+        """Returns the signed-in player profile."""
         if request.user.role != Roles.PLAYER:
             raise PermissionDenied('Only players have a player profile.')
         profile = get_object_or_404(PlayerProfile.objects.select_related('user'), user=request.user)
@@ -194,6 +197,7 @@ class LinkedPlayersView(APIView):
     """GET /api/players/linked/ — the guardian's linked children."""
 
     def get(self, request):
+        """Lists players reachable through valid guardian links."""
         if request.user.role != Roles.GUARDIAN:
             raise PermissionDenied('Only guardians have linked players.')
         player_ids = valid_guardian_links(guardian=request.user).values_list('player_id', flat=True)
@@ -205,6 +209,7 @@ class PlayerDetailView(APIView):
     """Return one player profile after normal authorization and PIN unlock."""
 
     def get(self, request, player_id):
+        """Returns player details after checking household access and any privacy PIN gate."""
         if not _guardian_may_read(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
         _require_unlock_when_pin_exists(request, player_id)
@@ -213,6 +218,7 @@ class PlayerDetailView(APIView):
 
 
 def _pin_profile(player_id):
+    """Loads the player profile and related account used by PIN operations."""
     return get_object_or_404(PlayerProfile.objects.select_related('user'), user_id=player_id)
 
 
@@ -230,6 +236,7 @@ def _require_unlock_when_pin_exists(request, player_id):
 
 
 def _may_manage_pin(user, player_id):
+    """Checks whether the current account may manage this player privacy PIN."""
     if user.role == Roles.ADMIN:
         return True
     if user.role == Roles.PLAYER:
@@ -265,11 +272,13 @@ class PlayerPrivacyPinView(APIView):
     throttle_scope = 'pin'
 
     def get(self, request, player_id):
+        """Returns PIN setup and lockout status to an authorized account."""
         if not _may_manage_pin(request.user, player_id):
             raise PermissionDenied('You cannot access that player PIN.')
         return Response(pin_status(_pin_profile(player_id).user))
 
     def put(self, request, player_id):
+        """Sets or changes the player PIN and returns a fresh unlock grant."""
         is_player = request.user.role == Roles.PLAYER and str(request.user.id) == str(player_id)
         is_guardian_initial_setup = (
             request.user.role == Roles.GUARDIAN
@@ -305,6 +314,7 @@ class PlayerPrivacyPinVerifyView(APIView):
     throttle_scope = 'pin'
 
     def post(self, request, player_id):
+        """Verifies a player PIN and issues an unlock grant, reporting lockout when applicable."""
         is_player = request.user.role == Roles.PLAYER and str(request.user.id) == str(player_id)
         is_linked_guardian = request.user.role == Roles.GUARDIAN and guardian_can_access_player(
             request.user, player_id
@@ -337,6 +347,7 @@ class PlayerPrivacyPinResetView(APIView):
     throttle_scope = 'pin'
 
     def post(self, request, player_id):
+        """Resets a player PIN after role checks and any required recent reauthentication."""
         if not _may_manage_pin(request.user, player_id):
             raise PermissionDenied('You cannot reset that player PIN.')
         if request.user.role not in (Roles.ADMIN, Roles.COORDINATOR, Roles.GUARDIAN):
@@ -363,6 +374,7 @@ class PlayerAssessmentView(APIView):
 
     @staticmethod
     def _profile_for_coach(user, player_id):
+        """Loads the assessment profile after enforcing coach role and club scope."""
         if user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can assess players.')
         profile = get_object_or_404(PlayerProfile.objects.select_related('user'), user_id=player_id)
@@ -371,6 +383,7 @@ class PlayerAssessmentView(APIView):
         return profile
 
     def get(self, request, player_id):
+        """Returns the assessment form data for an authorized coach."""
         profile = get_object_or_404(
             PlayerProfile.objects.select_related('user'),
             user_id=player_id,
@@ -397,6 +410,7 @@ class PlayerAssessmentView(APIView):
         )
 
     def put(self, request, player_id):
+        """Saves the coach assessment and captures its history for growth tracking."""
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can assess players.')
         profile = get_object_or_404(PlayerProfile.objects.select_related('user'), user_id=player_id)
@@ -441,6 +455,7 @@ class PlayerAssessmentView(APIView):
         return Response(PlayerSerializer(profile).data)
 
     def _put_development(self, request, profile):
+        """Validates and saves a development assessment and its historical snapshot."""
         legacy_fields = {
             'ratings',
             'pace',
@@ -521,6 +536,7 @@ class PlayerAssessmentHistoryView(APIView):
     """Authorized, privacy-gated immutable assessment history."""
 
     def get(self, request, player_id):
+        """Returns the player assessment history within the requester access scope."""
         if not _may_read_match_statistics(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
         _require_unlock_when_pin_exists(request, player_id)
@@ -535,9 +551,11 @@ class PlayerStatsView(APIView):
     """Separate, append-only 0–99 Player Stats history and creation API."""
 
     def _profile(self, player_id):
+        """Resolves the player profile used by the statistics endpoint."""
         return get_object_or_404(PlayerProfile.objects.select_related('user'), user_id=player_id)
 
     def _payload(self, profile, *, limit, offset):
+        """Builds the player statistics response from the profile and assessment history."""
         group, attributes = catalog_for(profile.position)
         compatible_query = PlayerStatsAssessment.objects.select_related('assessed_by').filter(
             player=profile.user,
@@ -577,6 +595,7 @@ class PlayerStatsView(APIView):
 
     @staticmethod
     def _comparison(previous, new_scores):
+        """Builds the comparison between player statistics assessments."""
         if previous is None:
             return {
                 'baseline': True,
@@ -607,6 +626,7 @@ class PlayerStatsView(APIView):
         }
 
     def get(self, request, player_id):
+        """Returns current player statistics and comparable assessment history."""
         if not _may_read_match_statistics(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
         _require_unlock_when_pin_exists(request, player_id)
@@ -625,6 +645,7 @@ class PlayerStatsView(APIView):
         )
 
     def post(self, request, player_id):
+        """Validates and records a new immutable player statistics assessment."""
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can create Player Stats assessments.')
         profile = self._profile(player_id)
@@ -685,6 +706,7 @@ class PlayerPositionView(APIView):
     UnimplementedError) with no backend endpoint at all until this view."""
 
     def put(self, request, player_id):
+        """Updates the player position after enforcing coach and club access."""
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can assign a position.')
         profile = get_object_or_404(PlayerProfile.objects.select_related('user'), user_id=player_id)

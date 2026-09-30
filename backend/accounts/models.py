@@ -75,6 +75,7 @@ class Club(models.Model):
         ordering = ['name']
 
     def __str__(self):
+        """Returns a readable club label for admin pages and diagnostics."""
         return self.name
 
     @property
@@ -147,6 +148,7 @@ class User(AbstractUser):
         ]
 
     def __str__(self):
+        """Returns a readable user label for admin pages and diagnostics."""
         return f'{self.username} ({self.get_role_display()})'
 
 
@@ -154,6 +156,7 @@ class GuardianLinkManager(models.Manager):
     """Keep role/tenant invariants intact even for bulk service operations."""
 
     def bulk_create(self, objs, *args, **kwargs):
+        """Validates every guardian link before inserting the batch."""
         for link in objs:
             link.full_clean()
         return super().bulk_create(objs, *args, **kwargs)
@@ -236,6 +239,7 @@ class GuardianLink(models.Model):
         unique_together = ('guardian', 'player')
 
     def clean(self):
+        """Checks cross-field and relationship rules for the guardian link before accepting it."""
         errors = {}
         if self.guardian_id:
             if self.guardian.role != Roles.GUARDIAN:
@@ -261,8 +265,10 @@ class GuardianLink(models.Model):
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
+        """Validates the guardian link before saving, including writes outside admin forms."""
         self.full_clean()
         return super().save(*args, **kwargs)
 
     def __str__(self):
+        """Returns a readable guardian link label for admin pages and diagnostics."""
         return f'{self.guardian.email} -> {self.player.email}'

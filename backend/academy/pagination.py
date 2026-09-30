@@ -45,6 +45,7 @@ def list_response(
     default_limit=200,
     max_limit=500,
 ):
+    """Serializes a bounded list window and attaches pagination metadata to the response."""
     limit, offset = list_window(
         request,
         default_limit=default_limit,

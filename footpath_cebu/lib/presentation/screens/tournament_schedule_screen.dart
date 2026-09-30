@@ -29,6 +29,7 @@ class TournamentScheduleScreen extends ConsumerWidget {
   final bool canManage;
   final bool canManageRosters;
 
+  /// Opens the tournament document using its stored URL.
   Future<void> _openDocument(BuildContext context, String url) async {
     final opened = await launchUrl(
       Uri.parse(url),
@@ -41,6 +42,7 @@ class TournamentScheduleScreen extends ConsumerWidget {
     }
   }
 
+  /// Builds the tournament schedule screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final schedules = ref.watch(tournamentSchedulesProvider);
@@ -112,6 +114,7 @@ class _ScheduleCollection extends StatelessWidget {
   final ValueChanged<TournamentSchedule> onManage;
   final ValueChanged<String> onOpenDocument;
 
+  /// Builds the schedule collection view.
   @override
   Widget build(BuildContext context) {
     if (!canManage) return _list(rows);
@@ -151,6 +154,7 @@ class _ScheduleCollection extends StatelessWidget {
     );
   }
 
+  /// Builds the list section for this view.
   Widget _list(List<TournamentSchedule> values) => RefreshIndicator(
     onRefresh: onRefresh,
     child: ResponsiveContent(
@@ -202,6 +206,7 @@ class _ScheduleCard extends StatelessWidget {
   final VoidCallback? onManage;
   final bool canManageRosters;
 
+  /// Builds the schedule card view.
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -349,6 +354,7 @@ class _ScheduleCard extends StatelessWidget {
   }
 }
 
+/// Formats the scheduled date and time for an age bracket.
 String _bracketScheduleLabel(BuildContext context, DateTime value) {
   final local = value.toLocal();
   final time = MaterialLocalizations.of(
@@ -368,6 +374,7 @@ class _FixtureTile extends StatelessWidget {
   final TournamentFixture fixture;
   final bool canRecordResults;
 
+  /// Builds the fixture tile view.
   @override
   Widget build(BuildContext context) {
     final kickoff = fixture.kickoffAt.toLocal();
@@ -491,6 +498,7 @@ class _FixtureTile extends StatelessWidget {
   }
 }
 
+/// Maps a stored match outcome to its display label.
 String _outcomeLabel(String? value) => switch (value) {
   'WIN' => 'Win',
   'LOSS' => 'Loss',

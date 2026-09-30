@@ -17,6 +17,7 @@ def club_write_transaction(view):
 
     @wraps(view)
     def wrapped(*args, **kwargs):
+        """Locks the requester club for writes while allowing safe reads through."""
         request = args[0] if hasattr(args[0], 'method') else args[1]
         if request.method in ('GET', 'HEAD', 'OPTIONS'):
             return view(*args, **kwargs)

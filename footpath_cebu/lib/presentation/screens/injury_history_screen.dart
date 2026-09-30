@@ -21,6 +21,7 @@ class InjuryHistoryScreen extends ConsumerWidget {
   final String playerName;
   final bool readOnly;
 
+  /// Opens the injury report form for creation or editing.
   Future<void> _openReport(BuildContext context, {InjuryRecord? existing}) =>
       showModalBottomSheet<void>(
         context: context,
@@ -34,6 +35,7 @@ class InjuryHistoryScreen extends ConsumerWidget {
         ),
       );
 
+  /// Opens a proposed status update for the selected injury.
   Future<void> _openStatusUpdate(BuildContext context, InjuryRecord record) =>
       showModalBottomSheet<void>(
         context: context,
@@ -47,6 +49,7 @@ class InjuryHistoryScreen extends ConsumerWidget {
         ),
       );
 
+  /// Shows the selected injury report details.
   void _showDetails(BuildContext context, InjuryRecord record) {
     showDialog<void>(
       context: context,
@@ -88,6 +91,7 @@ class InjuryHistoryScreen extends ConsumerWidget {
     );
   }
 
+  /// Chooses the appropriate view or editor for the injury record.
   void _openRecord(BuildContext context, InjuryRecord record) {
     if (readOnly) return;
     if (record.canEditPending) {
@@ -99,6 +103,7 @@ class InjuryHistoryScreen extends ConsumerWidget {
     }
   }
 
+  /// Builds the injury history screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final injuries = ref.watch(injuriesProvider(playerId));
@@ -173,6 +178,7 @@ class InjuryHistoryScreen extends ConsumerWidget {
     ).animateScreenEntrance();
   }
 
+  /// Summarizes injury details for the history row.
   String _subtitle(InjuryRecord record) {
     final parts = [
       record.severity.label,
@@ -194,6 +200,7 @@ class InjuryReportFormSheet extends ConsumerStatefulWidget {
   final String playerId;
   final InjuryRecord? existing;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<InjuryReportFormSheet> createState() =>
       _InjuryReportFormSheetState();
@@ -219,6 +226,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
       widget.existing?.reviewStatus == InjuryReportStatus.confirmed &&
       widget.existing?.canEditConfirmed == true;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _description.dispose();
@@ -227,11 +235,13 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     super.dispose();
   }
 
+  /// Trims optional text and represents an empty value as null.
   String? _blankAsNull(String value) {
     final cleaned = value.trim();
     return cleaned.isEmpty ? null : cleaned;
   }
 
+  /// Chooses the injury occurrence or resolution date.
   Future<void> _pickDate({bool resolved = false}) async {
     final selected = await showDatePicker(
       context: context,
@@ -249,6 +259,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     });
   }
 
+  /// Updates the injury type selected in the report draft.
   void _selectType(InjuryType value) {
     setState(() {
       _injuryType = value;
@@ -256,6 +267,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     });
   }
 
+  /// Updates the injury severity selected in the report draft.
   void _selectSeverity(InjurySeverity value) {
     setState(() {
       _severity = value;
@@ -263,6 +275,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     });
   }
 
+  /// Validates the current injury report step before continuing.
   void _continue() {
     FocusScope.of(context).unfocus();
     if (_step == 2 && _description.text.trim().isEmpty) {
@@ -283,6 +296,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     });
   }
 
+  /// Returns to the preceding step of the injury report form.
   void _back() {
     FocusScope.of(context).unfocus();
     setState(() {
@@ -292,6 +306,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     });
   }
 
+  /// Validates and submits the injury report draft.
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     if (_description.text.trim().isEmpty) {
@@ -363,6 +378,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     );
   }
 
+  /// Confirms and withdraws the pending injury report.
   Future<void> _withdraw() async {
     final record = widget.existing;
     if (record == null) return;
@@ -398,10 +414,12 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     ).showSnackBar(const SnackBar(content: Text('Injury report withdrawn.')));
   }
 
+  /// Shows feedback for the current action in a snackbar.
   void _message(String value) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
+  /// Builds the injury report form sheet view.
   @override
   Widget build(BuildContext context) {
     final saving = ref.watch(injuryFormControllerProvider).isLoading;
@@ -514,6 +532,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     );
   }
 
+  /// Builds the step content section for this view.
   Widget _stepContent(bool saving) {
     final theme = Theme.of(context);
     final error = _stepError ?? (_step == 3 ? _submitError : null);
@@ -552,6 +571,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     );
   }
 
+  /// Builds the type step section for this view.
   Widget _typeStep(bool saving) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -593,6 +613,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     ],
   );
 
+  /// Builds the severity step section for this view.
   Widget _severityStep(bool saving) => Column(
     children: [
       for (final severity in InjurySeverity.values) ...[
@@ -611,6 +632,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     ],
   );
 
+  /// Builds the notes step section for this view.
   Widget _notesStep(bool saving) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -680,6 +702,7 @@ class _InjuryReportFormSheetState extends ConsumerState<InjuryReportFormSheet> {
     ],
   );
 
+  /// Builds the review step section for this view.
   Widget _reviewStep() => Column(
     children: [
       _ReviewRow(label: 'Type', value: _injuryType.label),
@@ -714,6 +737,7 @@ class _InjuryStepProgress extends StatelessWidget {
 
   final int currentStep;
 
+  /// Builds the injury step progress view.
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -783,6 +807,7 @@ class _SeverityOption extends StatelessWidget {
   final bool selected;
   final VoidCallback? onTap;
 
+  /// Builds the severity option view.
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -812,6 +837,7 @@ class _ReviewRow extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Builds the review row view.
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -839,6 +865,7 @@ class _InjuryInlineMessage extends StatelessWidget {
   final String message;
   final bool isError;
 
+  /// Builds the injury inline message view.
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -876,6 +903,7 @@ class InjuryStatusUpdateSheet extends ConsumerStatefulWidget {
 
   final InjuryRecord record;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<InjuryStatusUpdateSheet> createState() =>
       _InjuryStatusUpdateSheetState();
@@ -889,12 +917,14 @@ class _InjuryStatusUpdateSheetState
   DateTime? _resolvedOn;
   final _notes = TextEditingController();
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _notes.dispose();
     super.dispose();
   }
 
+  /// Chooses the resolution date for the proposed injury status update.
   Future<void> _pickResolvedDate() async {
     final selected = await showDatePicker(
       context: context,
@@ -905,6 +935,7 @@ class _InjuryStatusUpdateSheetState
     if (selected != null) setState(() => _resolvedOn = selected);
   }
 
+  /// Submits the proposed injury status update for review.
   Future<void> _submit() async {
     if (_status == InjuryStatus.recovered && _resolvedOn == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -935,6 +966,7 @@ class _InjuryStatusUpdateSheetState
     );
   }
 
+  /// Builds the injury status update sheet view.
   @override
   Widget build(BuildContext context) {
     final saving = ref.watch(injuryFormControllerProvider).isLoading;

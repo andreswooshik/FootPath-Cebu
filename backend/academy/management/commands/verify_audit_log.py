@@ -7,6 +7,7 @@ class Command(BaseCommand):
     help = 'Verify the cryptographic chain of append-only audit entries.'
 
     def handle(self, *args, **options):
+        """Verifies the audit hash chain and reports the first invalid entry, if any."""
         valid, failing_id = AuditLog.verify_chain()
         if not valid:
             raise CommandError(f'Audit chain verification failed at entry {failing_id}.')

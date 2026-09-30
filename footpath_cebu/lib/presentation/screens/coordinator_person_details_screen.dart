@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:footpath_cebu/core/di/registration_dependencies.dart';
-import 'package:footpath_cebu/domain/entities/club_member.dart';
 import 'package:footpath_cebu/domain/entities/coordinator_person.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/repositories/coordinator_people_repository.dart';
-import 'package:footpath_cebu/presentation/providers/club_member_providers.dart';
 import 'package:footpath_cebu/presentation/providers/coordinator_people_providers.dart';
-import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 import 'package:footpath_cebu/presentation/theme/app_theme.dart';
 import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
@@ -22,6 +18,7 @@ class CoordinatorPersonDetailsScreen extends ConsumerStatefulWidget {
   final CoordinatorPersonRole role;
   final String personId;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<CoordinatorPersonDetailsScreen> createState() =>
       _CoordinatorPersonDetailsScreenState();
@@ -29,13 +26,16 @@ class CoordinatorPersonDetailsScreen extends ConsumerStatefulWidget {
 
 class _CoordinatorPersonDetailsScreenState
     extends ConsumerState<CoordinatorPersonDetailsScreen> {
-  bool _deleting = false;
+  bool get _deleting =>
+      ref.read(coordinatorPersonControllerProvider(_key)).isLoading;
 
   CoordinatorPersonKey get _key =>
       CoordinatorPersonKey(widget.role, widget.personId);
 
+  /// Builds the coordinator person details screen view.
   @override
   Widget build(BuildContext context) {
+    ref.watch(coordinatorPersonControllerProvider(_key));
     final details = ref.watch(coordinatorPersonDetailsProvider(_key));
     return Scaffold(
       appBar: AppBar(title: Text('${widget.role.label} Details')),
@@ -168,6 +168,7 @@ class _CoordinatorPersonDetailsScreenState
     );
   }
 
+  /// Navigates to the details of a linked player or guardian.
   Future<void> _openLinkedPerson(
     CoordinatorPersonRole role,
     CoordinatorPersonReference person,
@@ -179,11 +180,11 @@ class _CoordinatorPersonDetailsScreenState
       ),
     );
     if (deletedRole == null || !mounted) return;
-    _invalidatePeople();
     ref.invalidate(coordinatorPersonDetailsProvider(_key));
     _showDeletionSuccess(deletedRole);
   }
 
+  /// Asks for confirmation before deleting the selected account.
   Future<void> _confirmDelete(CoordinatorPersonDetails person) async {
     if (_deleting) return;
     final label = person.role == CoordinatorPersonRole.player
@@ -219,31 +220,28 @@ class _CoordinatorPersonDetailsScreenState
     );
     if (confirmed != true || !mounted) return;
 
-    setState(() => _deleting = true);
-    try {
-      await ref
-          .read(coordinatorPeopleRepositoryProvider)
-          .deletePerson(person.role, person.id);
-      if (!mounted) return;
-      _invalidatePeople();
+    final deleted = await ref
+        .read(coordinatorPersonControllerProvider(_key).notifier)
+        .delete(_key);
+    if (!mounted) return;
+    if (deleted) {
       Navigator.of(context).pop(person.role);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _deleting = false);
+    } else {
+      final error = ref.read(coordinatorPersonControllerProvider(_key)).error;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_errorText(error, 'Could not delete this person.')),
+          content: Text(
+            _errorText(
+              error ?? 'Could not delete this person.',
+              'Could not delete this person.',
+            ),
+          ),
         ),
       );
     }
   }
 
-  void _invalidatePeople() {
-    ref.invalidate(squadProvider);
-    ref.invalidate(clubMembersProvider(ClubMemberRole.guardian));
-    ref.invalidate(clubMembersProvider(ClubMemberRole.coach));
-  }
-
+  /// Shows a deletion confirmation appropriate to the account role.
   void _showDeletionSuccess(CoordinatorPersonRole role) {
     final message = role == CoordinatorPersonRole.player
         ? 'Player deleted successfully.'
@@ -259,6 +257,7 @@ class _PersonHeading extends StatelessWidget {
 
   final CoordinatorPersonDetails person;
 
+  /// Builds the person heading view.
   @override
   Widget build(BuildContext context) => Row(
     children: [
@@ -296,6 +295,7 @@ class _Section extends StatelessWidget {
   final String title;
   final List<Widget> children;
 
+  /// Builds the section view.
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,6 +318,7 @@ class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Builds the detail row view.
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
@@ -358,6 +359,7 @@ class _LinkedPeopleSection extends StatelessWidget {
   )
   onOpen;
 
+  /// Builds the linked people section view.
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,9 +400,11 @@ class _LinkedPeopleSection extends StatelessWidget {
   );
 }
 
+/// Chooses an error message suitable for display, or the supplied fallback.
 String _errorText(Object error, String fallback) =>
     error is CoordinatorPeopleRepositoryException ? error.message : fallback;
 
+/// Formats a date for display in this feature.
 String _formatDate(DateTime? value) {
   if (value == null) return '';
   const months = [
@@ -420,6 +424,7 @@ String _formatDate(DateTime? value) {
   return '${months[value.month - 1]} ${value.day}, ${value.year}';
 }
 
+/// Converts a stored position code to its display label.
 String _positionLabel(String? code) {
   if (code == null || code.isEmpty) return '';
   for (final position in PlayerPosition.values) {
@@ -428,6 +433,7 @@ String _positionLabel(String? code) {
   return code;
 }
 
+/// Extracts initials for the name shown in an avatar.
 String _initials(String name) => name
     .trim()
     .split(RegExp(r'\s+'))

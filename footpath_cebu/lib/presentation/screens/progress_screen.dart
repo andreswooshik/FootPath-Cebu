@@ -29,6 +29,7 @@ class ProgressScreen extends ConsumerWidget {
   final Player player;
   final bool isGuardian;
 
+  /// Builds the progress screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final content = PlayerPrivacyGate(
@@ -71,6 +72,7 @@ class _TrainingFeedbackView extends ConsumerWidget {
 
   final String playerId;
 
+  /// Builds the training feedback view view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attendanceAsync = ref.watch(childAttendanceProvider(playerId));
@@ -133,6 +135,7 @@ class _ProgressEntry extends StatelessWidget {
   final Attendance record;
   final bool isLast;
 
+  /// Builds the progress entry view.
   @override
   Widget build(BuildContext context) {
     final intensity = _intensity(record.effort);

@@ -22,6 +22,7 @@ class MatchRosterScreen extends ConsumerStatefulWidget {
   final FootballMatch match;
   final MatchRosterMode mode;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<MatchRosterScreen> createState() => _MatchRosterScreenState();
 }
@@ -31,12 +32,14 @@ class _MatchRosterScreenState extends ConsumerState<MatchRosterScreen> {
 
   bool get _isCoordinator => widget.mode == MatchRosterMode.coordinator;
 
+  /// Initializes the local state when this view first enters the widget tree.
   @override
   void initState() {
     super.initState();
     _match = widget.match;
   }
 
+  /// Opens the selected match details for editing.
   Future<void> _editMatch() async {
     final updated = await Navigator.of(context).push<FootballMatch>(
       MaterialPageRoute(
@@ -46,10 +49,12 @@ class _MatchRosterScreenState extends ConsumerState<MatchRosterScreen> {
     if (updated != null && mounted) setState(() => _match = updated);
   }
 
+  /// Refreshes the displayed match roster.
   Future<void> _refresh() async {
     final _ = await ref.refresh(matchRosterProvider(_match.id).future);
   }
 
+  /// Opens selection of a player who requires a squad override.
   Future<void> _addOutOfSquadPlayer() async {
     List<MatchRosterPlayer> candidates;
     try {
@@ -97,6 +102,7 @@ class _MatchRosterScreenState extends ConsumerState<MatchRosterScreen> {
     await _refresh();
   }
 
+  /// Builds the match roster screen view.
   @override
   Widget build(BuildContext context) {
     final roster = ref.watch(matchRosterProvider(_match.id));
@@ -145,6 +151,7 @@ class _RosterBody extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final Future<void> Function() onAddOutOfSquad;
 
+  /// Builds the roster body view.
   @override
   Widget build(BuildContext context) {
     final recorded = players.where((row) => row.performance != null).length;
@@ -259,6 +266,7 @@ class _PlayerPerformanceTile extends StatelessWidget {
   final MatchRosterPlayer player;
   final Future<void> Function() onChanged;
 
+  /// Opens the player match entry using the available role-specific action.
   Future<void> _open(BuildContext context) async {
     if (mode == MatchRosterMode.coach && player.performance == null) return;
     if (mode == MatchRosterMode.coordinator && !player.isSelectable) {
@@ -314,6 +322,7 @@ class _PlayerPerformanceTile extends StatelessWidget {
     await onChanged();
   }
 
+  /// Builds the player performance tile view.
   @override
   Widget build(BuildContext context) {
     final saved = player.performance != null;
@@ -409,6 +418,7 @@ class _SquadExceptionSheet extends StatefulWidget {
 
   final List<MatchRosterPlayer> candidates;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_SquadExceptionSheet> createState() => _SquadExceptionSheetState();
 }
@@ -419,6 +429,7 @@ class _SquadExceptionSheetState extends State<_SquadExceptionSheet> {
   final _reason = TextEditingController();
   MatchRosterPlayer? _selected;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _search.dispose();
@@ -426,6 +437,7 @@ class _SquadExceptionSheetState extends State<_SquadExceptionSheet> {
     super.dispose();
   }
 
+  /// Builds the squad exception sheet view.
   @override
   Widget build(BuildContext context) {
     final query = _search.text.trim().toLowerCase();

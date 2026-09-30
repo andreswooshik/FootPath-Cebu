@@ -1,3 +1,5 @@
+import 'package:footpath_cebu/data/repositories/player_data_source.dart';
+import 'package:footpath_cebu/data/repositories/mock_player_stats_repository.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -120,7 +122,7 @@ final authRepositoryProvider = Provider<AuthRepository>(
   (ref) => useMockData ? MockAuthRepository() : FirebaseAuthRepository(),
 );
 
-final playerRepositoryProvider = Provider<PlayerRepository>(
+final playerDataSourceProvider = Provider<PlayerDataSource>(
   (ref) => useMockData
       ? MockPlayerRepository()
       : ApiPlayerRepository(
@@ -128,20 +130,27 @@ final playerRepositoryProvider = Provider<PlayerRepository>(
         ),
 );
 
+final playerRepositoryProvider = Provider<PlayerRepository>(
+  (ref) => ref.watch(playerDataSourceProvider),
+);
+
+final playerDetailsReaderProvider = Provider<PlayerDetailsReader>(
+  (ref) => ref.watch(playerDataSourceProvider),
+);
+
 final playerStatsRepositoryProvider = Provider<PlayerStatsRepository>(
-  (ref) => ApiPlayerStatsRepository(),
+  (ref) =>
+      useMockData ? MockPlayerStatsRepository() : ApiPlayerStatsRepository(),
 );
 
 final developmentAssessmentRepositoryProvider =
     Provider<DevelopmentAssessmentRepository>(
-      (ref) =>
-          ref.watch(playerRepositoryProvider)
-              as DevelopmentAssessmentRepository,
+      (ref) => ref.watch(playerDataSourceProvider),
     );
 
 /// Coach-only write capability exposed separately from the player read model.
 final playerPhotoWriterProvider = Provider<PlayerPhotoWriter>(
-  (ref) => ref.watch(playerRepositoryProvider) as PlayerPhotoWriter,
+  (ref) => ref.watch(playerDataSourceProvider),
 );
 
 final profilePhotoRepositoryProvider = Provider<ProfilePhotoRepository>(
@@ -259,9 +268,7 @@ final getMyProfileProvider = Provider<GetMyProfile>(
 );
 
 final getPlayerDetailsProvider = Provider<GetPlayerDetails>(
-  (ref) => GetPlayerDetails(
-    ref.watch(playerRepositoryProvider) as PlayerDetailsReader,
-  ),
+  (ref) => GetPlayerDetails(ref.watch(playerDetailsReaderProvider)),
 );
 
 final getLinkedPlayersProvider = Provider<GetLinkedPlayers>(

@@ -6,11 +6,10 @@ from dataclasses import dataclass
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import transaction
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from accounts.models import Club, Roles, User
+from config.application_errors import ForbiddenOperation, InvalidOperation, MissingResource
 
 from .errors import WorkflowConflict
 from .models import (
@@ -30,6 +29,7 @@ class AttendanceReplacement:
 
 
 def _payload_hash(records):
+    """Hashes a canonical attendance payload so retries can detect reused request keys."""
     canonical = json.dumps(
         records,
         cls=DjangoJSONEncoder,
@@ -41,15 +41,19 @@ def _payload_hash(records):
 
 @transaction.atomic
 def replace_attendance(*, coach, session_id, records, request_key=None, expected_revision=None):
+    """Atomically replaces a session roll call, enforcing access, edit windows, and revision
+
+    checks. Repeated request keys return the original submission when the payload matches.
+    """
     if coach.role != Roles.COACH or coach.club_id is None:
-        raise PermissionDenied('Only club coaches can record attendance.')
+        raise ForbiddenOperation('Only club coaches can record attendance.')
     Club.objects.select_for_update().get(pk=coach.club_id)
-    session = get_object_or_404(
-        TrainingSession.objects.select_for_update(),
-        pk=session_id,
-    )
+    try:
+        session = TrainingSession.objects.select_for_update().get(pk=session_id)
+    except TrainingSession.DoesNotExist as exc:
+        raise MissingResource() from exc
     if session.club_id != coach.club_id:
-        raise PermissionDenied('That session is not in your club.')
+        raise ForbiddenOperation('That session is not in your club.')
     payload_hash = _payload_hash(records)
     if request_key:
         previous = AttendanceSubmission.objects.filter(
@@ -81,10 +85,10 @@ def replace_attendance(*, coach, session_id, records, request_key=None, expected
             'Attendance is read-only 48 hours after the training session ends.',
         )
     if timezone.localdate() < session.date:
-        raise ValidationError('Attendance cannot be logged before the session day.')
+        raise InvalidOperation('Attendance cannot be logged before the session day.')
     submitted_ids = [row['playerId'] for row in records]
     if len(submitted_ids) != len(set(submitted_ids)):
-        raise ValidationError({'records': 'Each player may appear only once.'})
+        raise InvalidOperation({'records': 'Each player may appear only once.'})
     in_club = set(
         User.objects.filter(
             pk__in=submitted_ids,
@@ -93,7 +97,7 @@ def replace_attendance(*, coach, session_id, records, request_key=None, expected
         ).values_list('id', flat=True)
     )
     if in_club != set(submitted_ids):
-        raise ValidationError({'records': 'One or more player IDs are unknown or unavailable.'})
+        raise InvalidOperation({'records': 'One or more player IDs are unknown or unavailable.'})
     for record in sorted(records, key=lambda row: row['playerId']):
         Attendance.objects.update_or_create(
             player_id=record['playerId'],

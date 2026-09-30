@@ -75,15 +75,19 @@ class PlayerMatchPerformanceSerializer(serializers.ModelSerializer):
         ]
 
     def get_playerName(self, obj):
+        """Computes the player name field for the player match performance response."""
         return _display_name(obj.player)
 
     def get_ratingStatus(self, obj):
+        """Computes the rating status field for the player match performance response."""
         return 'RATED' if obj.coach_rating is not None else 'AWAITING_RATING'
 
     def get_squadException(self, obj):
+        """Computes the squad exception field for the player match performance response."""
         return bool(obj.squad_override_reason)
 
     def to_representation(self, instance):
+        """Builds the outgoing player match performance fields for the client."""
         data = super().to_representation(instance)
         request = self.context.get('request')
         role = getattr(getattr(request, 'user', None), 'role', None)
@@ -160,15 +164,18 @@ class PlayerMatchStatisticsWriteSerializer(serializers.ModelSerializer):
         }
 
     def validate_position(self, value):
+        """Checks and normalizes position for player match statistics write."""
         cleaned = str(value).strip().upper()
         if cleaned and cleaned not in PLAYER_POSITION_CODES:
             raise serializers.ValidationError(f'Unknown position: {value}')
         return cleaned
 
     def validate(self, attrs):
+        """Validates the combined request fields for player match statistics write."""
         attrs = super().validate(attrs)
 
         def current(field, default=0):
+            """Uses submitted statistics first, then stored values for a partial update."""
             if field in attrs:
                 return attrs[field]
             if self.instance is not None:
@@ -213,6 +220,7 @@ class TournamentFixtureResultWriteSerializer(serializers.Serializer):
     )
 
     def validate_participants(self, value):
+        """Checks and normalizes participants for tournament fixture result write."""
         player_ids = [row['playerId'] for row in value]
         if len(player_ids) != len(set(player_ids)):
             raise serializers.ValidationError(
@@ -221,6 +229,7 @@ class TournamentFixtureResultWriteSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
+        """Validates the combined request fields for tournament fixture result write."""
         attrs = super().validate(attrs)
         total_goals = sum(row['statistics'].get('goals', 0) for row in attrs['participants'])
         if total_goals > attrs['ourScore']:

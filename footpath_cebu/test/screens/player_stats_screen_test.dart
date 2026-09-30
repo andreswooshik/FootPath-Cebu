@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/data/dto/player_stats_dto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,7 +64,7 @@ class _RecordingPlayerStatsRepository implements PlayerStatsRepository {
   }
 }
 
-PlayerStats _emptyStats() => PlayerStats.fromJson({
+PlayerStats _emptyStats() => PlayerStatsDto.fromJson({
   'catalog': {
     'version': 1,
     'position': 'CM',
@@ -90,7 +91,7 @@ PlayerStats _emptyStats() => PlayerStats.fromJson({
   'isBaseline': true,
 });
 
-PlayerStats _historyStats() => PlayerStats.fromJson({
+PlayerStats _historyStats() => PlayerStatsDto.fromJson({
   'catalog': {
     'version': 1,
     'position': 'CM',

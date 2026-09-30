@@ -9,6 +9,7 @@ import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 class AttendanceSyncScreen extends ConsumerWidget {
   const AttendanceSyncScreen({super.key});
 
+  /// Builds the attendance sync screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entries = ref.watch(attendanceSyncEntriesProvider);

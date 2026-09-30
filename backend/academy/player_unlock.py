@@ -8,6 +8,7 @@ _MAX_AGE_SECONDS = 10 * 60
 
 
 def issue_player_unlock(user_id, player_id):
+    """Signs an unlock grant bound to both the requesting user and the player."""
     return signing.dumps(
         {'user': str(user_id), 'player': str(player_id)},
         salt=_SALT,
@@ -15,6 +16,7 @@ def issue_player_unlock(user_id, player_id):
 
 
 def require_player_unlock(request, player_id):
+    """Requires a valid, unexpired unlock grant matching the current user and player."""
     raw_token = request.headers.get('X-Player-Unlock', '')
     try:
         claims = signing.loads(raw_token, salt=_SALT, max_age=_MAX_AGE_SECONDS)

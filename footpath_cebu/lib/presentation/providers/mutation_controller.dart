@@ -5,9 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 abstract class MutationController extends AsyncNotifier<void> {
   bool _running = false;
 
+  /// Initializes the shared mutation controller with no pending write.
   @override
   void build() {}
 
+  /// Runs one write at a time, publishes loading/errors, and calls onSuccess
+  /// only while mounted.
   Future<T?> runMutation<T>(
     Future<T> Function() action, {
     void Function(T result)? onSuccess,

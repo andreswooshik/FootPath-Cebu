@@ -69,10 +69,12 @@ class PlayerSerializer(serializers.ModelSerializer):
         ]
 
     def get_name(self, obj):
+        """Computes the name field for the player response."""
         full = f'{obj.user.first_name} {obj.user.last_name}'.strip()
         return full or obj.user.email.split('@')[0] or f'Player {obj.user_id}'
 
     def get_ratings(self, obj):
+        """Computes the ratings field for the player response."""
         return {
             'pace': obj.pace,
             'shooting': obj.shooting,
@@ -89,13 +91,16 @@ class PlayerSerializer(serializers.ModelSerializer):
         }
 
     def get_photoUrl(self, obj):
+        """Computes the photo url field for the player response."""
         return signed_photo_url(obj.photo_path) if obj.photo_path else None
 
     def get_academicEligibilityApplicable(self, obj):
+        """Computes the academic eligibility applicable field for the player response."""
         club = obj.user.club
         return club is None or club.allows_academic_eligibility
 
     def get_developmentAssessment(self, obj):
+        """Computes the development assessment field for the player response."""
         if obj.development_framework_version is None or not obj.development_scores:
             return None
         return {
@@ -110,6 +115,7 @@ class PlayerSerializer(serializers.ModelSerializer):
         }
 
     def get_currentPlayerStats(self, obj):
+        """Computes the current player stats field for the player response."""
         latest = self._latest_player_stats(obj)
         if latest is None:
             return None
@@ -126,9 +132,11 @@ class PlayerSerializer(serializers.ModelSerializer):
         }
 
     def get_latestPlayerStats(self, obj):
+        """Computes the latest player stats field for the player response."""
         return self._latest_player_stats(obj)
 
     def _latest_player_stats(self, obj):
+        """Retrieves the latest player statistics, using already-loaded data when available."""
         cache = self.context.setdefault('_latest_player_stats', {})
         cache_key = (obj.pk, obj.position)
         if cache_key not in cache:
@@ -137,6 +145,7 @@ class PlayerSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def _build_latest_player_stats(obj):
+        """Builds the serialized latest player statistics assessment."""
         try:
             group, attributes = catalog_for(obj.position, CATALOG_VERSION)
         except DjangoValidationError:
@@ -197,6 +206,7 @@ class PlayerSelectorSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'ageTier']
 
     def get_name(self, obj):
+        """Computes the name field for the player selector response."""
         return _display_name(obj.user)
 
 
@@ -256,6 +266,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
         # The client posts {"ratings": {pace: .., ...}, "coachNotes": ".."};
         # flatten that into the shape the field declarations expect, while still
         # accepting an already-flat body so the endpoint stays forgiving.
+        """Converts incoming assessment data to validated internal values."""
         if 'ratings' in data and isinstance(data['ratings'], dict):
             flattened = dict(data['ratings'])
             # Carry the sibling note across — flattening to `ratings` alone is
@@ -268,6 +279,7 @@ class AssessmentSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
     def update(self, instance, validated_data):
+        """Updates the assessment from validated fields."""
         validated_data.pop('assessmentReason', None)
         return super().update(instance, validated_data)
 
@@ -297,9 +309,11 @@ class PlayerAssessmentSnapshotSerializer(serializers.ModelSerializer):
         ]
 
     def get_assessedByRole(self, obj):
+        """Computes the assessed by role field for the player assessment snapshot response."""
         return obj.assessed_by.get_role_display() if obj.assessed_by_id else None
 
     def get_ratings(self, obj):
+        """Computes the ratings field for the player assessment snapshot response."""
         return {
             field: getattr(obj, field)
             for field in (
@@ -319,6 +333,7 @@ class PlayerAssessmentSnapshotSerializer(serializers.ModelSerializer):
         }
 
     def get_overall(self, obj):
+        """Computes the overall field for the player assessment snapshot response."""
         names = (
             ('diving', 'handling', 'kicking', 'reflexes', 'speed', 'positioning')
             if obj.position == 'GK'
@@ -342,6 +357,7 @@ class DevelopmentAssessmentWriteSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
+        """Validates the combined request fields for development assessment write."""
         if attrs['assessmentReason'] == AssessmentReason.BASELINE:
             raise serializers.ValidationError(
                 {
@@ -404,9 +420,11 @@ class PlayerDevelopmentAssessmentSerializer(serializers.ModelSerializer):
         ]
 
     def get_assessedByRole(self, obj):
+        """Computes the assessed by role field for the player development assessment response."""
         return obj.assessed_by.get_role_display() if obj.assessed_by_id else None
 
     def get_domainScores(self, obj):
+        """Computes the domain scores field for the player development assessment response."""
         return domain_scores(obj.scores)
 
 
@@ -419,6 +437,7 @@ class PlayerStatsAssessmentWriteSerializer(serializers.Serializer):
     coachNotes = serializers.CharField(min_length=1, max_length=4000)
 
     def validate(self, attrs):
+        """Validates the combined request fields for player stats assessment write."""
         attrs['reason'] = attrs['reason'].strip()
         attrs['coachNotes'] = attrs['coachNotes'].strip()
         if not attrs['reason']:
@@ -462,6 +481,7 @@ class PlayerStatsAssessmentSerializer(serializers.ModelSerializer):
         ]
 
     def get_assessedBy(self, obj):
+        """Computes the assessed by field for the player stats assessment response."""
         if not obj.assessed_by_id:
             return None
         return obj.assessed_by.get_full_name() or obj.assessed_by.email
@@ -479,6 +499,7 @@ class PlayerPositionSerializer(serializers.ModelSerializer):
         fields = ['position']
 
     def validate_position(self, value):
+        """Checks and normalizes position for player position."""
         v = str(value).upper()
         if v not in PLAYER_POSITION_CODES:
             raise serializers.ValidationError(f'Unknown position: {value}')

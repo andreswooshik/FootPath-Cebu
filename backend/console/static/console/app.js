@@ -13,10 +13,12 @@ firebase.initializeApp(firebaseConfig);
 
 const API_BASE = window.location.origin;
 
+// Finds a console control by its element ID.
 const el = (id) => document.getElementById(id);
 const loginSection = el('login-section');
 const appSection = el('app-section');
 
+// Disables repeat submissions and restores the original label when finished.
 function setButtonBusy(button, busy, busyLabel) {
   if (busy) {
     button.dataset.label = button.textContent;
@@ -30,6 +32,7 @@ function setButtonBusy(button, busy, busyLabel) {
   button.removeAttribute('aria-busy');
 }
 
+// Shows action feedback and any newly issued one-time account password.
 function showStatus(message, { error = false, temporaryPassword = '' } = {}) {
   const box = el('global-status');
   box.hidden = false;
@@ -43,6 +46,7 @@ function showStatus(message, { error = false, temporaryPassword = '' } = {}) {
   }
 }
 
+// Resolves true only when the user accepts the shared confirmation dialog.
 function confirmAction(message, confirmLabel = 'Confirm') {
   const dialog = el('confirmation-dialog');
   el('confirmation-message').textContent = message;
@@ -56,11 +60,13 @@ function confirmAction(message, confirmLabel = 'Confirm') {
   });
 }
 
+// Uses the member name, email, or ID as a readable account label.
 function userLabel(user) {
   const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
   return name || user.email || `Player ${user.id}`;
 }
 
+// Sends authenticated JSON requests and converts API failures to displayable errors.
 async function apiFetch(path, options = {}) {
   const user = firebase.auth().currentUser;
   if (!user) throw new Error('Not signed in.');
@@ -115,6 +121,7 @@ function textCell(text) {
   return td;
 }
 
+// Fetches accounts and rebuilds the member table and related selectors.
 async function loadUsers() {
   const users = await apiFetch('/api/admin/users/');
   const tbody = el('users-table-body');
@@ -167,6 +174,7 @@ async function loadUsers() {
   filterUsers();
 }
 
+// Applies the console search and role filters to the loaded user rows.
 function filterUsers() {
   const query = el('users-search').value.trim().toLowerCase();
   const rows = [...el('users-table-body').querySelectorAll('tr')];
@@ -179,6 +187,7 @@ function filterUsers() {
   el('users-empty').hidden = visible !== 0;
 }
 
+// Refreshes club choices used when provisioning accounts.
 async function loadClubs() {
   const clubs = await apiFetch('/api/admin/clubs/');
   const select = el('create-club');
@@ -198,6 +207,7 @@ const SWITCHABLE_ROLES = [
   ['GUARDIAN', 'Guardian'],
 ];
 
+// Saves account changes and reloads console data after success.
 async function patchUser(id, payload) {
   const result = await apiFetch(`/api/admin/users/${id}/`, {
     method: 'PATCH',
@@ -212,6 +222,7 @@ async function patchUser(id, payload) {
   return result;
 }
 
+// Builds role-change and account activation controls for a member row.
 function buildUserActions(user) {
   const cell = document.createElement('td');
   const switchable = SWITCHABLE_ROLES.some(([value]) => value === user.role);
@@ -306,6 +317,7 @@ function buildPhotoUploader(user) {
   return wrap;
 }
 
+// Lists guardian-player relationships with controls for removing a link.
 async function loadLinks() {
   const links = await apiFetch('/api/admin/guardian-links/');
   const tbody = el('links-table-body');
@@ -340,6 +352,7 @@ async function loadLinks() {
 
 let disputesCache = [];
 
+// Fetches disputes and refreshes the console dispute selection.
 async function loadDisputes() {
   disputesCache = await apiFetch('/api/disputes/');
   const tbody = el('disputes-table-body');
@@ -401,6 +414,7 @@ function renderDisputeThread() {
   }
 }
 
+// Loads age-band settings into the administrator editing form.
 async function loadAgeTiers() {
   const tiers = await apiFetch('/api/age-tiers/');
   const tbody = el('age-tiers-table-body');
@@ -424,12 +438,14 @@ async function loadAgeTiers() {
   }
 }
 
+// Reloads console datasets after sign-in or a management action.
 async function refreshDashboard() {
   await Promise.all([
     loadClubs(), loadUsers(), loadLinks(), loadDisputes(), loadAgeTiers(),
   ]);
 }
 
+// Shows the authenticated console and loads its dashboard data.
 async function showApp(profile) {
   loginSection.hidden = true;
   appSection.hidden = false;
@@ -437,6 +453,7 @@ async function showApp(profile) {
   await refreshDashboard();
 }
 
+// Switches to the sign-in screen and displays the supplied login feedback.
 function showLogin(message) {
   loginSection.hidden = false;
   appSection.hidden = true;

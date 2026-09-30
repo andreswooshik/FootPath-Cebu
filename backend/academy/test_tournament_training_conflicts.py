@@ -1,4 +1,5 @@
 from datetime import datetime, time, timedelta
+from unittest.mock import patch
 
 from django.urls import reverse
 from django.utils import timezone
@@ -134,6 +135,47 @@ class TournamentTrainingPriorityTests(APITestCase):
                 target=session.title,
             ).exists()
         )
+
+    def test_portal_requires_explicit_confirmation_and_publication_is_idempotent(self):
+        session = self._training()
+        self.client.force_login(self.coordinator)
+        url = reverse('portal:tournament-detail', args=[self.schedule.id])
+        warning = self.client.post(
+            url, {'action': 'publish', 'confirmTrainingCancellations': 'false'}
+        )
+        self.assertEqual(warning.status_code, 200)
+        self.schedule.refresh_from_db()
+        self.assertFalse(self.schedule.is_published)
+        confirmed = self.client.post(
+            url, {'action': 'publish', 'confirmTrainingCancellations': 'true'}
+        )
+        self.assertEqual(confirmed.status_code, 302)
+        session.refresh_from_db()
+        self.assertEqual(session.status, TrainingSessionStatus.CANCELLED)
+        self.client.force_authenticate(self.coordinator)
+        repeat = self.client.post(
+            reverse('tournament-schedule-publish', args=[self.schedule.id]), {}, format='json'
+        )
+        self.assertEqual(repeat.status_code, 200)
+        self.assertEqual(AuditLog.objects.filter(action='tournament.published').count(), 1)
+
+    def test_publication_rolls_back_cancellations_when_audit_fails(self):
+        session = self._training()
+        self.client.force_authenticate(self.coordinator)
+        with patch(
+            'academy.tournament_publication.AuditLog.record',
+            side_effect=RuntimeError('audit unavailable'),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(
+                    reverse('tournament-schedule-publish', args=[self.schedule.id]),
+                    {'confirmTrainingCancellations': True},
+                    format='json',
+                )
+        self.schedule.refresh_from_db()
+        session.refresh_from_db()
+        self.assertFalse(self.schedule.is_published)
+        self.assertEqual(session.status, TrainingSessionStatus.SCHEDULED)
 
     def test_boundary_touch_is_not_an_overlap(self):
         self.schedule.is_published = True

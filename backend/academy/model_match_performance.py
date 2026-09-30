@@ -92,6 +92,10 @@ class PlayerMatchPerformance(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def clean(self):
+        """Checks cross-field and relationship rules for the player match performance before
+
+        accepting it.
+        """
         super().clean()
         errors = {}
         self.position = self.position.strip().upper()
@@ -117,6 +121,10 @@ class PlayerMatchPerformance(models.Model):
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
+        """Validates the player match performance before saving, including writes outside admin
+
+        forms.
+        """
         self.full_clean()
         return super().save(*args, **kwargs)
 
@@ -161,4 +169,5 @@ class PlayerMatchPerformance(models.Model):
         ]
 
     def __str__(self):
+        """Returns a readable player match performance label for admin pages and diagnostics."""
         return f'{self.player.email} vs {self.match.opponent}'

@@ -153,5 +153,6 @@ def unlink_guardian(*, coordinator, link):
 
 
 def _assert_same_club(user, club):
+    """Rejects a portal operation when its accounts do not belong to the same club."""
     if club is None or user.club_id != club.id:
         raise PermissionDenied('That account is not in your club.')

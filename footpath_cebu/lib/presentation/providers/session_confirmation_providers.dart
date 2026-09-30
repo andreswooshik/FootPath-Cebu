@@ -16,6 +16,7 @@ final sessionConfirmationsProvider = FutureProvider.autoDispose
 /// shared loading flag. Each card checks its *own* session, so tapping Confirm
 /// on one session only spins that card's button, never every card at once.
 class SessionConfirmationController extends Notifier<Set<String>> {
+  /// Creates the initial state for this feature controller.
   @override
   Set<String> build() => const {};
 

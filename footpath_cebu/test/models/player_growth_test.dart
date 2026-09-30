@@ -1,10 +1,11 @@
+import 'package:footpath_cebu/data/dto/player_growth_dto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/domain/entities/attendance.dart';
 import 'package:footpath_cebu/domain/entities/player_growth.dart';
 
 void main() {
   test('parses typed assessment and categorized training growth', () {
-    final growth = PlayerGrowth.fromJson({
+    final growth = PlayerGrowthDto.fromJson({
       'playerId': '12',
       'playerName': 'Alex Santos',
       'position': 'CM',

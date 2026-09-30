@@ -13,6 +13,7 @@ import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 class CoachMatchesScreen extends ConsumerWidget {
   const CoachMatchesScreen({super.key});
 
+  /// Builds the coach matches screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final matches = ref.watch(footballMatchesProvider);
@@ -74,6 +75,7 @@ class _MatchCard extends StatelessWidget {
   final FootballMatch match;
   final VoidCallback onTap;
 
+  /// Builds the match card view.
   @override
   Widget build(BuildContext context) {
     final color = switch (match.outcome) {

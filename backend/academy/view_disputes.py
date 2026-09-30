@@ -58,6 +58,7 @@ class DisputeListCreateView(APIView):
     """
 
     def get(self, request):
+        """Lists disputes within the requester role and club scope."""
         if request.user.role not in DISPUTE_ROLES:
             raise PermissionDenied('You may not view disputes.')
         disputes = Dispute.objects.select_related('raised_by', 'subject_player').prefetch_related(
@@ -78,6 +79,7 @@ class DisputeListCreateView(APIView):
         return list_response(request, disputes, DisputeSerializer)
 
     def post(self, request):
+        """Validates and creates a dispute for an allowed subject player."""
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can raise disputes.')
         if request.user.club_id is None:
@@ -106,6 +108,7 @@ class DisputeDetailView(APIView):
     """GET /api/disputes/<pk>/ — one dispute with its full thread."""
 
     def get(self, request, pk):
+        """Returns an accessible dispute and its response thread."""
         if request.user.role not in DISPUTE_ROLES:
             raise PermissionDenied('You may not view disputes.')
         dispute = get_object_or_404(
@@ -129,6 +132,7 @@ class DisputeResponseCreateView(APIView):
     """
 
     def post(self, request, pk):
+        """Appends a dispute response and applies an authorized status change."""
         if request.user.role not in DISPUTE_ROLES:
             raise PermissionDenied('You may not respond to disputes.')
         dispute = get_object_or_404(Dispute.objects.select_related('raised_by'), pk=pk)
@@ -167,6 +171,7 @@ class EligibilityHistoryView(APIView):
     """
 
     def get(self, request, player_id):
+        """Returns eligibility transitions after checking access and the privacy gate."""
         if not _may_read_eligibility(request.user, player_id):
             # Authorized reviewers who named a player that does not exist get
             # a 404; a real player in another club still falls through to the
@@ -204,6 +209,7 @@ class EligibilityUpdateView(APIView):
     """
 
     def put(self, request, player_id):
+        """Saves an authorized academic eligibility change and returns the player."""
         if request.user.role not in (
             Roles.ADMIN,
             Roles.COORDINATOR,

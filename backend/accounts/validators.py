@@ -51,6 +51,7 @@ def validate_coach_license_upload(upload, *, max_bytes=COACH_LICENSE_MAX_BYTES):
 
 
 def _content_type_from_extension(extension):
+    """Maps the upload filename extension to a supported content type."""
     return {
         '.jpg': 'image/jpeg',
         '.jpeg': 'image/jpeg',

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import 'package:footpath_cebu/core/utils/date_format.dart';
-import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/player_stats.dart';
 import 'package:footpath_cebu/presentation/providers/error_text.dart';
 import 'package:footpath_cebu/presentation/providers/player_stats_providers.dart';
@@ -21,6 +20,7 @@ class PlayerStatsScreen extends ConsumerWidget {
   final String playerName;
   final bool canAssess;
 
+  /// Builds the player stats screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(playerStatsProvider(playerId));
@@ -53,6 +53,7 @@ class PlayerStatsSummaryCard extends ConsumerWidget {
   final String playerId;
   final VoidCallback onOpen;
 
+  /// Builds the player stats summary card view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(playerStatsProvider(playerId));
@@ -99,6 +100,7 @@ class _SummaryContent extends StatelessWidget {
 
   final PlayerStats stats;
 
+  /// Builds the summary content view.
   @override
   Widget build(BuildContext context) {
     final latest = stats.latest;
@@ -152,17 +154,12 @@ class _PlayerStatsContent extends ConsumerWidget {
   final String playerName;
   final bool canAssess;
 
+  /// Builds the player stats content view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final latest = stats.latest;
     return RefreshIndicator(
-      onRefresh: () async {
-        await ref
-            .read(playerStatsRepositoryProvider)
-            .fetchStats(playerId, forceRefresh: true);
-        ref.invalidate(playerStatsProvider(playerId));
-        await ref.read(playerStatsProvider(playerId).future);
-      },
+      onRefresh: () => ref.refresh(playerStatsProvider(playerId).future),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
@@ -176,19 +173,15 @@ class _PlayerStatsContent extends ConsumerWidget {
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: () async {
-                final saved = await Navigator.of(context)
-                    .push<PlayerStatsSaveResult>(
-                      MaterialPageRoute(
-                        builder: (_) => PlayerStatsAssessmentScreen(
-                          playerId: playerId,
-                          playerName: playerName,
-                          stats: stats,
-                        ),
-                      ),
-                    );
-                if (saved != null) {
-                  ref.invalidate(playerStatsProvider(playerId));
-                }
+                await Navigator.of(context).push<PlayerStatsSaveResult>(
+                  MaterialPageRoute(
+                    builder: (_) => PlayerStatsAssessmentScreen(
+                      playerId: playerId,
+                      playerName: playerName,
+                      stats: stats,
+                    ),
+                  ),
+                );
               },
               icon: const Icon(Icons.add_chart),
               label: Text(
@@ -295,6 +288,7 @@ class PlayerStatsAssessmentScreen extends ConsumerStatefulWidget {
   final String playerName;
   final PlayerStats stats;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<PlayerStatsAssessmentScreen> createState() =>
       _PlayerStatsAssessmentScreenState();
@@ -314,9 +308,18 @@ class _PlayerStatsAssessmentScreenState
   final _notes = TextEditingController();
   String? _reason;
   int _step = 0;
-  bool _saving = false;
-  String? _saveError;
+  bool get _saving =>
+      ref.read(playerStatsControllerProvider(widget.playerId)).isLoading;
+  String? get _saveError {
+    final error = ref
+        .read(playerStatsControllerProvider(widget.playerId))
+        .error;
+    return error == null
+        ? null
+        : friendlyErrorMessage(error, 'Could not save Player Stats.');
+  }
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     for (final controller in _scores.values) {
@@ -339,6 +342,7 @@ class _PlayerStatsAssessmentScreenState
     );
   }
 
+  /// Validates the current statistics form step before continuing.
   void _continue() {
     FocusScope.of(context).unfocus();
     if (_step == 0) {
@@ -352,286 +356,280 @@ class _PlayerStatsAssessmentScreenState
     }
   }
 
+  /// Submits the edited player statistics.
   Future<void> _save() async {
     if (_saving || !_hasChanges) return;
-    setState(() {
-      _saving = true;
-      _saveError = null;
-    });
-    try {
-      final result = await ref
-          .read(playerStatsRepositoryProvider)
-          .saveAssessment(
-            widget.playerId,
-            PlayerStatsDraft(
-              catalogVersion: widget.stats.catalog.version,
-              scores: _values,
-              reason: _reason!,
-              coachNotes: _notes.text.trim(),
-            ),
-          );
-      ref.invalidate(playerStatsProvider(widget.playerId));
-      if (!mounted) return;
+    final result = await ref
+        .read(playerStatsControllerProvider(widget.playerId).notifier)
+        .save(
+          widget.playerId,
+          PlayerStatsDraft(
+            catalogVersion: widget.stats.catalog.version,
+            scores: _values,
+            reason: _reason!,
+            coachNotes: _notes.text.trim(),
+          ),
+        );
+    if (!mounted) return;
+    if (result != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Player Stats assessment saved.')),
       );
       Navigator.pop(context, result);
-    } catch (error) {
-      if (!mounted) return;
-      final message = friendlyErrorMessage(
-        error,
-        'Could not save Player Stats.',
-      );
+    } else if (_saveError != null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-      setState(() {
-        _saving = false;
-        _saveError = message;
-      });
+      ).showSnackBar(SnackBar(content: Text(_saveError!)));
     }
   }
 
+  /// Builds the player stats assessment screen view.
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(
-        widget.stats.latest == null
-            ? 'Create Player Stats baseline'
-            : 'Update player attributes',
+  Widget build(BuildContext context) {
+    ref.watch(playerStatsControllerProvider(widget.playerId));
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.stats.latest == null
+              ? 'Create Player Stats baseline'
+              : 'Update player attributes',
+        ),
       ),
-    ),
-    bottomNavigationBar: SafeArea(
-      minimum: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          if (_step > 0) ...[
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            if (_step > 0) ...[
+              Expanded(
+                child: OutlinedButton(
+                  key: const Key('stats-back'),
+                  onPressed: _saving ? null : () => setState(() => _step -= 1),
+                  child: const Text('Back'),
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
             Expanded(
-              child: OutlinedButton(
-                key: const Key('stats-back'),
-                onPressed: _saving ? null : () => setState(() => _step -= 1),
-                child: const Text('Back'),
-              ),
-            ),
-            const SizedBox(width: 12),
-          ],
-          Expanded(
-            flex: 2,
-            child: FilledButton.icon(
-              key: Key(_step == 2 ? 'stats-save' : 'stats-continue'),
-              onPressed: _saving || (_step == 2 && !_hasChanges)
-                  ? null
-                  : _step == 2
-                  ? _save
-                  : _continue,
-              icon: _saving
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      _step == 2 ? Icons.save_outlined : Icons.arrow_forward,
-                    ),
-              label: Text(
-                _saving
-                    ? 'Saving…'
+              flex: 2,
+              child: FilledButton.icon(
+                key: Key(_step == 2 ? 'stats-save' : 'stats-continue'),
+                onPressed: _saving || (_step == 2 && !_hasChanges)
+                    ? null
                     : _step == 2
-                    ? 'Save assessment'
-                    : 'Continue',
+                    ? _save
+                    : _continue,
+                icon: _saving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        _step == 2 ? Icons.save_outlined : Icons.arrow_forward,
+                      ),
+                label: Text(
+                  _saving
+                      ? 'Saving…'
+                      : _step == 2
+                      ? 'Save assessment'
+                      : 'Continue',
+                ),
               ),
             ),
+          ],
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(
+            '${widget.playerName} · ${widget.stats.catalog.position} · ${widget.stats.catalog.roleGroup}',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Player Stats use a position-aware 0–99 scale and remain separate from the formal 1–5 Development Assessment.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 20),
+          _AssessmentStepProgress(current: _step),
+          const SizedBox(height: 20),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            child: switch (_step) {
+              0 => Form(
+                key: _attributesFormKey,
+                child: Column(
+                  key: const ValueKey('attributes-step'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.stats.latest == null
+                          ? 'Set the six baseline attributes'
+                          : 'Adjust only what changed',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.stats.latest == null
+                          ? 'Every score is required before the baseline can be saved.'
+                          : 'The latest values are prefilled. The saved record remains a complete immutable snapshot.',
+                    ),
+                    const SizedBox(height: 16),
+                    for (final attribute
+                        in widget.stats.catalog.attributes) ...[
+                      _AttributeScoreField(
+                        attribute: attribute,
+                        controller: _scores[_scoreKey(attribute)]!,
+                        previous:
+                            widget.stats.latest?.scores[_scoreKey(attribute)],
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
+              ),
+              1 => Form(
+                key: _contextFormKey,
+                child: Column(
+                  key: const ValueKey('context-step'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Add assessment context',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Explain why the assessment was made and leave useful coaching notes for the player.',
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      initialValue: _reason,
+                      decoration: const InputDecoration(
+                        labelText: 'Assessment reason *',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'GENERAL_REVIEW',
+                          child: Text('General review'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'MONTHLY_REVIEW',
+                          child: Text('Monthly review'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'POST_TOURNAMENT',
+                          child: Text('Post-tournament'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'RETURN_FROM_INJURY',
+                          child: Text('Return from injury'),
+                        ),
+                        DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                      ],
+                      onChanged: (value) => setState(() => _reason = value),
+                      validator: (value) => value == null
+                          ? 'Assessment reason is required.'
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      key: const Key('stats-coach-notes'),
+                      controller: _notes,
+                      minLines: 4,
+                      maxLines: 8,
+                      maxLength: 4000,
+                      decoration: const InputDecoration(
+                        labelText: 'Coach notes *',
+                        hintText:
+                            'Describe evidence, progress, and the next coaching focus.',
+                        alignLabelWithHint: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (text) => (text ?? '').trim().isEmpty
+                          ? 'Coach notes are required.'
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+              _ => Column(
+                key: const ValueKey('review-step'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Review before saving',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 6),
+                  Text('${_reasonLabel(_reason!)} · Overall $_overall'),
+                  const SizedBox(height: 16),
+                  Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        children: [
+                          for (final attribute
+                              in widget.stats.catalog.attributes)
+                            _PreviewRow(
+                              label: attribute,
+                              previous: widget
+                                  .stats
+                                  .latest
+                                  ?.scores[_scoreKey(attribute)],
+                              current: _values[_scoreKey(attribute)]!,
+                            ),
+                          const Divider(),
+                          _PreviewRow(
+                            label: 'Overall',
+                            previous: widget.stats.latest?.overall,
+                            current: _overall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (!_hasChanges)
+                    const Card(
+                      child: ListTile(
+                        leading: Icon(Icons.info_outline),
+                        title: Text('No attribute changes'),
+                        subtitle: Text(
+                          'Change at least one score before saving a new snapshot.',
+                        ),
+                      ),
+                    ),
+                  if (_saveError != null)
+                    Card(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      child: ListTile(
+                        leading: const Icon(Icons.error_outline),
+                        title: const Text('Assessment was not saved'),
+                        subtitle: Text(_saveError!),
+                      ),
+                    ),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.notes_outlined),
+                      title: const Text('Coach notes'),
+                      subtitle: Text(_notes.text.trim()),
+                    ),
+                  ),
+                ],
+              ),
+            },
+          ),
+          const SizedBox(height: 24),
         ],
       ),
-    ),
-    body: ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          '${widget.playerName} · ${widget.stats.catalog.position} · ${widget.stats.catalog.roleGroup}',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Player Stats use a position-aware 0–99 scale and remain separate from the formal 1–5 Development Assessment.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 20),
-        _AssessmentStepProgress(current: _step),
-        const SizedBox(height: 20),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          child: switch (_step) {
-            0 => Form(
-              key: _attributesFormKey,
-              child: Column(
-                key: const ValueKey('attributes-step'),
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.stats.latest == null
-                        ? 'Set the six baseline attributes'
-                        : 'Adjust only what changed',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    widget.stats.latest == null
-                        ? 'Every score is required before the baseline can be saved.'
-                        : 'The latest values are prefilled. The saved record remains a complete immutable snapshot.',
-                  ),
-                  const SizedBox(height: 16),
-                  for (final attribute in widget.stats.catalog.attributes) ...[
-                    _AttributeScoreField(
-                      attribute: attribute,
-                      controller: _scores[_scoreKey(attribute)]!,
-                      previous:
-                          widget.stats.latest?.scores[_scoreKey(attribute)],
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ],
-              ),
-            ),
-            1 => Form(
-              key: _contextFormKey,
-              child: Column(
-                key: const ValueKey('context-step'),
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Add assessment context',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Explain why the assessment was made and leave useful coaching notes for the player.',
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    initialValue: _reason,
-                    decoration: const InputDecoration(
-                      labelText: 'Assessment reason *',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'GENERAL_REVIEW',
-                        child: Text('General review'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'MONTHLY_REVIEW',
-                        child: Text('Monthly review'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'POST_TOURNAMENT',
-                        child: Text('Post-tournament'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'RETURN_FROM_INJURY',
-                        child: Text('Return from injury'),
-                      ),
-                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                    ],
-                    onChanged: (value) => setState(() => _reason = value),
-                    validator: (value) =>
-                        value == null ? 'Assessment reason is required.' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    key: const Key('stats-coach-notes'),
-                    controller: _notes,
-                    minLines: 4,
-                    maxLines: 8,
-                    maxLength: 4000,
-                    decoration: const InputDecoration(
-                      labelText: 'Coach notes *',
-                      hintText:
-                          'Describe evidence, progress, and the next coaching focus.',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (text) => (text ?? '').trim().isEmpty
-                        ? 'Coach notes are required.'
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-            _ => Column(
-              key: const ValueKey('review-step'),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Review before saving',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 6),
-                Text('${_reasonLabel(_reason!)} · Overall $_overall'),
-                const SizedBox(height: 16),
-                Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        for (final attribute in widget.stats.catalog.attributes)
-                          _PreviewRow(
-                            label: attribute,
-                            previous: widget
-                                .stats
-                                .latest
-                                ?.scores[_scoreKey(attribute)],
-                            current: _values[_scoreKey(attribute)]!,
-                          ),
-                        const Divider(),
-                        _PreviewRow(
-                          label: 'Overall',
-                          previous: widget.stats.latest?.overall,
-                          current: _overall,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (!_hasChanges)
-                  const Card(
-                    child: ListTile(
-                      leading: Icon(Icons.info_outline),
-                      title: Text('No attribute changes'),
-                      subtitle: Text(
-                        'Change at least one score before saving a new snapshot.',
-                      ),
-                    ),
-                  ),
-                if (_saveError != null)
-                  Card(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    child: ListTile(
-                      leading: const Icon(Icons.error_outline),
-                      title: const Text('Assessment was not saved'),
-                      subtitle: Text(_saveError!),
-                    ),
-                  ),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.notes_outlined),
-                    title: const Text('Coach notes'),
-                    subtitle: Text(_notes.text.trim()),
-                  ),
-                ),
-              ],
-            ),
-          },
-        ),
-        const SizedBox(height: 24),
-      ],
-    ),
-  );
+    );
+  }
 }
 
 class _AssessmentStepProgress extends StatelessWidget {
@@ -639,6 +637,7 @@ class _AssessmentStepProgress extends StatelessWidget {
 
   final int current;
 
+  /// Builds the assessment step progress view.
   @override
   Widget build(BuildContext context) {
     const labels = ['Attributes', 'Context', 'Review'];
@@ -698,6 +697,7 @@ class _AttributeScoreField extends StatelessWidget {
   final int? previous;
   final ValueChanged<String> onChanged;
 
+  /// Builds the attribute score field view.
   @override
   Widget build(BuildContext context) {
     final current = int.tryParse(controller.text.trim());
@@ -742,6 +742,8 @@ class _PreviewRow extends StatelessWidget {
   final String label;
   final int? previous;
   final int current;
+
+  /// Builds the preview row view.
   @override
   Widget build(BuildContext context) {
     final delta = previous == null ? null : current - previous!;
@@ -781,6 +783,7 @@ class _HistoryCard extends StatelessWidget {
   final PlayerStatsAssessment? previous;
   final List<String> attributes;
 
+  /// Builds the history card view.
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -852,6 +855,7 @@ class _DeltaText extends StatelessWidget {
   final int current;
   final int? previous;
 
+  /// Builds the delta text view.
   @override
   Widget build(BuildContext context) {
     final delta = previous == null ? null : current - previous!;
@@ -876,6 +880,7 @@ class _TrendChart extends StatelessWidget {
   const _TrendChart({required this.assessments});
   final List<PlayerStatsAssessment> assessments;
 
+  /// Builds the trend chart view.
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
@@ -895,6 +900,7 @@ class _TrendPainter extends CustomPainter {
   _TrendPainter(this.values);
   final List<int> values;
 
+  /// Draws the player statistics trend on the supplied canvas.
   @override
   void paint(Canvas canvas, Size size) {
     if (values.length < 2) return;
@@ -911,6 +917,7 @@ class _TrendPainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
+  /// Checks whether changed trend data requires redrawing the chart.
   @override
   bool shouldRepaint(covariant _TrendPainter oldDelegate) =>
       oldDelegate.values != values;
@@ -921,6 +928,7 @@ class _StatsHeader extends StatelessWidget {
 
   final PlayerStats stats;
 
+  /// Builds the stats header view.
   @override
   Widget build(BuildContext context) {
     final latest = stats.latest;
@@ -971,6 +979,7 @@ class _AttributeGrid extends StatelessWidget {
   final PlayerStatsCatalog catalog;
   final Map<String, int> scores;
 
+  /// Builds the attribute grid view.
   @override
   Widget build(BuildContext context) => Wrap(
     spacing: 8,
@@ -1002,13 +1011,16 @@ class _AttributeGrid extends StatelessWidget {
   );
 }
 
+/// Converts a displayed attribute name to its score lookup key.
 String _scoreKey(String attribute) =>
     attribute.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
 
+/// Formats a score change with its direction.
 String _deltaLabel(int delta) => delta == 0
     ? 'No change'
     : '${delta > 0 ? '+' : ''}$delta overall since previous assessment';
 
+/// Converts a stored reason code into readable text.
 String _reasonLabel(String reason) => reason
     .toLowerCase()
     .split('_')

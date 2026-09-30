@@ -13,6 +13,7 @@ import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 class GuardianPrivacyPinSelectionScreen extends ConsumerWidget {
   const GuardianPrivacyPinSelectionScreen({super.key});
 
+  /// Builds the guardian privacy pin selection screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final players = ref.watch(linkedPlayersProvider);
@@ -101,6 +102,7 @@ class _SelectionHeader extends StatelessWidget {
 
   final int playerCount;
 
+  /// Builds the selection header view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -160,6 +162,7 @@ class _PlayerPinCard extends StatelessWidget {
   final AsyncValue<PlayerPrivacyPinStatus> status;
   final VoidCallback onTap;
 
+  /// Builds the player pin card view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -219,6 +222,7 @@ class _PinStatus extends StatelessWidget {
 
   final AsyncValue<PlayerPrivacyPinStatus> status;
 
+  /// Builds the pin status view.
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -272,6 +276,7 @@ class _StatusPill extends StatelessWidget {
   final Color background;
   final Color foreground;
 
+  /// Builds the status pill view.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -308,6 +313,7 @@ class _LoadError extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
 
+  /// Builds the load error view.
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -335,6 +341,7 @@ class _LoadError extends StatelessWidget {
 class _EmptyPlayersState extends StatelessWidget {
   const _EmptyPlayersState();
 
+  /// Builds the empty players view.
   @override
   Widget build(BuildContext context) {
     return Center(

@@ -13,6 +13,7 @@ import 'package:footpath_cebu/presentation/widgets/dashboard_states.dart';
 class DisputeListScreen extends ConsumerWidget {
   const DisputeListScreen({super.key});
 
+  /// Builds the dispute list screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final disputesAsync = ref.watch(disputesProvider);
@@ -61,6 +62,7 @@ class DisputeListScreen extends ConsumerWidget {
     ).animateScreenEntrance();
   }
 
+  /// Summarizes dispute details for the list row.
   String _subtitle(Dispute dispute) {
     final parts = [
       dispute.category.label,
@@ -70,6 +72,7 @@ class DisputeListScreen extends ConsumerWidget {
     return parts.join(' · ');
   }
 
+  /// Opens the selected dispute and its response thread.
   void _openThread(BuildContext context, Dispute dispute) {
     showModalBottomSheet<void>(
       context: context,
@@ -89,6 +92,7 @@ class _LoadMoreDisputes extends ConsumerWidget {
 
   final DisputeListState listState;
 
+  /// Builds the load more disputes view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (listState.isLoadingMore) {
@@ -127,6 +131,7 @@ class DisputeStatusChip extends StatelessWidget {
 
   final DisputeStatus status;
 
+  /// Builds the dispute status chip view.
   @override
   Widget build(BuildContext context) {
     final (color, icon) = switch (status) {
@@ -152,6 +157,7 @@ class _DisputeThreadSheet extends ConsumerStatefulWidget {
 
   final Dispute dispute;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<_DisputeThreadSheet> createState() =>
       _DisputeThreadSheetState();
@@ -161,12 +167,14 @@ class _DisputeThreadSheetState extends ConsumerState<_DisputeThreadSheet> {
   final _bodyController = TextEditingController();
   DisputeStatus? _statusChangeTo;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _bodyController.dispose();
     super.dispose();
   }
 
+  /// Submits the response and any selected dispute status change.
   Future<void> _respond() async {
     final body = _bodyController.text.trim();
     if (body.isEmpty) {
@@ -196,6 +204,7 @@ class _DisputeThreadSheetState extends ConsumerState<_DisputeThreadSheet> {
     ).showSnackBar(const SnackBar(content: Text('Response posted.')));
   }
 
+  /// Builds the dispute thread sheet view.
   @override
   Widget build(BuildContext context) {
     final detail = ref.watch(disputeDetailProvider(widget.dispute.id));
@@ -214,6 +223,7 @@ class _DisputeThreadSheetState extends ConsumerState<_DisputeThreadSheet> {
     );
   }
 
+  /// Builds the thread section for this view.
   Widget _buildThread(BuildContext context, Dispute dispute) {
     final theme = Theme.of(context);
     final isSaving = ref.watch(disputeFormControllerProvider).isLoading;

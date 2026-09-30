@@ -15,8 +15,11 @@ def portal_role_required(*roles):
     """Restrict a portal view to the given `User.role` values."""
 
     def decorator(view):
+        """Wraps the portal view with the requested role and active-club checks."""
+
         @wraps(view)
         def _wrapped(request, *args, **kwargs):
+            """Redirects anonymous users and rejects accounts without valid club access."""
             if not request.user.is_authenticated:
                 return redirect_to_login(request.get_full_path())
             if request.user.role not in roles:

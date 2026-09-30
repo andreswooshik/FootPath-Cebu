@@ -41,6 +41,7 @@ class PlayerMatchStatisticsScreen extends StatelessWidget {
   final String playerId;
   final String playerName;
 
+  /// Builds the player match statistics screen view.
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text('$playerName · Match Performance')),
@@ -54,6 +55,7 @@ class PlayerMatchStatisticsView extends ConsumerStatefulWidget {
 
   final String playerId;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<PlayerMatchStatisticsView> createState() =>
       _PlayerMatchStatisticsViewState();
@@ -65,6 +67,7 @@ class _PlayerMatchStatisticsViewState
   MatchTypeFilter _matchType = MatchTypeFilter.all;
   MatchTrendMetric _metric = MatchTrendMetric.rating;
 
+  /// Builds the player match statistics view view.
   @override
   Widget build(BuildContext context) {
     final statistics = ref.watch(
@@ -86,6 +89,7 @@ class _PlayerMatchStatisticsViewState
     );
   }
 
+  /// Builds the statistics section for this view.
   Widget _buildStatistics(PlayerMatchStatistics statistics) {
     final all = [...statistics.performances]
       ..sort((a, b) => b.match.playedOn.compareTo(a.match.playedOn));
@@ -172,6 +176,7 @@ class _PlayerMatchStatisticsViewState
     );
   }
 
+  /// Builds the empty all matches section for this view.
   Widget _emptyAllMatches() => RefreshIndicator(
     onRefresh: () =>
         ref.refresh(playerMatchStatisticsProvider(widget.playerId).future),
@@ -204,6 +209,7 @@ class _SummaryHeader extends StatelessWidget {
   final MatchHistoryRange range;
   final ValueChanged<MatchHistoryRange> onRangeChanged;
 
+  /// Builds the dropdown section for this view.
   Widget _dropdown({required bool expanded}) =>
       DropdownButton<MatchHistoryRange>(
         value: range,
@@ -221,6 +227,7 @@ class _SummaryHeader extends StatelessWidget {
         ],
       );
 
+  /// Builds the summary header view.
   @override
   Widget build(BuildContext context) => AdaptiveInlineLayout(
     spacing: 16,
@@ -239,6 +246,7 @@ class _SummaryGrid extends StatelessWidget {
   final MatchPerformanceSummary summary;
   final bool hasGoalkeeperRow;
 
+  /// Builds the summary grid view.
   @override
   Widget build(BuildContext context) {
     final textScale = MediaQuery.textScalerOf(context).scale(1);
@@ -279,6 +287,7 @@ class _MetricSelector extends StatelessWidget {
   final MatchTrendMetric value;
   final ValueChanged<MatchTrendMetric> onChanged;
 
+  /// Builds the dropdown section for this view.
   Widget _dropdown() => DropdownButtonFormField<MatchTrendMetric>(
     key: const Key('matchesMetricSelector'),
     initialValue: value,
@@ -299,6 +308,7 @@ class _MetricSelector extends StatelessWidget {
     },
   );
 
+  /// Builds the metric selector view.
   @override
   Widget build(BuildContext context) => AdaptiveInlineLayout(
     spacing: 12,
@@ -316,6 +326,7 @@ class _TrendPanel extends StatelessWidget {
   final MatchTrendMetric metric;
   final List<MatchPerformance> performances;
 
+  /// Builds the trend panel view.
   @override
   Widget build(BuildContext context) {
     final chronological = performances.reversed.toList(growable: false);
@@ -363,6 +374,7 @@ class _SummaryTile extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Builds the summary tile view.
   @override
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
@@ -386,6 +398,7 @@ class _MatchPerformanceCard extends StatelessWidget {
 
   final MatchPerformance performance;
 
+  /// Builds the match performance card view.
   @override
   Widget build(BuildContext context) {
     final passRate = performance.passCompletionRate;
@@ -454,6 +467,7 @@ class _MatchPerformanceHeader extends StatelessWidget {
 
   final MatchPerformance performance;
 
+  /// Builds the match performance header view.
   @override
   Widget build(BuildContext context) {
     final match = performance.match;
@@ -546,6 +560,7 @@ class _InlineStat extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Builds the inline stat view.
   @override
   Widget build(BuildContext context) => SizedBox(
     width: 104,
@@ -564,6 +579,7 @@ class _FilteredMatchesEmptyState extends StatelessWidget {
 
   final MatchTypeFilter matchType;
 
+  /// Builds the filtered matches empty view.
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(

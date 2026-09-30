@@ -16,6 +16,7 @@ import 'package:footpath_cebu/presentation/screens/login_screen.dart';
 class SessionBootstrapScreen extends ConsumerStatefulWidget {
   const SessionBootstrapScreen({super.key});
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<SessionBootstrapScreen> createState() =>
       _SessionBootstrapScreenState();
@@ -28,12 +29,15 @@ class _SessionBootstrapScreenState
   bool _showLogin = false;
   bool _restoring = true;
 
+  /// Initializes the local state when this view first enters the widget tree.
   @override
   void initState() {
     super.initState();
     unawaited(_restore());
   }
 
+  /// Restores the signed-in session and routes to the appropriate starting
+  /// screen.
   Future<void> _restore() async {
     try {
       final profile = await ref.read(restoreSessionProvider)();
@@ -57,6 +61,7 @@ class _SessionBootstrapScreenState
     }
   }
 
+  /// Builds the session bootstrap screen view.
   @override
   Widget build(BuildContext context) {
     if (_profile != null) return HomeScreen(profile: _profile!);
@@ -92,6 +97,7 @@ class _RestoreErrorScreen extends StatelessWidget {
   final String message;
   final VoidCallback onContinue;
 
+  /// Builds the restore error screen view.
   @override
   Widget build(BuildContext context) {
     return Scaffold(

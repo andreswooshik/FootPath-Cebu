@@ -26,6 +26,7 @@ _DANGEROUS_PDF_MARKERS = (
 
 
 def _upload_size_label(max_bytes):
+    """Formats an upload size limit for validation feedback."""
     megabytes = max_bytes / (1024 * 1024)
     return f'{megabytes:g} MB'
 
@@ -113,6 +114,7 @@ def sanitize_pdf(content, *, max_bytes=MAX_UPLOAD_BYTES):
 
 
 def sanitize_document(content, content_type, *, max_bytes=MAX_UPLOAD_BYTES):
+    """Validates and sanitizes document bytes before they are stored."""
     if content_type == 'application/pdf':
         return sanitize_pdf(content, max_bytes=max_bytes)
     return sanitize_image(content, content_type, max_bytes=max_bytes)

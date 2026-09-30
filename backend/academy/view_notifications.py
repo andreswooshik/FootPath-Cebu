@@ -24,6 +24,7 @@ class DeviceRegisterView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        """Registers or reassigns a push token to the signed-in account."""
         serializer = DeviceTokenRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         token = serializer.validated_data['token']
@@ -49,12 +50,14 @@ class NotificationListView(APIView):
     """GET the authenticated user's newest persistent inbox entries."""
 
     def get(self, request):
+        """Lists the signed-in user notifications with pagination."""
         records = NotificationRecord.objects.filter(user=request.user)
         return list_response(request, records, NotificationRecordSerializer)
 
 
 class NotificationUnreadCountView(APIView):
     def get(self, request):
+        """Counts unread notifications for the signed-in user."""
         count = NotificationRecord.objects.filter(
             user=request.user,
             read_at__isnull=True,
@@ -64,6 +67,7 @@ class NotificationUnreadCountView(APIView):
 
 class NotificationReadView(APIView):
     def patch(self, request, pk):
+        """Marks one owned notification read without changing an existing read timestamp."""
         record = get_object_or_404(
             NotificationRecord,
             pk=pk,
@@ -77,6 +81,7 @@ class NotificationReadView(APIView):
 
 class NotificationReadAllView(APIView):
     def post(self, request):
+        """Marks all unread notifications owned by the current user as read."""
         updated = NotificationRecord.objects.filter(
             user=request.user,
             read_at__isnull=True,

@@ -20,6 +20,7 @@ class CoordinatorPlayerRegistrationFlow extends ConsumerStatefulWidget {
   final VoidCallback onCreateGuardianRequested;
   final MemberRegistrationResult? createdGuardian;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<CoordinatorPlayerRegistrationFlow> createState() =>
       _CoordinatorPlayerRegistrationFlowState();
@@ -27,6 +28,7 @@ class CoordinatorPlayerRegistrationFlow extends ConsumerStatefulWidget {
 
 class _CoordinatorPlayerRegistrationFlowState
     extends ConsumerState<CoordinatorPlayerRegistrationFlow> {
+  /// Initializes the local state when this view first enters the widget tree.
   @override
   void initState() {
     super.initState();
@@ -50,6 +52,7 @@ class _CoordinatorPlayerRegistrationFlowState
     }
   }
 
+  /// Builds the coordinator player registration flow view.
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(playerRegistrationControllerProvider);
@@ -181,18 +184,21 @@ class _GuardianSearch extends ConsumerStatefulWidget {
   final String initialQuery;
   final String? selectedId;
   final ValueChanged<ClubMember> onSelected;
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<_GuardianSearch> createState() => _GuardianSearchState();
 }
 
 class _GuardianSearchState extends ConsumerState<_GuardianSearch> {
   late final _search = TextEditingController(text: widget.initialQuery);
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _search.dispose();
     super.dispose();
   }
 
+  /// Builds the guardian search view.
   @override
   Widget build(BuildContext context) {
     final guardians = ref.watch(clubMembersProvider(ClubMemberRole.guardian));
@@ -281,6 +287,7 @@ class _Review extends StatelessWidget {
   final RegistrationState state;
   final VoidCallback onSubmit;
   final MemberRegistrationResult? createdGuardian;
+  /// Builds the review view.
   @override
   Widget build(BuildContext context) {
     final isNewGuardian =
@@ -329,6 +336,7 @@ class _Success extends StatelessWidget {
   const _Success({required this.state, this.createdGuardian});
   final RegistrationState state;
   final MemberRegistrationResult? createdGuardian;
+  /// Builds the success view.
   @override
   Widget build(BuildContext context) {
     final result = state.result!;

@@ -15,6 +15,7 @@ class NotificationDestinationScreen extends StatelessWidget {
   final UserProfile profile;
   final NotificationDestination destination;
 
+  /// Builds the notification destination screen view.
   @override
   Widget build(BuildContext context) {
     final initialTabIndex = notificationPortalTabIndex(destination);
@@ -35,6 +36,7 @@ class NotificationDestinationScreen extends StatelessWidget {
   }
 }
 
+/// Maps a notification destination to the tab that should open in the portal.
 int notificationPortalTabIndex(NotificationDestination destination) {
   return switch (destination.kind) {
     NotificationDestinationKind.schedule => 1,

@@ -13,6 +13,8 @@ final attendanceSyncEntriesProvider =
     );
 
 class AttendanceSyncController extends MutationController {
+  /// Saves corrected queued attendance and refreshes the session and schedule
+  /// views.
   Future<bool> saveCorrection(
     AttendanceSyncEntry entry,
     List<Attendance> records,
@@ -36,6 +38,8 @@ class AttendanceSyncController extends MutationController {
         },
       ) ??
       false;
+  /// Requests an immediate retry of queued attendance through the sync
+  /// repository.
   Future<void> syncNow() async {
     await runMutation(() async {
       await ref.read(attendanceSyncRepositoryProvider).syncNow();

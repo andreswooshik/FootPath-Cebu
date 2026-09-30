@@ -24,6 +24,7 @@ class CoordinatorPeopleScreen extends ConsumerStatefulWidget {
 
   final UserProfile profile;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<CoordinatorPeopleScreen> createState() =>
       _CoordinatorPeopleScreenState();
@@ -34,6 +35,7 @@ class _CoordinatorPeopleScreenState
   String _query = '';
   String _activeTab = 'Players';
 
+  /// Builds the coordinator people screen view.
   @override
   Widget build(BuildContext context) {
     final roster = ref.watch(squadProvider);
@@ -125,6 +127,7 @@ class _CoordinatorPeopleScreenState
     );
   }
 
+  /// Opens account creation and refreshes the people lists afterward.
   Future<void> _openCreateAccount() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(builder: (_) => const CoordinatorCreateAccountScreen()),
@@ -133,6 +136,7 @@ class _CoordinatorPeopleScreenState
     _invalidatePeople();
   }
 
+  /// Opens the selected member details and refreshes people afterward.
   Future<void> _openDetails(CoordinatorPersonRole role, String personId) async {
     final deletedRole = await Navigator.of(context).push<CoordinatorPersonRole>(
       MaterialPageRoute(
@@ -151,6 +155,7 @@ class _CoordinatorPeopleScreenState
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Opens the selected player profile from the people directory.
   Future<void> _openPlayerProfile(Player player) async {
     final deletedRole = await Navigator.of(context).push<CoordinatorPersonRole>(
       MaterialPageRoute(
@@ -166,12 +171,14 @@ class _CoordinatorPeopleScreenState
     );
   }
 
+  /// Invalidates people lists so account changes appear on the next read.
   void _invalidatePeople() {
     ref.invalidate(squadProvider);
     ref.invalidate(clubMembersProvider(ClubMemberRole.guardian));
     ref.invalidate(clubMembersProvider(ClubMemberRole.coach));
   }
 
+  /// Applies the directory search and filters to the player list.
   List<Player> _filter(List<Player> players) {
     final query = _query.trim().toLowerCase();
     if (query.isEmpty) return players;
@@ -198,6 +205,7 @@ class _PeopleHeader extends StatelessWidget {
   final ValueChanged<String> onTabChanged;
   final ValueChanged<String> onChanged;
 
+  /// Builds the people header view.
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 16),
@@ -270,6 +278,7 @@ class _MemberDirectory extends ConsumerWidget {
   final ValueChanged<String> onChanged;
   final ValueChanged<ClubMember> onPersonTap;
 
+  /// Builds the member directory view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final members = ref.watch(clubMembersProvider(role));
@@ -337,6 +346,7 @@ class _MemberRow extends StatelessWidget {
   final ClubMember member;
   final VoidCallback onTap;
 
+  /// Builds the member row view.
   @override
   Widget build(BuildContext context) {
     final linked = member.linkedPlayers;
@@ -376,6 +386,7 @@ class _MemberRow extends StatelessWidget {
     );
   }
 
+  /// Extracts initials for the name shown in an avatar.
   String _initials(String name) => name
       .trim()
       .split(RegExp(r'\s+'))
@@ -385,6 +396,7 @@ class _MemberRow extends StatelessWidget {
       .join();
 }
 
+/// Labels the visible count according to the selected people tab.
 String _countLabel(String activeTab, int count) {
   final singular = switch (activeTab) {
     'Guardians' => 'guardian',
@@ -401,6 +413,7 @@ class _PlayerRow extends StatelessWidget {
   final Player player;
   final VoidCallback onTap;
 
+  /// Builds the player row view.
   @override
   Widget build(BuildContext context) => Material(
     color: Colors.white,
@@ -448,6 +461,7 @@ class _PlayerRow extends StatelessWidget {
     ),
   );
 
+  /// Extracts initials for the name shown in an avatar.
   String _initials(String name) {
     final pieces = name
         .trim()

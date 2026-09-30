@@ -64,6 +64,7 @@ class PlayerMatchStatisticsView(APIView):
     _MAX_ROWS = 100
 
     def get(self, request, player_id):
+        """Returns player match statistics for the requested date range after access checks."""
         if not _may_read_match_statistics(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
         _require_unlock_when_pin_exists(request, player_id)
@@ -136,6 +137,7 @@ class PlayerGrowthView(APIView):
     """Categorized historical growth for one authorized player."""
 
     def get(self, request, player_id):
+        """Combines assessment, training, match, and tournament growth under shared filters."""
         if not _may_read_match_statistics(request.user, player_id):
             raise PermissionDenied('You may not view this player.')
         _require_unlock_when_pin_exists(request, player_id)
@@ -151,6 +153,7 @@ class PlayerGrowthView(APIView):
         limit = selected['limit']
 
         def include(name):
+            """Checks whether the selected growth category includes this section."""
             return category in ('all', name)
 
         assessment_rows = []
@@ -319,6 +322,7 @@ class SquadProgressView(APIView):
     """
 
     def get(self, request):
+        """Summarizes attendance and development indicators for the accessible squad."""
         if request.user.role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN):
             raise PermissionDenied(
                 'Only Coaches, Coordinators, and the Super Admin can view squad progress.'
@@ -345,6 +349,7 @@ class SquadProgressView(APIView):
         }
 
         def row(profile):
+            """Combines a player identity with attendance counts and average effort."""
             s = stats.get(profile.user_id, {})
             avg_effort = s.get('avg_effort')
             return {

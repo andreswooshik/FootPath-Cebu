@@ -67,15 +67,18 @@ class InjuryStatusUpdateRequestSerializer(serializers.ModelSerializer):
         }
 
     def get_submittedByName(self, obj):
+        """Computes the submitted by name field for the injury status update request response."""
         return _display_name(obj.submitted_by)
 
     def validate_proposedStatus(self, value):
+        """Checks and normalizes proposed status for injury status update request."""
         cleaned = str(value).upper()
         if cleaned not in (InjuryStatus.RECOVERING, InjuryStatus.RECOVERED):
             raise serializers.ValidationError('Choose Recovering or Recovered.')
         return cleaned
 
     def validate(self, attrs):
+        """Validates the combined request fields for injury status update request."""
         attrs = super().validate(attrs)
         proposed = attrs.get('proposed_status')
         resolved = attrs.get('proposed_resolved_on')
@@ -181,15 +184,19 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
         ]
 
     def get_playerName(self, obj):
+        """Computes the player name field for the injury record response."""
         return _display_name(obj.player)
 
     def get_reporterName(self, obj):
+        """Computes the reporter name field for the injury record response."""
         return _display_name(obj.reported_by)
 
     def _viewer(self):
+        """Returns the current request user for injury workflow permissions."""
         return getattr(self.context.get('request'), 'user', None)
 
     def _is_coordinator(self, obj):
+        """Checks whether the serializer viewer is the player club coordinator."""
         viewer = self._viewer()
         return bool(
             viewer
@@ -199,6 +206,7 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
         )
 
     def get_pendingStatusUpdate(self, obj):
+        """Computes the pending status update field for the injury record response."""
         pending = next(
             (
                 item
@@ -210,6 +218,7 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
         return InjuryStatusUpdateRequestSerializer(pending).data if pending else None
 
     def get_canEditPending(self, obj):
+        """Computes the can edit pending field for the injury record response."""
         viewer = self._viewer()
         return bool(
             obj.review_status == InjuryReportStatus.PENDING
@@ -218,12 +227,15 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
         )
 
     def get_canReview(self, obj):
+        """Computes the can review field for the injury record response."""
         return bool(obj.review_status == InjuryReportStatus.PENDING and self._is_coordinator(obj))
 
     def get_canEditConfirmed(self, obj):
+        """Computes the can edit confirmed field for the injury record response."""
         return bool(obj.review_status == InjuryReportStatus.CONFIRMED and self._is_coordinator(obj))
 
     def get_canArchive(self, obj):
+        """Computes the can archive field for the injury record response."""
         return bool(
             obj.review_status == InjuryReportStatus.CONFIRMED
             and obj.status == InjuryStatus.RECOVERED
@@ -231,6 +243,7 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
         )
 
     def get_canRequestStatusUpdate(self, obj):
+        """Computes the can request status update field for the injury record response."""
         viewer = self._viewer()
         return bool(
             viewer
@@ -241,12 +254,14 @@ class InjuryRecordSerializer(serializers.ModelSerializer):
         )
 
     def validate_status(self, value):
+        """Checks and normalizes status for injury record."""
         v = str(value).upper()
         if v not in set(InjuryStatus.values):
             raise serializers.ValidationError(f'Unknown status: {value}')
         return v
 
     def validate(self, attrs):
+        """Validates the combined request fields for injury record."""
         attrs = super().validate(attrs)
         occurred = attrs.get(
             'occurred_on',
@@ -297,9 +312,11 @@ class DisputeResponseSerializer(serializers.ModelSerializer):
         fields = ['id', 'authorName', 'authorRole', 'body', 'statusChangeTo', 'createdAt']
 
     def get_authorName(self, obj):
+        """Computes the author name field for the dispute response response."""
         return _display_name(obj.author)
 
     def get_authorRole(self, obj):
+        """Computes the author role field for the dispute response response."""
         return obj.author.role if obj.author_id else None
 
 
@@ -317,6 +334,7 @@ class DisputeSerializer(serializers.ModelSerializer):
     responses = serializers.SerializerMethodField()
 
     def get_responses(self, obj):
+        """Computes the responses field for the dispute response."""
         responses = (
             reversed(obj.list_responses) if hasattr(obj, 'list_responses') else obj.responses.all()
         )
@@ -339,12 +357,15 @@ class DisputeSerializer(serializers.ModelSerializer):
         ]
 
     def get_raisedByName(self, obj):
+        """Computes the raised by name field for the dispute response."""
         return _display_name(obj.raised_by)
 
     def get_subjectPlayerId(self, obj):
+        """Computes the subject player id field for the dispute response."""
         return str(obj.subject_player_id) if obj.subject_player_id else None
 
     def get_subjectPlayerName(self, obj):
+        """Computes the subject player name field for the dispute response."""
         return _display_name(obj.subject_player)
 
 
@@ -362,12 +383,14 @@ class DisputeCreateSerializer(serializers.Serializer):
     )
 
     def validate_category(self, value):
+        """Checks and normalizes category for dispute create."""
         v = str(value).upper()
         if v not in set(DisputeCategory.values):
             raise serializers.ValidationError(f'Unknown category: {value}')
         return v
 
     def validate_subjectPlayerId(self, value):
+        """Checks and normalizes subject player id for dispute create."""
         if value is None:
             return None
         if not User.objects.filter(pk=value, role=Roles.PLAYER).exists():
@@ -387,6 +410,7 @@ class DisputeResponseCreateSerializer(serializers.Serializer):
     )
 
     def validate_statusChangeTo(self, value):
+        """Checks and normalizes status change to for dispute response create."""
         if not value:
             return None
         v = str(value).upper()
@@ -424,12 +448,14 @@ class SessionAttendanceRecordSerializer(serializers.Serializer):
     )
 
     def validate_status(self, value):
+        """Checks and normalizes status for session attendance record."""
         v = str(value).upper()
         if v not in set(AttendanceStatus.values):
             raise serializers.ValidationError(f'Unknown status: {value}')
         return v
 
     def validate(self, attrs):
+        """Validates the combined request fields for session attendance record."""
         attrs = super().validate(attrs)
         if attrs['status'] != AttendanceStatus.PRESENT:
             attrs['effort'] = None
@@ -449,6 +475,7 @@ class NotificationRecordSerializer(serializers.ModelSerializer):
         fields = ['id', 'type', 'title', 'body', 'data', 'isRead', 'createdAt']
 
     def get_isRead(self, obj):
+        """Computes the is read field for the notification record response."""
         return obj.read_at is not None
 
 
@@ -469,14 +496,17 @@ class AdminCreatePlayerSerializer(serializers.Serializer):
     )
 
     def validate_date_of_birth(self, value):
+        """Checks and normalizes date of birth for admin create player."""
         if value > timezone.localdate():
             raise serializers.ValidationError('Date of birth cannot be in the future.')
         return value
 
     def validate_middle_initial(self, value):
+        """Checks and normalizes middle initial for admin create player."""
         return normalize_middle_initial(value)
 
     def to_internal_value(self, data):
+        """Converts incoming admin create player data to validated internal values."""
         if 'email' in data:
             raise serializers.ValidationError(
                 {'email': 'Player profiles do not have a separate login email.'}
@@ -498,6 +528,7 @@ class AgeTierSettingSerializer(serializers.ModelSerializer):
         fields = ['tier', 'minAge', 'maxAge']
 
     def validate(self, attrs):
+        """Validates the combined request fields for age tier setting."""
         if attrs['min_age'] > attrs['max_age']:
             raise serializers.ValidationError('min age must not exceed max age.')
         return attrs

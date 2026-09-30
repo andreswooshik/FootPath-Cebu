@@ -10,6 +10,7 @@ class CoordinatorInviteScreen extends StatefulWidget {
     required this.phone,
   });
   final String name, accountType, phone;
+  /// Creates the mutable state used by this view.
   @override
   State<CoordinatorInviteScreen> createState() =>
       _CoordinatorInviteScreenState();
@@ -17,6 +18,7 @@ class CoordinatorInviteScreen extends StatefulWidget {
 
 class _CoordinatorInviteScreenState extends State<CoordinatorInviteScreen> {
   int _method = 0;
+  /// Builds the coordinator invite screen view.
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -180,6 +182,7 @@ class _Option extends StatelessWidget {
   final bool selected;
   final String title, detail;
   final VoidCallback onTap;
+  /// Builds the option view.
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,

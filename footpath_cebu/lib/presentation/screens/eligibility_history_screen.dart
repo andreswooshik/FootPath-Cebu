@@ -30,6 +30,7 @@ class EligibilityHistoryScreen extends ConsumerWidget {
   final bool canUpdate;
   final EligibilityStatus? currentStatus;
 
+  /// Opens the eligibility status selection and submits the chosen update.
   Future<void> _chooseStatus(BuildContext context, WidgetRef ref) async {
     final selected = await showModalBottomSheet<EligibilityStatus>(
       context: context,
@@ -62,6 +63,7 @@ class EligibilityHistoryScreen extends ConsumerWidget {
     Navigator.of(context).pop(saved);
   }
 
+  /// Builds the eligibility history screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync = ref.watch(eligibilityHistoryProvider(playerId));
@@ -155,6 +157,7 @@ class _CurrentEligibility extends StatelessWidget {
   final bool isSaving;
   final VoidCallback onUpdate;
 
+  /// Builds the current eligibility view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -208,6 +211,7 @@ class _ChangeCard extends StatelessWidget {
 
   final EligibilityChange change;
 
+  /// Builds the change card view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -253,6 +257,7 @@ class _EligibilityPicker extends StatefulWidget {
 
   final EligibilityStatus? current;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_EligibilityPicker> createState() => _EligibilityPickerState();
 }
@@ -260,12 +265,14 @@ class _EligibilityPicker extends StatefulWidget {
 class _EligibilityPickerState extends State<_EligibilityPicker> {
   EligibilityStatus? selected;
 
+  /// Initializes the local state when this view first enters the widget tree.
   @override
   void initState() {
     super.initState();
     selected = widget.current;
   }
 
+  /// Builds the eligibility picker view.
   @override
   Widget build(BuildContext context) => SafeArea(
     child: SingleChildScrollView(

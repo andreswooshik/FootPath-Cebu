@@ -38,6 +38,7 @@ class UserSerializer(serializers.ModelSerializer):
         ]
 
     def get_photo_url(self, obj):
+        """Computes the photo url field for the user response."""
         return signed_photo_url(obj.profile_photo_path) if obj.profile_photo_path else None
 
 
@@ -85,6 +86,7 @@ class AdminClubSerializer(serializers.ModelSerializer):
         read_only_fields = ['slug', 'created_at']
 
     def validate(self, attrs):
+        """Validates the combined request fields for admin club."""
         current_type = self.instance.club_type if self.instance else ClubTypes.INDEPENDENT
         club_type = attrs.get('club_type', current_type)
         school_name = attrs.get('school_name', self.instance.school_name if self.instance else '')
@@ -96,6 +98,7 @@ class AdminClubSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def _unique_slug(name, *, instance=None):
+        """Finds an unused club slug derived from the requested club name."""
         base = slugify(name) or 'club'
         candidate = base
         counter = 2
@@ -108,6 +111,7 @@ class AdminClubSerializer(serializers.ModelSerializer):
         return candidate
 
     def create(self, validated_data):
+        """Creates the admin club from validated fields."""
         club_type = validated_data.pop('club_type')
         validated_data['is_school_affiliated'] = club_type == ClubTypes.SCHOOL
         validated_data['slug'] = self._unique_slug(validated_data['name'])
@@ -116,6 +120,7 @@ class AdminClubSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
+        """Updates the admin club from validated fields."""
         club_type = validated_data.pop('club_type', instance.club_type)
         validated_data['is_school_affiliated'] = club_type == ClubTypes.SCHOOL
         if 'name' in validated_data and validated_data['name'] != instance.name:
@@ -138,6 +143,7 @@ class AdminCoordinatorCreateSerializer(serializers.Serializer):
     is_active = serializers.BooleanField(default=True)
 
     def validate_club_id(self, club):
+        """Checks and normalizes club id for admin coordinator create."""
         if User.objects.filter(club=club, role=Roles.COORDINATOR).exists():
             raise serializers.ValidationError('This club already has a coordinator.')
         return club
@@ -162,6 +168,7 @@ class GuardianLinkSerializer(serializers.ModelSerializer):
         fields = ['id', 'guardian', 'player', 'guardian_id', 'player_id', 'created_at']
 
     def validate(self, attrs):
+        """Validates the combined request fields for guardian link."""
         guardian = attrs['guardian']
         player = attrs['player']
         if not guardian.is_active or not player.is_active:

@@ -13,6 +13,7 @@ class AccountsConfig(AppConfig):
         # Initialize Firebase eagerly so the first request doesn't pay the
         # cost, but let the server boot without credentials (migrations,
         # health checks) — token verification will fail loudly instead.
+        """Initializes Firebase at startup while allowing boot without credentials."""
         from .firebase import ensure_initialized
 
         try:

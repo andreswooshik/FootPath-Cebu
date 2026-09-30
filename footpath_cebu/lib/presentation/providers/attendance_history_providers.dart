@@ -17,6 +17,7 @@ class AttendanceHistoryState {
 
   bool get hasMore => nextOffset != null;
 
+  /// Returns an updated state while preserving fields not explicitly changed.
   AttendanceHistoryState copyWith({
     bool? isLoadingMore,
     Object? loadMoreError,
@@ -39,9 +40,11 @@ class AttendanceHistoryController
 
   final String playerId;
 
+  /// Loads the initial page for this feature when the provider starts.
   @override
   Future<AttendanceHistoryState> build() => _firstPage();
 
+  /// Loads the first page and its next offset for the feature list.
   Future<AttendanceHistoryState> _firstPage() async {
     final page = await ref
         .read(getPlayerAttendancePageProvider)
@@ -52,12 +55,14 @@ class AttendanceHistoryController
     );
   }
 
+  /// Reloads the first page and exposes loading or error state to the view.
   Future<void> refresh() async {
     state = const AsyncLoading();
     final result = await AsyncValue.guard(_firstPage);
     if (ref.mounted) state = result;
   }
 
+  /// Appends the next page; keeps existing rows visible if loading fails.
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || current.isLoadingMore || !current.hasMore) return;

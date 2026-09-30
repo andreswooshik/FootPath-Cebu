@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/data/dto/player_dto.dart';
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,7 +107,7 @@ void main() {
       // were dropped from fromJson/toJson the note would vanish on reload.
       final target = (await MockPlayerRepository().fetchSquad()).first;
       final withNote = target.copyWith(coachNotes: 'Composed under pressure.');
-      final restored = Player.fromJson(withNote.toJson());
+      final restored = PlayerDto.fromJson(withNote.toJson());
       expect(restored.coachNotes, 'Composed under pressure.');
     });
 

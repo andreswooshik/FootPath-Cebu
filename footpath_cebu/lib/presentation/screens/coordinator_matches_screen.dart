@@ -14,12 +14,14 @@ import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 class CoordinatorMatchesScreen extends ConsumerWidget {
   const CoordinatorMatchesScreen({super.key});
 
+  /// Opens the form for a match outside the tournament fixture workflow.
   Future<void> _createAdHocMatch(BuildContext context) async {
     await Navigator.of(context).push<FootballMatch>(
       MaterialPageRoute(builder: (_) => const EditFootballMatchScreen()),
     );
   }
 
+  /// Builds the coordinator matches screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final matches = ref.watch(footballMatchesProvider);
@@ -105,6 +107,7 @@ class _CoordinatorMatchCard extends StatelessWidget {
   final FootballMatch match;
   final VoidCallback onTap;
 
+  /// Builds the coordinator match card view.
   @override
   Widget build(BuildContext context) => Card(
     child: ListTile(

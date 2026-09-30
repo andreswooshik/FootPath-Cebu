@@ -25,6 +25,7 @@ class ClubRegistrationScreen extends ConsumerStatefulWidget {
 
   final CoachLicensePicker? pickCoachLicense;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<ClubRegistrationScreen> createState() =>
       _ClubRegistrationScreenState();
@@ -43,6 +44,7 @@ class _ClubRegistrationScreenState
   final _confirmation = TextEditingController();
   bool _isSchoolAffiliated = false;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _clubName.dispose();
@@ -56,6 +58,8 @@ class _ClubRegistrationScreenState
     super.dispose();
   }
 
+  /// Selects a coach license file and sends it to the controller for
+  /// validation.
   Future<void> _pickLicense() async {
     try {
       final selection =
@@ -78,6 +82,7 @@ class _ClubRegistrationScreenState
     }
   }
 
+  /// Reads a supported license file selected from the device.
   Future<CoachLicenseSelection?> _pickCoachLicenseFromDevice() async {
     final file = await FilePicker.pickFile(
       dialogTitle: 'Choose coach license',
@@ -92,6 +97,7 @@ class _ClubRegistrationScreenState
     );
   }
 
+  /// Validates the registration form and submits the club application.
   Future<void> _submit() async {
     FocusManager.instance.primaryFocus?.unfocus();
     final valid = _formKey.currentState?.validate() ?? false;
@@ -118,9 +124,11 @@ class _ClubRegistrationScreenState
     );
   }
 
+  /// Returns a validation message when a required field is blank.
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'This field is required.' : null;
 
+  /// Checks that the registration email has the expected address format.
   String? _emailValidator(String? value) {
     if (value == null || value.trim().isEmpty) return 'Email is required.';
     final email = value.trim();
@@ -130,17 +138,20 @@ class _ClubRegistrationScreenState
     return null;
   }
 
+  /// Checks the registration password against the form requirements.
   String? _passwordValidator(String? value) {
     if (value == null || value.isEmpty) return 'Password is required.';
     return null;
   }
 
+  /// Checks that the repeated password matches the original.
   String? _confirmationValidator(String? value) {
     if (value == null || value.isEmpty) return 'Confirm your password.';
     if (value != _password.text) return 'Passwords do not match.';
     return null;
   }
 
+  /// Builds the club registration screen view.
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(clubRegistrationControllerProvider);
@@ -400,6 +411,7 @@ class _ClubRegistrationScreenState
     );
   }
 
+  /// Builds the field section for this view.
   Widget _field({
     Key? key,
     required TextEditingController controller,
@@ -437,6 +449,7 @@ class ClubRegistrationSuccessScreen extends StatelessWidget {
 
   final String coordinatorEmail;
 
+  /// Builds the club registration success screen view.
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: Theme.of(context).colorScheme.surface,

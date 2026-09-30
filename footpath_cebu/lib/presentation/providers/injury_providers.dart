@@ -60,6 +60,7 @@ class InjuryFormController extends MutationController {
         false;
   }
 
+  /// Confirms or rejects a saved injury report and refreshes injury lists.
   Future<bool> reviewReport(
     InjuryRecord record, {
     required bool confirm,
@@ -74,6 +75,7 @@ class InjuryFormController extends MutationController {
     }, playerId: record.playerId);
   }
 
+  /// Archives a saved injury record and refreshes injury lists.
   Future<bool> archive(InjuryRecord record) async {
     final id = record.id;
     if (id == null) return false;
@@ -83,6 +85,7 @@ class InjuryFormController extends MutationController {
     );
   }
 
+  /// Submits a proposed injury status change for review.
   Future<bool> requestStatus(
     InjuryRecord record,
     InjuryStatusUpdateDraft draft,
@@ -94,6 +97,7 @@ class InjuryFormController extends MutationController {
     );
   }
 
+  /// Approves or rejects the pending status update on a saved injury.
   Future<bool> reviewStatus(
     InjuryRecord record, {
     required bool approve,
@@ -115,6 +119,7 @@ class InjuryFormController extends MutationController {
     );
   }
 
+  /// Runs an injury workflow action and refreshes player and club injury lists.
   Future<bool> _workflowAction(
     Future<Object?> Function() action, {
     required String playerId,

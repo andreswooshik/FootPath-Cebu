@@ -19,6 +19,7 @@ class DeviceToken(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
+        """Returns a readable device token label for admin pages and diagnostics."""
         return f'{self.user.email} · {self.platform or "?"}'
 
 
@@ -52,6 +53,7 @@ class NotificationRecord(models.Model):
         ]
 
     def __str__(self):
+        """Returns a readable notification record label for admin pages and diagnostics."""
         return f'{self.user.email} · {self.event_type} · {self.created_at:%Y-%m-%d}'
 
 

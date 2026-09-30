@@ -35,6 +35,7 @@ import 'package:footpath_cebu/presentation/widgets/tier_badge.dart';
 class PlayerDashboardScreen extends ConsumerWidget {
   const PlayerDashboardScreen({super.key});
 
+  /// Runs the sign-out flow and returns to login when it completes.
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     if (!await confirmSignOut(context) || !context.mounted) return;
     ref.read(privacyUnlockedPlayersProvider.notifier).clear();
@@ -46,6 +47,7 @@ class PlayerDashboardScreen extends ConsumerWidget {
     ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
+  /// Builds the player dashboard screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(myProfileProvider).value;
@@ -129,6 +131,7 @@ class _StreakSection extends ConsumerWidget {
 
   final Player player;
 
+  /// Builds the streak section view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attendance =
@@ -148,6 +151,7 @@ class _EligibilityTile extends StatelessWidget {
 
   final Player player;
 
+  /// Builds the eligibility tile view.
   @override
   Widget build(BuildContext context) {
     return StatTile(
@@ -181,6 +185,7 @@ class _RecentAttendanceCard extends ConsumerWidget {
 
   final Player player;
 
+  /// Builds the recent attendance card view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final attendance = ref.watch(childAttendanceProvider(player.id));
@@ -263,6 +268,7 @@ class _InjuryHistoryCard extends StatelessWidget {
 
   final Player player;
 
+  /// Builds the injury history card view.
   @override
   Widget build(BuildContext context) {
     return MotionPress(
@@ -286,6 +292,7 @@ class _InjuryHistoryCard extends StatelessWidget {
   }
 }
 
+/// Maps eligibility status to the color used by the player summary.
 Color _eligibilityColor(EligibilityStatus status) => switch (status) {
   EligibilityStatus.eligible => Colors.green,
   EligibilityStatus.notEligible => Colors.red,

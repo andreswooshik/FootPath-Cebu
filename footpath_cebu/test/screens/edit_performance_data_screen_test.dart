@@ -37,7 +37,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        playerRepositoryProvider.overrideWithValue(repo),
+        playerDataSourceProvider.overrideWithValue(repo),
         if (assessmentRepository != null)
           developmentAssessmentRepositoryProvider.overrideWithValue(
             assessmentRepository,

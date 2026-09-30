@@ -23,6 +23,7 @@ class PlayerGrowthScreen extends ConsumerStatefulWidget {
   final String playerId;
   final String playerName;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<PlayerGrowthScreen> createState() => _PlayerGrowthScreenState();
 }
@@ -33,6 +34,7 @@ class _PlayerGrowthScreenState extends ConsumerState<PlayerGrowthScreen> {
   GrowthQuery get _query =>
       GrowthQuery(playerId: widget.playerId, range: _range);
 
+  /// Builds the player growth screen view.
   @override
   Widget build(BuildContext context) {
     final growth = ref.watch(playerGrowthProvider(_query));
@@ -110,6 +112,7 @@ class _OverviewTab extends StatelessWidget {
   final PlayerGrowth growth;
   final GrowthRange range;
 
+  /// Builds the overview tab view.
   @override
   Widget build(BuildContext context) {
     final development = growth.developmentSummary;
@@ -189,6 +192,7 @@ class _TrendCard extends StatelessWidget {
   final String detail;
   final GrowthClassification classification;
 
+  /// Builds the trend card view.
   @override
   Widget build(BuildContext context) {
     final color = _classificationColor(context, classification);
@@ -218,6 +222,7 @@ class _AssessmentsTab extends StatelessWidget {
   final String playerId;
   final String playerName;
 
+  /// Builds the assessments tab view.
   @override
   Widget build(BuildContext context) {
     final developmentRows = growth.developmentAssessments;
@@ -305,6 +310,7 @@ class _DevelopmentAssessmentCard extends StatelessWidget {
   final DevelopmentAssessmentSnapshot row;
   final AssessmentFramework? framework;
 
+  /// Maps a growth metric key to its display label.
   String _label(String key) {
     for (final domain in framework?.domains ?? const <DevelopmentDomain>[]) {
       if (domain.key == key) return domain.label;
@@ -319,6 +325,7 @@ class _DevelopmentAssessmentCard extends StatelessWidget {
     };
   }
 
+  /// Builds the development assessment card view.
   @override
   Widget build(BuildContext context) => Card(
     child: ExpansionTile(
@@ -371,6 +378,7 @@ class _LegacyAssessmentTile extends StatelessWidget {
   final AssessmentSnapshot row;
   final AssessmentSnapshot? previous;
 
+  /// Builds the legacy assessment tile view.
   @override
   Widget build(BuildContext context) => ListTile(
     leading: CircleAvatar(child: Text('${row.overall}')),
@@ -397,6 +405,7 @@ class _TrainingTab extends StatelessWidget {
 
   final List<TrainingGrowthGroup> groups;
 
+  /// Builds the training tab view.
   @override
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.all(16),
@@ -409,6 +418,7 @@ class _TrainingGroupCard extends StatelessWidget {
 
   final TrainingGrowthGroup group;
 
+  /// Builds the training group card view.
   @override
   Widget build(BuildContext context) => Card(
     child: ExpansionTile(
@@ -463,6 +473,7 @@ class _TrainingResult extends StatelessWidget {
   const _TrainingResult({required this.row});
   final Attendance row;
 
+  /// Builds the training result view.
   @override
   Widget build(BuildContext context) => ListTile(
     contentPadding: EdgeInsets.zero,
@@ -509,6 +520,7 @@ class _MatchesTab extends StatefulWidget {
   final MatchGrowth? growth;
   final String position;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_MatchesTab> createState() => _MatchesTabState();
 }
@@ -516,6 +528,7 @@ class _MatchesTab extends StatefulWidget {
 class _MatchesTabState extends State<_MatchesTab> {
   _MatchMetric _metric = _MatchMetric.coachRating;
 
+  /// Builds the matches tab view.
   @override
   Widget build(BuildContext context) {
     final growth = widget.growth;
@@ -619,6 +632,7 @@ class _TournamentsTab extends StatelessWidget {
   const _TournamentsTab({required this.groups});
   final List<TournamentGrowthGroup> groups;
 
+  /// Builds the tournaments tab view.
   @override
   Widget build(BuildContext context) {
     if (groups.isEmpty) {
@@ -678,6 +692,7 @@ class _InlineValue extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Builds the inline value view.
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -688,7 +703,9 @@ class _InlineValue extends StatelessWidget {
   );
 }
 
+/// Extracts a match metric, normalizing count-based statistics per 90 minutes.
 double? _metricValue(MatchPerformance row, _MatchMetric metric) {
+  /// Returns a per-90 rate, or null when the player has no recorded minutes.
   double? per90(int value) =>
       row.minutesPlayed == 0 ? null : value * 90 / row.minutesPlayed;
   return switch (metric) {
@@ -706,6 +723,7 @@ double? _metricValue(MatchPerformance row, _MatchMetric metric) {
   };
 }
 
+/// Uses the rating trend, then goal rate, as the match-growth summary trend.
 GrowthClassification _representativeMatchTrend(MatchGrowth? growth) {
   if (growth == null) return GrowthClassification.insufficientData;
   return growth.metrics['averageRating']?.classification ??
@@ -713,32 +731,40 @@ GrowthClassification _representativeMatchTrend(MatchGrowth? growth) {
       GrowthClassification.insufficientData;
 }
 
+/// Converts a stored value into a readable title.
 String _title(String value) =>
     value.isEmpty ? value : '${value[0]}${value.substring(1).toLowerCase()}';
 
+/// Formats an integer change, including its direction or missing-value
+/// placeholder.
 String _delta(int? value) => value == null
     ? '—'
     : value > 0
     ? '+$value'
     : '$value';
 
+/// Formats a decimal change, including its direction or missing-value
+/// placeholder.
 String _doubleDelta(double? value) => value == null
     ? 'insufficient comparison data'
     : value == 0
     ? 'no comparable change'
     : '${value > 0 ? '+' : ''}${value.toStringAsFixed(2)} change';
+/// Formats a decimal change for the growth comparison.
 String _decimalDelta(double? value) => value == null
     ? '—'
     : value > 0
     ? '+${value.toStringAsFixed(1)}'
     : value.toStringAsFixed(1);
 
+/// Colors positive, negative, and unchanged values in the growth comparison.
 Color _deltaColor(BuildContext context, int value) {
   if (value > 0) return Colors.green.shade700;
   if (value < 0) return Theme.of(context).colorScheme.error;
   return Theme.of(context).colorScheme.onSurfaceVariant;
 }
 
+/// Maps each growth classification to its visual status color.
 Color _classificationColor(
   BuildContext context,
   GrowthClassification classification,

@@ -26,6 +26,7 @@ _ROLES_BY_PATH = {
 
 
 def _display_name(user, *, player_profile=None):
+    """Builds a readable member name, falling back to the email identifier."""
     middle_initial = (
         player_profile.middle_initial if player_profile is not None else user.middle_initial
     )
@@ -41,6 +42,7 @@ def _display_name(user, *, player_profile=None):
 
 
 def _person_payload(person):
+    """Builds coordinator-facing member details with role-specific linked accounts."""
     profile = getattr(person, 'player_profile', None)
     middle_initial = profile.middle_initial if profile is not None else person.middle_initial
     payload = {
@@ -113,6 +115,7 @@ class CoordinatorPersonDetailView(APIView):
     permission_classes = [IsCoordinator]
 
     def _person(self, request, role, person_id, *, for_update=False):
+        """Looks up the requested role-specific club member, optionally locking the account."""
         expected_role = _ROLES_BY_PATH.get(role)
         if expected_role is None:
             return None
@@ -133,6 +136,7 @@ class CoordinatorPersonDetailView(APIView):
         )
 
     def get(self, request, role, person_id):
+        """Returns role-specific details for a member of the coordinator club."""
         if request.user.club_id is None or not request.user.club.is_active:
             return Response(
                 {'detail': 'Your club must be active.'},
@@ -147,6 +151,10 @@ class CoordinatorPersonDetailView(APIView):
         return Response(_person_payload(person))
 
     def delete(self, request, role, person_id):
+        """Removes or deactivates a club account according to its linked records and cleans up
+
+        its identity.
+        """
         if request.user.club_id is None or not request.user.club.is_active:
             return Response(
                 {'detail': 'Your club must be active.'},

@@ -55,3 +55,19 @@ study-notes/
 /output/
 /outputs/
 /.git-commit-msg.txt
+
+# Local manuscript and workflow-document working files.
+/FootPath_Cebu_Manuscript.docx
+/FootPath_Required_Chapters_1_to_3.docx
+/FootPath_revised.docx
+/revise_footpath_paper.py
+/manuscript_assets/
+/manuscript_render/
+/manuscript_render_final/
+/required_render/
+/_workflow_demo_render_*/
+/docs/capstone-defense/FootPath_Cebu_Workflow_Demonstration_Guide.docx
+
+# Local review and recovery notes.
+/docs/FRONTEND-CODE-AUDIT-2026-09-10.md
+/docs/OFFLINE-ATTENDANCE-RECOVERY.md

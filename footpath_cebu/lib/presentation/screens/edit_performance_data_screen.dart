@@ -21,6 +21,7 @@ class EditPerformanceDataScreen extends ConsumerStatefulWidget {
   final Player player;
   final UserProfile profile;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<EditPerformanceDataScreen> createState() =>
       _EditPerformanceDataScreenState();
@@ -36,6 +37,7 @@ class _EditPerformanceDataScreenState
   AssessmentReason _reason = AssessmentReason.generalReview;
   bool _showValidation = false;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _strengthsController.dispose();
@@ -44,6 +46,7 @@ class _EditPerformanceDataScreenState
     super.dispose();
   }
 
+  /// Seeds the assessment form from the loaded development data.
   void _initialize(DevelopmentAssessmentFormData data) {
     final latestId =
         data.latestAssessment?.id ?? 'empty-v${data.framework.version}';
@@ -56,14 +59,17 @@ class _EditPerformanceDataScreenState
     _initializedAssessmentId = latestId;
   }
 
+  /// Checks whether every required score in a development domain is present.
   bool _domainComplete(DevelopmentDomain domain) =>
       (_scores?.observedCount(domain.key) ?? 0) >= domain.minimumObserved;
 
+  /// Checks whether all framework domains have been completed.
   bool _formComplete(AssessmentFramework framework) =>
       framework.domains.every(_domainComplete) &&
       _strengthsController.text.trim().isNotEmpty &&
       _targetsController.text.trim().isNotEmpty;
 
+  /// Checks whether score changes require additional confirmation.
   bool _isLargeChange(DevelopmentAssessmentFormData data) {
     final latest = data.latestAssessment;
     final scores = _scores;
@@ -89,6 +95,7 @@ class _EditPerformanceDataScreenState
     return false;
   }
 
+  /// Validates the assessment and confirms significant changes before saving.
   Future<void> _save(DevelopmentAssessmentFormData data) async {
     FocusScope.of(context).unfocus();
     setState(() => _showValidation = true);
@@ -156,6 +163,7 @@ class _EditPerformanceDataScreenState
     );
   }
 
+  /// Builds the edit performance data screen view.
   @override
   Widget build(BuildContext context) {
     final form = ref.watch(developmentAssessmentFormProvider(widget.player.id));
@@ -233,6 +241,7 @@ class _AssessmentForm extends StatelessWidget {
   final VoidCallback onTextChanged;
   final VoidCallback onSave;
 
+  /// Builds the assessment form view.
   @override
   Widget build(BuildContext context) {
     final framework = data.framework;
@@ -373,6 +382,7 @@ class _PlayerContextCard extends StatelessWidget {
   final Player player;
   final DevelopmentAssessmentFormData data;
 
+  /// Builds the player context card view.
   @override
   Widget build(BuildContext context) {
     final latest = data.latestAssessment;
@@ -414,6 +424,7 @@ class _DomainCard extends StatelessWidget {
   final bool showValidation;
   final void Function(String indicator, int? value) onChanged;
 
+  /// Builds the domain card view.
   @override
   Widget build(BuildContext context) {
     final observed = scores.observedCount(domain.key);
@@ -477,6 +488,7 @@ class _IndicatorRating extends StatelessWidget {
   final int? previous;
   final ValueChanged<int?> onChanged;
 
+  /// Builds the indicator rating view.
   @override
   Widget build(BuildContext context) {
     final delta = value != null && previous != null ? value! - previous! : null;

@@ -8,6 +8,7 @@ import 'package:footpath_cebu/presentation/providers/player_dashboard_providers.
 
 /// Owns the loading/error state for a Coach roster-photo upload.
 class PlayerPhotoController extends MutationController {
+  /// Uploads a player photo and refreshes affected player data.
   Future<Player?> submit(
     String playerId, {
     required List<int> bytes,

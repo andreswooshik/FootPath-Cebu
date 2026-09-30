@@ -42,6 +42,7 @@ final playerMatchStatisticsProvider = FutureProvider.autoDispose
 
 /// Coordinates role-owned writes and refreshes every affected read model.
 class MatchManagementController extends MutationController {
+  /// Creates a match and refreshes the match list after a successful save.
   Future<FootballMatch?> create(FootballMatchDraft draft) async {
     return _run(
       () => ref.read(createFootballMatchProvider)(draft),
@@ -49,6 +50,7 @@ class MatchManagementController extends MutationController {
     );
   }
 
+  /// Updates match details and refreshes the match list and its performances.
   Future<FootballMatch?> saveMatchChanges(
     String matchId,
     FootballMatchDraft draft,
@@ -62,6 +64,8 @@ class MatchManagementController extends MutationController {
     );
   }
 
+  /// Saves player match statistics and refreshes roster and player statistics
+  /// views.
   Future<MatchPerformance?> savePerformance(
     String matchId,
     String playerId,
@@ -78,6 +82,8 @@ class MatchManagementController extends MutationController {
     );
   }
 
+  /// Deletes player match statistics and refreshes affected roster and
+  /// statistics views.
   Future<bool> deletePerformance(String matchId, String playerId) async {
     return await runMutation(
           () async {
@@ -94,6 +100,8 @@ class MatchManagementController extends MutationController {
         false;
   }
 
+  /// Saves a player match rating and refreshes affected roster and statistics
+  /// views.
   Future<MatchPerformance?> saveRating(
     String matchId,
     String playerId,
@@ -110,6 +118,8 @@ class MatchManagementController extends MutationController {
     );
   }
 
+  /// Deletes a player match rating and refreshes affected roster and statistics
+  /// views.
   Future<bool> deleteRating(String matchId, String playerId) async {
     return await runMutation(
           () async {
@@ -126,6 +136,8 @@ class MatchManagementController extends MutationController {
         false;
   }
 
+  /// Runs a match mutation and invokes its refresh callback after a successful
+  /// write.
   Future<T?> _run<T>(
     Future<T> Function() action, {
     required void Function(T value) onSuccess,

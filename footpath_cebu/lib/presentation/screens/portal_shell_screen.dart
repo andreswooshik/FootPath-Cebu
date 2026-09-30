@@ -38,6 +38,7 @@ class CoordinatorPortalScreen extends StatelessWidget {
   final UserProfile profile;
   final int initialTabIndex;
 
+  /// Builds the coordinator portal screen view.
   @override
   Widget build(BuildContext context) => _CoordinatorPortalShell(
     profile: profile,
@@ -54,6 +55,7 @@ class _CoordinatorPortalShell extends StatefulWidget {
   final UserProfile profile;
   final int initialTabIndex;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_CoordinatorPortalShell> createState() =>
       _CoordinatorPortalShellState();
@@ -62,6 +64,7 @@ class _CoordinatorPortalShell extends StatefulWidget {
 class _CoordinatorPortalShellState extends State<_CoordinatorPortalShell> {
   late int _selectedIndex = widget.initialTabIndex.clamp(0, 4).toInt();
 
+  /// Builds the coordinator portal shell view.
   @override
   Widget build(BuildContext context) => PortalShell(
     initialIndex: _selectedIndex,
@@ -110,6 +113,7 @@ class CoachPortalScreen extends StatelessWidget {
   final UserProfile profile;
   final int initialTabIndex;
 
+  /// Builds the coach portal screen view.
   @override
   Widget build(BuildContext context) {
     return PortalShell(
@@ -147,6 +151,7 @@ class PlayerPortalScreen extends ConsumerWidget {
   final int initialTabIndex;
   final bool openEligibility;
 
+  /// Builds the player portal screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(myProfileProvider);
@@ -206,6 +211,7 @@ class GuardianPortalScreen extends ConsumerStatefulWidget {
   final bool openEligibility;
   final bool openPlayerProfile;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<GuardianPortalScreen> createState() =>
       _GuardianPortalScreenState();
@@ -215,6 +221,7 @@ class _GuardianPortalScreenState extends ConsumerState<GuardianPortalScreen> {
   bool _selectionQueued = false;
   bool _selectionApplied = false;
 
+  /// Synchronizes local state when the parent supplies updated view inputs.
   @override
   void didUpdateWidget(covariant GuardianPortalScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -225,6 +232,7 @@ class _GuardianPortalScreenState extends ConsumerState<GuardianPortalScreen> {
     }
   }
 
+  /// Selects the initial linked player for the guardian portal.
   void _selectInitialPlayer(List<Player> players) {
     if (_selectionApplied ||
         _selectionQueued ||
@@ -251,6 +259,7 @@ class _GuardianPortalScreenState extends ConsumerState<GuardianPortalScreen> {
     });
   }
 
+  /// Builds the guardian portal screen view.
   @override
   Widget build(BuildContext context) {
     final linkedPlayers = ref.watch(linkedPlayersProvider).value;
@@ -294,6 +303,7 @@ class _GuardianPlayerProfileDestination extends StatelessWidget {
 
   final Player player;
 
+  /// Builds the guardian player profile destination view.
   @override
   Widget build(BuildContext context) {
     return PlayerPrivacyGate(
@@ -309,6 +319,7 @@ class _GuardianPlayerProfileDetails extends ConsumerWidget {
 
   final Player player;
 
+  /// Builds the guardian player profile details view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ref
@@ -341,6 +352,7 @@ class _PlayerDashboardDestination extends ConsumerStatefulWidget {
   final Player player;
   final bool openEligibility;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<_PlayerDashboardDestination> createState() =>
       _PlayerDashboardDestinationState();
@@ -351,6 +363,7 @@ class _PlayerDashboardDestinationState
   bool _eligibilityQueued = false;
   bool _eligibilityOpened = false;
 
+  /// Opens the requested eligibility view once player access permits it.
   void _openEligibilityWhenAllowed() {
     if (!widget.openEligibility ||
         _eligibilityQueued ||
@@ -379,6 +392,7 @@ class _PlayerDashboardDestinationState
     });
   }
 
+  /// Builds the player dashboard destination view.
   @override
   Widget build(BuildContext context) {
     _openEligibilityWhenAllowed();
@@ -395,6 +409,7 @@ class _GuardianDashboardDestination extends ConsumerStatefulWidget {
   final Player player;
   final bool openEligibility;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<_GuardianDashboardDestination> createState() =>
       _GuardianDashboardDestinationState();
@@ -405,6 +420,7 @@ class _GuardianDashboardDestinationState
   bool _eligibilityQueued = false;
   bool _eligibilityOpened = false;
 
+  /// Synchronizes local state when the parent supplies updated view inputs.
   @override
   void didUpdateWidget(covariant _GuardianDashboardDestination oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -414,6 +430,7 @@ class _GuardianDashboardDestinationState
     }
   }
 
+  /// Opens the requested eligibility view once player access permits it.
   void _openEligibilityWhenAllowed() {
     if (!widget.openEligibility ||
         _eligibilityQueued ||
@@ -438,6 +455,7 @@ class _GuardianDashboardDestinationState
     });
   }
 
+  /// Builds the guardian dashboard destination view.
   @override
   Widget build(BuildContext context) {
     _openEligibilityWhenAllowed();

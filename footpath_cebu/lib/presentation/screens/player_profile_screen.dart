@@ -45,6 +45,7 @@ class PlayerProfileScreen extends ConsumerStatefulWidget {
   /// The signed-in coach, forwarded to the shared bottom navigation.
   final UserProfile profile;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<PlayerProfileScreen> createState() =>
       _PlayerProfileScreenState();
@@ -53,6 +54,7 @@ class PlayerProfileScreen extends ConsumerStatefulWidget {
 class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
   late Player _player = widget.player;
 
+  /// Opens coordinator account details for the displayed player.
   Future<void> _openCoordinatorDetails() async {
     final deletedRole = await Navigator.of(context).push<CoordinatorPersonRole>(
       MaterialPageRoute(
@@ -67,6 +69,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     }
   }
 
+  /// Selects a profile image and submits it through the photo controller.
   Future<void> _pickAndUploadPhoto() async {
     XFile? picked;
     try {
@@ -121,6 +124,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     }
   }
 
+  /// Determines the image MIME type used when uploading the selected photo.
   String? _photoContentType(XFile file) {
     final declared = file.mimeType?.split(';').first.trim().toLowerCase();
     if (declared == 'image/jpeg' ||
@@ -135,6 +139,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     return null;
   }
 
+  /// Opens coaching assessments for the displayed player.
   Future<void> _openAssessmentHub() async {
     final updated = await Navigator.of(context).push<Player>(
       MaterialPageRoute(
@@ -210,6 +215,7 @@ class _PlayerProfileScreenState extends ConsumerState<PlayerProfileScreen> {
     );
   }
 
+  /// Builds the player profile screen view.
   @override
   Widget build(BuildContext context) {
     final stats = ref.watch(playerStatsProvider(_player.id)).value;
@@ -422,6 +428,7 @@ class _PlayerPositionCard extends StatelessWidget {
   final VoidCallback? onEdit;
   final bool isSaving;
 
+  /// Builds the player position card view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -520,6 +527,7 @@ class _DevelopmentFeedbackCard extends StatelessWidget {
   final CurrentDevelopmentAssessment? assessment;
   final String coachNotes;
 
+  /// Builds the development feedback card view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -591,6 +599,7 @@ class _FeedbackSection extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Builds the feedback section view.
   @override
   Widget build(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -623,6 +632,7 @@ class _AcademicStandingCard extends StatelessWidget {
   final bool applicable;
   final VoidCallback? onTap;
 
+  /// Builds the academic standing card view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -688,6 +698,7 @@ class _AcademicStandingCard extends StatelessWidget {
   }
 }
 
+/// Maps eligibility status to the color used by the player summary.
 Color _eligibilityColor(EligibilityStatus status) => switch (status) {
   EligibilityStatus.eligible => Colors.green,
   EligibilityStatus.notEligible => Colors.red,

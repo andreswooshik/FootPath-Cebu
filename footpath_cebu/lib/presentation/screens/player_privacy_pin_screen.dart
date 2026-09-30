@@ -20,6 +20,7 @@ class PlayerPrivacyPinScreen extends ConsumerStatefulWidget {
   final Player player;
   final bool isGuardian;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<PlayerPrivacyPinScreen> createState() =>
       _PlayerPrivacyPinScreenState();
@@ -36,6 +37,7 @@ class _PlayerPrivacyPinScreenState
   bool _saving = false;
   String? _error;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _currentController.dispose();
@@ -47,6 +49,7 @@ class _PlayerPrivacyPinScreenState
     super.dispose();
   }
 
+  /// Validates the PIN fields and submits a new PIN or PIN change.
   Future<void> _save(bool hasPin) async {
     if (_saving) return;
     if (hasPin && !RegExp(r'^\d{4,6}$').hasMatch(_currentController.text)) {
@@ -89,10 +92,12 @@ class _PlayerPrivacyPinScreenState
     }
   }
 
+  /// Clears the current form error so the user can retry.
   void _clearError() {
     if (_error != null) setState(() => _error = null);
   }
 
+  /// Builds the player privacy pin screen view.
   @override
   Widget build(BuildContext context) {
     final status = ref.watch(playerPrivacyPinStatusProvider(widget.player.id));
@@ -109,6 +114,7 @@ class _PlayerPrivacyPinScreenState
     ).animateScreenEntrance();
   }
 
+  /// Builds the content section for this view.
   Widget _buildContent(bool hasPin) {
     if (hasPin && widget.isGuardian) {
       return PrivacyPinPanel(
@@ -232,6 +238,7 @@ class _PlayerPrivacyPinScreenState
     );
   }
 
+  /// Runs guardian verification before resetting the player privacy PIN.
   Future<void> _resetAsGuardian() async {
     final credentials = await showDialog<_GuardianCredentials>(
       context: context,
@@ -271,6 +278,7 @@ class _StatusError extends StatelessWidget {
 
   final VoidCallback onRetry;
 
+  /// Builds the status error view.
   @override
   Widget build(BuildContext context) {
     return Center(
@@ -308,6 +316,7 @@ class _ResetInformation extends StatelessWidget {
 
   final String playerName;
 
+  /// Builds the reset information view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -360,6 +369,7 @@ class _GuardianCredentials {
 class _GuardianReauthenticationDialog extends StatefulWidget {
   const _GuardianReauthenticationDialog();
 
+  /// Creates the mutable state used by this view.
   @override
   State<_GuardianReauthenticationDialog> createState() =>
       _GuardianReauthenticationDialogState();
@@ -373,6 +383,7 @@ class _GuardianReauthenticationDialogState
   bool _obscurePassword = true;
   String? _error;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _emailController.dispose();
@@ -381,6 +392,7 @@ class _GuardianReauthenticationDialogState
     super.dispose();
   }
 
+  /// Validates the guardian verification form before continuing.
   void _continue() {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -391,10 +403,12 @@ class _GuardianReauthenticationDialogState
     Navigator.of(context).pop(_GuardianCredentials(email, password));
   }
 
+  /// Clears the current form error so the user can retry.
   void _clearError(String _) {
     if (_error != null) setState(() => _error = null);
   }
 
+  /// Builds the guardian reauthentication dialog view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

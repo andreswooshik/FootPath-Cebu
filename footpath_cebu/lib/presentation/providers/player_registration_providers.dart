@@ -32,9 +32,12 @@ class RegistrationState {
 }
 
 class PlayerRegistrationController extends Notifier<RegistrationState> {
+  /// Creates the initial state for this feature controller.
   @override
   RegistrationState build() => RegistrationState();
 
+  /// Updates the registration step or draft and resets transient submission
+  /// feedback.
   void _set({
     PlayerRegistrationDraft? draft,
     RegistrationStep? step,
@@ -55,11 +58,14 @@ class PlayerRegistrationController extends Notifier<RegistrationState> {
     );
   }
 
+  /// Moves to guardian selection unless registration is busy or restricted to
+  /// retry.
   void chooseExistingGuardian() {
     if (state.isBusy || state.retryOnly) return;
     _set(step: RegistrationStep.existingGuardian);
   }
 
+  /// Links the chosen guardian to the draft and opens player details.
   void selectGuardian(ClubMember guardian) {
     if (state.isBusy || state.retryOnly) return;
     _set(
@@ -68,17 +74,21 @@ class PlayerRegistrationController extends Notifier<RegistrationState> {
     );
   }
 
+  /// Updates the player draft while registration is still editable.
   void editPlayer(PlayerRegistrationData player) {
     if (state.isBusy || state.retryOnly) return;
     _set(draft: state.draft.copyWith(player: player));
   }
 
+  /// Opens the registration review step when the draft can still be edited.
   void review() {
     if (!state.isBusy && !state.retryOnly) {
       _set(step: RegistrationStep.review);
     }
   }
 
+  /// Moves to the preceding registration step; returns true when the flow can
+  /// close.
   bool back() {
     if (state.isBusy || state.retryOnly) return false;
     final previous = switch (state.step) {
@@ -92,6 +102,8 @@ class PlayerRegistrationController extends Notifier<RegistrationState> {
     return false;
   }
 
+  /// Registers the draft, refreshes member lists, and restricts uncertain
+  /// results to retry.
   Future<void> submit() async {
     if (state.isBusy || state.result != null) return;
     _set(busy: true, retryOnly: state.retryOnly);

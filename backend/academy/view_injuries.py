@@ -3,7 +3,6 @@
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import (
     PermissionDenied,
@@ -17,8 +16,6 @@ from academy.model_operations import (
     InjuryRecord,
     InjuryReportStatus,
     InjuryStatus,
-    InjuryStatusUpdateRequest,
-    InjuryUpdateReviewStatus,
 )
 from academy.model_players import PlayerProfile
 from academy.serializer_players import PlayerSelectorSerializer
@@ -32,10 +29,12 @@ from accounts.models import (
     User,
 )
 
+from . import injury_service
 from .view_players import _require_unlock_when_pin_exists
 
 
 def _injury_records():
+    """Preloads the people and status requests used when serializing injury records."""
     return InjuryRecord.objects.select_related(
         'player',
         'reported_by',
@@ -46,27 +45,12 @@ def _injury_records():
     )
 
 
-def _same_club_injury_coordinator(user, injury):
-    return (
-        user.role == Roles.COORDINATOR
-        and user.club_id is not None
-        and user.club_id == injury.player.club_id
-    )
-
-
-def _care_team_may_view(user, injury):
-    if user.role == Roles.ADMIN:
-        return True
-    if user.role == Roles.PLAYER:
-        return user.id == injury.player_id
-    if user.role in (Roles.COACH, Roles.COORDINATOR):
-        return user.club_id is not None and user.club_id == injury.player.club_id
-    if user.role == Roles.GUARDIAN:
-        return guardian_can_access_player(user, injury.player_id)
-    return False
+_same_club_injury_coordinator = injury_service.same_club_coordinator
+_care_team_may_view = injury_service.care_team_may_view
 
 
 def _injury_player_for_report(request):
+    """Resolves the reported player and enforces reporting access and any PIN gate."""
     user = request.user
     if user.role == Roles.PLAYER:
         return user
@@ -87,6 +71,7 @@ def _injury_player_for_report(request):
 
 
 def _scoped_injury_records(request):
+    """Limits injury records to the requester access scope and requested archive filter."""
     user = request.user
     records = _injury_records()
     player_id = request.query_params.get('player')
@@ -119,8 +104,12 @@ def _scoped_injury_records(request):
     return records
 
 
-def _workflow_injury(request, pk):
-    injury = get_object_or_404(_injury_records(), pk=pk)
+def _workflow_injury(request, pk, *, lock=True):
+    """Loads an injury and enforces care-team access and any required player unlock."""
+    records = _injury_records()
+    if lock and request.method not in ('GET', 'HEAD', 'OPTIONS'):
+        records = records.select_for_update(of=('self',))
+    injury = get_object_or_404(records, pk=pk)
     if not _care_team_may_view(request.user, injury):
         raise PermissionDenied('You may not access this injury report.')
     if (
@@ -138,6 +127,7 @@ class InjuryWorkflowListCreateView(APIView):
     """List private care-team reports or submit one for confirmation."""
 
     def get(self, request):
+        """Lists injury reports visible to the requester."""
         records = _scoped_injury_records(request)
         return Response(
             InjuryRecordSerializer(
@@ -147,7 +137,9 @@ class InjuryWorkflowListCreateView(APIView):
             ).data
         )
 
+    @transaction.atomic
     def post(self, request):
+        """Creates an injury report for an authorized player and records the action."""
         player = _injury_player_for_report(request)
         data = request.data.copy()
         data['status'] = InjuryStatus.ACTIVE
@@ -180,6 +172,7 @@ class InjuryReportablePlayersView(APIView):
     """Minimal same-club player selector for care-team injury reporting."""
 
     def get(self, request):
+        """Lists active club players available for coordinator injury reporting."""
         if request.user.role not in (Roles.COACH, Roles.COORDINATOR):
             raise PermissionDenied('Your role cannot list club players here.')
         if request.user.club_id is None:
@@ -200,6 +193,7 @@ class InjuryWorkflowDetailView(APIView):
     """Read a report; Pending reporter/Coordinator or confirmed Coordinator edit."""
 
     def get(self, request, pk):
+        """Returns the selected injury after care-team access checks."""
         record = _workflow_injury(request, pk)
         return Response(
             InjuryRecordSerializer(
@@ -208,7 +202,9 @@ class InjuryWorkflowDetailView(APIView):
             ).data
         )
 
+    @transaction.atomic
     def put(self, request, pk):
+        """Updates an injury report when the requester and review state allow editing."""
         record = _workflow_injury(request, pk)
         coordinator = _same_club_injury_coordinator(request.user, record)
         pending_editor = record.review_status == InjuryReportStatus.PENDING and (
@@ -241,7 +237,9 @@ class InjuryWorkflowDetailView(APIView):
             ).data
         )
 
+    @transaction.atomic
     def delete(self, request, pk):
+        """Deletes an injury report when its workflow permissions allow withdrawal."""
         record = _workflow_injury(request, pk)
         coordinator = _same_club_injury_coordinator(request.user, record)
         if not (
@@ -259,128 +257,35 @@ class InjuryReviewView(APIView):
     """Coordinator confirms or rejects a Pending injury report."""
 
     def post(self, request, pk):
-        with transaction.atomic():
-            record = get_object_or_404(
-                _injury_records().select_for_update(of=('self',)),
-                pk=pk,
-            )
-            if not _same_club_injury_coordinator(request.user, record):
-                raise PermissionDenied('Only the club Coordinator can review this report.')
-            if record.review_status != InjuryReportStatus.PENDING:
-                raise ValidationError('Only a Pending report can be reviewed.')
-            action = str(request.data.get('action', '')).upper()
-            reason = str(request.data.get('rejectionReason', '')).strip()
-            if action == 'CONFIRM':
-                record.review_status = InjuryReportStatus.CONFIRMED
-                record.rejection_reason = ''
-                audit_action = 'injury.confirmed'
-            elif action == 'REJECT':
-                if not reason:
-                    raise ValidationError(
-                        {'rejectionReason': 'Explain why the report was rejected.'}
-                    )
-                record.review_status = InjuryReportStatus.REJECTED
-                record.rejection_reason = reason
-                audit_action = 'injury.rejected'
-            else:
-                raise ValidationError({'action': 'Choose CONFIRM or REJECT.'})
-            record.reviewed_by = request.user
-            record.reviewed_at = timezone.now()
-            record.save(
-                update_fields=[
-                    'review_status',
-                    'rejection_reason',
-                    'reviewed_by',
-                    'reviewed_at',
-                    'updated_at',
-                ]
-            )
-        AuditLog.record(
-            request.user,
-            audit_action,
-            target=f'{record.player_id}:{record.id}',
-            detail=reason,
+        record = injury_service.review_injury(
+            actor=request.user,
+            pk=pk,
+            action=str(request.data.get('action', '')).upper(),
+            reason=str(request.data.get('rejectionReason', '')).strip(),
         )
-        return Response(
-            InjuryRecordSerializer(
-                record,
-                context={'request': request},
-            ).data
-        )
+        return Response(InjuryRecordSerializer(record, context={'request': request}).data)
 
 
 class InjuryArchiveView(APIView):
     def post(self, request, pk):
-        record = _workflow_injury(request, pk)
-        if not _same_club_injury_coordinator(request.user, record):
-            raise PermissionDenied('Only the club Coordinator can archive reports.')
-        if record.review_status != InjuryReportStatus.CONFIRMED:
-            raise ValidationError('Only a Confirmed report can be archived.')
-        if record.status != InjuryStatus.RECOVERED:
-            raise ValidationError('Only a Recovered injury report can be archived.')
-        record.review_status = InjuryReportStatus.ARCHIVED
-        record.archived_at = timezone.now()
-        record.save(update_fields=['review_status', 'archived_at', 'updated_at'])
-        AuditLog.record(
-            request.user,
-            'injury.archived',
-            target=f'{record.player_id}:{record.id}',
-        )
-        return Response(
-            InjuryRecordSerializer(
-                record,
-                context={'request': request},
-            ).data
-        )
+        record = injury_service.archive_injury(actor=request.user, pk=pk)
+        return Response(InjuryRecordSerializer(record, context={'request': request}).data)
 
 
 class InjuryStatusUpdateListCreateView(APIView):
-    """Care team requests a recovery-state change for a Confirmed injury."""
+    """Parse recovery updates and enforce the transport privacy grant."""
 
     def post(self, request, pk):
-        with transaction.atomic():
-            record = get_object_or_404(
-                _injury_records().select_for_update(of=('self',)),
-                pk=pk,
-            )
-            if not _care_team_may_view(request.user, record):
-                raise PermissionDenied('You may not update this injury.')
-            if request.user.role not in (
-                Roles.PLAYER,
-                Roles.GUARDIAN,
-                Roles.COACH,
-            ):
-                raise PermissionDenied('Players, Guardians, and Coaches submit recovery updates.')
-            if request.user.role == Roles.GUARDIAN:
-                _require_unlock_when_pin_exists(request, record.player_id)
-            if record.review_status != InjuryReportStatus.CONFIRMED:
-                raise ValidationError('Recovery updates require a Confirmed injury report.')
-            if record.status == InjuryStatus.RECOVERED:
-                raise ValidationError('This injury is already Recovered.')
-            if record.status_update_requests.filter(
-                review_status=InjuryUpdateReviewStatus.PENDING,
-            ).exists():
-                raise ValidationError('A recovery update is already awaiting Coordinator review.')
-            serializer = InjuryStatusUpdateRequestSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            proposed_resolved = serializer.validated_data.get('proposed_resolved_on')
-            if proposed_resolved and proposed_resolved < record.occurred_on:
-                raise ValidationError(
-                    {'proposedResolvedOn': ('The recovery date cannot precede the injury.')}
-                )
-            update_request = serializer.save(
-                injury=record,
-                submitted_by=request.user,
-            )
-        AuditLog.record(
-            request.user,
-            'injury.status_requested',
-            target=f'{record.id}:{update_request.id}',
-            detail=update_request.proposed_status,
+        _workflow_injury(request, pk, lock=False)
+        serializer = InjuryStatusUpdateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        update_request = injury_service.request_status_update(
+            actor=request.user,
+            pk=pk,
+            data=serializer.validated_data,
         )
         return Response(
-            InjuryStatusUpdateRequestSerializer(update_request).data,
-            status=status.HTTP_201_CREATED,
+            InjuryStatusUpdateRequestSerializer(update_request).data, status=status.HTTP_201_CREATED
         )
 
 
@@ -388,58 +293,11 @@ class InjuryStatusUpdateReviewView(APIView):
     """Coordinator approves or rejects one Pending recovery update."""
 
     def post(self, request, pk, update_id):
-        with transaction.atomic():
-            update_request = get_object_or_404(
-                InjuryStatusUpdateRequest.objects.select_for_update(
-                    of=('self', 'injury')
-                ).select_related('injury__player', 'submitted_by'),
-                pk=update_id,
-                injury_id=pk,
-            )
-            record = update_request.injury
-            if not _same_club_injury_coordinator(request.user, record):
-                raise PermissionDenied('Only the club Coordinator can review updates.')
-            if update_request.review_status != InjuryUpdateReviewStatus.PENDING:
-                raise ValidationError('This recovery update is no longer Pending.')
-            action = str(request.data.get('action', '')).upper()
-            reason = str(request.data.get('rejectionReason', '')).strip()
-            if action == 'APPROVE':
-                update_request.review_status = InjuryUpdateReviewStatus.APPROVED
-                update_request.rejection_reason = ''
-                record.status = update_request.proposed_status
-                record.resolved_on = update_request.proposed_resolved_on
-                record.save(update_fields=['status', 'resolved_on', 'updated_at'])
-                audit_action = 'injury.status_approved'
-            elif action == 'REJECT':
-                if not reason:
-                    raise ValidationError(
-                        {'rejectionReason': 'Explain why the update was rejected.'}
-                    )
-                update_request.review_status = InjuryUpdateReviewStatus.REJECTED
-                update_request.rejection_reason = reason
-                audit_action = 'injury.status_rejected'
-            else:
-                raise ValidationError({'action': 'Choose APPROVE or REJECT.'})
-            update_request.reviewed_by = request.user
-            update_request.reviewed_at = timezone.now()
-            update_request.save(
-                update_fields=[
-                    'review_status',
-                    'rejection_reason',
-                    'reviewed_by',
-                    'reviewed_at',
-                    'updated_at',
-                ]
-            )
-        AuditLog.record(
-            request.user,
-            audit_action,
-            target=f'{record.id}:{update_request.id}',
-            detail=reason or update_request.proposed_status,
+        record = injury_service.review_status_update(
+            actor=request.user,
+            pk=pk,
+            update_id=update_id,
+            action=str(request.data.get('action', '')).upper(),
+            reason=str(request.data.get('rejectionReason', '')).strip(),
         )
-        return Response(
-            InjuryRecordSerializer(
-                _injury_records().get(pk=record.pk),
-                context={'request': request},
-            ).data
-        )
+        return Response(InjuryRecordSerializer(record, context={'request': request}).data)

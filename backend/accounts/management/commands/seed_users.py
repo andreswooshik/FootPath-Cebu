@@ -84,6 +84,7 @@ class Command(BaseCommand):
     ]
 
     def add_arguments(self, parser):
+        """Defines command-line options for seed users."""
         parser.add_argument(
             '--password',
             default=DEMO_PASSWORD,
@@ -92,6 +93,7 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        """Provisions the sample accounts used for development and demonstrations."""
         ensure_initialized()
         demo_club, _ = Club.objects.get_or_create(
             name=DEMO_CLUB_NAME,

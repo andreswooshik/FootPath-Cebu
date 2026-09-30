@@ -23,6 +23,7 @@ class ScheduleSessionScreen extends ConsumerStatefulWidget {
   final TrainingSession? existing;
   final List<TrainingSession>? recentSessions;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<ScheduleSessionScreen> createState() =>
       _ScheduleSessionScreenState();
@@ -58,6 +59,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   String? _formError;
   final Map<String, String> _fieldErrors = {};
 
+  /// Initializes the local state when this view first enters the widget tree.
   @override
   void initState() {
     super.initState();
@@ -74,6 +76,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
 
   bool get _allTiersSelected => _tiers.length == AgeTier.values.length;
 
+  /// Adds or removes an age tier from the session audience.
   void _toggleTier(AgeTier tier) {
     setState(() {
       _formError = null;
@@ -81,6 +84,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     });
   }
 
+  /// Selects all age tiers, or clears them when all are already selected.
   void _toggleAllTiers() {
     setState(() {
       _formError = null;
@@ -92,6 +96,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     });
   }
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _titleController.dispose();
@@ -102,6 +107,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     super.dispose();
   }
 
+  /// Chooses the training session date.
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -123,6 +129,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     }
   }
 
+  /// Chooses the session start or end time.
   Future<void> _pickTime({required bool isStart}) async {
     final picked = await showTimePicker(
       context: context,
@@ -137,6 +144,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     }
   }
 
+  /// Clears stale validation feedback after the form changes.
   void _clearFormError() {
     if (_formError != null || _fieldErrors.isNotEmpty) {
       setState(() {
@@ -146,6 +154,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     }
   }
 
+  /// Returns the validation message for a specific schedule field.
   String? _errorFor(String field) => _fieldErrors[field];
 
   int? get _durationMinutes {
@@ -158,6 +167,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   String get _tierKey =>
       AgeTier.values.where(_tiers.contains).map((tier) => tier.wire).join('|');
 
+  /// Sets the session end time from the selected duration.
   void _applyDuration(int minutes) {
     if (_startTime == null) return;
     final total = _startTime!.hour * 60 + _startTime!.minute + minutes;
@@ -166,6 +176,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     );
   }
 
+  /// Validates session details and confirms the draft before saving.
   Future<void> _submit() async {
     final title = _titleController.text.trim();
     final location = _locationController.text.trim();
@@ -266,6 +277,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
     }
   }
 
+  /// Shows a session summary for confirmation before submission.
   Future<bool> _confirmDraft(TrainingSession draft) async {
     final eligible = ref.read(eligiblePlayerCountProvider(_tierKey)).value;
     return await showDialog<bool>(
@@ -330,6 +342,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
         false;
   }
 
+  /// Builds the schedule session screen view.
   @override
   Widget build(BuildContext context) {
     final isSaving = ref.watch(scheduleSessionControllerProvider).isLoading;
@@ -591,6 +604,7 @@ class _ScheduleSessionScreenState extends ConsumerState<ScheduleSessionScreen> {
   }
 }
 
+/// Applies the shared appearance to schedule form input fields.
 InputDecoration _fieldDecoration({required String hint, Widget? suffix}) {
   return InputDecoration(
     hintText: hint,
@@ -615,8 +629,10 @@ const _months = [
   'December',
 ];
 
+/// Formats a date for display in this feature.
 String _formatDate(DateTime d) => '${_months[d.month - 1]} ${d.day}, ${d.year}';
 
+/// Parses a 12-hour AM/PM time; returns null when the stored text is invalid.
 TimeOfDay? _parseTime(String? value) {
   final match = RegExp(
     r'^(0?[1-9]|1[0-2]):([0-5][0-9])\s*(AM|PM)$',
@@ -629,6 +645,7 @@ TimeOfDay? _parseTime(String? value) {
   return TimeOfDay(hour: hour % 12 + (period == 'PM' ? 12 : 0), minute: minute);
 }
 
+/// Formats a session duration as a readable label.
 String _durationLabel(int minutes) {
   final hours = minutes ~/ 60;
   final remainder = minutes % 60;
@@ -642,6 +659,7 @@ class _EligiblePlayerCount extends ConsumerWidget {
   const _EligiblePlayerCount({required this.tierKey});
   final String tierKey;
 
+  /// Builds the eligible player count view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (tierKey.isEmpty) {
@@ -668,6 +686,7 @@ class _ReviewLine extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Builds the review line view.
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
@@ -685,6 +704,7 @@ class _RecentSuggestions extends StatelessWidget {
   final List<TrainingSession> sessions;
   final ValueChanged<String> onSelected;
 
+  /// Builds the recent suggestions view.
   @override
   Widget build(BuildContext context) {
     final values = <String>{};
@@ -734,6 +754,7 @@ class _TierSelectionHint extends StatelessWidget {
 
   final Set<AgeTier> tiers;
 
+  /// Builds the tier selection hint view.
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -780,6 +801,7 @@ class _FieldLabel extends StatelessWidget {
 
   final String text;
 
+  /// Builds the field label view.
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -812,6 +834,7 @@ class _PickerField extends StatelessWidget {
   final String? errorText;
   final VoidCallback onTap;
 
+  /// Builds the picker field view.
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -851,6 +874,7 @@ class _TimeField extends StatelessWidget {
   final String? errorText;
   final VoidCallback onTap;
 
+  /// Builds the time field view.
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -874,6 +898,7 @@ class _FormErrorBanner extends StatelessWidget {
 
   final String message;
 
+  /// Builds the form error banner view.
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;

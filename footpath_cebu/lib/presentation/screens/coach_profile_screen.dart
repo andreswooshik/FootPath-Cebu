@@ -28,6 +28,7 @@ class CoachProfileScreen extends ConsumerStatefulWidget {
   /// The signed-in user, handed down from the login flow.
   final UserProfile profile;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<CoachProfileScreen> createState() => _CoachProfileScreenState();
 }
@@ -35,18 +36,21 @@ class CoachProfileScreen extends ConsumerStatefulWidget {
 class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
   late UserProfile _profile;
 
+  /// Initializes the local state when this view first enters the widget tree.
   @override
   void initState() {
     super.initState();
     _profile = widget.profile;
   }
 
+  /// Synchronizes local state when the parent supplies updated view inputs.
   @override
   void didUpdateWidget(covariant CoachProfileScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.profile != widget.profile) _profile = widget.profile;
   }
 
+  /// Selects a profile image and submits it through the photo controller.
   Future<void> _pickAndUploadPhoto() async {
     try {
       final picked = await ImagePicker().pickImage(
@@ -99,6 +103,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
     }
   }
 
+  /// Determines the image MIME type used when uploading the selected photo.
   String? _photoContentType(XFile file) {
     final declared = file.mimeType?.split(';').first.trim().toLowerCase();
     if (declared == 'image/jpeg' ||
@@ -113,6 +118,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
     return null;
   }
 
+  /// Runs the sign-out flow and returns to login when it completes.
   Future<void> _signOut() async {
     if (!await confirmSignOut(context)) return;
 
@@ -126,6 +132,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
     );
   }
 
+  /// Builds the coach profile screen view.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -199,6 +206,7 @@ class _CoachProfileScreenState extends ConsumerState<CoachProfileScreen> {
     ).animateScreenEntrance();
   }
 
+  /// Builds the squad snapshot section for this view.
   Widget _squadSnapshot() {
     return ref
         .watch(squadProvider)
@@ -274,6 +282,7 @@ class _IdentityHeader extends StatelessWidget {
   final bool uploading;
   final VoidCallback onUpload;
 
+  /// Builds the identity header view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -330,6 +339,7 @@ class _CoachAvatar extends StatelessWidget {
   final UserProfile profile;
   final String initial;
 
+  /// Builds the coach avatar view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -364,6 +374,7 @@ class _SectionTitle extends StatelessWidget {
 
   final String title;
 
+  /// Builds the section title view.
   @override
   Widget build(BuildContext context) {
     return Text(

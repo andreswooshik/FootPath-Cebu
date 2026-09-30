@@ -38,11 +38,13 @@ class PinNotSet(PinError):
 
 class PinLocked(PinError):
     def __init__(self, locked_until):
+        """Initializes pin locked details for the caller to report."""
         super().__init__('The PIN is temporarily locked.')
         self.locked_until = locked_until
 
 
 def validate_pin(pin):
+    """Checks and normalizes pin for pin service."""
     pin = str(pin or '').strip()
     if not _PIN_PATTERN.fullmatch(pin):
         raise ValueError(f'PIN must contain {MIN_PIN_LENGTH} to {MAX_PIN_LENGTH} digits.')
@@ -50,17 +52,20 @@ def validate_pin(pin):
 
 
 def _state_for_update(player):
+    """Gets or creates the player PIN state while locking it for an update."""
     state, _ = PlayerPrivacyPin.objects.select_for_update().get_or_create(player=player)
     return state
 
 
 def has_pin(player):
+    """Checks whether the player has a stored privacy PIN hash."""
     return bool(
         PlayerPrivacyPin.objects.filter(player=player).values_list('pin_hash', flat=True).first()
     )
 
 
 def pin_status(player):
+    """Returns PIN setup and lockout metadata without exposing the PIN hash."""
     state = PlayerPrivacyPin.objects.filter(player=player).first()
     locked = bool(state and state.locked_until and state.locked_until > timezone.now())
     return {

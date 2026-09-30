@@ -39,6 +39,7 @@ ALLOWED_TOURNAMENT_DOCUMENT_TYPES = frozenset(
 
 
 def _config():
+    """Reads the environment settings required by this storage backend."""
     url = os.environ.get('SUPABASE_URL')
     key = os.environ.get('SUPABASE_SERVICE_KEY')
     bucket = os.environ.get('SUPABASE_PHOTO_BUCKET', 'player-photos')
@@ -46,6 +47,7 @@ def _config():
 
 
 def is_configured():
+    """Checks whether the storage credentials required for uploads are present."""
     url, key, _ = _config()
     return bool(url and key)
 
@@ -77,6 +79,7 @@ def validate_photo_upload(upload):
 
 
 def sanitized_photo_bytes(upload, content_type):
+    """Reads a bounded image upload and sanitizes it before storage."""
     return sanitize_image(read_limited_upload(upload), content_type)
 
 
@@ -177,6 +180,7 @@ def invalidate_signed_photo_url(photo_path, expires=3600):
 
 
 def _tournament_config():
+    """Reads the storage configuration used for tournament documents."""
     return (
         os.environ.get('SUPABASE_URL'),
         os.environ.get('SUPABASE_SERVICE_KEY'),
@@ -194,6 +198,7 @@ def validate_tournament_document(upload):
 
 
 def sanitized_tournament_document_bytes(upload, content_type):
+    """Reads a bounded tournament document and sanitizes its content."""
     return sanitize_document(read_limited_upload(upload), content_type)
 
 
@@ -238,6 +243,7 @@ def upload_tournament_document(club_id, schedule_id, content, content_type):
 
 
 def delete_tournament_document(document_path):
+    """Deletes a tournament document from its configured local or remote storage."""
     if not document_path:
         return False
     if document_path.startswith('local/'):
@@ -300,5 +306,6 @@ def signed_tournament_document_url(document_path, expires=900):
 
 
 def invalidate_signed_tournament_document_url(document_path, expires=900):
+    """Clears the cached signed URL after a tournament document changes."""
     if document_path:
         cache.delete(f'tournament-signed-url:{expires}:{document_path}')

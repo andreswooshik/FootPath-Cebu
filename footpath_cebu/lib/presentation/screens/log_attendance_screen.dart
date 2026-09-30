@@ -52,6 +52,7 @@ class LogAttendanceScreen extends ConsumerStatefulWidget {
   /// unmarked while the same request finishes on this route.
   final List<Attendance>? initialAttendance;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<LogAttendanceScreen> createState() =>
       _LogAttendanceScreenState();
@@ -74,6 +75,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
 
   bool get _readOnly => !widget.session.isAttendanceOpen;
 
+  /// Initializes the local state when this view first enters the widget tree.
   @override
   void initState() {
     super.initState();
@@ -88,6 +90,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     }
   }
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _lockTimer?.cancel();
@@ -96,11 +99,13 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
 
   // -- derived counts, computed against the eligible roster ------------------
 
+  /// Counts players currently marked present in the attendance draft.
   int _presentCount() =>
       _marks.values.where((a) => a.status == AttendanceStatus.present).length;
 
   // -- mark mutations --------------------------------------------------------
 
+  /// Updates a player attendance status in the local draft.
   void _mark(String playerId, AttendanceStatus? status) {
     if (_readOnly) return;
     setState(() {
@@ -132,6 +137,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     });
   }
 
+  /// Marks the supplied roster present in the attendance draft.
   void _markAllPresent(List<Player> roster) {
     if (_readOnly) return;
     setState(() {
@@ -163,6 +169,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     _dirtySince = true;
   }
 
+  /// Updates the note attached to a player attendance record.
   void _setNote(String playerId, String note) {
     if (_readOnly) return;
     final draft = _marks[playerId];
@@ -171,6 +178,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     _dirtySince = true;
   }
 
+  /// Updates the session performance score for a player.
   void _setPerformanceScore(String playerId, double? score) {
     if (_readOnly) return;
     final draft = _marks[playerId];
@@ -184,6 +192,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
 
   // -- navigation / finalise -------------------------------------------------
 
+  /// Asks before leaving attendance edits that have not been saved.
   Future<void> _confirmDiscard() async {
     final discard = await showDialog<bool>(
       context: context,
@@ -208,6 +217,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     if (discard == true && mounted) Navigator.of(context).pop();
   }
 
+  /// Validates and submits the roster attendance records.
   Future<void> _finalize(List<Player> roster) async {
     // Attendance is a record of who showed up — the coach can log it on the
     // session day and up to two days after, never before. The button is
@@ -303,6 +313,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     }
   }
 
+  /// Opens the player assessment from attendance logging.
   void _openAssessment(Player player) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -324,6 +335,7 @@ class _LogAttendanceScreenState extends ConsumerState<LogAttendanceScreen> {
     }
   }
 
+  /// Builds the log attendance screen view.
   @override
   Widget build(BuildContext context) {
     final squadAsync = ref.watch(squadProvider);

@@ -36,6 +36,9 @@ void main() {
     for (final path in [
       'lib/domain/entities/app_notification.dart',
       'lib/domain/entities/dispute.dart',
+      'lib/domain/entities/player.dart',
+      'lib/domain/entities/player_stats.dart',
+      'lib/domain/entities/player_growth.dart',
     ]) {
       final source = File(path).readAsStringSync();
       expect(source, isNot(contains('fromJson')), reason: path);

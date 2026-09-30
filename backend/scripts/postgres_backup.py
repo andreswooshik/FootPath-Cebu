@@ -16,6 +16,7 @@ from pathlib import Path
 
 
 def required(name: str) -> str:
+    """Reads a required environment variable or exits with a configuration error."""
     value = os.environ.get(name, '').strip()
     if not value:
         raise SystemExit(f'{name} is required.')
@@ -23,6 +24,7 @@ def required(name: str) -> str:
 
 
 def main() -> None:
+    """Runs the configured PostgreSQL backup and records the resulting artifact."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--output-dir', default='backups')
     parser.add_argument('--retain', type=int, default=14)

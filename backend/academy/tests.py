@@ -12,10 +12,10 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.urls import reverse
 from django.utils import timezone
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
 from accounts.models import Club, GuardianLink, Roles, User
+from config.application_errors import ForbiddenOperation as PermissionDenied
 from test_uploads import jpeg_bytes
 
 from .dispute_service import append_dispute_response

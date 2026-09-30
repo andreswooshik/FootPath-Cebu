@@ -22,6 +22,7 @@ from accounts.models import Roles
 
 class TrainingSessionListSerializer(serializers.ListSerializer):
     def to_representation(self, data):
+        """Builds the outgoing training session list fields for the client."""
         sessions = list(data.all() if hasattr(data, 'all') else data)
         counts = (
             PlayerProfile.objects.filter(
@@ -114,9 +115,11 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
 
     def get_attendeeCount(self, obj):
         # The list view annotates this value, avoiding one query per session.
+        """Computes the attendee count field for the training session response."""
         return getattr(obj, 'present_attendee_count', 0)
 
     def get_eligiblePlayerCount(self, obj):
+        """Computes the eligible player count field for the training session response."""
         counts = self.context.get('eligible_counts')
         if counts is not None:
             return sum(counts.get((obj.club_id, tier), 0) for tier in set(obj.age_tiers))
@@ -125,6 +128,7 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
         ).count()
 
     def validate(self, attrs):
+        """Validates the combined request fields for training session."""
         attrs = super().validate(attrs)
         current_start = self.instance.start_time if self.instance else ''
         current_end = self.instance.end_time if self.instance else ''
@@ -166,6 +170,7 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
         return attrs
 
     def validate_ageTiers(self, value):
+        """Checks and normalizes age tiers for training session."""
         valid = set(AgeTier.values)
         cleaned = list(dict.fromkeys(t.upper() for t in value))
         bad = [t for t in cleaned if t not in valid]
@@ -176,12 +181,14 @@ class TrainingSessionSerializer(serializers.ModelSerializer):
         return cleaned
 
     def validate_focus(self, value):
+        """Checks and normalizes focus for training session."""
         v = str(value).upper()
         if v not in set(SessionFocus.values):
             raise serializers.ValidationError(f'Unknown focus: {value}')
         return v
 
     def validate_date(self, value):
+        """Checks and normalizes date for training session."""
         if value < timezone.localdate():
             raise serializers.ValidationError('The session date cannot be in the past.')
         return value
@@ -234,16 +241,20 @@ class AttendanceSerializer(serializers.ModelSerializer):
         ]
 
     def get_sessionId(self, obj):
+        """Computes the session id field for the attendance response."""
         return str(obj.session_id) if obj.session_id else None
 
     def get_sessionName(self, obj):
+        """Computes the session name field for the attendance response."""
         return obj.session.title if obj.session_id else None
 
     def get_coachUid(self, obj):
+        """Computes the coach uid field for the attendance response."""
         return obj.recorded_by.firebase_uid if obj.recorded_by_id else None
 
     def get_note(self, obj):
         # The client treats note as nullable; a blank stored note is "no note".
+        """Computes the note field for the attendance response."""
         return obj.note or None
 
 
@@ -284,6 +295,7 @@ class EligibilityHistorySerializer(serializers.ModelSerializer):
         fields = ['id', 'oldStatus', 'newStatus', 'changedAt', 'changedBy']
 
     def get_changedBy(self, obj):
+        """Computes the changed by field for the eligibility history response."""
         actor = obj.changed_by
         if actor is None:
             return 'System'

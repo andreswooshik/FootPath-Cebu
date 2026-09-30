@@ -61,6 +61,7 @@ class AttendanceListView(APIView):
     """
 
     def get(self, request):
+        """Lists player attendance after enforcing access and any required PIN unlock."""
         player_id = request.query_params.get('player')
         if not player_id:
             raise ValidationError('A player query parameter is required.')
@@ -84,6 +85,7 @@ class SessionAttendanceView(APIView):
     """
 
     def get(self, request, session_id):
+        """Returns the session roll call with its current attendance revision."""
         if request.user.role not in (Roles.COACH, Roles.COORDINATOR, Roles.ADMIN):
             raise PermissionDenied('Only club staff can view session attendance.')
         session = get_object_or_404(TrainingSession, pk=session_id)
@@ -103,6 +105,7 @@ class SessionAttendanceView(APIView):
 
     @club_write_transaction
     def post(self, request, session_id):
+        """Replaces the roll call with request-key deduplication and revision checks."""
         from .attendance_service import replace_attendance
         from .serializer_workflows import AttendanceBatchSerializer
 
@@ -140,6 +143,7 @@ class SessionAttendanceView(APIView):
 
     @staticmethod
     def _expected_revision(value):
+        """Parses the supplied attendance revision and rejects invalid precondition syntax."""
         if value is None:
             return None
         match = re.fullmatch(r'(?:W/)?"?(\d+)"?', value.strip())
@@ -149,6 +153,7 @@ class SessionAttendanceView(APIView):
 
     @staticmethod
     def _set_revision_headers(response, revision):
+        """Adds the current attendance revision to the response headers."""
         response['ETag'] = f'"{revision}"'
         response['X-Attendance-Revision'] = str(revision)
 
@@ -158,6 +163,7 @@ class TrainingSessionListCreateView(APIView):
     /api/training-sessions/."""
 
     def get(self, request):
+        """Lists club training sessions using the requested schedule period."""
         sessions = _sessions_for(request.user)
         period = request.query_params.get('period')
         today = timezone.localdate()
@@ -171,6 +177,7 @@ class TrainingSessionListCreateView(APIView):
 
     @club_write_transaction
     def post(self, request):
+        """Creates a training session after checking schedule conflicts and queues notifications."""
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can schedule sessions.')
         if request.user.club_id is None:
@@ -222,6 +229,7 @@ class TrainingSessionDetailView(APIView):
     recorded history is never destroyed."""
 
     def _session_for(self, request, pk):
+        """Loads the training session and enforces role and club access for editing."""
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only coaches can manage sessions.')
         session = get_object_or_404(TrainingSession, pk=pk)
@@ -231,6 +239,7 @@ class TrainingSessionDetailView(APIView):
 
     @club_write_transaction
     def put(self, request, pk):
+        """Updates an editable session after validating its timing and schedule conflicts."""
         with transaction.atomic():
             session = self._session_for(request, pk)
             session = TrainingSession.objects.select_for_update(of=('self',)).get(pk=session.pk)
@@ -307,6 +316,7 @@ class TrainingSessionDetailView(APIView):
 
     @club_write_transaction
     def delete(self, request, pk):
+        """Cancels an editable training session and notifies its recipients."""
         with transaction.atomic():
             scoped = self._session_for(request, pk)
             session = TrainingSession.objects.select_for_update(of=('self',)).get(pk=scoped.pk)
@@ -364,6 +374,7 @@ class SessionConfirmationView(APIView):
     """
 
     def get(self, request):
+        """Lists session confirmations for an accessible player."""
         player_id = request.query_params.get('player')
         if not player_id:
             raise ValidationError('A player query parameter is required.')
@@ -376,6 +387,7 @@ class SessionConfirmationView(APIView):
 
     @club_write_transaction
     def post(self, request):
+        """Saves a player or guardian session response after checking schedule and access rules."""
         if request.user.role != Roles.PLAYER:
             raise PermissionDenied('Only players can confirm their own sessions.')
         session_id = request.data.get('sessionId')

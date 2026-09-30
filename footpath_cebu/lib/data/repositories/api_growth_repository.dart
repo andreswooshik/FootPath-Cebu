@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/data/dto/player_growth_dto.dart';
 import 'dart:convert';
 
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
@@ -32,7 +33,7 @@ class ApiGrowthRepository implements GrowthRepository {
             'X-Player-Unlock': unlockToken,
         },
       );
-      return PlayerGrowth.fromJson(
+      return PlayerGrowthDto.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
     } on ApiHttpException catch (error) {

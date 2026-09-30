@@ -12,10 +12,12 @@ class Command(BaseCommand):
     help = 'Deliver pending push notifications with retries; use --watch for a worker.'
 
     def add_arguments(self, parser):
+        """Defines command-line options for deliver notifications."""
         parser.add_argument('--watch', action='store_true')
         parser.add_argument('--limit', type=int, default=100)
 
     def handle(self, *args, **options):
+        """Drains pending notification deliveries using the configured batch limit."""
         while True:
             close_old_connections()
             sent = deliver_pending(limit=max(1, options['limit']))

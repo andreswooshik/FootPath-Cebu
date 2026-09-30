@@ -10,6 +10,7 @@ def role_required(*roles):
         message = 'You do not have permission to perform this action.'
 
         def has_permission(self, request, view):
+            """Checks whether the authenticated account satisfies this endpoint role requirement."""
             user = request.user
             if not user or not user.is_authenticated or user.role not in roles:
                 return False

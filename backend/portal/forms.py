@@ -32,6 +32,7 @@ class PortalAuthenticationForm(AuthenticationForm):
     """Session-login form with browser-friendly identity metadata."""
 
     def __init__(self, *args, **kwargs):
+        """Initializes the portal authentication form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         self.fields['username'].widget.attrs.update(
             {
@@ -80,6 +81,7 @@ class CoordinatorSignupForm(forms.Form):
         coach_license_max_bytes=COACH_LICENSE_MAX_BYTES,
         **kwargs,
     ):
+        """Initializes the coordinator signup form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         self.coach_license_max_bytes = coach_license_max_bytes
         max_mb = coach_license_max_bytes // (1024 * 1024)
@@ -96,6 +98,7 @@ class CoordinatorSignupForm(forms.Form):
         self.fields['password2'].widget.attrs['autocomplete'] = 'new-password'
 
     def clean_email(self):
+        """Checks and normalizes email for coordinator signup."""
         email = self.cleaned_data['email'].strip().lower()
         # Generic wording avoids confirming which emails are registered
         # (OWASP A07 — user enumeration).
@@ -104,23 +107,30 @@ class CoordinatorSignupForm(forms.Form):
         return email
 
     def clean_coach_license(self):
+        """Checks and normalizes coach license for coordinator signup."""
         return sanitized_coach_license(
             self.cleaned_data['coach_license'],
             max_bytes=self.coach_license_max_bytes,
         )
 
     def clean_club_name(self):
+        """Checks and normalizes club name for coordinator signup."""
         name = self.cleaned_data['club_name'].strip()
         if Club.objects.filter(name__iexact=name).exists():
             raise forms.ValidationError('A club with this name already exists.')
         return name
 
     def clean_password1(self):
+        """Checks and normalizes password1 for coordinator signup."""
         password = self.cleaned_data['password1']
         validate_password(password)  # honours AUTH_PASSWORD_VALIDATORS
         return password
 
     def clean(self):
+        """Checks cross-field and relationship rules for the coordinator signup form before
+
+        accepting it.
+        """
         cleaned = super().clean()
         p1, p2 = cleaned.get('password1'), cleaned.get('password2')
         if p1 and p2 and p1 != p2:
@@ -142,10 +152,12 @@ class _BaseCreateAccountForm(forms.Form):
     email = forms.EmailField()
 
     def __init__(self, *args, club=None, **kwargs):
+        """Initializes the base create account form fields and request-specific choices."""
         self.club = club
         super().__init__(*args, **kwargs)
 
     def clean_email(self):
+        """Checks and normalizes email for base create account."""
         email = self.cleaned_data['email'].strip().lower()
         if not email:
             return ''
@@ -176,6 +188,7 @@ class CreatePlayerForm(_BaseCreateAccountForm):
     )
 
     def __init__(self, *args, **kwargs):
+        """Initializes the create player form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         if self.club is not None:
             self.fields['guardian'].queryset = User.objects.filter(
@@ -184,6 +197,10 @@ class CreatePlayerForm(_BaseCreateAccountForm):
         self.fields['guardian'].label_from_instance = _user_label
 
     def clean(self):
+        """Checks cross-field and relationship rules for the create player form before accepting
+
+        it.
+        """
         cleaned = super().clean()
         supplied_email = self.data.get('email') or self.data.get(self.add_prefix('email'))
         if supplied_email:
@@ -205,6 +222,7 @@ class CreateGuardianForm(_BaseCreateAccountForm):
     )
 
     def __init__(self, *args, **kwargs):
+        """Initializes the create guardian form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         if self.club is not None:
             self.fields['player'].queryset = User.objects.filter(
@@ -225,6 +243,7 @@ class GuardianLinkForm(forms.Form):
     )
 
     def __init__(self, *args, club=None, **kwargs):
+        """Initializes the guardian link form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         if club is not None:
             self.fields['guardian'].queryset = User.objects.filter(
@@ -263,9 +282,11 @@ class TournamentScheduleForm(forms.Form):
     )
 
     def clean_title(self):
+        """Checks and normalizes title for tournament schedule."""
         return self.cleaned_data['title'].strip()
 
     def clean_venue(self):
+        """Checks and normalizes venue for tournament schedule."""
         return self.cleaned_data['venue'].strip()
 
 
@@ -296,11 +317,13 @@ class TournamentAgeBracketForm(forms.ModelForm):
         labels = {'max_age': 'Maximum age (U-age)'}
 
     def __init__(self, *args, schedule=None, **kwargs):
+        """Initializes the tournament age bracket form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         self.schedule = schedule
         self.fields['max_age'].widget.attrs.update({'min': 3, 'max': 21})
 
     def clean_max_age(self):
+        """Checks and normalizes max age for tournament age bracket."""
         max_age = self.cleaned_data['max_age']
         brackets = (
             self.schedule.age_brackets.filter(max_age=max_age)
@@ -358,6 +381,7 @@ class TournamentFixtureForm(forms.ModelForm):
         }
 
     def __init__(self, *args, schedule=None, **kwargs):
+        """Initializes the tournament fixture form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         self.schedule = schedule or getattr(self.instance, 'schedule', None)
         queryset = self.fields['age_bracket'].queryset.none()
@@ -370,15 +394,21 @@ class TournamentFixtureForm(forms.ModelForm):
         self.fields['location'].required = True
 
     def clean_age_bracket(self):
+        """Checks and normalizes age bracket for tournament fixture."""
         bracket = self.cleaned_data.get('age_bracket')
         if bracket and (self.schedule is None or bracket.schedule_id != self.schedule.id):
             raise forms.ValidationError('Select an age bracket from this tournament.')
         return bracket
 
     def clean_opponent(self):
+        """Checks and normalizes opponent for tournament fixture."""
         return self.cleaned_data['opponent'].strip() or 'TBD'
 
     def clean(self):
+        """Checks cross-field and relationship rules for the tournament fixture form before
+
+        accepting it.
+        """
         cleaned = super().clean()
         kickoff = cleaned.get('kickoff_at')
         ends_at = cleaned.get('ends_at')
@@ -425,6 +455,7 @@ class TournamentFixtureResultForm(forms.Form):
     )
 
     def __init__(self, *args, fixture, **kwargs):
+        """Initializes the tournament fixture result form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         self.fixture = fixture
         self.entries = []
@@ -477,6 +508,7 @@ class TournamentFixtureResultForm(forms.Form):
 
     @property
     def participant_rows(self):
+        """Builds the participant rows used by the tournament result form."""
         rows = []
         for entry in self.entries:
             player_id = entry.player_id
@@ -496,6 +528,10 @@ class TournamentFixtureResultForm(forms.Form):
         return rows
 
     def clean(self):
+        """Checks cross-field and relationship rules for the tournament fixture result form
+
+        before accepting it.
+        """
         cleaned = super().clean()
         if self.errors:
             return cleaned
@@ -534,6 +570,7 @@ class TournamentFixtureResultForm(forms.Form):
 
 
 def _user_label(user):
+    """Builds the member label displayed in portal form choices."""
     name = f'{user.first_name} {user.last_name}'.strip()
     if name and user.email:
         return f'{name} ({user.email})'

@@ -14,9 +14,11 @@ final linkedPlayersProvider = FutureProvider.autoDispose<List<Player>>(
 /// Which child the guardian is looking at. Null until they pick one — the
 /// derived [selectedChildProvider] falls back to the first linked child.
 class SelectedChildIdNotifier extends Notifier<String?> {
+  /// Creates the initial state for this feature controller.
   @override
   String? build() => null;
 
+  /// Selects the child whose data the guardian dashboard should display.
   void select(String childId) {
     if (state == childId) return;
 

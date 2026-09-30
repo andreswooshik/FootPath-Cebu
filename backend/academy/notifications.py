@@ -113,6 +113,7 @@ def notify_session_cancelled(session, user_ids=None, session_id=None):
 
 
 def notify_tournament_training_cancelled(session, fixture, user_ids=None):
+    """Queues notifications explaining training cancellations caused by tournament fixtures."""
     recipients = set(user_ids if user_ids is not None else _recipients_for_session(session))
     recipients.update(
         User.objects.filter(
@@ -140,6 +141,7 @@ def notify_tournament_training_cancelled(session, fixture, user_ids=None):
 
 
 def notify_tournament_roster_published(squad):
+    """Queues notifications for a newly published tournament squad."""
     player_ids = set(squad.entries.values_list('player_id', flat=True))
     guardian_ids = set(
         valid_guardian_links()

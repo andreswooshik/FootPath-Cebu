@@ -17,6 +17,7 @@ from django.utils.deconstruct import deconstructible
 
 
 def _auth_headers(key):
+    """Builds storage authorization headers from the configured service credential."""
     if key.startswith('sb_secret_'):
         return {'apikey': key}
     if key.count('.') == 2:
@@ -37,12 +38,14 @@ class SupabaseCoachLicenseStorage(Storage):
         timeout=15.0,
         upload_timeout=120.0,
     ):
+        """Initializes the dependencies and state used by supabase coach license storage."""
         self.bucket_env = bucket_env
         self.default_bucket = default_bucket
         self.timeout = timeout
         self.upload_timeout = upload_timeout
 
     def _config(self):
+        """Reads the environment settings required by this storage backend."""
         return (
             os.environ.get('SUPABASE_URL', '').rstrip('/'),
             os.environ.get('SUPABASE_SERVICE_KEY', ''),
@@ -50,9 +53,11 @@ class SupabaseCoachLicenseStorage(Storage):
         )
 
     def _local_storage(self):
+        """Creates the filesystem storage used for local coach license uploads."""
         return FileSystemStorage()
 
     def _use_local(self):
+        """Chooses local storage when allowed, otherwise requires remote storage configuration."""
         url, key, _bucket = self._config()
         if getattr(settings, 'TESTING', False):
             return True
@@ -64,9 +69,11 @@ class SupabaseCoachLicenseStorage(Storage):
 
     @staticmethod
     def _object_name(name):
+        """Normalizes the stored coach license path into an object key."""
         return name.replace('\\', '/').lstrip('/')
 
     def _save(self, name, content):
+        """Writes the coach license to local or remote storage and returns its object name."""
         if self._use_local():
             return self._local_storage().save(name, content)
 
@@ -98,6 +105,7 @@ class SupabaseCoachLicenseStorage(Storage):
         return name
 
     def _open(self, name, mode='rb'):
+        """Reads a stored coach license into a file object for the caller."""
         if mode not in ('r', 'rb'):
             raise ValueError('Supabase coach-license files are read-only.')
         if self._use_local():
@@ -118,6 +126,7 @@ class SupabaseCoachLicenseStorage(Storage):
         return ContentFile(response.content, name=name)
 
     def exists(self, name):
+        """Checks local file existence; remote uploads use unique object names."""
         if self._use_local():
             return self._local_storage().exists(name)
         # coach_license_upload_to uses a UUID, so a preflight network request
@@ -125,6 +134,7 @@ class SupabaseCoachLicenseStorage(Storage):
         return False
 
     def delete(self, name):
+        """Deletes the coach license from the selected local or remote storage."""
         if not name:
             return
         if self._use_local():
@@ -141,6 +151,7 @@ class SupabaseCoachLicenseStorage(Storage):
         response.raise_for_status()
 
     def url(self, name):
+        """Returns a local URL or a signed remote URL for the stored coach license."""
         if self._use_local():
             return self._local_storage().url(name)
 

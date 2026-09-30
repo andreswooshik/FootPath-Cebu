@@ -9,8 +9,8 @@ from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 
+from academy.errors import WorkflowConflict
 from academy.models import (
     AuditLog,
     TournamentAgeBracket,
@@ -28,9 +28,11 @@ from academy.storage import (
     upload_tournament_document,
     validate_tournament_document,
 )
+from academy.tournament_publication import publish_tournament
 from academy.tournament_results import complete_tournament_fixture
 from academy.transactions import club_write_transaction
 from accounts.models import Roles
+from config.application_errors import InvalidOperation
 
 from .decorators import portal_role_required
 from .forms import (
@@ -43,6 +45,7 @@ from .forms import (
 
 
 def _coordinator_schedule(request, schedule_id):
+    """Loads a tournament schedule belonging to the signed-in coordinator club."""
     return get_object_or_404(
         TournamentSchedule.objects.select_related('club', 'uploaded_by'),
         pk=schedule_id,
@@ -117,6 +120,7 @@ def tournament_schedules(request):
 @portal_role_required(Roles.COORDINATOR)
 @club_write_transaction
 def tournament_schedule_detail(request, schedule_id):
+    """Renders tournament management and processes bracket, document, and publication actions."""
     schedule = _coordinator_schedule(request, schedule_id)
     document_form = TournamentDocumentForm()
     bracket_form = TournamentAgeBracketForm(prefix='bracket', schedule=schedule)
@@ -127,58 +131,28 @@ def tournament_schedule_detail(request, schedule_id):
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'publish':
-            errors = schedule.publication_errors()
-            if errors:
-                for message in errors.values():
-                    messages.error(request, message)
-            elif not schedule.is_published:
-                fixtures = list(
-                    schedule.fixtures.select_related(
-                        'schedule',
-                        'age_bracket',
-                    )
+            try:
+                schedule = publish_tournament(
+                    actor=request.user,
+                    schedule_id=schedule.pk,
+                    confirm_cancellations=str(
+                        request.POST.get('confirmTrainingCancellations', '')
+                    ).lower()
+                    in ('true', '1', 'yes', 'on'),
                 )
-                conflicts = conflicting_training_for_fixtures(fixtures)
-                if conflicts and not request.POST.get('confirmTrainingCancellations'):
-                    conflict_confirmation_action = 'publish'
-                    conflict_count = len(conflicts)
-                    messages.warning(
-                        request,
-                        f'Publishing will cancel {conflict_count} conflicting '
-                        'future training session(s). Review and confirm below.',
-                    )
-                else:
-                    with transaction.atomic():
-                        schedule = TournamentSchedule.objects.select_for_update(of=('self',)).get(
-                            pk=schedule.pk,
-                        )
-                        fixtures = list(
-                            TournamentFixture.objects.select_for_update(of=('self',))
-                            .select_related('schedule', 'age_bracket')
-                            .filter(schedule=schedule)
-                        )
-                        schedule.is_published = True
-                        schedule.published_at = timezone.now()
-                        schedule.save(
-                            update_fields=[
-                                'is_published',
-                                'published_at',
-                                'updated_at',
-                            ]
-                        )
-                        cancel_conflicting_training(
-                            fixtures,
-                            actor=request.user,
-                            action='tournament.published',
-                        )
-                        AuditLog.record(
-                            request.user,
-                            'tournament.published',
-                            target=schedule.title,
-                            detail=str(schedule.starts_on),
-                        )
-                    messages.success(request, 'Tournament published to the club.')
-                    return redirect('portal:tournament-detail', schedule_id=schedule.id)
+            except WorkflowConflict as exc:
+                conflict_confirmation_action = 'publish'
+                conflict_count = exc.detail['cancellation']['count']
+                messages.warning(
+                    request,
+                    f'Publishing will cancel {conflict_count} conflicting future training session(s). Review and confirm below.',
+                )
+            except InvalidOperation as exc:
+                for message in exc.detail.values():
+                    messages.error(request, message)
+            else:
+                messages.success(request, 'Tournament published to the club.')
+                return redirect('portal:tournament-detail', schedule_id=schedule.id)
         elif action == 'add-bracket':
             bracket_form = TournamentAgeBracketForm(
                 request.POST,
@@ -307,6 +281,7 @@ def tournament_schedule_detail(request, schedule_id):
 @portal_role_required(Roles.COORDINATOR)
 @club_write_transaction
 def tournament_fixture_edit(request, fixture_id):
+    """Validates fixture edits and handles conflicting training before saving."""
     fixture = get_object_or_404(
         TournamentFixture.objects.select_related('schedule'),
         pk=fixture_id,
@@ -364,6 +339,7 @@ def tournament_fixture_edit(request, fixture_id):
 @portal_role_required(Roles.COORDINATOR)
 @club_write_transaction
 def tournament_fixture_delete(request, fixture_id):
+    """Deletes an eligible fixture after enforcing the coordinator club scope."""
     fixture = get_object_or_404(
         TournamentFixture.objects.select_related('schedule'),
         pk=fixture_id,
@@ -389,6 +365,7 @@ def tournament_fixture_delete(request, fixture_id):
 @portal_role_required(Roles.COORDINATOR)
 @club_write_transaction
 def tournament_fixture_result(request, fixture_id):
+    """Validates the result form and atomically records the completed fixture."""
     fixture = get_object_or_404(
         TournamentFixture.objects.select_related(
             'schedule',
@@ -442,6 +419,7 @@ def tournament_fixture_result(request, fixture_id):
 @portal_role_required(Roles.COORDINATOR)
 @club_write_transaction
 def tournament_bracket_delete(request, bracket_id):
+    """Deletes an unused age bracket after checking its fixtures and squad entries."""
     bracket = get_object_or_404(
         TournamentAgeBracket.objects.select_related('schedule'),
         pk=bracket_id,
@@ -471,6 +449,7 @@ def tournament_bracket_delete(request, bracket_id):
 @portal_role_required(Roles.COORDINATOR)
 @club_write_transaction
 def tournament_schedule_delete(request, schedule_id):
+    """Deletes a tournament without completed matches and removes its stored document."""
     schedule = _coordinator_schedule(request, schedule_id)
     if request.method != 'POST':
         raise PermissionDenied('Tournament deletion requires confirmation.')

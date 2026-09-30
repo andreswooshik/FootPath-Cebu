@@ -20,9 +20,11 @@ _CSP = (
 
 class PortalSecurityHeadersMiddleware:
     def __init__(self, get_response):
+        """Initializes the dependencies and state used by portal security headers middleware."""
         self.get_response = get_response
 
     def __call__(self, request):
+        """Runs the response handler and adds security headers to portal responses."""
         response = self.get_response(request)
         if request.path.startswith('/portal/'):
             response.setdefault('Content-Security-Policy', _CSP)

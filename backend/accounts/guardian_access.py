@@ -6,6 +6,7 @@ from .models import GuardianLink, Roles
 
 
 def valid_guardian_links(*, guardian=None, player_id=None):
+    """Returns active guardian-player links where both accounts belong to the same active club."""
     queryset = GuardianLink.objects.filter(
         guardian__role=Roles.GUARDIAN,
         guardian__is_active=True,
@@ -24,6 +25,7 @@ def valid_guardian_links(*, guardian=None, player_id=None):
 
 
 def guardian_can_access_player(guardian, player_id):
+    """Checks whether an active, same-club guardian link grants access to this player."""
     return valid_guardian_links(
         guardian=guardian,
         player_id=player_id,

@@ -27,6 +27,7 @@ class HomeScreen extends ConsumerWidget {
   final bool openEligibility;
   final bool openGuardianPlayerProfile;
 
+  /// Runs the sign-out flow and returns to login when it completes.
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     if (!await confirmSignOut(context) || !context.mounted) return;
     await ref.read(unregisterDeviceProvider)();
@@ -37,6 +38,7 @@ class HomeScreen extends ConsumerWidget {
     ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
+  /// Builds the home screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Route each role to its dashboard; unknown roles fall through to the

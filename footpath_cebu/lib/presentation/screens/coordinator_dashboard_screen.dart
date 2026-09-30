@@ -28,6 +28,7 @@ class CoordinatorDashboardScreen extends ConsumerWidget {
   final VoidCallback onOpenSchedule;
   final VoidCallback onOpenOperations;
 
+  /// Builds the coordinator dashboard screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final schedules =
@@ -116,6 +117,7 @@ class CoordinatorDashboardScreen extends ConsumerWidget {
     );
   }
 
+  /// Finds the earliest upcoming fixture that has no recorded result.
   _ScheduledFixture? _nextFixture(List<TournamentSchedule> schedules) {
     final now = DateTime.now();
     final entries = <_ScheduledFixture>[];
@@ -146,6 +148,7 @@ class _SeasonSummary {
   int get winRate => total == 0 ? 0 : ((wins / total) * 100).round();
   String get record => '${wins}W  ${draws}D  ${losses}L';
 
+  /// Totals recorded wins, draws, and losses for the dashboard season summary.
   factory _SeasonSummary.from(List<FootballMatch> matches) {
     var wins = 0;
     var draws = 0;
@@ -179,6 +182,7 @@ class _SectionTitle extends StatelessWidget {
   final String? action;
   final VoidCallback? onAction;
 
+  /// Builds the section title view.
   @override
   Widget build(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.end,
@@ -204,6 +208,7 @@ class _RecordSurface extends StatelessWidget {
   const _RecordSurface({required this.summary});
   final _SeasonSummary summary;
 
+  /// Builds the record surface view.
   @override
   Widget build(BuildContext context) => _Surface(
     child: Column(
@@ -274,6 +279,7 @@ class _MiniStat extends StatelessWidget {
   const _MiniStat({required this.value, required this.label});
   final String value;
   final String label;
+  /// Builds the mini stat view.
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -293,6 +299,7 @@ class _FixtureSurface extends StatelessWidget {
   final _ScheduledFixture fixture;
   final VoidCallback onOpen;
 
+  /// Builds the fixture surface view.
   @override
   Widget build(BuildContext context) => _Surface(
     child: Padding(
@@ -346,6 +353,7 @@ class _TournamentRows extends StatelessWidget {
   final List<TournamentSchedule> schedules;
   final VoidCallback onOpen;
 
+  /// Builds the tournament rows view.
   @override
   Widget build(BuildContext context) {
     if (schedules.isEmpty) {
@@ -381,6 +389,7 @@ class _TournamentRows extends StatelessWidget {
     );
   }
 
+  /// Summarizes the tournament schedule for the dashboard card.
   String _subtitle(TournamentSchedule schedule) {
     final next =
         schedule.fixtures.where((fixture) => !fixture.hasResult).toList()
@@ -405,6 +414,7 @@ class _AttentionRows extends StatelessWidget {
   final VoidCallback onOpenOperations;
   final VoidCallback onOpenPeople;
 
+  /// Builds the attention rows view.
   @override
   Widget build(BuildContext context) => _Surface(
     child: Column(
@@ -454,6 +464,7 @@ class _AttentionRow extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final bool urgent;
+  /// Builds the attention row view.
   @override
   Widget build(BuildContext context) => ListTile(
     leading: Icon(icon, color: urgent ? AppColors.coral : null),
@@ -473,6 +484,7 @@ class _DetailLine extends StatelessWidget {
   const _DetailLine({required this.icon, required this.text});
   final IconData icon;
   final String text;
+  /// Builds the detail line view.
   @override
   Widget build(BuildContext context) => Row(
     children: [
@@ -490,6 +502,7 @@ class _DetailLine extends StatelessWidget {
 class _Tag extends StatelessWidget {
   const _Tag({required this.label});
   final String label;
+  /// Builds the tag view.
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -504,6 +517,7 @@ class _Tag extends StatelessWidget {
 class _Surface extends StatelessWidget {
   const _Surface({required this.child});
   final Widget child;
+  /// Builds the surface view.
   @override
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
@@ -529,6 +543,7 @@ class _EmptySurface extends StatelessWidget {
   final String message;
   final String action;
   final VoidCallback onAction;
+  /// Builds the empty surface view.
   @override
   Widget build(BuildContext context) => _Surface(
     child: Padding(
@@ -549,6 +564,7 @@ class _EmptySurface extends StatelessWidget {
   );
 }
 
+/// Formats a time for display in the schedule.
 String _formatTime(DateTime value) {
   final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
   final minute = value.minute.toString().padLeft(2, '0');

@@ -16,6 +16,7 @@ class FlagDisputeScreen extends ConsumerStatefulWidget {
   /// general dispute is raised from the console/admin side instead).
   final Player player;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<FlagDisputeScreen> createState() => _FlagDisputeScreenState();
 }
@@ -26,6 +27,7 @@ class _FlagDisputeScreenState extends ConsumerState<FlagDisputeScreen> {
   final _detailController = TextEditingController();
   DisputeCategory _category = DisputeCategory.attendance;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _summaryController.dispose();
@@ -33,6 +35,7 @@ class _FlagDisputeScreenState extends ConsumerState<FlagDisputeScreen> {
     super.dispose();
   }
 
+  /// Validates the dispute form and submits the new report.
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final detail = _detailController.text.trim();
@@ -62,6 +65,7 @@ class _FlagDisputeScreenState extends ConsumerState<FlagDisputeScreen> {
     ).showSnackBar(const SnackBar(content: Text('Dispute raised.')));
   }
 
+  /// Builds the flag dispute screen view.
   @override
   Widget build(BuildContext context) {
     final isSaving = ref.watch(disputeFormControllerProvider).isLoading;

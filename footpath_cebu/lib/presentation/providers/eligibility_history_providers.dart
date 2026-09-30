@@ -15,6 +15,7 @@ final eligibilityHistoryProvider = FutureProvider.autoDispose
     );
 
 class EligibilityUpdateController extends MutationController {
+  /// Saves the player's eligibility and refreshes their history and squad data.
   Future<EligibilityStatus?> submit(
     String playerId,
     EligibilityStatus status,

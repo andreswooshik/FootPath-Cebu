@@ -72,35 +72,42 @@ class FootballMatchSerializer(serializers.ModelSerializer):
         ]
 
     def validate_opponent(self, value):
+        """Checks and normalizes opponent for football match."""
         cleaned = value.strip()
         if not cleaned:
             raise serializers.ValidationError('Opponent is required.')
         return cleaned
 
     def validate_competition(self, value):
+        """Checks and normalizes competition for football match."""
         return value.strip()
 
     def validate_playedOn(self, value):
+        """Checks and normalizes played on for football match."""
         if value > timezone.localdate():
             raise serializers.ValidationError('Match statistics can only be recorded after play.')
         return value
 
     def validate_venue(self, value):
+        """Checks and normalizes venue for football match."""
         cleaned = str(value).upper()
         if cleaned not in set(MatchVenue.values):
             raise serializers.ValidationError(f'Unknown venue: {value}')
         return cleaned
 
     def get_fixtureId(self, obj):
+        """Computes the fixture id field for the football match response."""
         try:
             return str(obj.source_fixture.id)
         except TournamentFixture.DoesNotExist:
             return None
 
     def get_recordSource(self, obj):
+        """Computes the record source field for the football match response."""
         return 'SCHEDULED' if self.get_fixtureId(obj) is not None else 'AD_HOC'
 
     def get_ageBracketId(self, obj):
+        """Computes the age bracket id field for the football match response."""
         try:
             bracket_id = obj.source_fixture.age_bracket_id
         except TournamentFixture.DoesNotExist:
@@ -108,6 +115,7 @@ class FootballMatchSerializer(serializers.ModelSerializer):
         return str(bracket_id) if bracket_id is not None else None
 
     def get_ageBracketLabel(self, obj):
+        """Computes the age bracket label field for the football match response."""
         try:
             bracket = obj.source_fixture.age_bracket
         except TournamentFixture.DoesNotExist:
@@ -160,6 +168,7 @@ class TournamentFixtureSerializer(serializers.ModelSerializer):
         ]
 
     def get_result(self, obj):
+        """Computes the result field for the tournament fixture response."""
         match = obj.completed_match
         if match is None:
             return None
@@ -196,21 +205,26 @@ class TournamentSquadEntrySerializer(serializers.ModelSerializer):
         ]
 
     def get_playerName(self, obj):
+        """Computes the player name field for the tournament squad entry response."""
         return _display_name(obj.player)
 
     def _eligibility(self, obj):
+        """Resolves the squad entry eligibility used by availability fields."""
         cache = self.context.setdefault('_tournament_roster_eligibility', {})
         if obj.pk not in cache:
             cache[obj.pk] = roster_eligibility(obj.player, obj.squad.bracket)
         return cache[obj.pk]
 
     def get_availability(self, obj):
+        """Computes the availability field for the tournament squad entry response."""
         return self._eligibility(obj).state
 
     def get_availabilityReason(self, obj):
+        """Computes the availability reason field for the tournament squad entry response."""
         return self._eligibility(obj).reason
 
     def to_representation(self, instance):
+        """Builds the outgoing tournament squad entry fields for the client."""
         data = super().to_representation(instance)
         request = self.context.get('request')
         role = getattr(getattr(request, 'user', None), 'role', None)
@@ -261,6 +275,7 @@ class TournamentAgeBracketSerializer(serializers.ModelSerializer):
         ]
 
     def get_squad(self, obj):
+        """Computes the squad field for the tournament age bracket response."""
         try:
             squad = obj.squad
         except TournamentSquad.DoesNotExist:
@@ -313,9 +328,11 @@ class TournamentScheduleSerializer(serializers.ModelSerializer):
         ]
 
     def get_documentUrl(self, obj):
+        """Computes the document url field for the tournament schedule response."""
         return signed_tournament_document_url(obj.document_path)
 
     def get_hasDocument(self, obj):
+        """Computes the has document field for the tournament schedule response."""
         return bool(obj.document_path)
 
 
@@ -328,12 +345,14 @@ class TournamentScheduleWriteSerializer(serializers.ModelSerializer):
         fields = ['title', 'venue', 'startsOn']
 
     def validate_title(self, value):
+        """Checks and normalizes title for tournament schedule write."""
         cleaned = value.strip()
         if not cleaned:
             raise serializers.ValidationError('Tournament name is required.')
         return cleaned
 
     def validate_venue(self, value):
+        """Checks and normalizes venue for tournament schedule write."""
         cleaned = value.strip()
         if not cleaned:
             raise serializers.ValidationError('Main venue is required.')
@@ -367,6 +386,7 @@ class TournamentFixtureWriteSerializer(serializers.ModelSerializer):
         ]
 
     def validate_ageBracketId(self, value):
+        """Checks and normalizes age bracket id for tournament fixture write."""
         schedule = self.context['schedule']
         if not TournamentAgeBracket.objects.filter(
             pk=value,
@@ -376,24 +396,29 @@ class TournamentFixtureWriteSerializer(serializers.ModelSerializer):
         return value
 
     def validate_stage(self, value):
+        """Checks and normalizes stage for tournament fixture write."""
         if not value:
             raise serializers.ValidationError('Stage or round is required.')
         return value
 
     def validate_opponent(self, value):
+        """Checks and normalizes opponent for tournament fixture write."""
         return value or 'TBD'
 
     def validate_location(self, value):
+        """Checks and normalizes location for tournament fixture write."""
         if not value:
             raise serializers.ValidationError('Location, pitch, or stadium is required.')
         return value
 
     def validate_status(self, value):
+        """Checks and normalizes status for tournament fixture write."""
         if value == FixtureStatus.COMPLETED:
             raise serializers.ValidationError('Use Record Result to complete a fixture.')
         return value
 
     def validate(self, attrs):
+        """Validates the combined request fields for tournament fixture write."""
         attrs = super().validate(attrs)
         kickoff = attrs.get(
             'kickoff_at',
@@ -429,6 +454,7 @@ class TournamentAgeBracketWriteSerializer(serializers.ModelSerializer):
         fields = ['maxAge', 'academyTiers', 'scheduledAt']
 
     def validate(self, attrs):
+        """Validates the combined request fields for tournament age bracket write."""
         schedule = self.context['schedule']
         max_age = attrs.get('max_age', getattr(self.instance, 'max_age', None))
         duplicates = TournamentAgeBracket.objects.filter(
@@ -470,6 +496,7 @@ class TournamentSquadEntryWriteSerializer(serializers.Serializer):
     )
 
     def validate_position(self, value):
+        """Checks and normalizes position for tournament squad entry write."""
         cleaned = value.strip().upper()
         if cleaned and cleaned not in PLAYER_POSITION_CODES:
             raise serializers.ValidationError('Unknown player position.')
@@ -480,6 +507,7 @@ class TournamentSquadWriteSerializer(serializers.Serializer):
     entries = TournamentSquadEntryWriteSerializer(many=True)
 
     def validate_entries(self, value):
+        """Checks and normalizes entries for tournament squad write."""
         player_ids = [row['playerId'] for row in value]
         if len(player_ids) != len(set(player_ids)):
             raise serializers.ValidationError(

@@ -18,10 +18,12 @@ CANCELLATION_REASON = 'Automatically cancelled due to a tournament schedule conf
 
 
 def intervals_overlap(start_a, end_a, start_b, end_b):
+    """Checks whether two time intervals overlap."""
     return start_a < end_b and end_a > start_b
 
 
 def fixture_conflict_payload(fixture):
+    """Builds the fixture details shown when a training schedule conflicts."""
     local_start = timezone.localtime(fixture.kickoff_at)
     local_end = timezone.localtime(fixture.effective_ends_at)
     start_label = local_start.strftime('%I:%M').lstrip('0')
@@ -48,6 +50,7 @@ def fixture_conflict_payload(fixture):
 def conflicting_fixture_for_training(*, club_id, tiers, start, end):
     # Legacy sessions may not have clock times. They remain editable and are
     # outside interval-based enforcement until the Coach supplies both times.
+    """Finds a published fixture overlapping the club, time window, and selected tiers."""
     if start is None or end is None:
         return None
     fixtures = (
@@ -150,6 +153,7 @@ def conflicting_training_for_fixtures(fixtures, *, lock=False):
 
 
 def cancellation_preview(fixtures):
+    """Summarizes the training sessions that the proposed fixtures would cancel."""
     conflicts = conflicting_training_for_fixtures(fixtures)
     return {
         'count': len(conflicts),

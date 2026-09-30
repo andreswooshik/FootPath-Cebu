@@ -15,6 +15,7 @@ class _Body extends StatelessWidget {
   final _LogAttendanceScreenState state;
   final bool readOnly;
 
+  /// Builds the body view.
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -88,6 +89,7 @@ class _SessionHeader extends StatelessWidget {
   final VoidCallback? onMarkAllPresent;
   final bool readOnly;
 
+  /// Builds the session header view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -187,6 +189,7 @@ class _MetaChip extends StatelessWidget {
   final IconData icon;
   final String label;
 
+  /// Builds the meta chip view.
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -241,6 +244,7 @@ class _PlayerAttendanceCard extends StatelessWidget {
   final VoidCallback? onOpenAssessment;
   final bool readOnly;
 
+  /// Builds the player attendance card view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -339,6 +343,7 @@ class _PlayerAvatar extends StatelessWidget {
 
   final Player player;
 
+  /// Builds the player avatar view.
   @override
   Widget build(BuildContext context) {
     final url = player.photoUrl;
@@ -379,6 +384,7 @@ class _AttendanceSelector extends StatelessWidget {
     AttendanceStatus.excused: Icons.info_outline,
   };
 
+  /// Builds the attendance selector view.
   @override
   Widget build(BuildContext context) {
     final selected = _colors[status] ?? Theme.of(context).colorScheme.primary;
@@ -429,6 +435,7 @@ class _SessionEvaluation extends StatelessWidget {
   final ValueChanged<String>? onNote;
   final VoidCallback? onOpenAssessment;
 
+  /// Builds the session evaluation view.
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -468,6 +475,7 @@ class _EffortSlider extends StatefulWidget {
   final int initialValue;
   final ValueChanged<int>? onChanged;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_EffortSlider> createState() => _EffortSliderState();
 }
@@ -475,6 +483,7 @@ class _EffortSlider extends StatefulWidget {
 class _EffortSliderState extends State<_EffortSlider> {
   late int _value = widget.initialValue;
 
+  /// Builds the effort slider view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -536,6 +545,7 @@ class _PerformanceScoreInput extends StatefulWidget {
   final double? initialValue;
   final ValueChanged<double?>? onChanged;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_PerformanceScoreInput> createState() => _PerformanceScoreInputState();
 }
@@ -544,6 +554,7 @@ class _PerformanceScoreInputState extends State<_PerformanceScoreInput> {
   late bool _enabled = widget.initialValue != null;
   late double _value = widget.initialValue ?? 7.0;
 
+  /// Builds the performance score input view.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -610,6 +621,7 @@ class _NoteField extends StatefulWidget {
   final String initialValue;
   final ValueChanged<String>? onChanged;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_NoteField> createState() => _NoteFieldState();
 }
@@ -617,12 +629,14 @@ class _NoteField extends StatefulWidget {
 class _NoteFieldState extends State<_NoteField> {
   late final _controller = TextEditingController(text: widget.initialValue);
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
+  /// Builds the note field view.
   @override
   Widget build(BuildContext context) {
     return TextField(
@@ -666,6 +680,7 @@ class _FinalizeBar extends StatelessWidget {
   final bool hasSavedAttendance;
   final VoidCallback onFinalize;
 
+  /// Builds the finalize bar view.
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -753,4 +768,5 @@ const _months = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
+/// Formats a date for display in this feature.
 String _formatDate(DateTime d) => '${_months[d.month - 1]} ${d.day}, ${d.year}';

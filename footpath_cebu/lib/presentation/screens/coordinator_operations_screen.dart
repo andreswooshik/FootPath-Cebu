@@ -8,6 +8,7 @@ import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 class CoordinatorOperationsScreen extends StatelessWidget {
   const CoordinatorOperationsScreen({super.key});
 
+  /// Builds the coordinator operations screen view.
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -86,6 +87,7 @@ class _OperationCard extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
 
+  /// Builds the operation card view.
   @override
   Widget build(BuildContext context) => Card(
     margin: const EdgeInsets.only(bottom: 12),

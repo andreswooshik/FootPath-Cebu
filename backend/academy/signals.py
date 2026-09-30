@@ -16,6 +16,7 @@ from .notifications import notify_eligibility_changed
 
 @receiver(pre_save, sender=PlayerProfile)
 def stash_previous_eligibility(sender, instance, **kwargs):
+    """Captures the prior eligibility before saving so the post-save signal can detect a change."""
     if instance.pk:
         instance._previous_eligibility = (
             sender.objects.filter(pk=instance.pk).values_list('eligibility', flat=True).first()
@@ -26,6 +27,7 @@ def stash_previous_eligibility(sender, instance, **kwargs):
 
 @receiver(post_save, sender=PlayerProfile)
 def fire_eligibility_changed(sender, instance, created, **kwargs):
+    """Records eligibility history and notifies recipients when the saved status changes."""
     update_fields = kwargs.get('update_fields')
     if update_fields is not None and 'eligibility' not in update_fields:
         return

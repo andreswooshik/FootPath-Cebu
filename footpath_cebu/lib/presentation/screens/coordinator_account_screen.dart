@@ -14,6 +14,7 @@ class CoordinatorAccountScreen extends ConsumerWidget {
 
   final UserProfile profile;
 
+  /// Runs the sign-out flow and returns to login when it completes.
   Future<void> _signOut(BuildContext context, WidgetRef ref) async {
     if (!await confirmSignOut(context) || !context.mounted) return;
     await ref.read(unregisterDeviceProvider)();
@@ -25,6 +26,7 @@ class CoordinatorAccountScreen extends ConsumerWidget {
     );
   }
 
+  /// Builds the coordinator account screen view.
   @override
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
     appBar: AppBar(

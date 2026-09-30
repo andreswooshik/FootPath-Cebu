@@ -26,6 +26,7 @@ class ScheduleTabScreen extends ConsumerStatefulWidget {
   final Player player;
   final bool isGuardian;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<ScheduleTabScreen> createState() => _ScheduleTabScreenState();
 }
@@ -33,6 +34,7 @@ class ScheduleTabScreen extends ConsumerStatefulWidget {
 class _ScheduleTabScreenState extends ConsumerState<ScheduleTabScreen> {
   bool _showPast = false;
 
+  /// Builds the schedule tab screen view.
   @override
   Widget build(BuildContext context) {
     final period = _showPast
@@ -142,6 +144,7 @@ class _LoadMorePlayerSessions extends ConsumerWidget {
   final TrainingSessionPeriod period;
   final TrainingSessionPageState page;
 
+  /// Builds the load more player sessions view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (page.isLoadingMore) {
@@ -181,6 +184,7 @@ class _ScheduleTabs extends StatelessWidget {
   final bool showPast;
   final ValueChanged<bool> onChanged;
 
+  /// Builds the schedule tabs view.
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -216,6 +220,7 @@ class _TabButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Builds the tab button view.
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;

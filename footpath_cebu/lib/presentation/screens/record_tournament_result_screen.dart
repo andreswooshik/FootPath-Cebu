@@ -18,6 +18,7 @@ class RecordTournamentResultScreen extends ConsumerStatefulWidget {
   final TournamentSchedule tournament;
   final TournamentFixture fixture;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<RecordTournamentResultScreen> createState() =>
       _RecordTournamentResultScreenState();
@@ -41,6 +42,7 @@ class _RecordTournamentResultScreenState
   List<TournamentSquadEntry> get _squadEntries =>
       _bracket?.squad?.entries ?? const [];
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _ourScore.dispose();
@@ -48,6 +50,7 @@ class _RecordTournamentResultScreenState
     super.dispose();
   }
 
+  /// Adds or removes a squad player from the recorded match participants.
   void _toggle(TournamentSquadEntry entry, bool selected) {
     setState(() {
       if (selected) {
@@ -62,6 +65,7 @@ class _RecordTournamentResultScreenState
     });
   }
 
+  /// Opens the selected participant statistics for editing.
   Future<void> _editStatistics(TournamentSquadEntry entry) async {
     final current = _participants[entry.playerId];
     if (current == null) return;
@@ -79,6 +83,7 @@ class _RecordTournamentResultScreenState
     }
   }
 
+  /// Validates and submits the result or participant statistics from this form.
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_participants.isEmpty) {
@@ -107,6 +112,7 @@ class _RecordTournamentResultScreenState
     Navigator.of(context).pop(saved);
   }
 
+  /// Builds the record tournament result screen view.
   @override
   Widget build(BuildContext context) {
     final saving = ref.watch(tournamentManagementControllerProvider).isLoading;
@@ -247,6 +253,7 @@ class _ParticipantStatisticsEditor extends StatefulWidget {
   final String playerName;
   final TournamentParticipantStatisticsDraft initial;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_ParticipantStatisticsEditor> createState() =>
       _ParticipantStatisticsEditorState();
@@ -284,8 +291,10 @@ class _ParticipantStatisticsEditorState
     ),
   };
 
+  /// Reads a validated numeric form field as an integer.
   int _value(String key) => int.parse(_fields[key]!.text);
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     for (final controller in _fields.values) {
@@ -294,6 +303,7 @@ class _ParticipantStatisticsEditorState
     super.dispose();
   }
 
+  /// Validates and submits the result or participant statistics from this form.
   void _save() {
     if (!_formKey.currentState!.validate()) return;
     if (_value('shotsOnTarget') > _value('shots')) {
@@ -337,10 +347,12 @@ class _ParticipantStatisticsEditorState
     );
   }
 
+  /// Shows feedback for the current action in a snackbar.
   void _message(String value) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
+  /// Builds the participant statistics editor view.
   @override
   Widget build(BuildContext context) => Form(
     key: _formKey,
@@ -418,6 +430,7 @@ class _StatsGrid extends StatelessWidget {
     'goalsConceded': 'Goals conceded (GK)',
   };
 
+  /// Builds the stats grid view.
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -460,6 +473,7 @@ class _NumberField extends StatelessWidget {
   final String label;
   final int? maximum;
 
+  /// Builds the number field view.
   @override
   Widget build(BuildContext context) => TextFormField(
     controller: controller,

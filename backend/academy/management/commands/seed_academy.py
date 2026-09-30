@@ -166,6 +166,7 @@ DISPUTE_SUMMARIES = (
 
 
 def birth_date_for_age(age):
+    """Creates a seed birth date matching the requested player age."""
     today = date.today()
     try:
         return today.replace(year=today.year - age)
@@ -174,6 +175,7 @@ def birth_date_for_age(age):
 
 
 def class_year_for_age(age):
+    """Chooses a plausible school year for a seeded player age."""
     return f'Class of {date.today().year + max(1, 18 - age)}'
 
 
@@ -181,6 +183,7 @@ class Command(BaseCommand):
     help = 'Seed player profiles, training, attendance, match statistics, and a guardian link.'
 
     def add_arguments(self, parser):
+        """Defines command-line options for seed academy."""
         parser.add_argument(
             '--refresh',
             action='store_true',
@@ -189,6 +192,7 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        """Seeds academy profiles and linked feature history for development and demonstrations."""
         club, _ = Club.objects.get_or_create(
             name=DEMO_CLUB_NAME,
             defaults={'slug': DEMO_CLUB_SLUG},
@@ -388,6 +392,7 @@ class Command(BaseCommand):
         ).delete()
 
     def _ensure_profile(self, user, age, cls, tier, pos, ratings, elig):
+        """Creates or updates the seeded player profile with its football attributes."""
         pace, shooting, passing, dribbling, defending, physical = ratings
         goalkeeper_ratings = (74, 72, 68, 80, 65, 76) if pos == 'GK' else (0, 0, 0, 0, 0, 0)
         defaults = {
@@ -419,6 +424,7 @@ class Command(BaseCommand):
             PlayerProfile.objects.filter(pk=profile.pk).update(**defaults)
 
     def _seed_sessions(self, coach, club):
+        """Creates the sample training schedule used by development and demonstrations."""
         today = date.today()
         specs = [
             {
@@ -524,6 +530,7 @@ class Command(BaseCommand):
         return sessions
 
     def _seed_attendance(self, coach, sessions, players):
+        """Creates sample attendance linked to the seeded training sessions."""
         if not players:
             return
         roll_calls = {
@@ -564,6 +571,7 @@ class Command(BaseCommand):
             session.save(update_fields=['attendance_revision'])
 
     def _seed_matches(self, coach, club, players):
+        """Creates sample football matches and player performance records."""
         specs = [
             ('Cebu United', 7, 'HOME', 3, 1, Decimal('8.7'), 2, 1),
             ('Mandaue FC', 21, 'AWAY', 1, 1, Decimal('7.4'), 0, 1),
@@ -621,6 +629,7 @@ class Command(BaseCommand):
         today = date.today()
 
         def kickoff(days_from_today, hour, minute):
+            """Builds a timezone-aware kickoff time for a seeded match."""
             value = datetime.combine(
                 today + timedelta(days=days_from_today),
                 time(hour=hour, minute=minute),
@@ -888,6 +897,7 @@ class Command(BaseCommand):
 
     @staticmethod
     def _development_scores(framework, *, high, low):
+        """Builds sample indicator scores for a seeded development assessment."""
         return {
             domain['key']: {
                 indicator['key']: high if index % 2 == 0 else low
@@ -897,6 +907,7 @@ class Command(BaseCommand):
         }
 
     def _seed_development_assessments(self, profile, coach, *, assessed_at):
+        """Creates development assessment history for the seeded players."""
         framework = framework_for(profile.age_tier, profile.position)
         current_scores = self._development_scores(framework, high=4, low=3)
         historical_scores = self._development_scores(framework, high=3, low=2)
@@ -961,6 +972,7 @@ class Command(BaseCommand):
             )
 
     def _seed_rating_history(self, profile, coach):
+        """Creates attribute rating snapshots for seeded player growth comparisons."""
         base_fields = (
             'pace',
             'shooting',
@@ -1008,6 +1020,7 @@ class Command(BaseCommand):
             )
 
     def _seed_player_stats(self, profile, coach):
+        """Creates position-specific statistics assessment history for seeded players."""
         keys = score_keys(profile.position, CATALOG_VERSION)
         now = timezone.now()
         for reason, values, days_ago, notes in (
@@ -1045,6 +1058,7 @@ class Command(BaseCommand):
 
     @staticmethod
     def _seed_eligibility_history(player, coordinator):
+        """Creates sample academic eligibility transitions for a seeded player."""
         now = timezone.now()
         transitions = (
             (Eligibility.PENDING, Eligibility.ACADEMIC_WARNING, 30),
@@ -1064,6 +1078,7 @@ class Command(BaseCommand):
 
     @staticmethod
     def _seed_roster_eligibility_history(players, coordinator):
+        """Creates sample eligibility history across the seeded roster."""
         now = timezone.now()
         for index, player in enumerate(players):
             status = player.player_profile.eligibility
@@ -1083,6 +1098,7 @@ class Command(BaseCommand):
 
     @staticmethod
     def _seed_notifications(coordinator, coach, player, guardian):
+        """Creates sample inbox notifications for the seeded accounts."""
         now = timezone.now()
         specs = (
             (
@@ -1158,6 +1174,7 @@ class Command(BaseCommand):
 
     @staticmethod
     def _seed_audit_entries(*, coordinator, coach, player):
+        """Records example audit events for the seeded academy workflow."""
         entries = (
             (coordinator, 'demo.club_ready', DEMO_CLUB_SLUG, 'School club configured'),
             (coordinator, 'demo.accounts_ready', DEMO_CLUB_SLUG, 'Supported login roles available'),

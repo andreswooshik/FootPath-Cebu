@@ -23,6 +23,7 @@ class RosterFilter {
   /// The tier the roster is filtered to, or null for the whole squad.
   final AgeTier? tier;
 
+  /// Filters players by age tier and a case-insensitive name or position search.
   List<Player> apply(List<Player> squad) {
     var result = squad;
     final t = tier;
@@ -47,6 +48,7 @@ class RosterFilter {
 }
 
 class RosterFilterNotifier extends Notifier<RosterFilter> {
+  /// Creates the initial state for this feature controller.
   @override
   RosterFilter build() => const RosterFilter();
 

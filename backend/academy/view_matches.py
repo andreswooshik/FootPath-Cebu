@@ -51,6 +51,7 @@ class FootballMatchListCreateView(APIView):
     """List completed matches or let a Coordinator record a result."""
 
     def get(self, request):
+        """Lists football matches available to the requesting club staff."""
         if request.user.role not in (
             Roles.COORDINATOR,
             Roles.COACH,
@@ -60,6 +61,7 @@ class FootballMatchListCreateView(APIView):
         return Response(FootballMatchSerializer(_matches_for(request.user), many=True).data)
 
     def post(self, request):
+        """Validates and creates a football match and records the action."""
         if request.user.role != Roles.COORDINATOR:
             raise PermissionDenied('Only Coordinators can create match records.')
         if request.user.club_id is None:
@@ -99,6 +101,7 @@ class FootballMatchDetailView(APIView):
     """Read or correct match metadata without changing tenant ownership."""
 
     def get(self, request, match_id):
+        """Returns a match within the requester access scope."""
         if request.user.role not in (
             Roles.COORDINATOR,
             Roles.COACH,
@@ -109,6 +112,7 @@ class FootballMatchDetailView(APIView):
         return Response(FootballMatchSerializer(match).data)
 
     def put(self, request, match_id):
+        """Updates allowed match details while protecting fixture-managed fields."""
         match = _role_match(request, match_id, Roles.COORDINATOR)
         data = request.data.copy()
         data.pop('fixtureId', None)
@@ -134,6 +138,7 @@ class MatchPerformanceListView(APIView):
     """Role-redacted read view for all recorded players in one match."""
 
     def get(self, request, match_id):
+        """Lists the recorded player performances for an accessible match."""
         if request.user.role not in (
             Roles.COORDINATOR,
             Roles.COACH,
@@ -159,6 +164,10 @@ class MatchRosterView(APIView):
     """Server-filtered current match choices plus existing historical rows."""
 
     def get(self, request, match_id):
+        """Builds match roster rows with squad eligibility, injury warnings, and existing
+
+        performances.
+        """
         if request.user.role not in (
             Roles.COORDINATOR,
             Roles.COACH,
@@ -259,6 +268,7 @@ class MatchPerformanceDetailView(APIView):
     """Coordinator-owned objective statistics for one player/match."""
 
     def put(self, request, match_id, player_id):
+        """Saves player match statistics after validating roster and injury overrides."""
         match = _role_match(request, match_id, Roles.COORDINATOR)
         player = get_object_or_404(
             User.objects.select_related('player_profile'),
@@ -427,6 +437,7 @@ class MatchPerformanceDetailView(APIView):
         )
 
     def delete(self, request, match_id, player_id):
+        """Deletes a performance entry, requiring confirmation when it already has a rating."""
         match = _role_match(request, match_id, Roles.COORDINATOR)
         performance = get_object_or_404(
             PlayerMatchPerformance,
@@ -454,6 +465,7 @@ class MatchPerformanceRatingView(APIView):
     """Coach-only rating and optional notes for existing objective statistics."""
 
     def put(self, request, match_id, player_id):
+        """Locks and saves the coach rating on an existing player performance."""
         match = _role_match(request, match_id, Roles.COACH)
         with transaction.atomic():
             performance = get_object_or_404(
@@ -487,6 +499,7 @@ class MatchPerformanceRatingView(APIView):
         )
 
     def delete(self, request, match_id, player_id):
+        """Clears the coach rating while retaining the recorded match statistics."""
         match = _role_match(request, match_id, Roles.COACH)
         performance = get_object_or_404(
             PlayerMatchPerformance,

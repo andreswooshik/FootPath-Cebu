@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/data/dto/player_growth_dto.dart';
 import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/repositories/growth_repository.dart';
 
@@ -7,7 +8,7 @@ class MockGrowthRepository implements GrowthRepository {
     await Future<void>.delayed(const Duration(milliseconds: 250));
     final now = DateTime.now();
     final player = _players[query.playerId] ?? _players['p1']!;
-    return PlayerGrowth.fromJson({
+    return PlayerGrowthDto.fromJson({
       'playerId': query.playerId,
       'playerName': player.name,
       'position': player.position,

@@ -19,6 +19,7 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
+        """Defines command-line options for seeded."""
         parser.add_argument(
             '--password',
             default=DEMO_PASSWORD,
@@ -31,6 +32,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        """Checks migration readiness and runs the configured development seeding workflow."""
         if (
             not (settings.DEBUG or getattr(settings, 'TESTING', False))
             and not options['allow_production']
@@ -77,6 +79,7 @@ class Command(BaseCommand):
 
     @staticmethod
     def _pending_migrations():
+        """Checks whether database migrations must run before the seed command."""
         executor = MigrationExecutor(connections['default'])
         plan = executor.migration_plan(executor.loader.graph.leaf_nodes())
         return [f'{migration.app_label}.{migration.name}' for migration, _backward in plan]

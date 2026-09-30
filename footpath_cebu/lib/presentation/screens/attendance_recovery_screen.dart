@@ -11,6 +11,7 @@ import 'package:footpath_cebu/presentation/providers/squad_providers.dart';
 class AttendanceRecoveryScreen extends ConsumerStatefulWidget {
   const AttendanceRecoveryScreen({super.key, required this.entry});
   final AttendanceSyncEntry entry;
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<AttendanceRecoveryScreen> createState() =>
       _AttendanceRecoveryScreenState();
@@ -24,6 +25,7 @@ class _AttendanceRecoveryScreenState
       .toList();
   bool _dirty = false;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     for (final draft in _drafts) {
@@ -32,6 +34,7 @@ class _AttendanceRecoveryScreenState
     super.dispose();
   }
 
+  /// Handles leaving the recovery form, including unsaved corrections.
   Future<void> _leave() async {
     final leave = await showDialog<bool>(
       context: context,
@@ -59,6 +62,7 @@ class _AttendanceRecoveryScreenState
     });
   }
 
+  /// Validates and saves corrections to the queued attendance entry.
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
     final records = _drafts.map((draft) => draft.toRecord()).toList();
@@ -92,6 +96,7 @@ class _AttendanceRecoveryScreenState
     });
   }
 
+  /// Builds the attendance recovery screen view.
   @override
   Widget build(BuildContext context) {
     final busy = ref.watch(attendanceSyncControllerProvider).isLoading;
@@ -252,6 +257,7 @@ class _AttendanceRecoveryScreenState
     );
   }
 
+  /// Validates the allowed range and optional integer requirement for a number.
   String? _numberError(String? text, int max, {bool integer = false}) {
     final value = text?.trim() ?? '';
     if (value.isEmpty) return null;
@@ -277,6 +283,7 @@ class _RecordDraft {
   final TextEditingController score;
   final TextEditingController note;
 
+  /// Converts the edited recovery fields into an attendance record.
   Attendance toRecord() => Attendance(
     playerId: original.playerId,
     sessionId: original.sessionId,
@@ -291,6 +298,7 @@ class _RecordDraft {
         : null,
     note: note.text.trim(),
   );
+  /// Releases resources owned by this view when it leaves the widget tree.
   void dispose() {
     effort.dispose();
     score.dispose();

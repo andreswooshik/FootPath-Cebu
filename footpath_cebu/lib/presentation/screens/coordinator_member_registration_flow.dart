@@ -32,6 +32,7 @@ class CoordinatorMemberRegistrationFlow extends ConsumerWidget {
   final VoidCallback? onBack;
   final ValueChanged<MemberRegistrationResult>? onCreated;
 
+  /// Builds the coordinator member registration flow view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(memberRegistrationControllerProvider);

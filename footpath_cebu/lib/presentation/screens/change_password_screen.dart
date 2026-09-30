@@ -15,6 +15,7 @@ class ChangePasswordScreen extends ConsumerStatefulWidget {
   /// the "Forgot your current password?" reset-email fallback.
   final String? email;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<ChangePasswordScreen> createState() =>
       _ChangePasswordScreenState();
@@ -25,6 +26,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   final _newController = TextEditingController();
   final _confirmController = TextEditingController();
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _currentController.dispose();
@@ -33,6 +35,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
     super.dispose();
   }
 
+  /// Submits the password change and closes the form after success.
   Future<void> _handleSubmit() async {
     final ok = await ref
         .read(changePasswordControllerProvider.notifier)
@@ -50,6 +53,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
     Navigator.of(context).pop();
   }
 
+  /// Requests a password-reset email and shows confirmation when sent.
   Future<void> _handleForgotPassword() async {
     final email = widget.email!;
     final sent = await ref
@@ -70,6 +74,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
     );
   }
 
+  /// Builds the change password screen view.
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(changePasswordControllerProvider);

@@ -47,6 +47,7 @@ class AgeTierSetting(models.Model):
         verbose_name_plural = 'Age tier settings'
 
     def __str__(self):
+        """Returns a readable age tier setting label for admin pages and diagnostics."""
         return f'{self.get_tier_display()} ({self.min_age}–{self.max_age})'
 
     @classmethod
@@ -220,10 +221,12 @@ class PlayerProfile(models.Model):
     date_of_birth = models.DateField(null=True, blank=True)
 
     def __str__(self):
+        """Returns a readable player profile label for admin pages and diagnostics."""
         return f'{self.user.email} · {self.get_age_tier_display()}'
 
     def save(self, *args, **kwargs):
         # Signals write history and notification intent inside this transaction.
+        """Locks profile updates and keeps signal-generated history within the same transaction."""
         with transaction.atomic():
             if self.pk:
                 type(self).objects.select_for_update().filter(pk=self.pk).exists()
@@ -280,6 +283,7 @@ class PlayerAssessmentSnapshot(models.Model):
 
     @classmethod
     def from_profile(cls, profile, *, assessed_by=None, reason=None):
+        """Captures the current player profile assessment as a new historical snapshot."""
         return cls.objects.create(
             player=profile.user,
             assessed_by=assessed_by,
@@ -301,6 +305,7 @@ class PlayerAssessmentSnapshot(models.Model):
         )
 
     def __str__(self):
+        """Returns a readable player assessment snapshot label for admin pages and diagnostics."""
         return f'{self.player.email} assessment ({self.created_at:%Y-%m-%d})'
 
 
@@ -352,6 +357,7 @@ class PlayerDevelopmentAssessment(models.Model):
 
     @classmethod
     def from_profile(cls, profile, *, assessed_by, reason):
+        """Captures the current player profile assessment as a new historical snapshot."""
         return cls.objects.create(
             player=profile.user,
             assessed_by=assessed_by,
@@ -367,6 +373,10 @@ class PlayerDevelopmentAssessment(models.Model):
         )
 
     def __str__(self):
+        """Returns a readable player development assessment label for admin pages and
+
+        diagnostics.
+        """
         return f'{self.player.email} development assessment ({self.created_at:%Y-%m-%d})'
 
 
@@ -408,6 +418,7 @@ class PlayerStatsAssessment(models.Model):
         ]
 
     def save(self, *args, **kwargs):
+        """Inserts a new statistics assessment and rejects changes to an existing snapshot."""
         if self.pk:
             raise ValidationError('Player Stats assessments are immutable.')
         return super().save(*args, **kwargs)
@@ -437,6 +448,7 @@ class PlayerPrivacyPin(models.Model):
         verbose_name_plural = 'Player privacy PINs'
 
     def __str__(self):
+        """Returns a readable player privacy pin label for admin pages and diagnostics."""
         return f'{self.player.email} privacy PIN'
 
 
@@ -496,6 +508,7 @@ class EligibilityHistory(models.Model):
         verbose_name_plural = 'Eligibility history'
 
     def __str__(self):
+        """Returns a readable eligibility history label for admin pages and diagnostics."""
         return (
             f'{self.player.email}: {self.old_status or "—"} → '
             f'{self.new_status} ({self.changed_at:%Y-%m-%d})'

@@ -123,12 +123,17 @@ class TrainingSession(models.Model):
         return normalized['start_time'], normalized['end_time']
 
     def clean(self):
+        """Checks cross-field and relationship rules for the training session before accepting
+
+        it.
+        """
         super().clean()
         self.start_time, self.end_time = self.validate_time_window(self.start_time, self.end_time)
 
     def save(self, *args, **kwargs):
         # ModelForm/admin calls full_clean automatically, but ordinary ORM
         # create/save does not. Enforce the same invariant on both paths.
+        """Validates the training session before saving, including writes outside admin forms."""
         self.full_clean()
         return super().save(*args, **kwargs)
 
@@ -139,6 +144,7 @@ class TrainingSession(models.Model):
             return None, None
 
         def combine(value):
+            """Combines the session date and clock time in the configured academy timezone."""
             parsed = datetime.strptime(value, '%I:%M %p').time()
             combined = datetime.combine(self.date, parsed)
             return timezone.make_aware(combined, timezone.get_current_timezone())
@@ -156,14 +162,17 @@ class TrainingSession(models.Model):
         return end + timedelta(hours=48)
 
     def attendance_is_locked(self, at=None):
+        """Checks whether the session attendance edit deadline has passed."""
         return (at or timezone.now()) >= self.attendance_locks_at()
 
     @property
     def is_cancelled(self):
+        """Reports whether the training session has been cancelled."""
         return self.status == TrainingSessionStatus.CANCELLED
 
     class Meta:
         ordering = ['-date']
 
     def __str__(self):
+        """Returns a readable training session label for admin pages and diagnostics."""
         return f'{self.title} ({self.date})'

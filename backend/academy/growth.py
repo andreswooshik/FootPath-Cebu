@@ -71,6 +71,7 @@ def limited(rows, limit):
 
 
 def rounded_average(values, digits=1):
+    """Averages non-null values with half-up decimal rounding; returns None for no data."""
     clean = [Decimal(str(value)) for value in values if value is not None]
     if not clean:
         return None
@@ -87,6 +88,10 @@ def classify_delta(
     lower_is_better=False,
     minimum_per_window=2,
 ):
+    """Classifies change using sample-size requirements, a threshold, and the improvement
+
+    direction.
+    """
     if delta is None or recent_count < minimum_per_window or previous_count < minimum_per_window:
         return INSUFFICIENT_DATA
     directed = -delta if lower_is_better else delta
@@ -108,6 +113,7 @@ def equal_windows(rows, value_getter):
 
 
 def build_assessment_growth(snapshots):
+    """Compares the latest two attribute assessments and summarizes their overall change."""
     rows = list(snapshots)
     latest = rows[0] if rows else None
     previous = rows[1] if len(rows) > 1 else None
@@ -132,6 +138,7 @@ def build_assessment_growth(snapshots):
     )
 
     def overall(row):
+        """Calculates the overall player rating from the applicable position-specific scores."""
         if row is None:
             return None
         names = attribute_names[6:] if row.position == 'GK' else attribute_names[:6]
@@ -233,6 +240,7 @@ def build_development_assessment_growth(assessments):
 
 
 def build_training_groups(attendance_rows):
+    """Groups attendance by training focus and computes comparable performance trends."""
     groups = []
     by_focus = defaultdict(list)
     for row in attendance_rows:
@@ -313,14 +321,17 @@ def build_training_groups(attendance_rows):
 
 
 def per_90(total, minutes):
+    """Normalizes a match statistic to a 90-minute rate when playing time is available."""
     return None if not minutes else round(total * 90 / minutes, 2)
 
 
 def percentage(numerator, denominator):
+    """Calculates a percentage when the denominator provides a usable sample."""
     return None if not denominator else round(numerator * 100 / denominator, 1)
 
 
 def match_metrics(rows):
+    """Calculates the match metrics used for player growth comparisons."""
     rows = list(rows)
     summary = build_performance_summary(rows)
     minutes = summary['minutesPlayed']
@@ -337,6 +348,7 @@ def match_metrics(rows):
 
 
 def build_match_growth(rows):
+    """Compares match metrics across recent and previous samples to classify player growth."""
     rows = list(rows)
     size = len(rows) // 2
     recent = rows[:size]
@@ -387,6 +399,7 @@ def build_match_growth(rows):
 
 
 def build_tournament_groups(rows):
+    """Groups tournament performances for competition-specific growth summaries."""
     grouped = defaultdict(list)
     for row in rows:
         fixture = row.match.source_fixture

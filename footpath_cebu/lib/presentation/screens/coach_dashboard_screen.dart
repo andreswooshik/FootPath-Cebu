@@ -35,6 +35,7 @@ class CoachDashboardScreen extends ConsumerStatefulWidget {
   /// The signed-in coach, handed down from the login flow.
   final UserProfile profile;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<CoachDashboardScreen> createState() =>
       _CoachDashboardScreenState();
@@ -44,6 +45,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
   /// Compact list of mini cards vs. the full FUT-card grid.
   bool _compact = false;
 
+  /// Opens the selected player profile from the coach roster.
   void _openProfile(Player player) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -53,6 +55,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
     );
   }
 
+  /// Opens the assessment hub for the selected player.
   Future<void> _openAssessment(Player player) async {
     await Navigator.of(context).push<Player>(
       MaterialPageRoute(
@@ -94,6 +97,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
     );
   }
 
+  /// Builds the coach dashboard screen view.
   @override
   Widget build(BuildContext context) {
     final registeredCount = ref.watch(squadProvider).value?.length ?? 0;
@@ -165,6 +169,7 @@ class _CoachDashboardScreenState extends ConsumerState<CoachDashboardScreen> {
 class _TeamOverviewSection extends ConsumerWidget {
   const _TeamOverviewSection();
 
+  /// Builds the team overview section view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ref
@@ -194,6 +199,7 @@ class _RosterSliver extends ConsumerWidget {
   final ValueChanged<Player> onMarkAttendance;
   final ValueChanged<Player> onAssess;
 
+  /// Builds the roster sliver view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ref
@@ -297,6 +303,7 @@ class _RosterSliver extends ConsumerWidget {
 class _TierFilterBar extends ConsumerWidget {
   const _TierFilterBar();
 
+  /// Builds the tier filter bar view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final squad = ref.watch(squadProvider).value ?? const [];
@@ -337,6 +344,7 @@ class _SearchBar extends StatelessWidget {
 
   final ValueChanged<String> onChanged;
 
+  /// Builds the search bar view.
   @override
   Widget build(BuildContext context) {
     return TextField(

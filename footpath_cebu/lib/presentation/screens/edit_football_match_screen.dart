@@ -13,6 +13,7 @@ class EditFootballMatchScreen extends ConsumerStatefulWidget {
   final FootballMatch? existing;
   final TournamentFixture? fixture;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<EditFootballMatchScreen> createState() =>
       _EditFootballMatchScreenState();
@@ -33,6 +34,7 @@ class _EditFootballMatchScreenState
   bool get _scheduled =>
       widget.fixture != null || widget.existing?.fixtureId != null;
 
+  /// Initializes the local state when this view first enters the widget tree.
   @override
   void initState() {
     super.initState();
@@ -57,6 +59,7 @@ class _EditFootballMatchScreenState
         : match?.category ?? MatchCategory.other;
   }
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _opponent.dispose();
@@ -66,6 +69,7 @@ class _EditFootballMatchScreenState
     super.dispose();
   }
 
+  /// Lets the user choose the match date.
   Future<void> _pickDate() async {
     final selected = await showDatePicker(
       context: context,
@@ -76,6 +80,7 @@ class _EditFootballMatchScreenState
     if (selected != null) setState(() => _playedOn = selected);
   }
 
+  /// Validates and submits the new or edited match details.
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final draft = FootballMatchDraft(
@@ -108,6 +113,7 @@ class _EditFootballMatchScreenState
     );
   }
 
+  /// Builds the edit football match screen view.
   @override
   Widget build(BuildContext context) {
     final saving = ref.watch(matchManagementControllerProvider).isLoading;
@@ -245,6 +251,7 @@ class _ScoreField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
 
+  /// Builds the score field view.
   @override
   Widget build(BuildContext context) => TextFormField(
     controller: controller,

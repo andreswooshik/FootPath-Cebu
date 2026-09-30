@@ -24,6 +24,7 @@ class EditMatchPerformanceScreen extends ConsumerStatefulWidget {
   final bool injuryOverrideAcknowledged;
   final String squadOverrideReason;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<EditMatchPerformanceScreen> createState() =>
       _EditMatchPerformanceScreenState();
@@ -39,6 +40,7 @@ class _EditMatchPerformanceScreenState
 
   MatchPerformance? get _existing => widget.existing;
 
+  /// Initializes the local state when this view first enters the widget tree.
   @override
   void initState() {
     super.initState();
@@ -65,9 +67,11 @@ class _EditMatchPerformanceScreenState
     };
   }
 
+  /// Creates a text controller seeded with an existing statistic.
   TextEditingController _controller(int value) =>
       TextEditingController(text: '$value');
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     for (final controller in _numbers.values) {
@@ -76,8 +80,11 @@ class _EditMatchPerformanceScreenState
     super.dispose();
   }
 
+  /// Reads a validated numeric form field as an integer.
   int _value(String key) => int.parse(_numbers[key]!.text);
 
+  /// Validates and saves match statistics, handling any required injury
+  /// override.
   Future<void> _save({bool? injuryOverrideAcknowledged}) async {
     final acknowledged =
         injuryOverrideAcknowledged ?? widget.injuryOverrideAcknowledged;
@@ -163,6 +170,7 @@ class _EditMatchPerformanceScreenState
     );
   }
 
+  /// Confirms and deletes the player performance entry for this match.
   Future<void> _delete() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -197,12 +205,14 @@ class _EditMatchPerformanceScreenState
     }
   }
 
+  /// Shows feedback for the current action in a snackbar.
   void _showMessage(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Builds the edit match performance screen view.
   @override
   Widget build(BuildContext context) {
     final saving = ref.watch(matchManagementControllerProvider).isLoading;
@@ -304,6 +314,7 @@ class _EditMatchPerformanceScreenState
     );
   }
 
+  /// Builds the section section for this view.
   Widget _section(BuildContext context, String title, List<Widget> fields) =>
       Padding(
         padding: const EdgeInsets.only(top: 20),
@@ -338,6 +349,7 @@ class _EditMatchPerformanceScreenState
         ),
       );
 
+  /// Builds the field section for this view.
   Widget _field(String key, String label, {int max = 999}) => TextFormField(
     controller: _numbers[key],
     keyboardType: TextInputType.number,

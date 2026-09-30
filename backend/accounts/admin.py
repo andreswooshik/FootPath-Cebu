@@ -69,6 +69,7 @@ class BulkActionLabelMixin:
     """
 
     def get_action_choices(self, request, default_choices=None):
+        """Labels the empty admin action option as Bulk Actions."""
         return super().get_action_choices(request, default_choices=[('', 'Bulk Actions')])
 
 
@@ -76,6 +77,10 @@ class FootPathUserValidationMixin:
     """Keep manual Django-admin edits inside the approved hierarchy."""
 
     def clean(self):
+        """Checks cross-field and relationship rules for the foot path user validation mixin
+
+        before accepting it.
+        """
         cleaned = super().clean()
         role = cleaned.get('role')
         club = cleaned.get('club')
@@ -105,6 +110,7 @@ class FirebasePasswordHashWidget(ReadOnlyPasswordHashWidget):
     """Describe Firebase credentials accurately in the Django admin detail UI."""
 
     def get_context(self, name, value, attrs):
+        """Builds widget context for the Firebase-managed password display."""
         context = super().get_context(name, value, attrs)
         context['summary'] = [{'label': 'Password is managed by Firebase Authentication.'}]
         context['button_label'] = 'Set Firebase password'
@@ -113,6 +119,7 @@ class FirebasePasswordHashWidget(ReadOnlyPasswordHashWidget):
 
 class FootPathUserChangeForm(FootPathUserValidationMixin, UserChangeForm):
     def __init__(self, *args, **kwargs):
+        """Initializes the foot path user change form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         if uses_firebase_only_password(self.instance):
             self.fields['password'].widget = FirebasePasswordHashWidget()
@@ -125,6 +132,10 @@ class FirebaseAdminPasswordChangeForm(AdminPasswordChangeForm):
     """Password form whose labels make the identity provider unambiguous."""
 
     def __init__(self, user, *args, **kwargs):
+        """Initializes the firebase admin password change form fields and request-specific
+
+        choices.
+        """
         super().__init__(user, *args, **kwargs)
         # Firebase-only users must always set a Firebase password here. The
         # Django-only "disable password authentication" switch is irrelevant
@@ -190,6 +201,7 @@ class ClubAdminForm(forms.ModelForm):
         fields = '__all__'
 
     def __init__(self, *args, **kwargs):
+        """Initializes the club admin form fields and request-specific choices."""
         super().__init__(*args, **kwargs)
         self.needs_coordinator = not self.instance.pk or self.instance.coordinator is None
         for field_name in (
@@ -205,6 +217,7 @@ class ClubAdminForm(forms.ModelForm):
             )
 
     def clean_coordinator_email(self):
+        """Checks and normalizes coordinator email for club admin."""
         email = self.cleaned_data.get('coordinator_email', '').strip().lower()
         if not self.needs_coordinator or not email:
             return email
@@ -213,6 +226,7 @@ class ClubAdminForm(forms.ModelForm):
         return email
 
     def clean(self):
+        """Checks cross-field and relationship rules for the club admin form before accepting it."""
         cleaned = super().clean()
         if not self.needs_coordinator:
             return cleaned
@@ -453,10 +467,12 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
 
     @admin.display(description='Name')
     def full_name(self, obj):
+        """Displays the account full name in the admin member list."""
         return f'{obj.first_name} {obj.last_name}'.strip() or '—'
 
     @admin.display(description='Role', ordering='role')
     def role_badge(self, obj):
+        """Renders the account role as a colored admin badge."""
         color = _ROLE_COLORS.get(obj.role, '#475569')
         return format_html(
             '<span style="{}">{}</span>',
@@ -466,6 +482,7 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
 
     @admin.display(description='Status', ordering='is_active')
     def status_chip(self, obj):
+        """Renders account activity status in the admin member list."""
         if obj.is_active:
             style = _PILL.format(extra='color:#10B981;background:rgba(16,185,129,.15);')
             label = '● Active'
@@ -476,6 +493,7 @@ class CustomUserAdmin(BulkActionLabelMixin, UserAdmin):
 
     @admin.display(description='Access', ordering='is_staff')
     def access_chip(self, obj):
+        """Renders account access status in the admin member list."""
         if obj.is_superuser:
             style = _PILL.format(extra='color:#7C3AED;background:rgba(124,58,237,.15);')
             label = 'Superuser'
@@ -554,11 +572,13 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     def get_prepopulated_fields(self, request, obj=None):
         # A prepopulation script cannot target the read-only slug shown while
         # reviewing a pending application.
+        """Selects automatic field population appropriate to the club registration state."""
         if self._registration_state(obj) == 'PENDING':
             return {}
         return super().get_prepopulated_fields(request, obj)
 
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
+        """Handles club registration decisions submitted from the admin change form."""
         club = self.get_object(request, object_id) if object_id else None
         decision = None
         if request.method == 'POST':
@@ -594,6 +614,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
         )
 
     def get_urls(self):
+        """Registers the additional club management routes on the admin site."""
         custom_urls = [
             path(
                 'password-check/',
@@ -604,6 +625,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
         return custom_urls + super().get_urls()
 
     def get_fieldsets(self, request, obj=None):
+        """Arranges the club fields shown by the admin change form."""
         club_fields = (
             'name',
             'slug',
@@ -680,6 +702,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
 
     @transaction.atomic
     def save_model(self, request, obj, form, change):
+        """Saves the club and provisions its coordinator when supplied by the admin form."""
         needs_coordinator = not change or obj.coordinator is None
         super().save_model(request, obj, form, change)
         if not needs_coordinator:
@@ -769,11 +792,13 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
 
     @admin.display(description='Coordinator')
     def coordinator_email(self, obj):
+        """Displays the coordinator contact address in the club admin list."""
         coordinator = obj.coordinator
         return coordinator.email if coordinator else '—'
 
     @admin.display(description='Status')
     def registration_status(self, obj):
+        """Renders the club registration review status as an admin badge."""
         coordinator = obj.coordinator
         if coordinator is None:
             label, color = 'Incomplete', '#64748B'
@@ -788,6 +813,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
 
     @admin.display(description='Club type', ordering='is_school_affiliated')
     def school_chip(self, obj):
+        """Displays whether the club is school-affiliated."""
         if obj.is_school_affiliated:
             style = _PILL.format(extra='color:#0D9488;background:rgba(13,148,136,.15);')
             return format_html(
@@ -797,10 +823,12 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
 
     @admin.display(description='Members')
     def member_count(self, obj):
+        """Counts club members for the admin club list."""
         return obj.members.count()
 
     @admin.display(description='Status', ordering='is_active')
     def active_chip(self, obj):
+        """Displays whether the club is active."""
         if obj.is_active:
             style = _PILL.format(extra='color:#10B981;background:rgba(16,185,129,.15);')
             label = '● Active'

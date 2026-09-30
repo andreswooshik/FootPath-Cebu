@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/data/dto/player_stats_dto.dart';
 import 'dart:convert';
 
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
@@ -16,7 +17,7 @@ class ApiPlayerStatsRepository implements PlayerStatsRepository {
   }) async {
     try {
       final response = await _api.get('/api/players/$playerId/stats/');
-      return PlayerStats.fromJson(
+      return PlayerStatsDto.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>,
       );
     } on ApiException catch (error) {
@@ -38,10 +39,10 @@ class ApiPlayerStatsRepository implements PlayerStatsRepository {
       );
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return PlayerStatsSaveResult(
-        assessment: PlayerStatsAssessment.fromJson(
+        assessment: PlayerStatsAssessmentDto.fromJson(
           json['assessment'] as Map<String, dynamic>,
         ),
-        comparison: PlayerStatsComparison.fromJson(
+        comparison: PlayerStatsComparisonDto.fromJson(
           json['comparison'] as Map<String, dynamic>,
         ),
       );

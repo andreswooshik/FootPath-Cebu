@@ -1,29 +1,42 @@
+import 'package:footpath_cebu/data/dto/player_dto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 
 Player _player({PlayerPosition? position}) => Player(
-      id: 'p1',
-      name: 'Reiner Neymar',
-      age: 15,
-      classYear: 'Class of 2027',
-      ageTier: AgeTier.development,
-      position: position,
-      eligibility: EligibilityStatus.eligible,
-      ratings: const PlayerRatings(
-        pace: 80, shooting: 80, passing: 80, dribbling: 80, defending: 80,
-        physical: 80,
-      ),
-    );
+  id: 'p1',
+  name: 'Reiner Neymar',
+  age: 15,
+  classYear: 'Class of 2027',
+  ageTier: AgeTier.development,
+  position: position,
+  eligibility: EligibilityStatus.eligible,
+  ratings: const PlayerRatings(
+    pace: 80,
+    shooting: 80,
+    passing: 80,
+    dribbling: 80,
+    defending: 80,
+    physical: 80,
+  ),
+);
 
 void main() {
   group('PlayerPosition', () {
     test('covers the ten positions in the spec', () {
-      expect(
-        PlayerPosition.values.map((p) => p.code),
-        ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'],
-      );
+      expect(PlayerPosition.values.map((p) => p.code), [
+        'GK',
+        'CB',
+        'LB',
+        'RB',
+        'CDM',
+        'CM',
+        'CAM',
+        'LW',
+        'RW',
+        'ST',
+      ]);
     });
 
     test('wire values round-trip through fromWire', () {
@@ -36,12 +49,14 @@ void main() {
       expect(PlayerPositionInfo.fromWire('st'), PlayerPosition.striker);
     });
 
-    test('an absent or unknown wire value reads as unassigned, not a guess',
-        () {
-      expect(PlayerPositionInfo.fromWire(null), isNull);
-      expect(PlayerPositionInfo.fromWire(''), isNull);
-      expect(PlayerPositionInfo.fromWire('SWEEPER'), isNull);
-    });
+    test(
+      'an absent or unknown wire value reads as unassigned, not a guess',
+      () {
+        expect(PlayerPositionInfo.fromWire(null), isNull);
+        expect(PlayerPositionInfo.fromWire(''), isNull);
+        expect(PlayerPositionInfo.fromWire('SWEEPER'), isNull);
+      },
+    );
 
     test('every position belongs to exactly one group', () {
       final grouped = [
@@ -73,19 +88,22 @@ void main() {
     });
 
     test('an unassigned player round-trips through JSON as unassigned', () {
-      final restored = Player.fromJson(_player().toJson());
+      final restored = PlayerDto.fromJson(_player().toJson());
       expect(restored.position, isNull);
     });
 
     test('an assigned position round-trips through JSON', () {
-      final restored =
-          Player.fromJson(_player(position: PlayerPosition.striker).toJson());
+      final restored = PlayerDto.fromJson(
+        _player(position: PlayerPosition.striker).toJson(),
+      );
       expect(restored.position, PlayerPosition.striker);
     });
 
     test('toJson writes the short code', () {
-      expect(_player(position: PlayerPosition.leftWinger).toJson()['position'],
-          'LW');
+      expect(
+        _player(position: PlayerPosition.leftWinger).toJson()['position'],
+        'LW',
+      );
       expect(_player().toJson()['position'], isNull);
     });
 
@@ -95,8 +113,9 @@ void main() {
     });
 
     test('copyWith leaves the position alone when not passed', () {
-      final same = _player(position: PlayerPosition.striker)
-          .copyWith(eligibility: EligibilityStatus.pending);
+      final same = _player(
+        position: PlayerPosition.striker,
+      ).copyWith(eligibility: EligibilityStatus.pending);
       expect(same.position, PlayerPosition.striker);
     });
   });

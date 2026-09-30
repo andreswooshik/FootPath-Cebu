@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from django.urls import reverse
 from rest_framework.test import APITestCase
@@ -101,6 +102,80 @@ class InjuryConfirmationWorkflowTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         record.refresh_from_db()
         return record
+
+    def test_review_rolls_back_when_audit_write_fails(self):
+        record = self._report()
+        self.client.force_authenticate(self.coordinator)
+        with patch(
+            'academy.injury_service.AuditLog.record', side_effect=RuntimeError('audit unavailable')
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(
+                    reverse('injury-review', args=[record.id]), {'action': 'CONFIRM'}, format='json'
+                )
+        record.refresh_from_db()
+        self.assertEqual(record.review_status, InjuryReportStatus.PENDING)
+        self.assertIsNone(record.reviewed_at)
+
+    def test_archive_rolls_back_when_audit_write_fails(self):
+        record = self._confirm(self._report())
+        record.status = InjuryStatus.RECOVERED
+        record.save(update_fields=['status'])
+        with patch(
+            'academy.injury_service.AuditLog.record', side_effect=RuntimeError('audit unavailable')
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(reverse('injury-archive', args=[record.id]), {}, format='json')
+        record.refresh_from_db()
+        self.assertEqual(record.review_status, InjuryReportStatus.CONFIRMED)
+        self.assertIsNone(record.archived_at)
+
+    def test_report_rolls_back_when_audit_write_fails(self):
+        self.client.force_authenticate(self.player)
+        with patch(
+            'academy.view_injuries.AuditLog.record', side_effect=RuntimeError('audit unavailable')
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(reverse('injuries'), self._payload(), format='json')
+        self.assertFalse(InjuryRecord.objects.exists())
+
+    def test_status_request_rolls_back_when_audit_write_fails(self):
+        record = self._confirm(self._report())
+        self.client.force_authenticate(self.player)
+        with patch(
+            'academy.injury_service.AuditLog.record', side_effect=RuntimeError('audit unavailable')
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(
+                    reverse('injury-status-updates', args=[record.id]),
+                    {'proposedStatus': 'RECOVERING'},
+                    format='json',
+                )
+        self.assertFalse(record.status_update_requests.exists())
+
+    def test_status_review_rolls_back_both_rows_when_audit_write_fails(self):
+        record = self._confirm(self._report())
+        update = InjuryStatusUpdateRequest.objects.create(
+            injury=record,
+            submitted_by=self.player,
+            proposed_status=InjuryStatus.RECOVERED,
+            proposed_resolved_on=date.today(),
+        )
+        with patch(
+            'academy.injury_service.AuditLog.record', side_effect=RuntimeError('audit unavailable')
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(
+                    reverse('injury-status-update-review', args=[record.id, update.id]),
+                    {'action': 'APPROVE'},
+                    format='json',
+                )
+        record.refresh_from_db()
+        update.refresh_from_db()
+        self.assertEqual(record.status, InjuryStatus.ACTIVE)
+        self.assertIsNone(record.resolved_on)
+        self.assertEqual(update.review_status, InjuryUpdateReviewStatus.PENDING)
+        self.assertIsNone(update.reviewed_at)
 
     def _performance_payload(self, **overrides):
         payload = {

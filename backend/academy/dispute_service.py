@@ -1,9 +1,9 @@
 """Shared, serialized dispute-response workflow for API and portal callers."""
 
 from django.db import transaction
-from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from accounts.models import Roles, User
+from config.application_errors import ForbiddenOperation, InvalidOperation
 
 from .models import AuditLog, Dispute, DisputeResponse, DisputeStatus
 
@@ -42,14 +42,14 @@ def append_dispute_response(
     the API view's authorization.
     """
     if not actor.is_active or actor.role not in DISPUTE_RESPONDER_ROLES:
-        raise PermissionDenied('You may not respond to disputes.')
+        raise ForbiddenOperation('You may not respond to disputes.')
     new_status = status_change_to or None
     if new_status is not None and not can_change_dispute_status(actor):
-        raise PermissionDenied('Only Coordinators and Admins may change dispute status.')
+        raise ForbiddenOperation('Only Coordinators and Admins may change dispute status.')
     if new_status is not None and new_status not in DisputeStatus.values:
-        raise ValidationError('Unknown dispute status.')
+        raise InvalidOperation('Unknown dispute status.')
     if not isinstance(body, str) or not body.strip() or len(body) > 2000:
-        raise ValidationError('A response must contain 1 to 2000 characters.')
+        raise InvalidOperation('A response must contain 1 to 2000 characters.')
 
     dispute = (
         Dispute.objects.select_for_update(of=('self',))
@@ -63,7 +63,7 @@ def append_dispute_response(
         or dispute.raised_by_id is None
         or dispute.raised_by.club_id != actor.club_id
     ):
-        raise PermissionDenied('You may not respond to this dispute.')
+        raise ForbiddenOperation('You may not respond to this dispute.')
     response = DisputeResponse.objects.create(
         dispute=dispute,
         author=actor,

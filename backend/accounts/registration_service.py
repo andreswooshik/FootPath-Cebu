@@ -5,9 +5,9 @@ import logging
 from django.db import transaction
 from django.db.models import Q
 from firebase_admin import auth as firebase_auth
-from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 
 from academy.models import AuditLog
+from config.application_errors import Conflict, ForbiddenOperation, InvalidOperation
 
 from .models import (
     Club,
@@ -22,20 +22,21 @@ from .services import provision_player, provision_user
 logger = logging.getLogger(__name__)
 
 
-class RegistrationConflict(APIException):
-    status_code = 409
+class RegistrationConflict(Conflict):
     default_detail = 'This registration has already been submitted with different details.'
 
 
 def coordinator_club(actor):
+    """Requires an active coordinator with an active club before account registration."""
     if not actor.is_active or actor.role != Roles.COORDINATOR:
-        raise PermissionDenied('Only an active Coordinator can register players.')
+        raise ForbiddenOperation('Only an active Coordinator can register players.')
     if actor.club_id is None or not actor.club.is_active:
-        raise PermissionDenied('Your club must be active.')
+        raise ForbiddenOperation('Your club must be active.')
     return actor.club
 
 
 def check_guardian_duplicate(*, club, data):
+    """Detects an existing guardian by contact details and reports registration conflicts."""
     duplicate = (
         User.objects.filter(club=club, role=Roles.GUARDIAN)
         .filter(Q(email__iexact=data['email']) | Q(mobile_number=data['mobileNumber']))
@@ -49,10 +50,11 @@ def check_guardian_duplicate(*, club, data):
             }
         )
     if User.objects.filter(email__iexact=data['email']).exists():
-        raise ValidationError({'email': 'An account with this email already exists.'})
+        raise InvalidOperation({'email': 'An account with this email already exists.'})
 
 
 def registration_result(receipt, *, guardian_password=None, replayed=False):
+    """Builds the player registration response with the created account identifiers."""
     return {
         'playerId': str(receipt.player_id),
         'guardianId': str(receipt.guardian_id),
@@ -66,6 +68,7 @@ def registration_result(receipt, *, guardian_password=None, replayed=False):
 
 def cleanup_identity(uid):
     # Never remove an identity that was committed or subsequently linked.
+    """Deletes a provisioned Firebase identity only when no local account references it."""
     if User.objects.filter(firebase_uid=uid).exists():
         return True
     try:
@@ -76,6 +79,7 @@ def cleanup_identity(uid):
 
 
 def cleanup_created_identities(created_identities):
+    """Rolls back newly provisioned identities and records failed cleanup for retry."""
     for uid in reversed(created_identities):
         try:
             cleanup_identity(uid)
@@ -95,7 +99,7 @@ def register_member(*, actor, data):
         with transaction.atomic():
             locked_club = Club.objects.select_for_update().get(pk=club.pk)
             if not locked_club.is_active:
-                raise PermissionDenied('Your club must be active.')
+                raise ForbiddenOperation('Your club must be active.')
             receipt = (
                 MemberRegistration.objects.filter(
                     coordinator=actor,
@@ -109,13 +113,13 @@ def register_member(*, actor, data):
                     raise RegistrationConflict()
                 return member_registration_result(receipt.member, actor, replayed=True)
             if User.objects.filter(email__iexact=data['email']).exists():
-                raise ValidationError({'email': 'An account with this email already exists.'})
+                raise InvalidOperation({'email': 'An account with this email already exists.'})
             if User.objects.filter(
                 club=club,
                 mobile_number=data['mobileNumber'],
                 role__in=(Roles.GUARDIAN, Roles.COACH),
             ).exists():
-                raise ValidationError(
+                raise InvalidOperation(
                     {'mobileNumber': 'An account with this mobile number already exists.'}
                 )
             user, temporary_password, _ = provision_user(
@@ -151,6 +155,7 @@ def register_member(*, actor, data):
 
 
 def member_registration_result(user, actor, *, temporary_password=None, replayed=False):
+    """Builds the member registration response and account display details."""
     return {
         'memberId': str(user.pk),
         'coordinatorId': str(actor.pk),
@@ -172,6 +177,10 @@ def member_registration_result(user, actor, *, temporary_password=None, replayed
 
 
 def register_player(*, actor, data):
+    """Registers a player under a locked club, reuses matching request IDs, and cleans up newly
+
+    created identities on failure.
+    """
     club = coordinator_club(actor)
     payload_hash = hashlib.sha256(
         json.dumps(data, sort_keys=True, default=str).encode()
@@ -182,7 +191,7 @@ def register_player(*, actor, data):
             # Serialize requests for this club, including duplicate checks.
             locked_club = Club.objects.select_for_update().get(pk=club.pk)
             if not locked_club.is_active:
-                raise PermissionDenied('Your club must be active.')
+                raise ForbiddenOperation('Your club must be active.')
             receipt = (
                 PlayerRegistration.objects.filter(coordinator=actor, request_key=data['requestId'])
                 .select_related('player', 'guardian')
@@ -220,7 +229,7 @@ def register_player(*, actor, data):
                     .first()
                 )
                 if guardian is None:
-                    raise ValidationError(
+                    raise InvalidOperation(
                         {'existingGuardianId': 'Select an active guardian in your club.'}
                     )
             player, _, _, _ = provision_player(

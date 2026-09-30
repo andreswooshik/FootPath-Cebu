@@ -24,6 +24,7 @@ class PlayerGrowthTab extends ConsumerStatefulWidget {
   final String playerId;
   final String playerName;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<PlayerGrowthTab> createState() => _PlayerGrowthTabState();
 }
@@ -39,6 +40,7 @@ class _PlayerGrowthTabState extends ConsumerState<PlayerGrowthTab> {
     category: GrowthCategory.all,
   );
 
+  /// Builds the player growth tab view.
   @override
   Widget build(BuildContext context) {
     final growth = ref.watch(playerGrowthProvider(_query));
@@ -52,6 +54,7 @@ class _PlayerGrowthTabState extends ConsumerState<PlayerGrowthTab> {
     );
   }
 
+  /// Builds the growth section for this view.
   Widget _buildGrowth(PlayerGrowth growth) {
     final rows = _filteredRows(growth, _matchType);
     final chronological = [...rows]
@@ -144,6 +147,7 @@ class _PlayerGrowthTabState extends ConsumerState<PlayerGrowthTab> {
   }
 }
 
+/// Selects the match performance rows used by the growth view filters.
 List<MatchPerformance> _filteredRows(
   PlayerGrowth growth,
   MatchTypeFilter filter,
@@ -170,6 +174,7 @@ class _OverallGrowthCard extends StatelessWidget {
   final List<MatchPerformance> rows;
   final MatchTypeFilter matchType;
 
+  /// Builds the overall growth card view.
   @override
   Widget build(BuildContext context) {
     final comparison = _comparison(rows, MatchTrendMetric.rating);
@@ -256,6 +261,7 @@ class _DevelopmentFocusCards extends StatelessWidget {
   final String assessmentStrength;
   final String assessmentTarget;
 
+  /// Builds the development focus cards view.
   @override
   Widget build(BuildContext context) {
     final derived = [
@@ -330,6 +336,7 @@ class _FocusCard extends StatelessWidget {
   final String body;
   final Color color;
 
+  /// Builds the focus card view.
   @override
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
@@ -361,6 +368,7 @@ class _ThenVsNowCard extends StatelessWidget {
 
   final List<MatchPerformance> rows;
 
+  /// Builds the then vs now card view.
   @override
   Widget build(BuildContext context) {
     final hasComparison = rows.length >= 2;
@@ -398,6 +406,7 @@ class _ComparisonRow extends StatelessWidget {
   final MatchTrendMetric metric;
   final _MetricComparison comparison;
 
+  /// Builds the comparison row view.
   @override
   Widget build(BuildContext context) {
     final delta = comparison.delta;
@@ -448,6 +457,7 @@ class _GrowthMetricSelector extends StatelessWidget {
   final MatchTrendMetric value;
   final ValueChanged<MatchTrendMetric> onChanged;
 
+  /// Builds the growth metric selector view.
   @override
   Widget build(BuildContext context) => Row(
     children: [
@@ -480,6 +490,7 @@ class _GrowthTrendPanel extends StatelessWidget {
   final MatchTrendMetric metric;
   final List<MatchPerformance> rows;
 
+  /// Builds the growth trend panel view.
   @override
   Widget build(BuildContext context) {
     final values = rows.map(metric.valueFor).toList(growable: false);
@@ -529,6 +540,7 @@ class _RecommendationsCard extends StatelessWidget {
   final List<MatchPerformance> rows;
   final String assessmentTarget;
 
+  /// Builds the recommendations card view.
   @override
   Widget build(BuildContext context) {
     final recommendations = <String>[];
@@ -610,6 +622,7 @@ class _SummaryValue extends StatelessWidget {
   final String value;
   final Color? color;
 
+  /// Builds the summary value view.
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -633,6 +646,7 @@ class _MetricComparison {
       thenValue == null || nowValue == null ? null : nowValue! - thenValue!;
 }
 
+/// Compares the earliest and latest match values for the selected metric.
 _MetricComparison _comparison(
   List<MatchPerformance> chronological,
   MatchTrendMetric metric,
@@ -644,8 +658,10 @@ _MetricComparison _comparison(
   );
 }
 
+/// Formats a decimal value, using a placeholder when it is unavailable.
 String _formatValue(double? value) => value?.toStringAsFixed(1) ?? '—';
 
+/// Labels the number of matches included by the active match filter.
 String _matchCountLabel(int count, MatchTypeFilter filter) {
   final noun = switch (filter) {
     MatchTypeFilter.all => 'match',
@@ -655,6 +671,7 @@ String _matchCountLabel(int count, MatchTypeFilter filter) {
   return '$count $noun${count == 1 ? '' : 'es'}';
 }
 
+/// Formats a trend value according to the selected metric.
 String _formatMetricValue(MatchTrendMetric metric, double? value) {
   if (value == null) return '—';
   final formatted =
@@ -664,6 +681,7 @@ String _formatMetricValue(MatchTrendMetric metric, double? value) {
   return '$formatted${metric.unit}';
 }
 
+/// Formats a signed change and its optional unit for the growth summary.
 String _formatDelta(double? value, {String unit = ''}) {
   if (value == null) return '—';
   final prefix = value > 0 ? '+' : '';

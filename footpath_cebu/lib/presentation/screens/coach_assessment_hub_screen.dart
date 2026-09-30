@@ -29,6 +29,7 @@ class CoachAssessmentHubScreen extends ConsumerStatefulWidget {
   final Player player;
   final UserProfile profile;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<CoachAssessmentHubScreen> createState() =>
       _CoachAssessmentHubScreenState();
@@ -38,8 +39,10 @@ class _CoachAssessmentHubScreenState
     extends ConsumerState<CoachAssessmentHubScreen> {
   late Player _player = widget.player;
 
+  /// Closes the assessment hub and returns the latest player data.
   void _close() => Navigator.of(context).pop(_player);
 
+  /// Opens the position picker and saves the selected player position.
   Future<void> _editPosition() async {
     final picked = await showPositionPickerSheet(
       context: context,
@@ -97,6 +100,7 @@ class _CoachAssessmentHubScreenState
     );
   }
 
+  /// Opens the player statistics editor from the assessment hub.
   Future<void> _editPlayerStats(PlayerStats stats) async {
     final saved = await Navigator.of(context).push<PlayerStatsSaveResult>(
       MaterialPageRoute(
@@ -121,6 +125,7 @@ class _CoachAssessmentHubScreenState
     ref.invalidate(squadProvider);
   }
 
+  /// Opens the development assessment editor for the current player.
   Future<void> _editDevelopment() async {
     final updated = await Navigator.of(context).push<Player>(
       MaterialPageRoute(
@@ -133,6 +138,7 @@ class _CoachAssessmentHubScreenState
     ref.invalidate(squadProvider);
   }
 
+  /// Builds the coach assessment hub screen view.
   @override
   Widget build(BuildContext context) {
     final stats = _player.position == null
@@ -223,6 +229,7 @@ class _PlayerHeader extends StatelessWidget {
 
   final Player player;
 
+  /// Builds the player header view.
   @override
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
@@ -275,6 +282,7 @@ class _PositionGateCard extends StatelessWidget {
   final bool saving;
   final VoidCallback onEdit;
 
+  /// Builds the position gate card view.
   @override
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
@@ -304,6 +312,7 @@ class _PositionGateCard extends StatelessWidget {
 class _PlayerStatsLockedCard extends StatelessWidget {
   const _PlayerStatsLockedCard();
 
+  /// Builds the player stats locked card view.
   @override
   Widget build(BuildContext context) => const Card(
     margin: EdgeInsets.zero,
@@ -336,6 +345,7 @@ class _PlayerStatsAssessmentCard extends StatelessWidget {
   final VoidCallback onAssess;
   final VoidCallback onHistory;
 
+  /// Builds the player stats assessment card view.
   @override
   Widget build(BuildContext context) {
     final latest = stats.latest;
@@ -405,6 +415,7 @@ class _PlayerStatsAssessmentCard extends StatelessWidget {
   }
 }
 
+/// Converts a displayed attribute name to its statistics lookup key.
 String _statsKey(String attribute) =>
     attribute.toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
 
@@ -417,6 +428,7 @@ class _DevelopmentAssessmentCard extends StatelessWidget {
   final Player player;
   final VoidCallback onAssess;
 
+  /// Builds the development assessment card view.
   @override
   Widget build(BuildContext context) {
     final assessment = player.developmentAssessment;

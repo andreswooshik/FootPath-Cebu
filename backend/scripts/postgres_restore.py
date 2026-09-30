@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 def required(name: str) -> str:
+    """Reads a required environment variable or exits with a configuration error."""
     value = os.environ.get(name, '').strip()
     if not value:
         raise SystemExit(f'{name} is required.')
@@ -17,6 +18,7 @@ def required(name: str) -> str:
 
 
 def main() -> None:
+    """Restores the selected PostgreSQL backup using the supplied connection settings."""
     parser = argparse.ArgumentParser()
     parser.add_argument('archive')
     parser.add_argument(

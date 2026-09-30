@@ -290,6 +290,7 @@ else:
     ]
 
 REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'config.api_errors.exception_handler',
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'accounts.authentication.FirebaseAuthentication',
     ],

@@ -21,6 +21,7 @@ class NotificationInboxScreen extends ConsumerStatefulWidget {
   final String? focusSessionId;
   final String? focusPlayerId;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<NotificationInboxScreen> createState() =>
       _NotificationInboxScreenState();
@@ -31,6 +32,7 @@ class _NotificationInboxScreenState
   String? _autoReadId;
   bool _markingAll = false;
 
+  /// Marks the selected notification read and reports any failure.
   Future<void> _markRead(AppNotification notification) async {
     if (notification.isRead) return;
     try {
@@ -42,6 +44,7 @@ class _NotificationInboxScreenState
     }
   }
 
+  /// Resolves the notification destination and opens the associated feature.
   Future<void> _openNotification(AppNotification notification) async {
     final navigator = Navigator.of(context);
     final request = NotificationOpenRequest.fromNotification(notification);
@@ -70,6 +73,7 @@ class _NotificationInboxScreenState
     });
   }
 
+  /// Marks all notifications read and reports any failure.
   Future<void> _markAllRead() async {
     if (_markingAll) return;
     setState(() => _markingAll = true);
@@ -84,6 +88,7 @@ class _NotificationInboxScreenState
     }
   }
 
+  /// Displays the action error, using fallback text when needed.
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -91,6 +96,7 @@ class _NotificationInboxScreenState
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Marks the notification targeted by the incoming request as read.
   void _readFocusedNotification(List<AppNotification> notifications) {
     for (final notification in notifications) {
       if (!_isFocused(notification)) continue;
@@ -104,6 +110,8 @@ class _NotificationInboxScreenState
     }
   }
 
+  /// Checks whether a row matches the notification targeted by the incoming
+  /// request.
   bool _isFocused(AppNotification notification) {
     final id = widget.focusNotificationId;
     if (id != null && notification.id == id) return true;
@@ -120,6 +128,7 @@ class _NotificationInboxScreenState
     return true;
   }
 
+  /// Builds the notification inbox screen view.
   @override
   Widget build(BuildContext context) {
     final notifications = ref.watch(notificationsProvider);
@@ -229,6 +238,7 @@ class _LoadMoreNotifications extends ConsumerWidget {
 
   final NotificationListState state;
 
+  /// Builds the load more notifications view.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (state.isLoadingMore) {
@@ -271,6 +281,7 @@ class _NotificationIcon extends StatelessWidget {
 
   final String type;
 
+  /// Builds the notification icon view.
   @override
   Widget build(BuildContext context) {
     final icon = switch (type) {
@@ -285,6 +296,7 @@ class _NotificationIcon extends StatelessWidget {
   }
 }
 
+/// Formats the notification timestamp for the inbox.
 String _formatTimestamp(DateTime timestamp) {
   final local = timestamp.toLocal();
   final now = DateTime.now();

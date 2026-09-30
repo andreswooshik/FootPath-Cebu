@@ -5,6 +5,7 @@ from rest_framework import serializers
 
 
 def normalize_mobile_number(value):
+    """Normalizes a registration mobile number and rejects unsupported formats."""
     number = re.sub(r'[\s()-]', '', value)
     if re.fullmatch(r'09\d{9}', number):
         number = '+63' + number[1:]
@@ -16,6 +17,7 @@ def normalize_mobile_number(value):
 
 
 def normalize_middle_initial(value):
+    """Normalizes a middle initial and rejects invalid values."""
     initial = value.strip().rstrip('.').upper()
     if not initial:
         return ''
@@ -34,12 +36,15 @@ class GuardianRegistrationSerializer(serializers.Serializer):
     mobileNumber = serializers.CharField(max_length=30)
 
     def validate_email(self, value):
+        """Checks and normalizes email for guardian registration."""
         return value.lower()
 
     def validate_middleInitial(self, value):
+        """Checks and normalizes middle initial for guardian registration."""
         return normalize_middle_initial(value)
 
     def validate_mobileNumber(self, value):
+        """Checks and normalizes mobile number for guardian registration."""
         return normalize_mobile_number(value)
 
 
@@ -50,6 +55,7 @@ class PlayerRegistrationSerializer(serializers.Serializer):
     dateOfBirth = serializers.DateField()
 
     def to_internal_value(self, data):
+        """Converts incoming player registration data to validated internal values."""
         if 'email' in data:
             raise serializers.ValidationError(
                 {'email': 'Player profiles do not have a separate login email.'}
@@ -57,11 +63,13 @@ class PlayerRegistrationSerializer(serializers.Serializer):
         return super().to_internal_value(data)
 
     def validate_dateOfBirth(self, value):
+        """Checks and normalizes date of birth for player registration."""
         if value > timezone.localdate():
             raise serializers.ValidationError('Date of birth cannot be in the future.')
         return value
 
     def validate_middleInitial(self, value):
+        """Checks and normalizes middle initial for player registration."""
         return normalize_middle_initial(value)
 
 
@@ -72,6 +80,7 @@ class RegistrationCommandSerializer(serializers.Serializer):
     newGuardian = GuardianRegistrationSerializer(required=False)
 
     def validate(self, attrs):
+        """Validates the combined request fields for registration command."""
         if ('existingGuardianId' in attrs) == ('newGuardian' in attrs):
             raise serializers.ValidationError(
                 'Select an existing guardian or enter a new guardian.'
@@ -91,10 +100,13 @@ class MemberRegistrationSerializer(serializers.Serializer):
     mobileNumber = serializers.CharField(max_length=30)
 
     def validate_middleInitial(self, value):
+        """Checks and normalizes middle initial for member registration."""
         return normalize_middle_initial(value)
 
     def validate_email(self, value):
+        """Checks and normalizes email for member registration."""
         return value.strip().lower()
 
     def validate_mobileNumber(self, value):
+        """Checks and normalizes mobile number for member registration."""
         return normalize_mobile_number(value)

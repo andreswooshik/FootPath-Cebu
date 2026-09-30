@@ -35,6 +35,7 @@ class TournamentSquadScreen extends ConsumerStatefulWidget {
   final TournamentAgeBracket bracket;
   final bool canEdit;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<TournamentSquadScreen> createState() =>
       _TournamentSquadScreenState();
@@ -59,6 +60,7 @@ class _TournamentSquadScreenState extends ConsumerState<TournamentSquadScreen> {
   final _searchController = TextEditingController();
   String _query = '';
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _searchController.dispose();
@@ -77,6 +79,7 @@ class _TournamentSquadScreenState extends ConsumerState<TournamentSquadScreen> {
         .toList(growable: false);
   }
 
+  /// Saves the selected squad and optionally publishes it for the bracket.
   Future<void> _save({required bool publish}) async {
     if (_selected.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -125,6 +128,7 @@ class _TournamentSquadScreenState extends ConsumerState<TournamentSquadScreen> {
     );
   }
 
+  /// Displays the action error, using fallback text when needed.
   void _showError(String fallback) {
     final error = ref.read(tournamentRosterManagementControllerProvider).error;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -132,6 +136,7 @@ class _TournamentSquadScreenState extends ConsumerState<TournamentSquadScreen> {
     );
   }
 
+  /// Builds the tournament squad screen view.
   @override
   Widget build(BuildContext context) {
     final isSaving = ref.watch(
@@ -153,6 +158,7 @@ class _TournamentSquadScreenState extends ConsumerState<TournamentSquadScreen> {
     );
   }
 
+  /// Builds the read only section for this view.
   Widget _buildReadOnly(BuildContext context) => ListView(
     padding: const EdgeInsets.all(16),
     children: [
@@ -200,6 +206,7 @@ class _TournamentSquadScreenState extends ConsumerState<TournamentSquadScreen> {
     ],
   );
 
+  /// Builds the coach editor section for this view.
   Widget _buildCoachEditor(BuildContext context, bool isSaving) {
     final candidates = ref.watch(
       tournamentRosterCandidatesProvider(widget.bracket.id),
@@ -328,6 +335,7 @@ class _RosterHeader extends StatelessWidget {
   final String bracketLabel;
   final TournamentSquad squad;
 
+  /// Builds the roster header view.
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(
@@ -377,6 +385,7 @@ class _CandidateCard extends StatelessWidget {
   final ValueChanged<bool> onSelected;
   final ValueChanged<String?> onPositionChanged;
 
+  /// Builds the candidate card view.
   @override
   Widget build(BuildContext context) {
     final blocked =

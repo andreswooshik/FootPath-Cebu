@@ -21,6 +21,7 @@ class RosterEligibility:
 
     @property
     def blocked(self):
+        """Reports whether the eligibility decision prevents squad selection."""
         return self.state == 'BLOCKED'
 
 

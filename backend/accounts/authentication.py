@@ -18,6 +18,10 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
     """
 
     def authenticate(self, request):
+        """Verifies the Firebase bearer token, including revocation, and resolves an active local
+
+        club account.
+        """
         header = request.META.get('HTTP_AUTHORIZATION', '')
         if not header.startswith('Bearer '):
             # No bearer token: fall through so session auth (Django admin)
@@ -76,4 +80,5 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
     def authenticate_header(self, request):
         # Present a WWW-Authenticate challenge so unauthenticated requests
         # get 401 rather than 403.
+        """Provides the Bearer challenge so unauthenticated API requests receive HTTP 401."""
         return 'Bearer realm="api"'

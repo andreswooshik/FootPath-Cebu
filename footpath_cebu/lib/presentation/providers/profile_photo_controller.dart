@@ -5,6 +5,7 @@ import 'package:footpath_cebu/core/di/providers.dart';
 import 'package:footpath_cebu/domain/entities/user_profile.dart';
 
 class ProfilePhotoController extends MutationController {
+  /// Uploads the account photo and returns the updated user profile to the view.
   Future<UserProfile?> submit(
     UserProfile profile, {
     required List<int> bytes,

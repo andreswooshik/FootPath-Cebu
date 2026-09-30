@@ -58,6 +58,7 @@ class TournamentAgeBracketCreateView(APIView):
 
     @club_write_transaction
     def post(self, request, schedule_id):
+        """Creates a tournament age bracket with its schedule and audience."""
         schedule = _coordinator_mobile_schedule(request.user, schedule_id)
         serializer = TournamentAgeBracketWriteSerializer(
             data=request.data,
@@ -80,6 +81,7 @@ class TournamentAgeBracketCreateView(APIView):
 
 
 def _coordinator_mobile_bracket(user, bracket_id, *, lock=False):
+    """Loads an age bracket within the coordinator club for a management action."""
     if user.role != Roles.COORDINATOR:
         raise PermissionDenied('Only Coordinators can manage age brackets.')
     if user.club_id is None:
@@ -97,6 +99,7 @@ def _coordinator_mobile_bracket(user, bracket_id, *, lock=False):
 class TournamentAgeBracketDetailView(APIView):
     @club_write_transaction
     def patch(self, request, bracket_id):
+        """Updates the tournament age bracket subject to squad and scheduling constraints."""
         with transaction.atomic():
             bracket = _coordinator_mobile_bracket(
                 request.user,
@@ -161,6 +164,7 @@ class TournamentAgeBracketDetailView(APIView):
 
     @club_write_transaction
     def delete(self, request, bracket_id):
+        """Deletes an age bracket when its related tournament records permit removal."""
         bracket = _coordinator_mobile_bracket(request.user, bracket_id)
         schedule = bracket.schedule
         if schedule.is_published:
@@ -191,6 +195,7 @@ class TournamentAgeBracketDetailView(APIView):
 
 
 def _mobile_tournament_bracket(user, bracket_id):
+    """Resolves a tournament bracket for the requesting mobile account."""
     allowed = (
         Roles.COORDINATOR,
         Roles.COACH,
@@ -218,6 +223,7 @@ def _mobile_tournament_bracket(user, bracket_id):
 
 
 def _squad_data(squad, request):
+    """Serializes the tournament squad for the mobile response."""
     return TournamentSquadSerializer(
         squad,
         context={'request': request},
@@ -228,6 +234,7 @@ class TournamentSquadDetailView(APIView):
     """Read a role-visible roster or atomically save it as a Coach."""
 
     def get(self, request, bracket_id):
+        """Returns the accessible squad for the requested tournament bracket."""
         bracket = _mobile_tournament_bracket(request.user, bracket_id)
         try:
             squad = (
@@ -264,6 +271,7 @@ class TournamentSquadDetailView(APIView):
 
     @club_write_transaction
     def put(self, request, bracket_id):
+        """Validates and saves the player selections for the tournament squad."""
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only Coaches can manage tournament rosters.')
         bracket = _mobile_tournament_bracket(request.user, bracket_id)
@@ -351,6 +359,7 @@ class TournamentSquadCandidatesView(APIView):
     """Club-scoped player choices with privacy-safe eligibility outcomes."""
 
     def get(self, request, bracket_id):
+        """Lists bracket candidates with their current roster eligibility."""
         if request.user.role not in (Roles.COACH, Roles.COORDINATOR):
             raise PermissionDenied('Only Coaches and Coordinators can view roster candidates.')
         bracket = _mobile_tournament_bracket(request.user, bracket_id)
@@ -399,6 +408,7 @@ class TournamentSquadCandidatesView(APIView):
 class TournamentSquadPublishView(APIView):
     @club_write_transaction
     def post(self, request, bracket_id):
+        """Publishes the bracket squad after validating its selected players."""
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only Coaches can publish tournament rosters.')
         bracket = _mobile_tournament_bracket(request.user, bracket_id)

@@ -44,6 +44,7 @@ class ArrayLimitOffsetPagination(LimitOffsetPagination):
     max_limit = 500
 
     def get_paginated_response(self, data):
+        """Keeps the response body as an array and puts pagination details in headers."""
         response = Response(data)
         response['X-Page-Limit'] = str(self.limit)
         response['X-Page-Offset'] = str(self.offset)
@@ -62,6 +63,7 @@ class MeView(APIView):
     """
 
     def get(self, request):
+        """Returns the authenticated account profile used to restore a client session."""
         return Response(UserSerializer(request.user).data)
 
 
@@ -72,6 +74,7 @@ class MyProfilePhotoUploadView(APIView):
     throttle_scope = 'uploads'
 
     def post(self, request):
+        """Replaces the signed-in account photo and clears its cached URL."""
         if request.user.role != Roles.COACH:
             raise PermissionDenied('Only Coach accounts have a coach profile photo.')
         upload = request.FILES.get('photo')
@@ -105,6 +108,7 @@ class MyProfilePhotoUploadView(APIView):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def health(request):
+    """Returns the lightweight API health response."""
     return Response({'status': 'ok'})
 
 
@@ -150,11 +154,13 @@ class AdminUserListCreateView(generics.ListCreateAPIView):
     pagination_class = ArrayLimitOffsetPagination
 
     def get_serializer_class(self):
+        """Chooses the serializer appropriate to the user list or creation request."""
         if self.request.method == 'POST':
             return AdminCreateUserSerializer
         return UserSerializer
 
     def create(self, request, *args, **kwargs):
+        """Validates and provisions a user account, then records the admin action."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -186,6 +192,7 @@ class AdminClubListCreateView(generics.ListCreateAPIView):
     serializer_class = AdminClubSerializer
 
     def perform_create(self, serializer):
+        """Creates the club and records the admin action."""
         club = serializer.save()
         AuditLog.record(
             self.request.user,
@@ -204,6 +211,7 @@ class AdminClubDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = AdminClubSerializer
 
     def perform_update(self, serializer):
+        """Saves club changes and synchronizes coordinator access when club activity changes."""
         club = serializer.save()
         if not club.is_active:
             for coordinator in club.members.filter(role=Roles.COORDINATOR):
@@ -230,6 +238,7 @@ class AdminCoordinatorCreateView(APIView):
     throttle_scope = 'account_admin'
 
     def post(self, request):
+        """Provisions the coordinator account for a club and records the admin action."""
         serializer = AdminCoordinatorCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
@@ -266,6 +275,7 @@ class AdminUserDetailView(APIView):
     throttle_scope = 'account_admin'
 
     def patch(self, request, pk):
+        """Updates permitted account fields and applies role changes through the account service."""
         user = get_object_or_404(
             User.objects.exclude(role=Roles.ADMIN).exclude(is_superuser=True),
             pk=pk,
@@ -319,6 +329,7 @@ class AdminGuardianLinkListCreateView(generics.ListCreateAPIView):
     pagination_class = ArrayLimitOffsetPagination
 
     def perform_create(self, serializer):
+        """Creates the guardian-player link and records the admin action."""
         link = serializer.save()
         AuditLog.record(
             self.request.user,
@@ -333,6 +344,7 @@ class AdminGuardianLinkDestroyView(generics.DestroyAPIView):
     queryset = GuardianLink.objects.all()
 
     def perform_destroy(self, instance):
+        """Records and removes the selected guardian-player link."""
         AuditLog.record(
             self.request.user,
             'guardian_link.removed',

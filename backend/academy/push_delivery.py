@@ -24,6 +24,10 @@ BATCH_SIZE = 500
 
 class FirebasePushGateway:
     def send(self, *, tokens, title, body, data):
+        """Sends one Firebase multicast notification batch and returns per-device delivery
+
+        results.
+        """
         ensure_initialized()
         message = messaging.MulticastMessage(
             tokens=tokens,
@@ -35,6 +39,7 @@ class FirebasePushGateway:
 
 @transaction.atomic
 def _claim():
+    """Leases one available push job under a database lock so workers coordinate delivery."""
     now = timezone.now()
     jobs = (
         PushOutbox.objects.filter(
@@ -63,6 +68,7 @@ def _claim():
 
 
 def _dead_token(error):
+    """Identifies delivery errors that mean a device token should be removed."""
     code = str(getattr(error, 'code', '')).lower()
     return code in ('unregistered', 'registration-token-not-registered') or 'not-registered' in code
 

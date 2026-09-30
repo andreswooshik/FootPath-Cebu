@@ -1,3 +1,5 @@
+import 'package:footpath_cebu/data/dto/player_dto.dart';
+import 'package:footpath_cebu/data/repositories/player_data_source.dart';
 import 'dart:convert';
 
 import 'package:footpath_cebu/data/network/authenticated_api_client.dart';
@@ -6,15 +8,9 @@ import 'package:footpath_cebu/domain/entities/development_assessment.dart';
 import 'package:footpath_cebu/domain/entities/player_position.dart';
 import 'package:footpath_cebu/domain/entities/player_growth.dart';
 import 'package:footpath_cebu/domain/repositories/player_repository.dart';
-import 'package:footpath_cebu/domain/repositories/development_assessment_repository.dart';
 
 /// Live player data backed by the authenticated Django REST API.
-class ApiPlayerRepository
-    implements
-        PlayerRepository,
-        PlayerDetailsReader,
-        PlayerPhotoWriter,
-        DevelopmentAssessmentRepository {
+class ApiPlayerRepository implements PlayerDataSource {
   ApiPlayerRepository({this.unlockTokenFor, AuthenticatedApiClient? api})
     : _api = api ?? AuthenticatedApiClient.shared;
 
@@ -39,13 +35,13 @@ class ApiPlayerRepository
         if (token != null && token.isNotEmpty) 'X-Player-Unlock': token,
       },
     );
-    return Player.fromJson(json);
+    return PlayerDto.fromJson(json);
   }
 
   @override
   Future<Player> fetchMyProfile() async {
     final json = await _get('/api/players/me/');
-    return Player.fromJson(json);
+    return PlayerDto.fromJson(json);
   }
 
   @override
@@ -56,7 +52,9 @@ class ApiPlayerRepository
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'position': position.wire}),
       );
-      return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      return PlayerDto.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     } on ApiException catch (error) {
       throw PlayerRepositoryException(error.message);
     }
@@ -79,7 +77,9 @@ class ApiPlayerRepository
           'assessmentReason': assessmentReason.wire,
         }),
       );
-      return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      return PlayerDto.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     } on ApiException catch (error) {
       throw PlayerRepositoryException(error.message);
     }
@@ -104,7 +104,9 @@ class ApiPlayerRepository
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(draft.toJson()),
       );
-      return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      return PlayerDto.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     } on ApiException catch (error) {
       throw PlayerRepositoryException(error.message);
     }
@@ -125,7 +127,9 @@ class ApiPlayerRepository
         filename: filename,
         contentType: contentType,
       );
-      return Player.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+      return PlayerDto.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
     } on ApiException catch (error) {
       throw PlayerRepositoryException(error.message);
     } on FormatException {
@@ -152,7 +156,7 @@ class ApiPlayerRepository
       final list = await _api.getList(path);
       return list
           .cast<Map<String, dynamic>>()
-          .map(Player.fromJson)
+          .map(PlayerDto.fromJson)
           .toList(growable: false);
     } on ApiException catch (error) {
       throw PlayerRepositoryException(error.message);

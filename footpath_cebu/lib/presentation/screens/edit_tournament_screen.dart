@@ -33,6 +33,7 @@ class EditTournamentScreen extends ConsumerStatefulWidget {
 
   final TournamentSchedule? existing;
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<EditTournamentScreen> createState() =>
       _EditTournamentScreenState();
@@ -55,6 +56,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
   String? _fixtureStageFilter;
   TournamentFixtureStatus? _fixtureStatusFilter;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _titleController.dispose();
@@ -62,6 +64,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     super.dispose();
   }
 
+  /// Chooses the tournament start date.
   Future<void> _pickStartDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -73,6 +76,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     if (picked != null) setState(() => _startsOn = picked);
   }
 
+  /// Selects the document to attach to the tournament.
   Future<void> _pickDocument() async {
     final file = await FilePicker.pickFile(
       type: FileType.custom,
@@ -111,6 +115,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     });
   }
 
+  /// Validates and saves the tournament details.
   Future<void> _saveDetails() async {
     final title = _titleController.text.trim();
     final venue = _venueController.text.trim();
@@ -155,6 +160,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     ).showSnackBar(const SnackBar(content: Text('Tournament draft saved.')));
   }
 
+  /// Opens the age-bracket form to create or edit a bracket.
   Future<void> _editBracket([TournamentAgeBracket? existing]) async {
     final result =
         await showAdaptiveFormModal<
@@ -208,6 +214,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     setState(() => _current = saved);
   }
 
+  /// Confirms and removes the selected age bracket.
   Future<void> _removeBracket(TournamentAgeBracket bracket) async {
     final confirmed = await _confirm(
       title: 'Remove ${bracket.label}?',
@@ -232,6 +239,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     });
   }
 
+  /// Opens the fixture form to create or edit a match.
   Future<void> _editFixture([TournamentFixture? existing]) async {
     final tournament = _current;
     if (tournament == null) return;
@@ -278,6 +286,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     setState(() => _current = saved);
   }
 
+  /// Confirms and removes the selected fixture.
   Future<void> _removeFixture(TournamentFixture fixture) async {
     final confirmed = await _confirm(
       title: 'Delete fixture?',
@@ -302,6 +311,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     });
   }
 
+  /// Selects and uploads a replacement tournament document.
   Future<void> _replaceDocument() async {
     if (_current == null || _selectedDocument == null) return;
     final saved = await ref
@@ -322,6 +332,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     ).showSnackBar(const SnackBar(content: Text('Official document updated.')));
   }
 
+  /// Confirms and removes the attached tournament document.
   Future<void> _removeDocument() async {
     final tournament = _current;
     if (tournament == null) return;
@@ -347,6 +358,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     );
   }
 
+  /// Opens the tournament document using its stored URL.
   Future<void> _openDocument() async {
     final url = _current?.documentUrl;
     if (url == null || url.isEmpty) return;
@@ -357,6 +369,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     if (!opened && mounted) _showMessage('Could not open the document.');
   }
 
+  /// Publishes the tournament after any required conflict confirmation.
   Future<void> _publish() async {
     final tournament = _current;
     if (tournament == null) return;
@@ -409,6 +422,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     _showMessage('Tournament published to the club.');
   }
 
+  /// Confirms and deletes the tournament.
   Future<void> _deleteTournament() async {
     final tournament = _current;
     if (tournament == null) return;
@@ -430,6 +444,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     Navigator.of(context).pop();
   }
 
+  /// Shows a confirmation dialog and returns whether the user accepted.
   Future<bool> _confirm({
     required String title,
     required String message,
@@ -454,21 +469,25 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
       ) ??
       false;
 
+  /// Displays the action error, using fallback text when needed.
   void _showError(String fallback) {
     final error = ref.read(tournamentManagementControllerProvider).error;
     _showMessage(friendlyErrorMessage(error, fallback));
   }
 
+  /// Checks whether this action needs training-cancellation confirmation.
   bool _needsTrainingCancellationConfirmation() {
     final error = ref.read(tournamentManagementControllerProvider).error;
     return error is TournamentScheduleRepositoryException &&
         error.statusCode == 409;
   }
 
+  /// Shows feedback for the current action in a snackbar.
   void _showMessage(String value) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
+  /// Builds the edit tournament screen view.
   @override
   Widget build(BuildContext context) {
     final isSaving = ref.watch(
@@ -536,6 +555,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     );
   }
 
+  /// Builds the overview section for this view.
   Widget _overview(bool isSaving) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -620,6 +640,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     ],
   );
 
+  /// Builds the brackets section for this view.
   Widget _brackets(bool isSaving, TournamentSchedule tournament) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -675,6 +696,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     ],
   );
 
+  /// Builds the fixtures section for this view.
   Widget _fixtures(bool isSaving, TournamentSchedule tournament) {
     final stages =
         tournament.fixtures
@@ -771,6 +793,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     );
   }
 
+  /// Builds the squads section for this view.
   Widget _squads(TournamentSchedule tournament) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -800,6 +823,7 @@ class _EditTournamentScreenState extends ConsumerState<EditTournamentScreen> {
     ],
   );
 
+  /// Builds the document section for this view.
   Widget _document(bool isSaving, TournamentSchedule tournament) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -856,6 +880,7 @@ class _Header extends StatelessWidget {
 
   final TournamentSchedule? tournament;
 
+  /// Builds the header view.
   @override
   Widget build(BuildContext context) => Wrap(
     spacing: 12,
@@ -891,6 +916,7 @@ class _ManageFixtureCard extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
+  /// Builds the manage fixture card view.
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(
@@ -948,6 +974,7 @@ class _EmptyCard extends StatelessWidget {
 
   final String message;
 
+  /// Builds the empty card view.
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(padding: const EdgeInsets.all(16), child: Text(message)),
@@ -969,6 +996,7 @@ class _FilterDropdown<T> extends StatelessWidget {
   final Map<T, String> options;
   final ValueChanged<T?> onChanged;
 
+  /// Builds the filter dropdown view.
   @override
   Widget build(BuildContext context) => SizedBox(
     width: 190,
@@ -993,6 +1021,7 @@ class _BracketEditor extends StatefulWidget {
 
   final TournamentAgeBracket? existing;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_BracketEditor> createState() => _BracketEditorState();
 }
@@ -1003,6 +1032,7 @@ class _BracketEditorState extends State<_BracketEditor> {
   late Set<AgeTier> _academyTiers = {...?widget.existing?.academyTiers};
   String? _error;
 
+  /// Chooses the age bracket date and time.
   Future<void> _pickSchedule() async {
     final now = DateTime.now();
     final date = await showDatePicker(
@@ -1030,6 +1060,7 @@ class _BracketEditorState extends State<_BracketEditor> {
     });
   }
 
+  /// Validates and returns the age bracket settings to the tournament editor.
   void _submit() {
     final age = _maxAge;
     if (age == null) {
@@ -1047,6 +1078,7 @@ class _BracketEditorState extends State<_BracketEditor> {
     ));
   }
 
+  /// Builds the bracket editor view.
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
     padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
@@ -1128,6 +1160,7 @@ class _FixtureEditor extends StatefulWidget {
   final List<TournamentAgeBracket> brackets;
   final TournamentFixture? existing;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_FixtureEditor> createState() => _FixtureEditorState();
 }
@@ -1154,6 +1187,7 @@ class _FixtureEditorState extends State<_FixtureEditor> {
   late TournamentFixtureStatus _status =
       widget.existing?.status ?? TournamentFixtureStatus.scheduled;
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _stage.dispose();
@@ -1162,6 +1196,7 @@ class _FixtureEditorState extends State<_FixtureEditor> {
     super.dispose();
   }
 
+  /// Chooses the fixture kickoff date and time.
   Future<void> _pickKickoff() async {
     final date = await showDatePicker(
       context: context,
@@ -1189,6 +1224,7 @@ class _FixtureEditorState extends State<_FixtureEditor> {
     });
   }
 
+  /// Chooses the fixture end date and time.
   Future<void> _pickEnd() async {
     final date = await showDatePicker(
       context: context,
@@ -1213,6 +1249,7 @@ class _FixtureEditorState extends State<_FixtureEditor> {
     });
   }
 
+  /// Validates and returns the fixture draft to the tournament editor.
   void _save() {
     if (!_formKey.currentState!.validate() || _bracketId == null) return;
     if (!_endsAt.isAfter(_kickoff)) {
@@ -1236,6 +1273,7 @@ class _FixtureEditorState extends State<_FixtureEditor> {
     );
   }
 
+  /// Builds the fixture editor view.
   @override
   Widget build(BuildContext context) => Form(
     key: _formKey,
@@ -1327,9 +1365,11 @@ class _FixtureEditorState extends State<_FixtureEditor> {
   );
 }
 
+/// Returns a validation message when a required field is blank.
 String? _required(String? value) =>
     value == null || value.trim().isEmpty ? 'This field is required.' : null;
 
+/// Formats a scheduled date and time for display.
 String _formatDateTime(BuildContext context, DateTime value) {
   final local = value.toLocal();
   final time = MaterialLocalizations.of(

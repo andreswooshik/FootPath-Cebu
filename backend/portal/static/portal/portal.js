@@ -6,6 +6,7 @@
 
   if (!sidebar || !overlay || !openButton) return;
 
+  // Synchronizes drawer visibility, scrolling, focus, and accessibility state.
   const setOpen = (open) => {
     sidebar.classList.toggle('-translate-x-full', !open);
     overlay.classList.toggle('hidden', !open);
@@ -76,6 +77,7 @@
   const schoolName = document.querySelector('[data-school-name-field]');
   if (!affiliation || !schoolName) return;
 
+  // Shows and enables the school name only for school-affiliated clubs.
   const updateSchoolField = () => {
     schoolName.hidden = !affiliation.checked;
     const input = schoolName.querySelector('input');
@@ -94,6 +96,7 @@
   const panels = [...root.querySelectorAll('[data-account-panel]')];
   const validTypes = new Set(tabs.map((tab) => tab.dataset.accountTab));
 
+  // Selects an account-creation tab and optionally preserves it in the URL hash.
   const activate = (type, updateHash = false) => {
     if (!validTypes.has(type)) return;
     tabs.forEach((tab) => {
@@ -151,6 +154,7 @@
 (() => {
   const tables = new Map();
 
+  // Keeps independent search and filter selections for each portal table.
   const getTableState = (targetId) => {
     if (!tables.has(targetId)) {
       tables.set(targetId, { query: '', filters: new Map() });
@@ -158,6 +162,7 @@
     return tables.get(targetId);
   };
 
+  // Combines table search and column filters, then updates the empty state.
   const applyFilters = (targetId) => {
     const table = document.getElementById(targetId);
     if (!table) return;

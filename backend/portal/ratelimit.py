@@ -21,6 +21,7 @@ from django.core.cache import cache
 def _client_ip(request):
     # Trust forwarding headers only when operators declare the exact proxy
     # depth. Otherwise a client could spoof X-Forwarded-For to evade limits.
+    """Resolves the client address used by portal rate limiting."""
     remote = request.META.get('REMOTE_ADDR', '') or ''
     try:
         remote = str(ip_address(remote))

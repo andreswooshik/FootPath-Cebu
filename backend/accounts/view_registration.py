@@ -4,6 +4,8 @@ from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.application_errors import ApplicationError
+
 from .registration_serializers import (
     GuardianRegistrationSerializer,
     MemberRegistrationSerializer,
@@ -24,6 +26,7 @@ class CoordinatorGuardianCheckView(APIView):
     throttle_scope = 'account_admin'
 
     def post(self, request):
+        """Validates guardian contact details and checks for an existing account."""
         club = coordinator_club(request.user)
         serializer = GuardianRegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -35,12 +38,13 @@ class CoordinatorMemberRegistrationView(APIView):
     throttle_scope = 'account_admin'
 
     def post(self, request):
+        """Creates a club member account and returns registration feedback."""
         coordinator_club(request.user)
         serializer = MemberRegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
             result = register_member(actor=request.user, data=serializer.validated_data)
-        except APIException:
+        except (APIException, ApplicationError):
             raise
         except ProvisioningError as exc:
             raise ValidationError(str(exc))
@@ -58,12 +62,13 @@ class CoordinatorPlayerRegistrationView(APIView):
     throttle_scope = 'account_admin'
 
     def post(self, request):
+        """Submits an idempotent player registration command for the coordinator club."""
         coordinator_club(request.user)
         serializer = RegistrationCommandSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
             result = register_player(actor=request.user, data=serializer.validated_data)
-        except APIException:
+        except (APIException, ApplicationError):
             raise
         except ProvisioningError as error:
             return Response({'detail': str(error)}, status=400)

@@ -8,4 +8,5 @@ class AcademyConfig(AppConfig):
     def ready(self):
         # Register the eligibility-change push signals (signals.py) so they
         # fire for every write path: admin site, console, or API.
+        """Loads application startup hooks, including registered signal handlers."""
         from . import signals  # noqa: F401

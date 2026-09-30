@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/data/dto/player_stats_dto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -57,7 +58,7 @@ Player _player({PlayerPosition? position = PlayerPosition.centralMidfielder}) =>
       eligibility: EligibilityStatus.eligible,
     );
 
-PlayerStats _stats() => PlayerStats.fromJson({
+PlayerStats _stats() => PlayerStatsDto.fromJson({
   'catalog': {
     'version': 1,
     'position': 'CM',

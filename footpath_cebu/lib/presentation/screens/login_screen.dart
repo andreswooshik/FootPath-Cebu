@@ -15,6 +15,7 @@ import 'package:footpath_cebu/presentation/screens/home_screen.dart';
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
@@ -23,6 +24,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _emailController.dispose();
@@ -30,6 +32,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  /// Signs in, starts device registration and attendance sync, then opens the
+  /// home screen.
   Future<void> _handleSignIn() async {
     final profile = await ref
         .read(loginControllerProvider.notifier)
@@ -51,6 +55,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  /// Requests a password-reset email and shows confirmation when sent.
   Future<void> _handleForgotPassword() async {
     final email = _emailController.text.trim();
     final sent = await ref
@@ -64,12 +69,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  /// Opens the application form for a new club coordinator.
   void _openClubRegistration() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const ClubRegistrationScreen()),
     );
   }
 
+  /// Builds the login screen view.
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(loginControllerProvider);

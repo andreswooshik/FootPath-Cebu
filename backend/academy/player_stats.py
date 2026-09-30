@@ -65,6 +65,7 @@ def with_latest_player_stats(queryset):
 
 
 def role_group_for(position):
+    """Maps a player position to the matching statistics role group."""
     try:
         return POSITION_GROUPS[str(position or '').upper()]
     except KeyError as exc:
@@ -72,6 +73,7 @@ def role_group_for(position):
 
 
 def catalog_for(position, version=CATALOG_VERSION):
+    """Returns the statistics catalog for the selected player position."""
     if int(version) != CATALOG_VERSION:
         raise ValidationError(
             {'catalogVersion': 'This Player Stats catalog version is not supported.'}
@@ -81,11 +83,13 @@ def catalog_for(position, version=CATALOG_VERSION):
 
 
 def score_keys(position, version=CATALOG_VERSION):
+    """Returns the score keys expected by the selected statistics catalog."""
     _group, attributes = catalog_for(position, version)
     return [attribute.lower().replace(' ', '_').replace('-', '_') for attribute in attributes]
 
 
 def normalized_scores(position, scores, version=CATALOG_VERSION):
+    """Normalizes assessment scores against the position-specific statistics catalog."""
     if not isinstance(scores, dict):
         raise ValidationError({'scores': 'Provide all six Player Stats scores.'})
     keys = score_keys(position, version)
@@ -110,4 +114,5 @@ def normalized_scores(position, scores, version=CATALOG_VERSION):
 def overall(scores):
     # Ratings are non-negative integers; add half a six-point unit so .5
     # always rounds upward (Python's built-in round uses bankers' rounding).
+    """Calculates the overall player rating from the applicable position-specific scores."""
     return (sum(scores.values()) + 3) // 6

@@ -15,6 +15,7 @@ import 'package:footpath_cebu/presentation/widgets/responsive_content.dart';
 class CoordinatorInjuriesScreen extends ConsumerStatefulWidget {
   const CoordinatorInjuriesScreen({super.key});
 
+  /// Creates the mutable state used by this view.
   @override
   ConsumerState<CoordinatorInjuriesScreen> createState() =>
       _CoordinatorInjuriesScreenState();
@@ -24,6 +25,7 @@ class _CoordinatorInjuriesScreenState
     extends ConsumerState<CoordinatorInjuriesScreen> {
   String? _busyRecordId;
 
+  /// Selects a player when needed, then opens the injury report form.
   Future<void> _openReport(
     BuildContext context, {
     InjuryRecord? existing,
@@ -59,6 +61,7 @@ class _CoordinatorInjuriesScreenState
     );
   }
 
+  /// Collects a reason before rejecting an injury report or status change.
   Future<String?> _rejectionReason(BuildContext context, String title) async {
     return showAdaptiveFormModal<String>(
       context: context,
@@ -66,6 +69,7 @@ class _CoordinatorInjuriesScreenState
     );
   }
 
+  /// Marks the affected injury busy until its action finishes, even on failure.
   Future<T> _trackRecord<T>(
     InjuryRecord record,
     Future<T> Function() action,
@@ -78,6 +82,7 @@ class _CoordinatorInjuriesScreenState
     }
   }
 
+  /// Confirms or rejects the selected injury report.
   Future<void> _reviewReport(
     BuildContext context,
     InjuryRecord record, {
@@ -108,6 +113,7 @@ class _CoordinatorInjuriesScreenState
     );
   }
 
+  /// Approves or rejects a proposed injury status change.
   Future<void> _reviewStatus(
     BuildContext context,
     InjuryRecord record, {
@@ -138,6 +144,7 @@ class _CoordinatorInjuriesScreenState
     );
   }
 
+  /// Confirms and archives the selected injury record.
   Future<void> _archive(BuildContext context, InjuryRecord record) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -168,10 +175,12 @@ class _CoordinatorInjuriesScreenState
     }
   }
 
+  /// Shows feedback for the current action in a snackbar.
   void _message(BuildContext context, String value) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
 
+  /// Builds the coordinator injuries screen view.
   @override
   Widget build(BuildContext context) {
     final records = ref.watch(clubInjuriesProvider);
@@ -375,6 +384,7 @@ class _ReportBadge extends StatelessWidget {
 
   final InjuryReportStatus status;
 
+  /// Builds the report badge view.
   @override
   Widget build(BuildContext context) {
     final (tone, icon) = switch (status) {
@@ -402,6 +412,7 @@ class _ReportBadge extends StatelessWidget {
 class _ActionProgress extends StatelessWidget {
   const _ActionProgress();
 
+  /// Builds the action progress view.
   @override
   Widget build(BuildContext context) => const SizedBox.square(
     dimension: 18,
@@ -414,6 +425,7 @@ class _PlayerPicker extends StatefulWidget {
 
   final List<InjuryPlayerOption> players;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_PlayerPicker> createState() => _PlayerPickerState();
 }
@@ -421,12 +433,14 @@ class _PlayerPicker extends StatefulWidget {
 class _PlayerPickerState extends State<_PlayerPicker> {
   final _search = TextEditingController();
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _search.dispose();
     super.dispose();
   }
 
+  /// Builds the player picker view.
   @override
   Widget build(BuildContext context) {
     final query = _search.text.trim().toLowerCase();
@@ -507,6 +521,7 @@ class _RequiredReasonForm extends StatefulWidget {
 
   final String title;
 
+  /// Creates the mutable state used by this view.
   @override
   State<_RequiredReasonForm> createState() => _RequiredReasonFormState();
 }
@@ -515,12 +530,14 @@ class _RequiredReasonFormState extends State<_RequiredReasonForm> {
   final _formKey = GlobalKey<FormState>();
   final _controller = TextEditingController();
 
+  /// Releases resources owned by this view when it leaves the widget tree.
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
+  /// Builds the required reason form view.
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
     padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),

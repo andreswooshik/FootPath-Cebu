@@ -23,6 +23,7 @@ class MobileClubRegistrationView(APIView):
     throttle_scope = 'club_registration'
 
     def post(self, request):
+        """Validates the mobile club application through the shared signup form."""
         form = CoordinatorSignupForm(
             data=request.data,
             files=request.FILES,

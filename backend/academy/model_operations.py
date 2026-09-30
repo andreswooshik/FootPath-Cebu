@@ -110,6 +110,7 @@ class Attendance(models.Model):
         ]
 
     def __str__(self):
+        """Returns a readable attendance label for admin pages and diagnostics."""
         return f'{self.player.email} · {self.status} · {self.updated_at:%Y-%m-%d}'
 
 
@@ -179,6 +180,7 @@ class SessionConfirmation(models.Model):
         unique_together = ('player', 'session')
 
     def __str__(self):
+        """Returns a readable session confirmation label for admin pages and diagnostics."""
         return f'{self.player.email} · {self.status} · {self.session_id}'
 
 
@@ -278,6 +280,7 @@ class InjuryRecord(models.Model):
         ]
 
     def __str__(self):
+        """Returns a readable injury record label for admin pages and diagnostics."""
         return f'{self.player.email} · {self.description} · {self.status}'
 
 
@@ -386,6 +389,7 @@ class Dispute(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
+        """Returns a readable dispute label for admin pages and diagnostics."""
         return f'{self.summary} · {self.status}'
 
 
@@ -413,14 +417,17 @@ class DisputeResponse(models.Model):
         ordering = ['created_at']
 
     def __str__(self):
+        """Returns a readable dispute response label for admin pages and diagnostics."""
         return f'Re: {self.dispute.summary} ({self.created_at:%Y-%m-%d})'
 
 
 class AuditLogQuerySet(models.QuerySet):
     def update(self, **kwargs):
+        """Rejects modifications so audit records remain append-only."""
         raise TypeError('Audit log entries are append-only.')
 
     def delete(self):
+        """Rejects modifications so audit records remain append-only."""
         raise TypeError('Audit log entries are append-only.')
 
 
@@ -466,14 +473,17 @@ class AuditLog(models.Model):
         ordering = ['-created_at', '-id']
 
     def __str__(self):
+        """Returns a readable audit log label for admin pages and diagnostics."""
         return f'{self.action} · {self.target} · {self.created_at:%Y-%m-%d %H:%M}'
 
     def save(self, *args, **kwargs):
+        """Allows new audit entries but rejects edits to preserve the append-only chain."""
         if self.pk:
             raise TypeError('Audit log entries are append-only.')
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
+        """Rejects modifications so audit records remain append-only."""
         raise TypeError('Audit log entries are append-only.')
 
     @staticmethod
@@ -488,6 +498,7 @@ class AuditLog(models.Model):
         sequence=None,
         actor_identifier='',
     ):
+        """Computes the versioned SHA-256 proof binding an audit entry to the preceding entry."""
         payload = {
             'previous_hash': previous_hash,
             'action': action,

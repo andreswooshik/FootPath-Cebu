@@ -24,12 +24,16 @@ class LoginState {
 /// Handles login and password-reset business logic for the login screen.
 /// The View only renders [LoginState] and forwards user intent here.
 class LoginController extends Notifier<LoginState> {
+  /// Creates the initial state for this feature controller.
   @override
   LoginState build() => const LoginState();
 
+  /// Toggles password visibility while preserving the current form error.
   void togglePasswordVisibility() =>
       state = _next(showPassword: !state.showPassword, error: state.error);
 
+  /// Authenticates the supplied credentials; returns the profile or stores a
+  /// form error.
   Future<UserProfile?> signIn({
     required String email,
     required String password,
@@ -54,6 +58,8 @@ class LoginController extends Notifier<LoginState> {
     return null;
   }
 
+  /// Sends a reset link when an email is supplied and no auth request is
+  /// running.
   Future<bool> sendResetEmail(String email) async {
     if (!ref.mounted || state.isLoading || state.isSendingReset) return false;
     if (email.isEmpty) {
@@ -138,9 +144,11 @@ class ChangePasswordController extends Notifier<ChangePasswordState> {
   /// passwords, so users should not downgrade to something trivial.
   static const minPasswordLength = 8;
 
+  /// Creates the initial state for this feature controller.
   @override
   ChangePasswordState build() => const ChangePasswordState();
 
+  /// Toggles password visibility while preserving the current form error.
   void togglePasswordVisibility() =>
       state = _next(showPasswords: !state.showPasswords, error: state.error);
 
@@ -194,6 +202,8 @@ class ChangePasswordController extends Notifier<ChangePasswordState> {
     return null;
   }
 
+  /// Resets busy and error state while retaining the password visibility
+  /// preference.
   ChangePasswordState _next({
     bool isSaving = false,
     bool? showPasswords,

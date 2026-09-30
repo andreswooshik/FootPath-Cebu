@@ -1,3 +1,4 @@
+import 'package:footpath_cebu/data/dto/player_dto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:footpath_cebu/domain/entities/age_tier.dart';
 import 'package:footpath_cebu/domain/entities/player.dart';
@@ -163,7 +164,7 @@ void main() {
         ),
       );
 
-      final restored = Player.fromJson(player.toJson());
+      final restored = PlayerDto.fromJson(player.toJson());
 
       expect(restored.id, player.id);
       expect(restored.name, player.name);
@@ -175,7 +176,7 @@ void main() {
     });
 
     test('fromJson tolerates missing optional fields', () {
-      final player = Player.fromJson({'id': 7, 'name': 'Test'});
+      final player = PlayerDto.fromJson({'id': 7, 'name': 'Test'});
       expect(player.id, '7');
       expect(player.eligibility, EligibilityStatus.pending);
       expect(player.ageTier, AgeTier.development);
@@ -183,7 +184,7 @@ void main() {
     });
 
     test('independent-club eligibility applicability round-trips as false', () {
-      final player = Player.fromJson({
+      final player = PlayerDto.fromJson({
         'id': 8,
         'name': 'Independent Player',
         'academicEligibilityApplicable': false,
@@ -193,7 +194,7 @@ void main() {
     });
 
     test('parses the latest compatible Player Stats embedded in a player', () {
-      final player = Player.fromJson({
+      final player = PlayerDto.fromJson({
         'id': 9,
         'name': 'Current Stats Player',
         'position': 'CM',
@@ -263,7 +264,7 @@ void main() {
         ),
       );
 
-      final restored = Player.fromJson(player.toJson());
+      final restored = PlayerDto.fromJson(player.toJson());
 
       // Field-level checks, not just overall: two independently-wrong values
       // could coincidentally still average to the same overall.
@@ -304,7 +305,7 @@ void main() {
         ),
       );
 
-      final restored = Player.fromJson(player.toJson());
+      final restored = PlayerDto.fromJson(player.toJson());
 
       expect(restored.currentPlayerStats?.scores['diving'], 82);
       expect(restored.currentPlayerStats?.roleGroup, 'GOALKEEPER');
