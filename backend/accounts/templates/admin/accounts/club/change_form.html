@@ -1,13 +1,24 @@
 {% extends "admin/change_form.html" %}
 {% load i18n admin_urls %}
 
+{% block messages %}
+  <div id="club-review-messages" aria-live="polite">{{ block.super }}</div>
+{% endblock %}
+
+{% block form_top %}
+  {{ block.super }}
+  <span id="club-registration-state" data-state="{{ registration_state }}" hidden></span>
+{% endblock %}
+
 {% block submit_buttons_bottom %}
   {% if is_pending_application %}
-    <section class="fp-application-review" aria-labelledby="application-review-title">
+    <section class="fp-application-review" aria-labelledby="application-review-title"
+             data-club-review data-club-name="{{ original.name }}">
       <span class="fp-application-review__status">Pending review</span>
       <h2 id="application-review-title">Club application</h2>
       <p>The submitted details are read-only. Review the information and supporting document before making a decision.</p>
       <div class="fp-application-review__actions">
+        {% if has_review_permission %}
         <button type="submit"
                 name="_approve_application"
                 value="1"
@@ -20,12 +31,23 @@
                 name="_not_approve_application"
                 value="1"
                 class="btn btn-outline-danger btn-sm"
-                formnovalidate
-                onclick="return window.confirm('Mark this club application as not approved? The coordinator will remain unable to sign in.');">
+                formnovalidate>
           <i class="fas fa-times" aria-hidden="true"></i>
-          Not approve
+          Reject
         </button>
+        {% endif %}
       </div>
+      {% if has_review_permission %}
+        <dialog class="fp-review-dialog" data-review-dialog
+                aria-labelledby="club-review-dialog-title" aria-describedby="club-review-dialog-message">
+          <h2 id="club-review-dialog-title"></h2>
+          <p id="club-review-dialog-message"></p>
+          <div class="d-flex justify-content-end gap-2 mt-4">
+            <button type="button" class="btn btn-secondary" data-review-cancel>Cancel</button>
+            <button type="button" class="btn" data-review-confirm></button>
+          </div>
+        </dialog>
+      {% endif %}
       <a class="fp-application-review__back" href="{% url opts|admin_urlname:'changelist' %}">
         <i class="fas fa-arrow-left" aria-hidden="true"></i>
         Back to clubs

@@ -1,0 +1,23 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrahead %}{{ block.super }}{{ media }}{% endblock %}
+
+{% block content %}
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <form method="post" class="card-body" data-review-fallback>
+        {% csrf_token %}
+        <input type="hidden" name="{{ decision_field }}" value="1">
+        <input type="hidden" name="_confirm_application" value="1">
+        <h2>{{ title }}</h2>
+        <p>Are you sure you want to {% if approving %}approve{% else %}reject{% endif %} "{{ original.name }}"?</p>
+        <p>{% if approving %}Approving this application will allow the club and its approved Coordinator to access FootPath.{% else %}The club's application will be marked as not approved. The Coordinator will remain unable to sign in.{% endif %}</p>
+        <a href="{{ request.path }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn {% if approving %}btn-success{% else %}btn-danger{% endif %}"
+                data-loading-label="{% if approving %}Approving...{% else %}Rejecting...{% endif %}">
+          {% if approving %}Approve{% else %}Reject{% endif %}
+        </button>
+      </form>
+    </div>
+  </div>
+{% endblock %}

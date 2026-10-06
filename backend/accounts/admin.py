@@ -1,4 +1,5 @@
 import json
+import logging
 
 from django import forms
 from django.contrib import admin, messages
@@ -32,6 +33,8 @@ from .services import (
     set_coordinator_firebase_disabled,
     set_firebase_password,
 )
+
+logger = logging.getLogger(__name__)
 
 # This project authorizes by the custom User.role field (see accounts.permissions),
 # not Django's Groups/Permissions. Hide Groups so the admin isn't cluttered with an
@@ -518,6 +521,37 @@ class GuardianLinkAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     readonly_fields = ('created_at',)
 
 
+class ClubRegistrationStatusFilter(admin.SimpleListFilter):
+    """Filter the existing registry by its derived application state."""
+
+    title = 'Application status'
+    parameter_name = 'registration_state'
+
+    def lookups(self, request, model_admin):
+        """Offer the existing derived application states as registry filters."""
+        return (
+            ('PENDING', 'Pending'),
+            ('APPROVED', 'Approved'),
+            ('NOT_APPROVED', 'Not approved'),
+            ('INCOMPLETE', 'Incomplete'),
+        )
+
+    def queryset(self, request, queryset):
+        """Read the selected state through the club and Coordinator active flags."""
+        state = self.value()
+        if state == 'INCOMPLETE':
+            return queryset.exclude(members__role=Roles.COORDINATOR)
+        if state == 'NOT_APPROVED':
+            return queryset.filter(is_active=False, members__role=Roles.COORDINATOR)
+        if state in ('PENDING', 'APPROVED'):
+            return queryset.filter(
+                is_active=True,
+                members__role=Roles.COORDINATOR,
+                members__is_active=state == 'APPROVED',
+            )
+        return queryset
+
+
 @admin.register(Club)
 class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     form = ClubAdminForm
@@ -531,7 +565,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
         'active_chip',
         'created_at',
     )
-    list_filter = ('is_active', 'is_school_affiliated')
+    list_filter = (ClubRegistrationStatusFilter, 'is_active', 'is_school_affiliated')
     search_fields = ('name', 'slug', 'head_coach_name', 'cvfa_membership')
     prepopulated_fields = {'slug': ('name',)}
     readonly_fields = ('created_at',)
@@ -539,6 +573,28 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
     # do not expose Django's ambiguous raw "Is active" checkbox.
     exclude = ('is_active',)
     actions = ('approve_registrations', 'disapprove_registrations')
+
+    class Media:
+        js = ('footpath/club_review.js',)
+
+    def has_review_permission(self, request, obj=None):
+        """Require the existing Super Admin role and Django change permission."""
+        user = request.user
+        return (
+            user.is_authenticated
+            and user.is_active
+            and user.is_staff
+            and user.role == Roles.ADMIN
+            and self.has_change_permission(request, obj)
+        )
+
+    def get_actions(self, request):
+        """Expose the existing club lifecycle actions only to authorized reviewers."""
+        actions = super().get_actions(request)
+        if not self.has_review_permission(request):
+            actions.pop('approve_registrations', None)
+            actions.pop('disapprove_registrations', None)
+        return actions
 
     @staticmethod
     def _registration_state(club):
@@ -588,7 +644,7 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                 decision = 'not_approve'
 
         if club is not None and decision is not None:
-            if not self.has_change_permission(request, club):
+            if not self.has_review_permission(request, club):
                 raise PermissionDenied
             if self._registration_state(club) != 'PENDING':
                 self.message_user(
@@ -596,14 +652,41 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
                     'This club application has already been reviewed.',
                     level=messages.WARNING,
                 )
+            elif request.POST.get('_confirm_application') != '1':
+                # Progressive enhancement: even without JavaScript the first
+                # button press only renders confirmation and performs no writes.
+                approving = decision == 'approve'
+                return TemplateResponse(
+                    request,
+                    'admin/accounts/club/review_confirmation.html',
+                    {
+                        **self.admin_site.each_context(request),
+                        'opts': self.model._meta,
+                        'original': club,
+                        'title': 'Approve Club Application?'
+                        if approving
+                        else 'Reject Club Application?',
+                        'decision_field': (
+                            '_approve_application' if approving else '_not_approve_application'
+                        ),
+                        'approving': approving,
+                        'media': self.media,
+                    },
+                )
             elif decision == 'approve':
-                self.approve_registrations(request, Club.objects.filter(pk=club.pk))
+                self.approve_registrations(
+                    request, Club.objects.filter(pk=club.pk), pending_only=True
+                )
             else:
-                self.disapprove_registrations(request, Club.objects.filter(pk=club.pk))
+                self.disapprove_registrations(
+                    request, Club.objects.filter(pk=club.pk), pending_only=True
+                )
             return HttpResponseRedirect(request.path)
 
         context = {
             'is_pending_application': self._registration_state(club) == 'PENDING',
+            'registration_state': self._registration_state(club),
+            'has_review_permission': self.has_review_permission(request, club),
             **(extra_context or {}),
         }
         return super().changeform_view(
@@ -728,67 +811,126 @@ class ClubAdmin(BulkActionLabelMixin, admin.ModelAdmin):
         return False
 
     @admin.action(description='Activate selected clubs and coordinators')
-    def approve_registrations(self, request, queryset):
+    def approve_registrations(self, request, queryset, *, pending_only=False):
         """Approve clubs and activate their pending coordinator logins."""
+        if not self.has_review_permission(request):
+            raise PermissionDenied
         approved = 0
-        for club in queryset:
-            coordinator = club.coordinator
-            if coordinator is None:
-                continue
-            changed = not club.is_active or not coordinator.is_active
-            if not changed:
-                continue
+        for club_id in queryset.values_list('pk', flat=True):
+            identity_updated = False
             try:
-                set_coordinator_firebase_disabled(coordinator, disabled=False)
-            except Exception as exc:
+                with transaction.atomic():
+                    club = Club.objects.select_for_update().get(pk=club_id)
+                    coordinator = (
+                        User.objects.select_for_update()
+                        .filter(club=club, role=Roles.COORDINATOR)
+                        .first()
+                    )
+                    if coordinator is None:
+                        continue
+                    # Recheck after acquiring the locks, including requests from
+                    # another tab or another administrator that were already in flight.
+                    if pending_only and (not club.is_active or coordinator.is_active):
+                        self.message_user(
+                            request,
+                            'This club application has already been reviewed.',
+                            level=messages.WARNING,
+                        )
+                        continue
+                    if club.is_active and coordinator.is_active:
+                        continue
+                    was_disabled = not coordinator.is_active
+                    set_coordinator_firebase_disabled(coordinator, disabled=False)
+                    identity_updated = True
+                    club.is_active = True
+                    club.save(update_fields=['is_active'])
+                    coordinator.is_active = True
+                    coordinator.save(update_fields=['is_active'])
+            except Exception:
+                logger.exception('Club application approval failed for club %s', club_id)
+                if identity_updated:
+                    self._restore_coordinator_identity(coordinator, disabled=was_disabled)
                 self.message_user(
                     request,
-                    f'{coordinator.email}: approval failed because the mobile identity '
-                    f'could not be enabled: {exc}',
+                    'Club application approval failed. No approval was saved. Please try again.',
                     level=messages.ERROR,
                 )
                 continue
-            with transaction.atomic():
-                club.is_active = True
-                club.save(update_fields=['is_active'])
-                coordinator.is_active = True
-                coordinator.save(update_fields=['is_active'])
             approved += 1
-        self.message_user(
-            request,
-            f'Approved and activated {approved} club application(s).',
-            level=messages.SUCCESS if approved else messages.WARNING,
-        )
+        if approved:
+            self.message_user(
+                request,
+                'Club application approved successfully.'
+                if pending_only
+                else f'Approved and activated {approved} club application(s).',
+                level=messages.SUCCESS,
+            )
+        return approved
 
     @admin.action(description='Deactivate selected clubs and coordinators')
-    def disapprove_registrations(self, request, queryset):
+    def disapprove_registrations(self, request, queryset, *, pending_only=False):
         """Deactivate clubs and prevent their coordinators from logging in."""
+        if not self.has_review_permission(request):
+            raise PermissionDenied
         disapproved = 0
-        with transaction.atomic():
-            for club in queryset:
-                coordinator = club.coordinator
-                if coordinator is None:
-                    continue
-                changed = club.is_active or coordinator.is_active
-                club.is_active = False
-                club.save(update_fields=['is_active'])
-                coordinator.is_active = False
-                coordinator.save(update_fields=['is_active'])
-                try:
-                    set_coordinator_firebase_disabled(coordinator, disabled=True)
-                except Exception as exc:
-                    self.message_user(
-                        request,
-                        f'{coordinator.email}: mobile sessions could not be revoked: {exc}',
-                        level=messages.WARNING,
+        for club_id in queryset.values_list('pk', flat=True):
+            identity_updated = False
+            try:
+                with transaction.atomic():
+                    club = Club.objects.select_for_update().get(pk=club_id)
+                    coordinator = (
+                        User.objects.select_for_update()
+                        .filter(club=club, role=Roles.COORDINATOR)
+                        .first()
                     )
-                if changed:
-                    disapproved += 1
-        self.message_user(
-            request,
-            f'Marked {disapproved} club application(s) as not approved.',
-            level=messages.SUCCESS if disapproved else messages.WARNING,
-        )
+                    if coordinator is None:
+                        continue
+                    if pending_only and (not club.is_active or coordinator.is_active):
+                        self.message_user(
+                            request,
+                            'This club application has already been reviewed.',
+                            level=messages.WARNING,
+                        )
+                        continue
+                    if not club.is_active and not coordinator.is_active:
+                        continue
+                    was_disabled = not coordinator.is_active
+                    set_coordinator_firebase_disabled(coordinator, disabled=True)
+                    identity_updated = True
+                    club.is_active = False
+                    club.save(update_fields=['is_active'])
+                    coordinator.is_active = False
+                    coordinator.save(update_fields=['is_active'])
+            except Exception:
+                logger.exception('Club application rejection failed for club %s', club_id)
+                if identity_updated:
+                    self._restore_coordinator_identity(coordinator, disabled=was_disabled)
+                self.message_user(
+                    request,
+                    'Club application rejection failed. No rejection was saved. Please try again.',
+                    level=messages.ERROR,
+                )
+                continue
+            disapproved += 1
+        if disapproved:
+            self.message_user(
+                request,
+                'Club application rejected successfully.'
+                if pending_only
+                else f'Marked {disapproved} club application(s) as not approved.',
+                level=messages.SUCCESS,
+            )
+        return disapproved
+
+    @staticmethod
+    def _restore_coordinator_identity(coordinator, *, disabled):
+        """Compensate a Firebase change if the local transaction failed."""
+        try:
+            set_coordinator_firebase_disabled(coordinator, disabled=disabled)
+        except Exception:
+            # Firebase and Django cannot share a transaction. Local inactive
+            # user/club checks still deny access if compensation is unavailable.
+            logger.exception('Could not restore Firebase state for coordinator %s', coordinator.pk)
 
     @admin.display(description='Coordinator')
     def coordinator_email(self, obj):

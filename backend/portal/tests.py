@@ -818,6 +818,14 @@ class ApprovalActionTests(TestCase):
         self.assertTrue(user.is_active)
 
     def test_club_registration_actions_approve_and_disapprove(self):
+        request = Mock(
+            user=User.objects.create_superuser(
+                username='club-action-admin',
+                email='club-action-admin@footpath.test',
+                password=_PASSWORD,
+                role=Roles.ADMIN,
+            )
+        )
         club = Club.objects.create(name='Club Action FC', slug='club-action-fc')
         user = User.objects.create_user(
             username='club-action@club.test',
@@ -838,7 +846,7 @@ class ApprovalActionTests(TestCase):
             patch.object(ClubAdmin, 'message_user'),
             patch('accounts.admin.set_coordinator_firebase_disabled', return_value=True),
         ):
-            admin.approve_registrations(Mock(), Club.objects.filter(pk=club.pk))
+            admin.approve_registrations(request, Club.objects.filter(pk=club.pk))
 
         user.refresh_from_db()
         club.refresh_from_db()
@@ -849,7 +857,7 @@ class ApprovalActionTests(TestCase):
             patch.object(ClubAdmin, 'message_user'),
             patch('accounts.admin.set_coordinator_firebase_disabled', return_value=True),
         ):
-            admin.disapprove_registrations(Mock(), Club.objects.filter(pk=club.pk))
+            admin.disapprove_registrations(request, Club.objects.filter(pk=club.pk))
 
         user.refresh_from_db()
         club.refresh_from_db()
