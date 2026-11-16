@@ -13,7 +13,13 @@ from academy.model_operations import AuditLog
 from academy.model_tournaments import TournamentSquadEntry
 from academy.storage import delete_photo, invalidate_signed_photo_url
 from accounts.firebase import ensure_initialized
-from accounts.models import FirebaseProvisioningCleanup, PlayerRegistration, Roles, User
+from accounts.models import (
+    FirebaseProvisioningCleanup,
+    GuardianLink,
+    PlayerRegistration,
+    Roles,
+    User,
+)
 from accounts.permissions import IsCoordinator
 
 logger = logging.getLogger(__name__)
@@ -58,6 +64,10 @@ def _person_payload(person):
         'linkedPeople': [],
     }
     if person.role == Roles.PLAYER:
+        # Player detail queries require this one-to-one profile. Keep the
+        # invariant explicit for type checkers, which see reverse relations as
+        # optional even when the queryset has filtered missing profiles out.
+        assert profile is not None
         payload.update(
             dateOfBirth=profile.date_of_birth.isoformat() if profile.date_of_birth else None,
             age=profile.age,
@@ -80,7 +90,7 @@ def _person_payload(person):
     elif person.role == Roles.GUARDIAN:
         payload['linkedPeople'] = [
             {
-                'id': str(link.player_id),
+                'id': str(link.player.pk),
                 'name': _display_name(
                     link.player,
                     player_profile=getattr(link.player, 'player_profile', None),
@@ -88,9 +98,9 @@ def _person_payload(person):
                 'email': '',
                 'mobileNumber': '',
             }
-            for link in person.guardian_links.select_related('player__player_profile').filter(
-                player__is_active=True
-            )
+            for link in GuardianLink.objects.filter(guardian=person)
+            .select_related('player__player_profile')
+            .filter(player__is_active=True)
         ]
     return payload
 
@@ -168,7 +178,10 @@ class CoordinatorPersonDetailView(APIView):
                     status=status.HTTP_404_NOT_FOUND,
                 )
             if person.role == Roles.GUARDIAN:
-                linked_count = person.guardian_links.filter(player__is_active=True).count()
+                linked_count = GuardianLink.objects.filter(
+                    guardian=person,
+                    player__is_active=True,
+                ).count()
                 if linked_count:
                     noun = 'player' if linked_count == 1 else 'players'
                     return Response(
